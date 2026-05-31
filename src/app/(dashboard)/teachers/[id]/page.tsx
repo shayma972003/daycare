@@ -570,7 +570,12 @@ export default function TeacherProfilePage() {
                         {inv.pdfUrl && (
                           <>
                             <button
-                              onClick={() => window.open(inv.pdfUrl!, "_blank")}
+                              onClick={() => {
+                                const base64 = inv.pdfUrl!.split(",")[1];
+                                const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+                                const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+                                window.open(url, "_blank");
+                              }}
                               className="px-2.5 py-1 text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
                             >عرض</button>
                             <button

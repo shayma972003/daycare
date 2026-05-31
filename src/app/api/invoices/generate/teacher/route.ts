@@ -7,9 +7,8 @@ import { z } from "zod";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { createElement } from "react";
 import { Document, Page, Text, View, StyleSheet, Font } from "@react-pdf/renderer";
-import { writeFile, mkdir, access } from "fs/promises";
+import { access } from "fs/promises";
 import { join } from "path";
-import { randomUUID } from "crypto";
 
 Font.register({
   family: "Arabic",
@@ -105,12 +104,8 @@ function maybeRow(cond: unknown, label: string, val: string) {
   );
 }
 
-async function savePdf(buffer: Buffer): Promise<string> {
-  const dir = join(process.cwd(), "public", "invoices");
-  await mkdir(dir, { recursive: true });
-  const filename = `invoice-${randomUUID()}.pdf`;
-  await writeFile(join(dir, filename), buffer);
-  return `/invoices/${filename}`;
+function savePdf(buffer: Buffer): string {
+  return `data:application/pdf;base64,${buffer.toString("base64")}`;
 }
 
 export async function POST(request: Request) {
@@ -249,7 +244,7 @@ export async function POST(request: Request) {
     );
 
     const pdfBuffer = await renderToBuffer(pdfDoc as Parameters<typeof renderToBuffer>[0]);
-    const fileUrl = await savePdf(pdfBuffer);
+    const fileUrl = savePdf(pdfBuffer);
 
     const invoice = await prisma.invoice.create({
       data: {

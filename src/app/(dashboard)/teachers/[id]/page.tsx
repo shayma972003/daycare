@@ -569,21 +569,21 @@ export default function TeacherProfilePage() {
                       <div className="flex gap-2">
                         {inv.pdfUrl && (
                           <>
-                            <a
-                              href={inv.pdfUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
+                            <button
+                              onClick={() => window.open(inv.pdfUrl!, "_blank")}
                               className="px-2.5 py-1 text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
-                            >
-                              عرض
-                            </a>
-                            <a
-                              href={inv.pdfUrl}
-                              download
+                            >عرض</button>
+                            <button
+                              onClick={() => {
+                                const link = document.createElement("a");
+                                link.href = inv.pdfUrl!;
+                                link.download = `فاتورة-${inv.id.slice(0, 8)}.pdf`;
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                              }}
                               className="px-2.5 py-1 text-xs bg-gray-50 text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors"
-                            >
-                              تنزيل
-                            </a>
+                            >تنزيل</button>
                           </>
                         )}
                       </div>

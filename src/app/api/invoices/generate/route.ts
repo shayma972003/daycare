@@ -28,7 +28,7 @@ Font.register({
 Font.registerHyphenationCallback((word) => [word]);
 
 const styles = StyleSheet.create({
-  page: { fontFamily: "Arabic", padding: 40, direction: "rtl", fontSize: 11 },
+  page: { fontFamily: "Arabic", backgroundColor: "#ffffff", padding: 40, fontSize: 11 },
   header: { flexDirection: "row-reverse", justifyContent: "space-between", marginBottom: 24, borderBottom: "1pt solid #e5e7eb", paddingBottom: 16 },
   schoolName: { fontSize: 18, fontWeight: "bold", color: "#1a2340" },
   schoolMeta: { fontSize: 9, color: "#6b7280", marginTop: 2 },
@@ -305,6 +305,8 @@ export async function POST(request: Request) {
     );
 
     try {
+      console.log("=== invoiceData sent to PDF ===");
+      console.log(JSON.stringify({ school: inv.school, student: inv.student, lineItemsCount: inv.lineItems.length, grandTotal: inv.grandTotal }, null, 2));
       const pdfBuffer = await renderToBuffer(pdfDoc as Parameters<typeof renderToBuffer>[0]);
       const fileUrl = savePdf(pdfBuffer);
 

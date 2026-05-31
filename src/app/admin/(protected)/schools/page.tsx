@@ -17,6 +17,12 @@ interface SchoolRow {
   teacherCount: number;
 }
 
+interface CreatedAccount {
+  name: string;
+  email: string;
+  tempPassword: string;
+}
+
 const STATUS_LABELS: Record<string, { label: string; cls: string }> = {
   active: { label: "نشط", cls: "bg-emerald-500/20 text-emerald-300" },
   suspended: { label: "موقوف", cls: "bg-orange-500/20 text-orange-300" },
@@ -24,11 +30,97 @@ const STATUS_LABELS: Record<string, { label: string; cls: string }> = {
   trial: { label: "تجريبي", cls: "bg-blue-500/20 text-blue-300" },
 };
 
+function CreateSchoolModal({ onClose, onCreated }: { onClose: () => void; onCreated: (s: SchoolRow) => void }) {
+  const [schoolName, setSchoolName] = useState("");
+  const [email, setEmail] = useState("");
+  const [contactNumber, setContactNumber] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [created, setCreated] = useState<CreatedAccount | null>(null);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    try {
+      const res = await axios.post<SchoolRow & { tempPassword: string }>("/api/admin/schools", {
+        schoolName, email, contactNumber: contactNumber || undefined,
+      });
+      setCreated({ name: schoolName, email, tempPassword: res.data.tempPassword });
+      onCreated(res.data);
+    } catch (err) {
+      setError(axios.isAxiosError(err) ? err.response?.data?.error ?? "حدث خطأ" : "حدث خطأ");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const inputCls = "w-full bg-[#0f0f1a] border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-indigo-500 transition-colors";
+
+  return (
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" dir="rtl">
+      <div className="bg-[#1e1e2e] border border-white/10 rounded-2xl w-full max-w-md p-6 shadow-2xl">
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-white font-bold text-lg">إنشاء حساب جديد</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-white text-xl font-bold w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10">×</button>
+        </div>
+
+        {created ? (
+          <div className="space-y-4">
+            <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 space-y-2">
+              <p className="text-emerald-400 font-bold text-sm">✓ تم إنشاء الحساب بنجاح</p>
+              <p className="text-gray-300 text-sm">المنشأة: <span className="text-white font-medium">{created.name}</span></p>
+              <p className="text-gray-300 text-sm">البريد: <span className="text-white font-medium" dir="ltr">{created.email}</span></p>
+              <div className="mt-3 bg-[#0f0f1a] rounded-lg p-3">
+                <p className="text-gray-400 text-xs mb-1">كلمة المرور المؤقتة</p>
+                <p className="text-yellow-400 font-mono text-lg tracking-widest">{created.tempPassword}</p>
+              </div>
+              <p className="text-gray-500 text-xs mt-2">تم إرسال بيانات الدخول للبريد الإلكتروني إن كان Resend مُفعّلاً.</p>
+            </div>
+            <button onClick={onClose} className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-sm transition-colors">
+              إغلاق
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-gray-400 text-xs mb-1.5">اسم المنشأة *</label>
+              <input value={schoolName} onChange={(e) => setSchoolName(e.target.value)} required placeholder="روضة النور" className={inputCls} />
+            </div>
+            <div>
+              <label className="block text-gray-400 text-xs mb-1.5">البريد الإلكتروني *</label>
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="admin@school.com" dir="ltr" className={inputCls} />
+            </div>
+            <div>
+              <label className="block text-gray-400 text-xs mb-1.5">رقم الجوال (اختياري)</label>
+              <input type="tel" value={contactNumber} onChange={(e) => setContactNumber(e.target.value)} placeholder="05xxxxxxxx" dir="ltr" className={inputCls} />
+            </div>
+
+            {error && (
+              <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-sm text-red-400 text-center">{error}</div>
+            )}
+
+            <div className="flex gap-3 pt-1">
+              <button type="submit" disabled={loading} className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-sm transition-colors disabled:opacity-60">
+                {loading ? "جارٍ الإنشاء…" : "إنشاء الحساب"}
+              </button>
+              <button type="button" onClick={onClose} className="px-5 py-2.5 border border-white/10 rounded-xl text-sm text-gray-400 hover:bg-white/5 transition-colors">
+                إلغاء
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function AdminSchoolsPage() {
   const [schools, setSchools] = useState<SchoolRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [showCreate, setShowCreate] = useState(false);
 
   useEffect(() => {
     axios.get<SchoolRow[]>("/api/admin/schools").then((r) => setSchools(r.data)).finally(() => setLoading(false));
@@ -42,11 +134,24 @@ export default function AdminSchoolsPage() {
 
   return (
     <div className="p-8 space-y-6">
+      {showCreate && (
+        <CreateSchoolModal
+          onClose={() => setShowCreate(false)}
+          onCreated={(s) => setSchools((prev) => [s, ...prev])}
+        />
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">المدارس</h1>
           <p className="text-gray-400 text-sm mt-1">{schools.length} مدرسة مسجلة</p>
         </div>
+        <button
+          onClick={() => setShowCreate(true)}
+          className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-sm transition-colors"
+        >
+          + إنشاء حساب جديد
+        </button>
       </div>
 
       {/* Filters */}
@@ -109,10 +214,7 @@ export default function AdminSchoolsPage() {
                       {s.last_login_at ? new Date(s.last_login_at).toLocaleDateString("ar-SA") : "—"}
                     </td>
                     <td className="px-5 py-4">
-                      <Link
-                        href={`/admin/schools/${s.id}`}
-                        className="text-indigo-400 hover:text-indigo-300 text-xs font-medium"
-                      >
+                      <Link href={`/admin/schools/${s.id}`} className="text-indigo-400 hover:text-indigo-300 text-xs font-medium">
                         عرض
                       </Link>
                     </td>

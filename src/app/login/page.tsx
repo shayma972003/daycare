@@ -1,17 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 
 function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.get("reset") === "1") {
+      setSuccess("تم تغيير كلمة المرور بنجاح. يمكنك تسجيل الدخول الآن.");
+    }
+  }, [searchParams]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -89,6 +98,12 @@ function LoginForm() {
               </div>
             </div>
 
+            {success && (
+              <div className="p-3 bg-green-50 border border-green-200 rounded-xl text-sm text-green-700 text-center">
+                {success}
+              </div>
+            )}
+
             {error && (
               <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 text-center">
                 {error}
@@ -109,6 +124,12 @@ function LoginForm() {
                 "دخول"
               )}
             </button>
+
+            <div className="text-center mt-3">
+              <Link href="/forgot-password" className="text-sm text-gray-500 hover:text-[#1a2340] transition-colors">
+                نسيت كلمة المرور؟
+              </Link>
+            </div>
           </form>
 
         </div>
@@ -118,5 +139,9 @@ function LoginForm() {
 }
 
 export default function LoginPage() {
-  return <LoginForm />;
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
+  );
 }

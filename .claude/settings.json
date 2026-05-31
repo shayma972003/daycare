@@ -22,7 +22,10 @@
       "Read(//tmp/**)",
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(New-Item -ItemType Directory -Force \"c:\\\\Users\\\\sara-\\\\Desktop\\\\daycare-system\\\\public\\\\fonts\")",
+      "Bash(Out-Null)",
+      "Bash(Write-Host \"Directory ready\")"
     ]
   }
 }

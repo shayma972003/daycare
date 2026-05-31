@@ -1,8 +1,6 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
-# dependencies
-/node_modules
-/.pnp
+# ─── Dependencies ────────────────────────────────────────────────────────────
+node_modules/
+.pnp
 .pnp.*
 .yarn/*
 !.yarn/patches
@@ -10,32 +8,52 @@
 !.yarn/releases
 !.yarn/versions
 
-# testing
-/coverage
+# ─── Next.js ─────────────────────────────────────────────────────────────────
+.next/
+out/
+build/
 
-# next.js
-/.next/
-/out/
+# ─── Prisma ──────────────────────────────────────────────────────────────────
+# Generated client (re-generated on postinstall)
+src/generated/
+prisma/migrations/.env
 
-# production
-/build
+# ─── Environment Variables ────────────────────────────────────────────────────
+# Never commit secrets (DB URL, Twilio, Resend, NextAuth secret, etc.)
+.env
+.env.*
+!.env.example
 
-# misc
-.DS_Store
-*.pem
+# ─── Uploads / User Content ──────────────────────────────────────────────────
+public/uploads/
 
-# debug
+# ─── Testing ─────────────────────────────────────────────────────────────────
+coverage/
+.nyc_output/
+
+# ─── TypeScript ──────────────────────────────────────────────────────────────
+*.tsbuildinfo
+next-env.d.ts
+
+# ─── Debug Logs ──────────────────────────────────────────────────────────────
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+*.log
 
-# env files (can opt-in for committing if needed)
-.env*
+# ─── OS / Editor ─────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.pem
+.vscode/
+!.vscode/extensions.json
+.idea/
 
-# vercel
+# ─── Vercel / Deployment ─────────────────────────────────────────────────────
 .vercel
 
-# typescript
-*.tsbuildinfo
-next-env.d.ts
+# ─── Misc ────────────────────────────────────────────────────────────────────
+.cache/
+*.swp
+*.swo

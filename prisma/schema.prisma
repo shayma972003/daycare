@@ -1,0 +1,426 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Period {
+  MORNING
+  EVENING
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum PaymentStatus {
+  PAID
+  LATE
+  CANCELLED
+  SUSPENDED
+}
+
+enum PaymentMethod {
+  CASH
+  TRANSFER
+  CARD
+}
+
+enum NotificationType {
+  WHATSAPP
+  EMAIL
+}
+
+enum DeliveryStatus {
+  SENT
+  FAILED
+}
+
+enum InvoiceType {
+  STUDENT
+  TEACHER
+}
+
+model SuperAdmin {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  password_hash String
+  created_at    DateTime @default(now())
+}
+
+model SubscriptionPlan {
+  id                     String   @id @default(cuid())
+  name                   String   @unique
+  price                  Float
+  max_students           Int
+  max_classes            Int
+  max_whatsapp_per_month Int
+  is_active              Boolean  @default(true)
+  created_at             DateTime @default(now())
+  updated_at             DateTime @updatedAt
+
+  schools School[]
+}
+
+model AdminMessage {
+  id           String    @id @default(cuid())
+  subject      String
+  body         String
+  channel      String    @default("both")
+  target_type  String
+  scheduled_at DateTime?
+  sent_at      DateTime?
+  is_automated Boolean   @default(false)
+  template_key String?
+  created_at   DateTime  @default(now())
+
+  recipients AdminMessageRecipient[]
+}
+
+model AdminMessageRecipient {
+  id           String    @id @default(cuid())
+  message_id   String
+  school_id    String
+  delivered_at DateTime?
+  read_at      DateTime?
+
+  message AdminMessage @relation(fields: [message_id], references: [id])
+  school  School       @relation(fields: [school_id], references: [id])
+}
+
+model AutomatedAlertRule {
+  id               String   @id @default(cuid())
+  trigger_type     String
+  threshold_days   Int?
+  message_subject  String
+  message_template String
+  is_active        Boolean  @default(true)
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+}
+
+model AdminActivityLog {
+  id           String   @id @default(cuid())
+  school_id    String?
+  action       String
+  metadata     Json?
+  performed_by String   @default("system")
+  performed_at DateTime @default(now())
+
+  school School? @relation(fields: [school_id], references: [id])
+}
+
+model School {
+  id        String   @id @default(cuid())
+  name      String
+  email     String?
+  logoUrl   String?
+  plan      String   @default("basic")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // School hours for attendance calculations (HH:mm format)
+  teacherCheckinTime  String?
+  teacherCheckoutTime String?
+  studentCheckinTime  String?
+  studentCheckoutTime String?
+
+  // Legal information
+  commercialRegistration String?
+  vatNumber              String?
+  contactNumber          String?
+  address                String?
+
+  // Admin panel fields
+  plan_id             String?
+  subscription_status String    @default("active")
+  renewal_date        DateTime?
+  suspended_at        DateTime?
+  suspension_reason   String?
+  last_login_at       DateTime?
+
+  subscription_plan SubscriptionPlan?       @relation(fields: [plan_id], references: [id])
+  admin_messages    AdminMessageRecipient[]
+  activity_logs     AdminActivityLog[]
+
+  users            User[]
+  teachers         Teacher[]
+  classes          Class[]
+  students         Student[]
+  guardians        Guardian[]
+  activities       Activity[]
+  invoices         Invoice[]
+  notificationLogs NotificationLog[]
+  settings         Settings?
+  monthlyExpenses  MonthlyExpense[]
+  import_sessions  ImportSession[]
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      String   @default("admin")
+  schoolId  String
+  school    School   @relation(fields: [schoolId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Settings {
+  id                String   @id @default(cuid())
+  schoolId          String   @unique
+  school            School   @relation(fields: [schoolId], references: [id])
+  hourlyLateFee     Float    @default(0)
+  dailyStudentFee   Float    @default(0)
+  monthlyStudentFee Float    @default(0)
+  reminderTemplate  String   @default("مرحباً، <guardian_name>، نود إعلامكم بأن الرسوم المستحقة على <child_name> بمبلغ <amount_due> ريال تستحق بتاريخ <due_date>. مع تحيات <school_name>")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Class {
+  id               String   @id @default(cuid())
+  name             String
+  schoolId         String
+  school           School   @relation(fields: [schoolId], references: [id])
+  teacherId        String?
+  teacher          Teacher? @relation(fields: [teacherId], references: [id])
+  group            String   @default("kg1")
+  period           Period   @default(MORNING)
+  registrationDate DateTime @default(now())
+  notes            String?
+  imageUrl         String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  students        Student[]
+  activityInvites ActivityInvite[]
+  attendances     Attendance[]
+}
+
+model Teacher {
+  id                String        @id @default(cuid())
+  name              String
+  schoolId          String
+  school            School        @relation(fields: [schoolId], references: [id])
+  period            Period        @default(MORNING)
+  idNumber          String?
+  dateOfBirth       DateTime?
+  nationality       String?
+  email             String?
+  phone1            String?
+  phone2            String?
+  paymentMethod     PaymentMethod @default(CASH)
+  joinDate          DateTime      @default(now())
+  enrollmentEndDate DateTime?
+  monthlySalary     Float         @default(0)
+  lateDeductionRate Float         @default(0)
+  qualification1    String?
+  qualification2    String?
+  qualification3    String?
+  attendanceHours   Float         @default(0)
+  lateHours         Float         @default(0)
+  isActive          Boolean       @default(true)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  classes            Class[]
+  activities         Activity[]
+  teacherAttendances TeacherAttendance[]
+  invoices           Invoice[]
+}
+
+model Guardian {
+  id        String    @id @default(cuid())
+  schoolId  String
+  school    School    @relation(fields: [schoolId], references: [id])
+  name      String
+  phone1    String?
+  phone2    String?
+  email     String?
+  name_2    String?
+  phone_3   String?
+  phone_4   String?
+  email_2   String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  students Student[]
+}
+
+model Student {
+  id                String        @id @default(cuid())
+  name              String
+  schoolId          String
+  school            School        @relation(fields: [schoolId], references: [id])
+  classId           String?
+  class             Class?        @relation(fields: [classId], references: [id])
+  guardianId        String?
+  guardian          Guardian?     @relation(fields: [guardianId], references: [id])
+  healthCondition   String?
+  academicStage     String?
+  period            Period        @default(MORNING)
+  idNumber          String?
+  dateOfBirth       DateTime?
+  nationality       String?
+  gender            Gender        @default(MALE)
+  registrationDate  DateTime      @default(now())
+  allergies         String?
+  paymentMethod     PaymentMethod @default(CASH)
+  enrollmentEndDate DateTime?
+  paymentStatus     PaymentStatus @default(PAID)
+  attendanceHours   Float         @default(0)
+  lateHours         Float         @default(0)
+  registration_fee  Float         @default(0)
+  additionalFile    String?
+  isActive          Boolean       @default(true)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  attendances Attendance[]
+  invoices    Invoice[]
+}
+
+model Activity {
+  id            String   @id @default(cuid())
+  name          String
+  schoolId      String
+  school        School   @relation(fields: [schoolId], references: [id])
+  teacherId     String?
+  teacher       Teacher? @relation(fields: [teacherId], references: [id])
+  group         String   @default("kg1")
+  period        Period   @default(MORNING)
+  childrenCount Int      @default(0)
+  startDate     DateTime
+  endDate       DateTime
+  activityFee   Float    @default(0)
+  imageUrl      String?
+  message       String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  activityInvites ActivityInvite[]
+}
+
+model ActivityInvite {
+  id         String   @id @default(cuid())
+  activityId String
+  activity   Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  classId    String
+  class      Class    @relation(fields: [classId], references: [id])
+  createdAt  DateTime @default(now())
+
+  @@unique([activityId, classId])
+}
+
+model Attendance {
+  id          String    @id @default(cuid())
+  studentId   String
+  student     Student   @relation(fields: [studentId], references: [id])
+  classId     String?
+  class       Class?    @relation(fields: [classId], references: [id])
+  schoolId    String
+  checkinAt   DateTime?
+  checkoutAt  DateTime?
+  lateMinutes Int       @default(0)
+  lateFee     Float     @default(0)
+  date        DateTime  @default(dbgenerated("CURRENT_DATE")) @db.Date
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model TeacherAttendance {
+  id          String    @id @default(cuid())
+  teacherId   String
+  teacher     Teacher   @relation(fields: [teacherId], references: [id])
+  schoolId    String
+  checkinAt   DateTime?
+  checkoutAt  DateTime?
+  lateMinutes Int       @default(0)
+  date        DateTime  @default(dbgenerated("CURRENT_DATE")) @db.Date
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Invoice {
+  id        String      @id @default(cuid())
+  schoolId  String
+  school    School      @relation(fields: [schoolId], references: [id])
+  type      InvoiceType
+  studentId String?
+  student   Student?    @relation(fields: [studentId], references: [id])
+  teacherId String?
+  teacher   Teacher?    @relation(fields: [teacherId], references: [id])
+  amount    Float
+  pdfUrl    String?
+  data      Json
+  createdAt DateTime    @default(now())
+}
+
+model NotificationLog {
+  id            String           @id @default(cuid())
+  schoolId      String
+  school        School           @relation(fields: [schoolId], references: [id])
+  recipientName String
+  type          NotificationType
+  content       String
+  status        DeliveryStatus   @default(SENT)
+  sentAt        DateTime         @default(now())
+}
+
+model MonthlyExpense {
+  id          String   @id @default(cuid())
+  schoolId    String
+  school      School   @relation(fields: [schoolId], references: [id])
+  month       Int
+  year        Int
+  rent        Float    @default(0)
+  maintenance Float    @default(0)
+  materials   Float    @default(0)
+  misc        Float    @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([schoolId, month, year])
+}
+
+model ImportSession {
+  id                         String    @id @default(cuid())
+  school_id                  String
+  type                       String
+  status                     String    @default("pending")
+  total_rows                 Int       @default(0)
+  valid_rows                 Int       @default(0)
+  error_rows                 Int       @default(0)
+  duplicate_guardians_reused Int       @default(0)
+  column_mapping             Json?
+  original_headers           Json?
+  file_language              String?
+  created_at                 DateTime  @default(now())
+  expires_at                 DateTime
+  completed_at               DateTime?
+
+  school School      @relation(fields: [school_id], references: [id])
+  rows   ImportRow[]
+}
+
+model ImportRow {
+  id          String   @id @default(cuid())
+  session_id  String
+  row_number  Int
+  raw_data    Json
+  mapped_data Json?
+  status      String   @default("pending")
+  errors      Json?
+  warnings    Json?
+  created_at  DateTime @default(now())
+
+  session ImportSession @relation(fields: [session_id], references: [id], onDelete: Cascade)
+}

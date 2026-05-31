@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsx *)",
+      "Bash(Start-Sleep -Seconds 5)",
+      "Bash(Get-Content \"C:\\\\Users\\\\sara-\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-sara--Desktop-daycare-system\\\\c65d6c5d-e7d9-4629-bade-8677d866324a\\\\tasks\\\\bx0epu629.output\")",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\sara-\\\\Desktop\\\\daycare-system\" -Force)",
+      "Bash(Select-Object Name, PSIsContainer)",
+      "Bash(Format-List)",
+      "Bash(npm install *)",
+      "Bash(node -e \"require\\('xlsx'\\); console.log\\('xlsx ok'\\)\")",
+      "Bash(node -e \"require\\('@react-pdf/renderer'\\); console.log\\('pdf ok'\\)\")",
+      "Bash(npm list *)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\('auth',{}\\), ensure_ascii=False, indent=2\\)\\)\")",
+      "Bash(node -e \"const d=require\\('./locales/ar.json'\\); console.log\\(JSON.stringify\\(d.auth, null, 2\\)\\)\")",
+      "Bash(npx kill-port *)",
+      "Bash(pkill -f \"next dev\")",
+      "Bash(rm -rf .next)",
+      "Bash(cmd /c \"rmdir /s /q .next\")",
+      "Bash(curl -s -X POST http://localhost:3000/api/auth/register -H \"Content-Type: application/json\" -d '{\"schoolName\":\"Test School\",\"email\":\"test-new-unique@example.com\",\"password\":\"password123\",\"confirmPassword\":\"password123\"}')",
+      "Bash(curl -s -o /tmp/dup-test.txt -w \"%{http_code}\" -X POST http://localhost:3000/api/auth/register -H \"Content-Type: application/json\" -d '{\"schoolName\":\"Test School\",\"email\":\"test-new-unique@example.com\",\"password\":\"password123\",\"confirmPassword\":\"password123\"}')",
+      "Read(//tmp/**)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)"
+    ]
+  }
+}

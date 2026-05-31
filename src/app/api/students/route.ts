@@ -1,0 +1,174 @@
+import { requireSession } from "@/lib/session";
+import { prisma } from "@/lib/prisma";
+import { z } from "zod";
+
+const createStudentSchema = z.object({
+  name: z.string().min(1),
+  classId: z.string().optional(),
+  healthCondition: z.string().optional(),
+  academicStage: z.string().optional(),
+  period: z.enum(["MORNING", "EVENING"]).optional(),
+  idNumber: z.string().optional(),
+  dateOfBirth: z.string().optional(),
+  nationality: z.string().optional(),
+  gender: z.enum(["MALE", "FEMALE"]).optional(),
+  allergies: z.string().optional(),
+  paymentMethod: z.enum(["CASH", "TRANSFER", "CARD"]).optional(),
+  enrollmentEndDate: z.string().optional(),
+  paymentStatus: z.enum(["PAID", "LATE", "CANCELLED", "SUSPENDED"]).optional(),
+  // Guardian fields
+  registration_fee: z.number().min(0).optional(),
+  guardianId: z.string().optional(),
+  guardianName: z.string().optional(),
+  guardianPhone1: z.string().optional(),
+  guardianPhone2: z.string().optional(),
+  guardianEmail: z.string().optional(),
+  guardianName2: z.string().optional(),
+  guardianPhone3: z.string().optional(),
+  guardianPhone4: z.string().optional(),
+  guardianEmail2: z.string().optional(),
+});
+
+export async function GET(request: Request) {
+  let session;
+  try {
+    session = await requireSession();
+  } catch {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const schoolId = (session.user as { schoolId: string }).schoolId;
+
+  const { searchParams } = new URL(request.url);
+  const search = searchParams.get("search");
+  const classId = searchParams.get("classId");
+  const paymentStatus = searchParams.get("paymentStatus");
+
+  const where: Record<string, unknown> = { schoolId };
+
+  if (search) {
+    where.name = { contains: search, mode: "insensitive" };
+  }
+  if (classId) {
+    where.classId = classId;
+  }
+  if (paymentStatus) {
+    where.paymentStatus = paymentStatus;
+  }
+
+  const students = await prisma.student.findMany({
+    where,
+    include: { class: true, guardian: true },
+    orderBy: { name: "asc" },
+  });
+
+  return Response.json(students, { status: 200 });
+}
+
+export async function POST(request: Request) {
+  let session;
+  try {
+    session = await requireSession();
+  } catch {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const schoolId = (session.user as { schoolId: string }).schoolId;
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return Response.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  const parsed = createStudentSchema.safeParse(body);
+  if (!parsed.success) {
+    return Response.json({ error: parsed.error.flatten() }, { status: 422 });
+  }
+
+  const {
+    name,
+    classId,
+    healthCondition,
+    academicStage,
+    period,
+    idNumber,
+    dateOfBirth,
+    nationality,
+    gender,
+    allergies,
+    paymentMethod,
+    enrollmentEndDate,
+    paymentStatus,
+    guardianId: clientGuardianId,
+    guardianName,
+    guardianPhone1,
+    guardianPhone2,
+    guardianEmail,
+    guardianName2,
+    guardianPhone3,
+    guardianPhone4,
+    guardianEmail2,
+    registration_fee,
+  } = parsed.data;
+
+  // Resolve guardian: link existing or create new
+  let guardianId: string | undefined = clientGuardianId;
+
+  if (!guardianId && guardianName) {
+    // Try to find existing guardian by phone1 or email within school
+    const existing = await prisma.guardian.findFirst({
+      where: {
+        schoolId,
+        OR: [
+          ...(guardianPhone1 ? [{ phone1: guardianPhone1 }] : []),
+          ...(guardianEmail ? [{ email: guardianEmail }] : []),
+        ],
+      },
+    });
+
+    if (existing) {
+      guardianId = existing.id;
+    } else {
+      const created = await prisma.guardian.create({
+        data: {
+          schoolId,
+          name: guardianName,
+          phone1: guardianPhone1 ?? null,
+          phone2: guardianPhone2 ?? null,
+          email: guardianEmail ?? null,
+          name_2: guardianName2 ?? null,
+          phone_3: guardianPhone3 ?? null,
+          phone_4: guardianPhone4 ?? null,
+          email_2: guardianEmail2 ?? null,
+        },
+      });
+      guardianId = created.id;
+    }
+  }
+
+  const student = await prisma.student.create({
+    data: {
+      schoolId,
+      name,
+      ...(classId !== undefined && { classId }),
+      ...(guardianId !== undefined && { guardianId }),
+      ...(healthCondition !== undefined && { healthCondition }),
+      ...(academicStage !== undefined && { academicStage }),
+      ...(period !== undefined && { period }),
+      ...(idNumber !== undefined && { idNumber }),
+      ...(dateOfBirth !== undefined && { dateOfBirth: new Date(dateOfBirth) }),
+      ...(nationality !== undefined && { nationality }),
+      ...(gender !== undefined && { gender }),
+      ...(allergies !== undefined && { allergies }),
+      ...(paymentMethod !== undefined && { paymentMethod }),
+      ...(enrollmentEndDate !== undefined && {
+        enrollmentEndDate: new Date(enrollmentEndDate),
+      }),
+      ...(paymentStatus !== undefined && { paymentStatus }),
+      ...(registration_fee !== undefined && { registration_fee }),
+    },
+    include: { class: true, guardian: true },
+  });
+
+  return Response.json(student, { status: 201 });
+}

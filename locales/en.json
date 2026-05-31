@@ -1,0 +1,345 @@
+{
+  "app": {
+    "name": "Daycare Management System"
+  },
+  "nav": {
+    "home": "Home",
+    "students": "Students",
+    "classes": "Classes",
+    "statistics": "Statistics",
+    "teachers": "Teachers",
+    "settings": "Settings"
+  },
+  "common": {
+    "save": "Save Changes",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "add": "Add",
+    "search": "Search",
+    "filter": "Filter",
+    "loading": "Loading...",
+    "error": "An error occurred",
+    "success": "Success",
+    "confirm": "Confirm",
+    "close": "Close",
+    "viewMore": "View More",
+    "noData": "No data available",
+    "actions": "Actions",
+    "select": "Select",
+    "all": "All",
+    "export": "Export",
+    "print": "Print",
+    "download": "Download",
+    "upload": "Upload",
+    "sar": "SAR",
+    "hour": "hour",
+    "hours": "hours",
+    "minutes": "minutes",
+    "day": "day",
+    "month": "month",
+    "year": "year"
+  },
+  "auth": {
+    "login": "Login",
+    "logout": "Logout",
+    "email": "Email",
+    "password": "Password",
+    "loginButton": "Sign In",
+    "loginTitle": "Welcome to Daycare Management System",
+    "loginSubtitle": "Sign in to continue"
+  },
+  "home": {
+    "title": "Home",
+    "currentActivities": "Current Activities",
+    "pastActivities": "Past Activities",
+    "addActivity": "Add Activity",
+    "activityForm": {
+      "title": "Activity Details",
+      "name": "Activity Name",
+      "teacher": "Responsible Teacher",
+      "childrenCount": "Number of Children",
+      "group": "Group",
+      "period": "Period",
+      "startDate": "Start Date",
+      "endDate": "End Date",
+      "fee": "Activity Fee",
+      "image": "Activity Image",
+      "message": "Attached Message",
+      "classes": "Invited Classes",
+      "saveAndSend": "Save & Send",
+      "deleteActivity": "Delete Activity"
+    },
+    "teacher": "Teacher",
+    "group": "Group",
+    "period": "Period",
+    "children": "children",
+    "from": "From",
+    "to": "To"
+  },
+  "students": {
+    "title": "Students",
+    "addStudent": "Add Student",
+    "searchPlaceholder": "Search by name...",
+    "filterByClass": "Filter by Class",
+    "filterByStatus": "Filter by Status",
+    "bulkAction": "Bulk Action",
+    "bulkCheckin": "Check In",
+    "bulkCheckout": "Check Out",
+    "bulkReminder": "Send Reminder",
+    "columns": {
+      "name": "Name",
+      "paymentStatus": "Payment Status",
+      "period": "Period",
+      "class": "Class",
+      "checkinTime": "Check-in Time",
+      "actions": "Actions"
+    },
+    "actions": {
+      "viewMore": "View More",
+      "sendReminder": "Send Reminder",
+      "checkin": "Check In",
+      "checkout": "Check Out"
+    },
+    "profile": {
+      "title": "Student Profile",
+      "name": "Full Name",
+      "healthCondition": "Health Condition",
+      "academicStage": "Academic Stage",
+      "period": "Period",
+      "class": "Class",
+      "idNumber": "ID / Iqama Number",
+      "dateOfBirth": "Date of Birth",
+      "nationality": "Nationality",
+      "gender": "Gender",
+      "registrationDate": "Registration Date",
+      "allergies": "Allergies & Alerts",
+      "guardianName": "Guardian Name",
+      "phone1": "Phone 1",
+      "phone2": "Phone 2",
+      "paymentMethod": "Payment Method",
+      "email": "Email",
+      "enrollmentEndDate": "Enrollment End Date",
+      "attendanceHours": "Attendance Hours",
+      "lateHours": "Late Hours",
+      "additionalFile": "Additional File",
+      "actions": {
+        "save": "Save Changes",
+        "cancel": "Cancel Subscription",
+        "reactivate": "Re-enroll",
+        "sendPaymentReminder": "Send Payment Reminder",
+        "deleteLateFee": "Delete Late Fee",
+        "issueInvoice": "Issue Invoice"
+      },
+      "invoices": "Issued Invoices"
+    }
+  },
+  "classes": {
+    "title": "Classes",
+    "addClass": "Add Class",
+    "filterByPeriod": "Filter by Period",
+    "filterByStage": "Filter by Stage",
+    "form": {
+      "title": "Class Details",
+      "name": "Class Name",
+      "teacher": "Responsible Teacher",
+      "childrenCount": "Number of Children",
+      "group": "Group",
+      "period": "Period",
+      "registrationDate": "Registration Date",
+      "image": "Class Image",
+      "notes": "Tasks & Notes",
+      "save": "Save Changes",
+      "delete": "Delete Class"
+    },
+    "teacher": "Teacher",
+    "children": "children",
+    "group": "Group",
+    "period": "Period"
+  },
+  "teachers": {
+    "title": "Teachers",
+    "addTeacher": "Add Teacher",
+    "columns": {
+      "name": "Name",
+      "period": "Period",
+      "class": "Class",
+      "checkinTime": "Check-in Time",
+      "actions": "Actions"
+    },
+    "actions": {
+      "viewMore": "View More",
+      "checkin": "Check In",
+      "checkout": "Check Out"
+    },
+    "profile": {
+      "title": "Teacher Profile",
+      "name": "Full Name",
+      "period": "Period",
+      "class": "Class",
+      "idNumber": "ID / Iqama Number",
+      "dateOfBirth": "Date of Birth",
+      "nationality": "Nationality",
+      "email": "Email",
+      "phone1": "Phone 1",
+      "phone2": "Phone 2",
+      "paymentMethod": "Payment Method",
+      "joinDate": "Join Date",
+      "enrollmentEndDate": "Contract End Date",
+      "attendanceHours": "Attendance Hours",
+      "lateHours": "Late Hours",
+      "monthlySalary": "Monthly Salary",
+      "lateDeductionRate": "Late Deduction Rate (SAR/hr)",
+      "qualifications": "Qualifications",
+      "qualification1": "Qualification 1",
+      "qualification2": "Qualification 2",
+      "qualification3": "Qualification 3",
+      "actions": {
+        "save": "Save Changes",
+        "cancel": "Terminate",
+        "deleteLateFee": "Delete Late Deduction",
+        "issueInvoice": "Issue Invoice"
+      },
+      "invoices": "Issued Invoices",
+      "salaryCalc": {
+        "title": "Salary Calculation",
+        "baseSalary": "Base Salary",
+        "lateDeduction": "Late Deduction",
+        "netSalary": "Net Salary"
+      }
+    }
+  },
+  "statistics": {
+    "title": "Statistics",
+    "financial": {
+      "title": "Monthly Financial Summary",
+      "revenue": "Revenue",
+      "expenses": "Expenses",
+      "netProfit": "Net Profit",
+      "netLoss": "Net Loss"
+    },
+    "paymentStatus": {
+      "title": "Payment Status Distribution"
+    },
+    "expenseBreakdown": {
+      "title": "Expense Breakdown"
+    },
+    "enrollmentTrend": {
+      "title": "Enrollment Trend (Boys / Girls)",
+      "boys": "Boys",
+      "girls": "Girls"
+    },
+    "attendanceRate": {
+      "title": "Attendance Rate by Class"
+    },
+    "lateDeparture": {
+      "title": "Late Departure Summary",
+      "totalLateHours": "Total Late Hours",
+      "totalLateFees": "Total Late Fees",
+      "topStudents": "Top 5 Late Students",
+      "student": "Student",
+      "lateHours": "Late Hours",
+      "lateFee": "Late Fee"
+    },
+    "expenseEntry": {
+      "title": "Expense Entry",
+      "rent": "Rent",
+      "maintenance": "Maintenance",
+      "materials": "Materials",
+      "misc": "Miscellaneous",
+      "salaries": "Salaries (auto-calculated)",
+      "save": "Save Expenses"
+    },
+    "reports": {
+      "monthly": "Export Monthly Financial Report",
+      "semiAnnual": "Export Semi-Annual Financial Report",
+      "annual": "Export Annual Financial Report"
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "search": "Search Settings",
+    "schoolName": "School Name",
+    "logo": "Logo",
+    "email": "Email",
+    "changePassword": "Change Password",
+    "currentPassword": "Current Password",
+    "newPassword": "New Password",
+    "confirmPassword": "Confirm Password",
+    "subscription": {
+      "title": "Subscription Plan",
+      "update": "Update Subscription Plan"
+    },
+    "fees": {
+      "title": "Fee Settings",
+      "hourlyLateFee": "Hourly Late Fee",
+      "dailyStudentFee": "Daily Student Fee",
+      "monthlyStudentFee": "Monthly Student Fee"
+    },
+    "messageTemplate": {
+      "title": "Automatic Message Template",
+      "placeholder": "Write your message template here..."
+    },
+    "notificationLog": {
+      "title": "Notification Log",
+      "recipient": "Recipient",
+      "type": "Type",
+      "content": "Content",
+      "sentAt": "Sent At",
+      "status": "Status"
+    },
+    "save": "Save Settings"
+  },
+  "periods": {
+    "MORNING": "Morning",
+    "EVENING": "Evening"
+  },
+  "gender": {
+    "MALE": "Male",
+    "FEMALE": "Female"
+  },
+  "paymentStatus": {
+    "PAID": "Paid",
+    "LATE": "Late",
+    "CANCELLED": "Cancelled",
+    "SUSPENDED": "Suspended"
+  },
+  "paymentMethod": {
+    "CASH": "Cash",
+    "TRANSFER": "Transfer",
+    "CARD": "Card"
+  },
+  "notificationType": {
+    "WHATSAPP": "WhatsApp",
+    "EMAIL": "Email"
+  },
+  "deliveryStatus": {
+    "SENT": "Sent",
+    "FAILED": "Failed"
+  },
+  "variables": {
+    "title": "Available Variables",
+    "child_name": "<child_name>",
+    "guardian_name": "<guardian_name>",
+    "checkin_time": "<checkin_time>",
+    "checkout_time": "<checkout_time>",
+    "amount_due": "<amount_due>",
+    "due_date": "<due_date>",
+    "school_name": "<school_name>",
+    "activity_name": "<activity_name>"
+  },
+  "invoices": {
+    "invoice": "Invoice",
+    "studentInvoice": "Student Invoice",
+    "teacherInvoice": "Salary Slip",
+    "issuedAt": "Issue Date",
+    "download": "Download",
+    "view": "View"
+  },
+  "groups": {
+    "kg1": "KG 1",
+    "kg2": "KG 2",
+    "kg3": "KG 3",
+    "nursery": "Nursery"
+  }
+}

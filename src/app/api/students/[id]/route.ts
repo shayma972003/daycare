@@ -1,0 +1,233 @@
+import { requireSession } from "@/lib/session";
+import { prisma } from "@/lib/prisma";
+import { z } from "zod";
+
+const updateStudentSchema = z.object({
+  name: z.string().min(1).optional(),
+  classId: z.string().nullish(),
+  healthCondition: z.string().nullish(),
+  academicStage: z.string().nullish(),
+  period: z.enum(["MORNING", "EVENING"]).nullish(),
+  idNumber: z.string().nullish(),
+  dateOfBirth: z.string().nullish(),
+  nationality: z.string().nullish(),
+  gender: z.enum(["MALE", "FEMALE"]).nullish(),
+  allergies: z.string().nullish(),
+  paymentMethod: z.enum(["CASH", "TRANSFER", "CARD"]).nullish(),
+  enrollmentEndDate: z.string().nullish(),
+  paymentStatus: z.enum(["PAID", "LATE", "CANCELLED", "SUSPENDED"]).nullish(),
+  isActive: z.boolean().optional(),
+  registration_fee: z.number().min(0).optional(),
+  // Guardian fields
+  guardianId: z.string().nullish(),
+  guardianName: z.string().nullish(),
+  guardianPhone1: z.string().nullish(),
+  guardianPhone2: z.string().nullish(),
+  guardianEmail: z.string().nullish(),
+  guardianName2: z.string().nullish(),
+  guardianPhone3: z.string().nullish(),
+  guardianPhone4: z.string().nullish(),
+  guardianEmail2: z.string().nullish(),
+});
+
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  let session;
+  try {
+    session = await requireSession();
+  } catch {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const schoolId = (session.user as { schoolId: string }).schoolId;
+  const { id } = await params;
+
+  try {
+    const student = await prisma.student.findFirst({
+      where: { id, schoolId },
+      include: { class: true, guardian: true },
+    });
+
+    if (!student) {
+      return Response.json({ error: "Not found" }, { status: 404 });
+    }
+
+    // Siblings: other students sharing the same guardian in this school
+    const siblings = student.guardianId
+      ? await prisma.student.findMany({
+          where: {
+            schoolId,
+            guardianId: student.guardianId,
+            id: { not: id },
+            isActive: true,
+          },
+          select: { id: true, name: true },
+        })
+      : [];
+
+    return Response.json(
+      {
+        ...student,
+        registration_fee: (student as unknown as Record<string, unknown>).registration_fee ?? 0,
+        siblings,
+      },
+      { status: 200 }
+    );
+  } catch (err) {
+    console.error("[GET /api/students/[id]] error:", err);
+    return Response.json({ error: "Internal server error", detail: String(err) }, { status: 500 });
+  }
+}
+
+export async function PUT(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  let session;
+  try {
+    session = await requireSession();
+  } catch {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const schoolId = (session.user as { schoolId: string }).schoolId;
+  const { id } = await params;
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return Response.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  const parsed = updateStudentSchema.safeParse(body);
+  if (!parsed.success) {
+    return Response.json({ error: parsed.error.flatten() }, { status: 422 });
+  }
+
+  const existing = await prisma.student.findFirst({ where: { id, schoolId } });
+  if (!existing) {
+    return Response.json({ error: "Not found" }, { status: 404 });
+  }
+
+  const data = parsed.data;
+  const updateData: Record<string, unknown> = {};
+
+  if (data.name !== undefined) updateData.name = data.name;
+  if ("classId" in data) updateData.classId = data.classId ?? null;
+  if ("healthCondition" in data) updateData.healthCondition = data.healthCondition ?? null;
+  if ("academicStage" in data) updateData.academicStage = data.academicStage ?? null;
+  if ("period" in data) updateData.period = data.period ?? null;
+  if ("idNumber" in data) updateData.idNumber = data.idNumber ?? null;
+  if ("dateOfBirth" in data) {
+    updateData.dateOfBirth = data.dateOfBirth ? new Date(data.dateOfBirth) : null;
+  }
+  if ("nationality" in data) updateData.nationality = data.nationality ?? null;
+  if ("gender" in data) updateData.gender = data.gender ?? null;
+  if ("allergies" in data) updateData.allergies = data.allergies ?? null;
+  if ("paymentMethod" in data) updateData.paymentMethod = data.paymentMethod ?? null;
+  if ("enrollmentEndDate" in data) {
+    updateData.enrollmentEndDate = data.enrollmentEndDate
+      ? new Date(data.enrollmentEndDate)
+      : null;
+  }
+  if ("paymentStatus" in data) updateData.paymentStatus = data.paymentStatus ?? null;
+  if (data.isActive !== undefined) updateData.isActive = data.isActive;
+  if (data.registration_fee !== undefined) updateData.registration_fee = data.registration_fee;
+
+  // Guardian update logic
+  if ("guardianId" in data && data.guardianId) {
+    // Client is linking an existing guardian
+    updateData.guardianId = data.guardianId;
+  } else if (data.guardianName) {
+    // Find or create guardian
+    const phone1 = data.guardianPhone1 ?? undefined;
+    const email = data.guardianEmail ?? undefined;
+
+    const foundGuardian = await prisma.guardian.findFirst({
+      where: {
+        schoolId,
+        OR: [
+          ...(phone1 ? [{ phone1 }] : []),
+          ...(email ? [{ email }] : []),
+        ],
+      },
+    });
+
+    const extraGuardianFields = {
+      ...(data.guardianName2 !== undefined && { name_2: data.guardianName2 ?? null }),
+      ...(data.guardianPhone3 !== undefined && { phone_3: data.guardianPhone3 ?? null }),
+      ...(data.guardianPhone4 !== undefined && { phone_4: data.guardianPhone4 ?? null }),
+      ...(data.guardianEmail2 !== undefined && { email_2: data.guardianEmail2 ?? null }),
+    };
+
+    if (foundGuardian) {
+      updateData.guardianId = foundGuardian.id;
+      await prisma.guardian.update({
+        where: { id: foundGuardian.id },
+        data: {
+          name: data.guardianName,
+          ...(phone1 !== undefined && { phone1 }),
+          ...(data.guardianPhone2 !== undefined && { phone2: data.guardianPhone2 ?? null }),
+          ...(email !== undefined && { email }),
+          ...extraGuardianFields,
+        },
+      });
+    } else if (existing.guardianId) {
+      updateData.guardianId = existing.guardianId;
+      await prisma.guardian.update({
+        where: { id: existing.guardianId },
+        data: {
+          name: data.guardianName,
+          ...(phone1 !== undefined && { phone1 }),
+          ...(data.guardianPhone2 !== undefined && { phone2: data.guardianPhone2 ?? null }),
+          ...(email !== undefined && { email }),
+          ...extraGuardianFields,
+        },
+      });
+    } else {
+      const created = await prisma.guardian.create({
+        data: {
+          schoolId,
+          name: data.guardianName,
+          phone1: phone1 ?? null,
+          phone2: data.guardianPhone2 ?? null,
+          email: email ?? null,
+          ...extraGuardianFields,
+        },
+      });
+      updateData.guardianId = created.id;
+    }
+  }
+
+  const student = await prisma.student.update({
+    where: { id },
+    data: updateData,
+    include: { class: true, guardian: true },
+  });
+
+  return Response.json(student, { status: 200 });
+}
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  let session;
+  try {
+    session = await requireSession();
+  } catch {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const schoolId = (session.user as { schoolId: string }).schoolId;
+  const { id } = await params;
+
+  const existing = await prisma.student.findFirst({ where: { id, schoolId } });
+  if (!existing) {
+    return Response.json({ error: "Not found" }, { status: 404 });
+  }
+
+  await prisma.student.delete({ where: { id } });
+
+  return Response.json({ success: true });
+}

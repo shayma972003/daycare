@@ -1,0 +1,345 @@
+{
+  "app": {
+    "name": "نظام إدارة الروضة"
+  },
+  "nav": {
+    "home": "الرئيسية",
+    "students": "الطلاب",
+    "classes": "الفصول",
+    "statistics": "الإحصائيات",
+    "teachers": "المعلم",
+    "settings": "الإعدادات"
+  },
+  "common": {
+    "save": "حفظ التغييرات",
+    "cancel": "إلغاء",
+    "delete": "حذف",
+    "edit": "تعديل",
+    "add": "إضافة",
+    "search": "بحث",
+    "filter": "تصفية",
+    "loading": "جاري التحميل...",
+    "error": "حدث خطأ",
+    "success": "تم بنجاح",
+    "confirm": "تأكيد",
+    "close": "إغلاق",
+    "viewMore": "معرفة المزيد",
+    "noData": "لا توجد بيانات",
+    "actions": "الإجراءات",
+    "select": "اختر",
+    "all": "الكل",
+    "export": "تصدير",
+    "print": "طباعة",
+    "download": "تحميل",
+    "upload": "رفع",
+    "sar": "ر.س",
+    "hour": "ساعة",
+    "hours": "ساعات",
+    "minutes": "دقيقة",
+    "day": "يوم",
+    "month": "شهر",
+    "year": "سنة"
+  },
+  "auth": {
+    "login": "تسجيل الدخول",
+    "logout": "تسجيل الخروج",
+    "email": "البريد الإلكتروني",
+    "password": "كلمة المرور",
+    "loginButton": "دخول",
+    "loginTitle": "أهلاً بك في نظام إدارة الروضة",
+    "loginSubtitle": "سجّل دخولك للمتابعة"
+  },
+  "home": {
+    "title": "الرئيسية",
+    "currentActivities": "الفعاليات القائمة حالياً",
+    "pastActivities": "الفعاليات السابقة",
+    "addActivity": "إضافة فعالية",
+    "activityForm": {
+      "title": "تفاصيل الفعالية",
+      "name": "اسم الفعالية",
+      "teacher": "المعلم المسؤول",
+      "childrenCount": "عدد الأطفال",
+      "group": "المجموعة",
+      "period": "الفترة",
+      "startDate": "تاريخ البدء",
+      "endDate": "تاريخ الانتهاء",
+      "fee": "رسوم الفعالية",
+      "image": "صورة الفعالية",
+      "message": "الرسالة المرفقة",
+      "classes": "الفصول المدعوة",
+      "saveAndSend": "حفظ التغييرات وإرسال",
+      "deleteActivity": "حذف الفعالية"
+    },
+    "teacher": "المعلم",
+    "group": "المجموعة",
+    "period": "الفترة",
+    "children": "طفل",
+    "from": "من",
+    "to": "إلى"
+  },
+  "students": {
+    "title": "الطلاب",
+    "addStudent": "أضف طالب",
+    "searchPlaceholder": "البحث بالاسم...",
+    "filterByClass": "تصفية بالفصل",
+    "filterByStatus": "تصفية بالحالة",
+    "bulkAction": "تنفيذ الأمر",
+    "bulkCheckin": "تسجيل الدخول",
+    "bulkCheckout": "تسجيل الخروج",
+    "bulkReminder": "ارسال تذكير",
+    "columns": {
+      "name": "الاسم",
+      "paymentStatus": "حالة الدفع",
+      "period": "الفترة",
+      "class": "الفصل",
+      "checkinTime": "وقت الوصول",
+      "actions": "الإجراءات"
+    },
+    "actions": {
+      "viewMore": "معرفة المزيد",
+      "sendReminder": "ارسال تذكير",
+      "checkin": "تسجيل الوصول",
+      "checkout": "تسجيل الخروج"
+    },
+    "profile": {
+      "title": "ملف الطالب",
+      "name": "الاسم الكامل",
+      "healthCondition": "الحالة الصحية",
+      "academicStage": "المرحلة الدراسية",
+      "period": "الفترة",
+      "class": "الفصل",
+      "idNumber": "رقم الهوية / الإقامة",
+      "dateOfBirth": "تاريخ الميلاد",
+      "nationality": "الجنسية",
+      "gender": "الجنس",
+      "registrationDate": "تاريخ التسجيل",
+      "allergies": "الحساسية والتنبيهات",
+      "guardianName": "اسم ولي الأمر",
+      "phone1": "رقم الجوال 1",
+      "phone2": "رقم الجوال 2",
+      "paymentMethod": "طريقة الدفع",
+      "email": "البريد الإلكتروني",
+      "enrollmentEndDate": "تاريخ انتهاء الاشتراك",
+      "attendanceHours": "ساعات الحضور",
+      "lateHours": "ساعات التأخير",
+      "additionalFile": "ملف إضافي",
+      "actions": {
+        "save": "حفظ التغييرات",
+        "cancel": "إلغاء الاشتراك",
+        "reactivate": "إعادة تسجيل",
+        "sendPaymentReminder": "ارسال تذكير بالدفع",
+        "deleteLateFee": "حذف رسوم التأخير",
+        "issueInvoice": "اصدار فاتورة"
+      },
+      "invoices": "الفواتير الصادرة"
+    }
+  },
+  "classes": {
+    "title": "الفصول",
+    "addClass": "إضافة فصل",
+    "filterByPeriod": "تصفية بالفترة",
+    "filterByStage": "تصفية بالمرحلة",
+    "form": {
+      "title": "تفاصيل الفصل",
+      "name": "اسم الفصل",
+      "teacher": "المعلم المسؤول",
+      "childrenCount": "عدد الأطفال",
+      "group": "المجموعة",
+      "period": "الفترة",
+      "registrationDate": "تاريخ التسجيل",
+      "image": "صورة الفصل",
+      "notes": "المهام والملاحظات",
+      "save": "حفظ التغييرات",
+      "delete": "حذف الفصل"
+    },
+    "teacher": "المعلم",
+    "children": "طفل",
+    "group": "المجموعة",
+    "period": "الفترة"
+  },
+  "teachers": {
+    "title": "المعلم",
+    "addTeacher": "أضف معلم",
+    "columns": {
+      "name": "الاسم",
+      "period": "الفترة",
+      "class": "الفصل",
+      "checkinTime": "وقت الوصول",
+      "actions": "الإجراءات"
+    },
+    "actions": {
+      "viewMore": "معرفة المزيد",
+      "checkin": "تسجيل الوصول",
+      "checkout": "تسجيل الخروج"
+    },
+    "profile": {
+      "title": "ملف المعلم",
+      "name": "الاسم الكامل",
+      "period": "الفترة",
+      "class": "الفصل",
+      "idNumber": "رقم الهوية / الإقامة",
+      "dateOfBirth": "تاريخ الميلاد",
+      "nationality": "الجنسية",
+      "email": "البريد الإلكتروني",
+      "phone1": "رقم الجوال 1",
+      "phone2": "رقم الجوال 2",
+      "paymentMethod": "طريقة الدفع",
+      "joinDate": "تاريخ الانضمام",
+      "enrollmentEndDate": "تاريخ انتهاء العقد",
+      "attendanceHours": "ساعات الحضور",
+      "lateHours": "ساعات التأخير",
+      "monthlySalary": "الراتب الشهري",
+      "lateDeductionRate": "خصم التأخير (ر.س/ساعة)",
+      "qualifications": "المؤهلات",
+      "qualification1": "المؤهل 1",
+      "qualification2": "المؤهل 2",
+      "qualification3": "المؤهل 3",
+      "actions": {
+        "save": "حفظ التغييرات",
+        "cancel": "إلغاء الانضمام",
+        "deleteLateFee": "حذف رسوم التأخير",
+        "issueInvoice": "اصدار فاتورة"
+      },
+      "invoices": "الفواتير الصادرة",
+      "salaryCalc": {
+        "title": "حساب الراتب",
+        "baseSalary": "الراتب الأساسي",
+        "lateDeduction": "خصم التأخير",
+        "netSalary": "صافي الراتب"
+      }
+    }
+  },
+  "statistics": {
+    "title": "الإحصائيات",
+    "financial": {
+      "title": "الملخص المالي الشهري",
+      "revenue": "الإيرادات",
+      "expenses": "المصاريف",
+      "netProfit": "صافي الربح",
+      "netLoss": "صافي الخسارة"
+    },
+    "paymentStatus": {
+      "title": "توزيع حالات الدفع"
+    },
+    "expenseBreakdown": {
+      "title": "توزيع المصاريف"
+    },
+    "enrollmentTrend": {
+      "title": "اتجاه التسجيل (بنين / بنات)",
+      "boys": "بنين",
+      "girls": "بنات"
+    },
+    "attendanceRate": {
+      "title": "معدل الحضور بالفصل"
+    },
+    "lateDeparture": {
+      "title": "ملخص التأخر",
+      "totalLateHours": "إجمالي ساعات التأخر",
+      "totalLateFees": "إجمالي رسوم التأخر",
+      "topStudents": "أكثر 5 طلاب تأخراً",
+      "student": "الطالب",
+      "lateHours": "ساعات التأخر",
+      "lateFee": "الرسوم"
+    },
+    "expenseEntry": {
+      "title": "إدخال المصاريف",
+      "rent": "الإيجار",
+      "maintenance": "الصيانة",
+      "materials": "المواد",
+      "misc": "متفرقات",
+      "salaries": "الرواتب (محسوبة تلقائياً)",
+      "save": "حفظ المصاريف"
+    },
+    "reports": {
+      "monthly": "اصدار التقرير المالي الشهري",
+      "semiAnnual": "اصدار التقرير المالي النصف سنوي",
+      "annual": "اصدار التقرير المالي السنوي"
+    }
+  },
+  "settings": {
+    "title": "الإعدادات",
+    "search": "البحث في الإعدادات",
+    "schoolName": "اسم المدرسة",
+    "logo": "الشعار",
+    "email": "البريد الإلكتروني",
+    "changePassword": "تغيير كلمة المرور",
+    "currentPassword": "كلمة المرور الحالية",
+    "newPassword": "كلمة المرور الجديدة",
+    "confirmPassword": "تأكيد كلمة المرور",
+    "subscription": {
+      "title": "خطة الاشتراك",
+      "update": "تحديث خطة الاشتراك"
+    },
+    "fees": {
+      "title": "إعدادات الرسوم",
+      "hourlyLateFee": "رسوم التأخير بالساعة",
+      "dailyStudentFee": "الرسوم الطالبية اليومية",
+      "monthlyStudentFee": "الرسوم الطالبية الشهرية"
+    },
+    "messageTemplate": {
+      "title": "قالب الرسالة التلقائية",
+      "placeholder": "اكتب قالب الرسالة هنا..."
+    },
+    "notificationLog": {
+      "title": "سجل الإشعارات",
+      "recipient": "المستلم",
+      "type": "النوع",
+      "content": "المحتوى",
+      "sentAt": "وقت الإرسال",
+      "status": "الحالة"
+    },
+    "save": "حفظ الإعدادات"
+  },
+  "periods": {
+    "MORNING": "صباحية",
+    "EVENING": "مسائية"
+  },
+  "gender": {
+    "MALE": "ذكر",
+    "FEMALE": "أنثى"
+  },
+  "paymentStatus": {
+    "PAID": "مدفوع",
+    "LATE": "متأخر",
+    "CANCELLED": "ملغي",
+    "SUSPENDED": "موقف"
+  },
+  "paymentMethod": {
+    "CASH": "نقدي",
+    "TRANSFER": "تحويل",
+    "CARD": "بطاقة"
+  },
+  "notificationType": {
+    "WHATSAPP": "واتساب",
+    "EMAIL": "بريد إلكتروني"
+  },
+  "deliveryStatus": {
+    "SENT": "تم الإرسال",
+    "FAILED": "فشل"
+  },
+  "variables": {
+    "title": "المتغيرات المتاحة",
+    "child_name": "<child_name>",
+    "guardian_name": "<guardian_name>",
+    "checkin_time": "<checkin_time>",
+    "checkout_time": "<checkout_time>",
+    "amount_due": "<amount_due>",
+    "due_date": "<due_date>",
+    "school_name": "<school_name>",
+    "activity_name": "<activity_name>"
+  },
+  "invoices": {
+    "invoice": "فاتورة",
+    "studentInvoice": "فاتورة طالب",
+    "teacherInvoice": "كشف راتب",
+    "issuedAt": "تاريخ الإصدار",
+    "download": "تحميل",
+    "view": "عرض"
+  },
+  "groups": {
+    "kg1": "كي جي 1",
+    "kg2": "كي جي 2",
+    "kg3": "كي جي 3",
+    "nursery": "الحضانة"
+  }
+}

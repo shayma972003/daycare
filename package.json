@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build",
+    "build": "prisma generate && node -e \"const{copyFileSync,mkdirSync}=require('fs');const{join}=require('path');mkdirSync(join('public','fonts'),{recursive:true});['400','700'].forEach(w=>{copyFileSync(join('node_modules','@fontsource','noto-sans-arabic','files','noto-sans-arabic-arabic-'+w+'-normal.woff'),join('public','fonts','noto-sans-arabic-'+w+'.woff'))})\" && next build",
     "start": "next start",
     "lint": "eslint",
     "db:generate": "prisma generate",

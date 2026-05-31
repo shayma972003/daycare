@@ -22,11 +22,11 @@ Font.register({
   family: "NotoSansArabic",
   fonts: [
     {
-      src: join(process.cwd(), "node_modules/@fontsource/noto-sans-arabic/files/noto-sans-arabic-arabic-400-normal.woff"),
+      src: join(process.cwd(), "public", "fonts", "noto-sans-arabic-400.woff"),
       fontWeight: "normal",
     },
     {
-      src: join(process.cwd(), "node_modules/@fontsource/noto-sans-arabic/files/noto-sans-arabic-arabic-700-normal.woff"),
+      src: join(process.cwd(), "public", "fonts", "noto-sans-arabic-700.woff"),
       fontWeight: "bold",
     },
   ],

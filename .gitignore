@@ -27,9 +27,6 @@ prisma/migrations/.env
 # ─── Uploads / User Content ──────────────────────────────────────────────────
 public/uploads/
 
-# ─── Generated Fonts (copied during build) ───────────────────────────────────
-public/fonts/
-
 # ─── Testing ─────────────────────────────────────────────────────────────────
 coverage/
 .nyc_output/

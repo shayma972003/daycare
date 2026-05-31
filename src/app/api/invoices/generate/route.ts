@@ -14,26 +14,22 @@ import {
   StyleSheet,
   Font,
 } from "@react-pdf/renderer";
-import { writeFile, mkdir } from "fs/promises";
+import { writeFile, mkdir, access } from "fs/promises";
 import { join } from "path";
 import { randomUUID } from "crypto";
 
 Font.register({
-  family: "NotoSansArabic",
+  family: "Arabic",
   fonts: [
-    {
-      src: join(process.cwd(), "public", "fonts", "noto-sans-arabic-400.woff"),
-      fontWeight: "normal",
-    },
-    {
-      src: join(process.cwd(), "public", "fonts", "noto-sans-arabic-700.woff"),
-      fontWeight: "bold",
-    },
+    { src: join(process.cwd(), "public", "fonts", "Arabic-Regular.ttf"), fontWeight: "normal" },
+    { src: join(process.cwd(), "public", "fonts", "Arabic-Bold.ttf"), fontWeight: "bold" },
   ],
 });
 
+Font.registerHyphenationCallback((word) => [word]);
+
 const styles = StyleSheet.create({
-  page: { fontFamily: "NotoSansArabic", padding: 40, direction: "rtl", fontSize: 11 },
+  page: { fontFamily: "Arabic", padding: 40, direction: "rtl", fontSize: 11 },
   header: { flexDirection: "row-reverse", justifyContent: "space-between", marginBottom: 24, borderBottom: "1pt solid #e5e7eb", paddingBottom: 16 },
   schoolName: { fontSize: 18, fontWeight: "bold", color: "#1a2340" },
   schoolMeta: { fontSize: 9, color: "#6b7280", marginTop: 2 },
@@ -143,6 +139,16 @@ export async function POST(request: Request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
+
+  const regularFont = join(process.cwd(), "public", "fonts", "Arabic-Regular.ttf");
+  const boldFont = join(process.cwd(), "public", "fonts", "Arabic-Bold.ttf");
+  try {
+    await access(regularFont);
+    await access(boldFont);
+  } catch {
+    console.error("Font files missing at:", regularFont);
+    return Response.json({ error: "Font files missing — run the build script first" }, { status: 500 });
+  }
 
   let body: unknown;
   try {

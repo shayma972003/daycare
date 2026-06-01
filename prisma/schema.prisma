@@ -293,7 +293,7 @@ model Student {
   allergies         String?
   paymentMethod     PaymentMethod @default(CASH)
   enrollmentEndDate DateTime?
-  paymentStatus     PaymentStatus @default(PAID)
+  paymentStatus     String        @default("PAID")
   attendanceHours   Float         @default(0)
   lateHours         Float         @default(0)
   attendanceType    String        @default("دوام منتظم")

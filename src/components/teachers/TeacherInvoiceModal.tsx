@@ -344,7 +344,6 @@ export function TeacherInvoiceModal({ open, teacherId, onClose, onIssued }: Teac
                     <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className={inputCls}>
                       <option value="CASH">نقدي</option>
                       <option value="TRANSFER">تحويل بنكي</option>
-                      <option value="CARD">بطاقة</option>
                     </select>
                   </div>
                 </div>

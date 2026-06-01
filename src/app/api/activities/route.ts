@@ -12,7 +12,7 @@ const createActivitySchema = z.object({
   childrenCount: z.number().int().optional(),
   activityFee: z.number().optional(),
   fee: z.number().optional(),
-  imageUrl: z.string().optional(),
+  imageUrl: z.string().nullish(),
   message: z.string().optional(),
   classIds: z.array(z.string()).optional(),
 });

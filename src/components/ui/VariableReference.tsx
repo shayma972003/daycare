@@ -6,8 +6,6 @@ interface VariableReferenceProps {
 
 const GUARDIAN2_VARS = [
   { key: "guardian_2_name", label: "اسم ولي الأمر الثاني" },
-  { key: "guardian_2_phone", label: "رقم جوال ولي الأمر الثاني" },
-  { key: "guardian_2_email", label: "بريد ولي الأمر الثاني" },
 ];
 
 const fullVars = [

@@ -334,13 +334,7 @@ export default function StatisticsPage() {
           {loadingStats ? (
             <div className="text-sm text-gray-400">{t("common.loading")}</div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <KpiCard
-                label={t("statistics.financial.revenue")}
-                value={formatCurrency(stats?.financialSummary.revenue ?? 0)}
-                colorClass="text-blue-600"
-                bgClass="bg-blue-50"
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <KpiCard
                 label="رسوم التسجيل"
                 value={formatCurrency(stats?.financialSummary.totalRegistrationFees ?? 0)}
@@ -352,26 +346,6 @@ export default function StatisticsPage() {
                 value={formatCurrency(stats?.financialSummary.expenses ?? 0)}
                 colorClass="text-orange-500"
                 bgClass="bg-orange-50"
-              />
-              <KpiCard
-                label={
-                  (stats?.financialSummary.netProfit ?? 0) >= 0
-                    ? t("statistics.financial.netProfit")
-                    : t("statistics.financial.netLoss")
-                }
-                value={formatCurrency(
-                  Math.abs(stats?.financialSummary.netProfit ?? 0)
-                )}
-                colorClass={
-                  (stats?.financialSummary.netProfit ?? 0) >= 0
-                    ? "text-green-600"
-                    : "text-red-600"
-                }
-                bgClass={
-                  (stats?.financialSummary.netProfit ?? 0) >= 0
-                    ? "bg-green-50"
-                    : "bg-red-50"
-                }
               />
             </div>
           )}

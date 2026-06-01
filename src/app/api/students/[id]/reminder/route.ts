@@ -34,7 +34,7 @@ export async function POST(
     "مرحباً، <guardian_name>، نود إعلامكم بأن الرسوم المستحقة على <child_name> بمبلغ <amount_due> ريال تستحق بتاريخ <due_date>. مع تحيات <school_name>";
 
   const schoolName = school?.name ?? "الروضة";
-  const monthlyStudentFee = settings?.monthlyStudentFee ?? 0;
+  const monthlyStudentFee = student.registration_fee ?? settings?.monthlyStudentFee ?? 0;
 
   const now = new Date();
   const nextMonthFirst = new Date(now.getFullYear(), now.getMonth() + 1, 1);

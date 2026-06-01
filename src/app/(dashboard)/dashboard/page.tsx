@@ -5,7 +5,19 @@ import axios from "axios";
 import { Topbar } from "@/components/layout/Topbar";
 import { ActivityGrid, type Activity } from "@/components/activities/ActivityGrid";
 import { ActivityFormModal } from "@/components/activities/ActivityFormModal";
+import { DeliveryStatusBadge } from "@/components/ui/StatusBadge";
 import { t } from "@/lib/utils";
+
+interface NotificationLog {
+  id: string;
+  recipientName: string;
+  type: "WHATSAPP" | "EMAIL";
+  content: string;
+  status: "SENT" | "FAILED";
+  sentAt: string;
+}
+
+const PAGE_SIZE = 15;
 
 export default function HomePage() {
   const [currentActivities, setCurrentActivities] = useState<Activity[]>([]);
@@ -15,6 +27,29 @@ export default function HomePage() {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
+
+  const [logs, setLogs] = useState<NotificationLog[]>([]);
+  const [logsTotal, setLogsTotal] = useState(0);
+  const [logsSkip, setLogsSkip] = useState(0);
+  const [loadingLogs, setLoadingLogs] = useState(true);
+  const [loadingMoreLogs, setLoadingMoreLogs] = useState(false);
+
+  const fetchLogs = useCallback(async (skip = 0, append = false) => {
+    if (skip === 0) setLoadingLogs(true);
+    else setLoadingMoreLogs(true);
+    try {
+      const res = await axios.get<{ logs: NotificationLog[]; total: number }>(
+        `/api/notifications?skip=${skip}&take=${PAGE_SIZE}`
+      );
+      setLogs((prev) => (append ? [...prev, ...res.data.logs] : res.data.logs));
+      setLogsTotal(res.data.total);
+      setLogsSkip(skip + res.data.logs.length);
+    } catch { /* silent */ }
+    finally {
+      setLoadingLogs(false);
+      setLoadingMoreLogs(false);
+    }
+  }, []);
 
   const fetchActivities = useCallback(async () => {
     setLoading(true);
@@ -36,6 +71,10 @@ export default function HomePage() {
   useEffect(() => {
     fetchActivities();
   }, [fetchActivities]);
+
+  useEffect(() => {
+    fetchLogs(0, false);
+  }, [fetchLogs]);
 
   const openAddModal = () => {
     setSelectedActivity(null);
@@ -102,6 +141,79 @@ export default function HomePage() {
                   onSelect={openEditModal}
                 />
               )}
+            </section>
+
+            {/* ── سجل الإشعارات ─────────────────────────────────── */}
+            <section>
+              <h2 className="text-base font-bold text-[#1a2340] mb-4">سجل الإشعارات</h2>
+              <div className="bg-white rounded-xl shadow-md overflow-hidden">
+                {loadingLogs ? (
+                  <div className="flex items-center justify-center py-10 text-gray-400 text-sm gap-2">
+                    <div className="w-5 h-5 border-2 border-gray-200 border-t-[#22c55e] rounded-full animate-spin" />
+                    {t("common.loading")}
+                  </div>
+                ) : logs.length === 0 ? (
+                  <div className="py-10 text-center text-sm text-gray-400">{t("common.noData")}</div>
+                ) : (
+                  <>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-gray-100 bg-gray-50">
+                            <th className="px-4 py-3 text-right font-medium text-gray-600">المستلم</th>
+                            <th className="px-4 py-3 text-right font-medium text-gray-600">النوع</th>
+                            <th className="px-4 py-3 text-right font-medium text-gray-600">المحتوى</th>
+                            <th className="px-4 py-3 text-right font-medium text-gray-600 whitespace-nowrap">وقت الإرسال</th>
+                            <th className="px-4 py-3 text-right font-medium text-gray-600">الحالة</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                          {logs.map((log) => (
+                            <tr key={log.id} className="hover:bg-gray-50/50 transition-colors">
+                              <td className="px-4 py-3 font-medium text-[#1a2340]">{log.recipientName}</td>
+                              <td className="px-4 py-3">
+                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                  log.type === "WHATSAPP"
+                                    ? "bg-green-50 text-green-700"
+                                    : "bg-blue-50 text-blue-700"
+                                }`}>
+                                  {log.type === "WHATSAPP" ? "واتساب" : "بريد"}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-gray-600 max-w-xs">
+                                <span title={log.content}>
+                                  {log.content.length > 70 ? log.content.slice(0, 70) + "…" : log.content}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
+                                {new Date(log.sentAt).toLocaleString("ar-SA", {
+                                  year: "numeric", month: "2-digit", day: "2-digit",
+                                  hour: "2-digit", minute: "2-digit",
+                                })}
+                              </td>
+                              <td className="px-4 py-3">
+                                <DeliveryStatusBadge status={log.status} />
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {logs.length < logsTotal && (
+                      <div className="px-4 py-3 border-t border-gray-50 text-center">
+                        <button
+                          onClick={() => fetchLogs(logsSkip, true)}
+                          disabled={loadingMoreLogs}
+                          className="px-6 py-2 border border-gray-200 text-gray-600 hover:bg-gray-50 rounded-xl text-sm font-medium transition-all disabled:opacity-60"
+                        >
+                          {loadingMoreLogs ? t("common.loading") : `عرض المزيد (${logsTotal - logs.length} متبقي)`}
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
             </section>
           </>
         )}

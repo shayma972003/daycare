@@ -64,7 +64,9 @@ export async function POST(request: Request) {
 
   const parsed = createActivitySchema.safeParse(body);
   if (!parsed.success) {
-    return Response.json({ error: parsed.error.flatten() }, { status: 400 });
+    const fields = parsed.error.flatten().fieldErrors;
+    const first = Object.values(fields).flat()[0] ?? "بيانات غير صحيحة";
+    return Response.json({ error: first }, { status: 400 });
   }
 
   const {

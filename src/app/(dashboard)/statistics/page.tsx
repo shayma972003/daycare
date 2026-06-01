@@ -95,6 +95,7 @@ const PAYMENT_STATUS_COLORS: Record<string, string> = {
   LATE: "#f97316",
   CANCELLED: "#ef4444",
   SUSPENDED: "#94a3b8",
+  "بانتظار الدفع": "#8b5cf6",
 };
 
 const PAYMENT_STATUS_LABELS: Record<string, string> = {
@@ -102,6 +103,7 @@ const PAYMENT_STATUS_LABELS: Record<string, string> = {
   LATE: "متأخر",
   CANCELLED: "ملغي",
   SUSPENDED: "موقف",
+  "بانتظار الدفع": "بانتظار الدفع",
 };
 
 const EXPENSE_COLORS: Record<string, string> = {
@@ -116,7 +118,7 @@ const EXPENSE_LABELS: Record<string, string> = {
   rent: "الإيجار",
   maintenance: "الصيانة",
   materials: "المواد",
-  misc: "متفرقات",
+  misc: "مصاريف إضافية",
   salaries: "الرواتب",
 };
 
@@ -179,6 +181,10 @@ export default function StatisticsPage() {
   const [savingExpense, setSavingExpense] = useState(false);
   const [expenseSaved, setExpenseSaved] = useState(false);
 
+  const [reports, setReports] = useState<Array<{ id: string; name: string; type: string; period_label: string; file_url: string; issued_at: string }>>([]);
+  const [loadingReports, setLoadingReports] = useState(true);
+  const [generatingReport, setGeneratingReport] = useState<string | null>(null);
+
   const [expenseForm, setExpenseForm] = useState({
     rent: 0,
     maintenance: 0,
@@ -221,6 +227,36 @@ export default function StatisticsPage() {
       .catch(() => setExpenseError("فشل تحميل بيانات المصاريف"))
       .finally(() => setLoadingExpense(false));
   }, [expenseMonth, expenseYear]);
+
+  useEffect(() => {
+    axios.get<typeof reports>("/api/financial-reports")
+      .then((r) => setReports(r.data))
+      .finally(() => setLoadingReports(false));
+  }, []);
+
+  async function handleExportReport(key: string, label: string) {
+    setGeneratingReport(key);
+    try {
+      const typeMap: Record<string, "monthly" | "semi_annual" | "annual"> = {
+        monthly: "monthly", semiAnnual: "semi_annual", annual: "annual",
+      };
+      const res = await axios.post<{ id: string; name: string; type: string; period_label: string; file_url: string; issued_at: string }>(
+        "/api/financial-reports/generate",
+        { type: typeMap[key], period_label: label, stats, expenseData }
+      );
+      setReports((prev) => [res.data, ...prev]);
+      // Open immediately
+      const b64 = res.data.file_url.split(",")[1];
+      if (b64) {
+        const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+        window.open(URL.createObjectURL(new Blob([bytes], { type: "application/pdf" })), "_blank");
+      }
+    } catch {
+      alert("فشل إنشاء التقرير");
+    } finally {
+      setGeneratingReport(null);
+    }
+  }
 
   async function handleSaveExpense() {
     setSavingExpense(true);
@@ -692,13 +728,60 @@ export default function StatisticsPage() {
             ).map(([key, label]) => (
               <button
                 key={key}
-                onClick={() => alert("جاري إعداد التقرير...")}
-                className="flex items-center gap-2 px-5 py-2.5 border-2 border-[#1a2340] text-[#1a2340] hover:bg-[#1a2340] hover:text-white rounded-xl font-medium text-sm transition-all"
+                disabled={generatingReport === key}
+                onClick={() => handleExportReport(key, label)}
+                className="flex items-center gap-2 px-5 py-2.5 border-2 border-[#1a2340] text-[#1a2340] hover:bg-[#1a2340] hover:text-white rounded-xl font-medium text-sm transition-all disabled:opacity-60"
               >
-                <span>⬇</span>
+                <span>{generatingReport === key ? "⏳" : "⬇"}</span>
                 {label}
               </button>
             ))}
+          </div>
+        </section>
+
+        {/* ── التقارير المصدرة ──────────────────────────────────────────── */}
+        <section>
+          <SectionTitle title="التقارير المصدرة" />
+          <div className="bg-white rounded-xl shadow-md overflow-hidden">
+            {loadingReports ? (
+              <div className="p-6 text-sm text-gray-400 text-center">{t("common.loading")}</div>
+            ) : reports.length === 0 ? (
+              <div className="p-6 text-sm text-gray-400 text-center">{t("common.noData")}</div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100 bg-gray-50">
+                    <th className="px-5 py-3 text-right font-medium text-gray-600">اسم الملف</th>
+                    <th className="px-5 py-3 text-right font-medium text-gray-600">الفترة</th>
+                    <th className="px-5 py-3 text-right font-medium text-gray-600">تاريخ الإصدار</th>
+                    <th className="px-5 py-3 text-right font-medium text-gray-600">إجراءات</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {reports.map((r) => (
+                    <tr key={r.id} className="hover:bg-gray-50/50">
+                      <td className="px-5 py-3 text-gray-800 font-medium">{r.name}</td>
+                      <td className="px-5 py-3 text-gray-500">{r.period_label}</td>
+                      <td className="px-5 py-3 text-gray-500">
+                        {new Date(r.issued_at).toLocaleDateString("ar-SA")}
+                      </td>
+                      <td className="px-5 py-3">
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => { const b64=r.file_url.split(",")[1]; const bytes=Uint8Array.from(atob(b64),(c)=>c.charCodeAt(0)); window.open(URL.createObjectURL(new Blob([bytes],{type:"application/pdf"})),"_blank"); }}
+                            className="px-2.5 py-1 text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100"
+                          >عرض</button>
+                          <button
+                            onClick={() => { const a=document.createElement("a"); a.href=r.file_url; a.download=`${r.name}.pdf`; document.body.appendChild(a); a.click(); document.body.removeChild(a); }}
+                            className="px-2.5 py-1 text-xs bg-gray-50 text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-100"
+                          >تنزيل</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         </section>
       </div>

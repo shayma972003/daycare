@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import axios from "axios";
 import { Topbar } from "@/components/layout/Topbar";
 import { VariableReference } from "@/components/ui/VariableReference";
@@ -17,6 +17,7 @@ interface SettingsData {
     reminderTemplate: string;
   };
   schoolName: string;
+  logoUrl: string | null;
   plan: string;
   schoolEmail: string;
   teacherCheckinTime: string;
@@ -88,6 +89,10 @@ export default function SettingsPage() {
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsSaved, setSettingsSaved] = useState(false);
 
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const logoInputRef = useRef<HTMLInputElement>(null);
+
   const [schoolName, setSchoolName] = useState("");
   const [email, setEmail] = useState("");
   const [hourlyLateFee, setHourlyLateFee] = useState(0);
@@ -132,6 +137,7 @@ export default function SettingsPage() {
         const d = res.data;
         setSettingsData(d);
         setSchoolName(d.schoolName);
+        setLogoUrl(d.logoUrl ?? null);
         setEmail(d.schoolEmail);
         setHourlyLateFee(d.settings.hourlyLateFee);
         setDailyStudentFee(d.settings.dailyStudentFee);
@@ -252,13 +258,34 @@ export default function SettingsPage() {
     }
   }
 
+  async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLogoUploading(true);
+    // Immediate local preview
+    const reader = new FileReader();
+    reader.onload = (ev) => setLogoUrl(ev.target?.result as string);
+    reader.readAsDataURL(file);
+    // Upload to server
+    try {
+      const form = new FormData();
+      form.append("logo", file);
+      const res = await axios.put<{ logoUrl: string }>("/api/settings/logo", form);
+      setLogoUrl(res.data.logoUrl);
+    } catch {
+      alert("فشل رفع الشعار");
+    } finally {
+      setLogoUploading(false);
+      e.target.value = "";
+    }
+  }
+
   // ── Search filter ─────────────────────────────────────────────────────────
 
   const sections = useMemo(
     () => [
-      { id: "school-info", title: "معلومات المدرسة" },
+      { id: "school-info", title: "معلومات المنشأة" },
       { id: "school-hours", title: "ساعات الدوام" },
-      { id: "legal-info", title: "معلومات المنشأة" },
       { id: "password", title: t("settings.changePassword") },
       { id: "subscription", title: t("settings.subscription.title") },
       { id: "fees", title: t("settings.fees.title") },
@@ -322,47 +349,89 @@ export default function SettingsPage() {
           </div>
         ) : (
           <>
-            {/* ── School Info ────────────────────────────────────────── */}
+            {/* ── School Info (merged with Legal Info) ──────────────── */}
             {showSection("school-info") && (
-              <SettingsSection id="school-info" title="معلومات المدرسة">
-                <FormField label={t("settings.schoolName")}>
-                  <input
-                    type="text"
-                    value={schoolName}
-                    onChange={(e) => setSchoolName(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] text-sm"
-                  />
-                </FormField>
-
+              <SettingsSection id="school-info" title="معلومات المنشأة">
+                {/* Logo */}
                 <FormField label={t("settings.logo")}>
-                  <div className="flex items-center gap-3">
-                    <div className="w-16 h-16 bg-gray-100 border border-gray-200 rounded-xl flex items-center justify-center text-2xl">
-                      🏫
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 bg-gray-100 border border-gray-200 rounded-xl overflow-hidden flex items-center justify-center shrink-0">
+                      {logoUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={logoUrl} alt="شعار المنشأة" className="w-full h-full object-contain" />
+                      ) : (
+                        <span className="text-2xl">🏫</span>
+                      )}
                     </div>
-                    <label className="cursor-pointer px-4 py-2 border border-gray-300 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-all">
-                      <span>{t("common.upload")}</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        disabled
-                      />
-                    </label>
-                    <span className="text-xs text-gray-400">
-                      (قريباً)
-                    </span>
+                    <div>
+                      <label className={`cursor-pointer px-4 py-2 border border-gray-300 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-all inline-block ${logoUploading ? "opacity-50 pointer-events-none" : ""}`}>
+                        {logoUploading ? "جارٍ الرفع…" : t("common.upload")}
+                        <input
+                          ref={logoInputRef}
+                          type="file"
+                          accept=".png,.svg,image/png,image/svg+xml"
+                          className="hidden"
+                          onChange={handleLogoUpload}
+                        />
+                      </label>
+                      <p className="text-xs text-gray-400 mt-1.5">الحجم الموصى به للصور هو 400×400 px</p>
+                    </div>
                   </div>
                 </FormField>
 
-                <FormField label={t("settings.email")}>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    dir="ltr"
-                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] text-sm"
-                  />
-                </FormField>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <FormField label={t("settings.schoolName")}>
+                    <input
+                      type="text"
+                      value={schoolName}
+                      onChange={(e) => setSchoolName(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] text-sm"
+                    />
+                  </FormField>
+                  <FormField label={t("settings.email")}>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      dir="ltr"
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] text-sm"
+                    />
+                  </FormField>
+                  <FormField label="رقم السجل التجاري">
+                    <input
+                      type="text"
+                      value={commercialRegistration}
+                      onChange={(e) => setCommercialRegistration(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] text-sm"
+                    />
+                  </FormField>
+                  <FormField label="الرقم الضريبي VAT">
+                    <input
+                      type="text"
+                      value={vatNumber}
+                      onChange={(e) => setVatNumber(e.target.value)}
+                      dir="ltr"
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] text-sm"
+                    />
+                  </FormField>
+                  <FormField label="رقم التواصل">
+                    <input
+                      type="text"
+                      value={contactNumber}
+                      onChange={(e) => setContactNumber(e.target.value)}
+                      dir="ltr"
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] text-sm"
+                    />
+                  </FormField>
+                  <FormField label="العنوان">
+                    <input
+                      type="text"
+                      value={address}
+                      onChange={(e) => setAddress(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] text-sm"
+                    />
+                  </FormField>
+                </div>
               </SettingsSection>
             )}
 
@@ -417,48 +486,6 @@ export default function SettingsPage() {
                       </FormField>
                     </div>
                   </div>
-                </div>
-              </SettingsSection>
-            )}
-
-            {/* ── Legal Info ────────────────────────────────────────── */}
-            {showSection("legal-info") && (
-              <SettingsSection id="legal-info" title="معلومات المنشأة">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <FormField label="رقم السجل التجاري">
-                    <input
-                      type="text"
-                      value={commercialRegistration}
-                      onChange={(e) => setCommercialRegistration(e.target.value)}
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] text-sm"
-                    />
-                  </FormField>
-                  <FormField label="الرقم الضريبي VAT">
-                    <input
-                      type="text"
-                      value={vatNumber}
-                      onChange={(e) => setVatNumber(e.target.value)}
-                      dir="ltr"
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] text-sm"
-                    />
-                  </FormField>
-                  <FormField label="رقم التواصل">
-                    <input
-                      type="text"
-                      value={contactNumber}
-                      onChange={(e) => setContactNumber(e.target.value)}
-                      dir="ltr"
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] text-sm"
-                    />
-                  </FormField>
-                  <FormField label="العنوان">
-                    <input
-                      type="text"
-                      value={address}
-                      onChange={(e) => setAddress(e.target.value)}
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] text-sm"
-                    />
-                  </FormField>
                 </div>
               </SettingsSection>
             )}
@@ -616,7 +643,7 @@ export default function SettingsPage() {
 
             {/* ── Save Settings Button ─────────────────────────────── */}
             {filteredSections.some((id) =>
-              ["school-info", "school-hours", "legal-info", "fees", "message-template"].includes(id)
+              ["school-info", "school-hours", "fees", "message-template"].includes(id)
             ) && (
               <div className="flex items-center gap-3">
                 <button

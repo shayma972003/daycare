@@ -13,9 +13,10 @@ const updateStudentSchema = z.object({
   nationality: z.string().nullish(),
   gender: z.enum(["MALE", "FEMALE"]).nullish(),
   allergies: z.string().nullish(),
+  attendanceType: z.string().nullish(),
   paymentMethod: z.enum(["CASH", "TRANSFER", "CARD"]).nullish(),
   enrollmentEndDate: z.string().nullish(),
-  paymentStatus: z.enum(["PAID", "LATE", "CANCELLED", "SUSPENDED"]).nullish(),
+  paymentStatus: z.string().nullish(),
   isActive: z.boolean().optional(),
   registration_fee: z.number().min(0).optional(),
   // Guardian fields
@@ -125,6 +126,7 @@ export async function PUT(
   if ("nationality" in data) updateData.nationality = data.nationality ?? null;
   if ("gender" in data) updateData.gender = data.gender ?? null;
   if ("allergies" in data) updateData.allergies = data.allergies ?? null;
+  if ("attendanceType" in data) updateData.attendanceType = data.attendanceType ?? "دوام منتظم";
   if ("paymentMethod" in data) updateData.paymentMethod = data.paymentMethod ?? null;
   if ("enrollmentEndDate" in data) {
     updateData.enrollmentEndDate = data.enrollmentEndDate

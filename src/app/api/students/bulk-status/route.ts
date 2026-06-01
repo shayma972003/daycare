@@ -4,7 +4,7 @@ import { z } from "zod";
 
 const schema = z.object({
   ids: z.array(z.string()).min(1),
-  paymentStatus: z.enum(["PAID", "LATE", "CANCELLED", "SUSPENDED"]),
+  paymentStatus: z.string().min(1),
 });
 
 export async function PUT(request: Request) {

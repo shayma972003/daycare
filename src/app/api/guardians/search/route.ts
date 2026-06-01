@@ -16,16 +16,13 @@ export async function POST(request: Request) {
   const schoolId = (session.user as { schoolId: string }).schoolId;
 
   let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
+  try { body = await request.json(); } catch {
     return Response.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
   const parsed = searchSchema.safeParse(body);
-  if (!parsed.success) {
+  if (!parsed.success)
     return Response.json({ error: parsed.error.flatten() }, { status: 422 });
-  }
 
   const { query } = parsed.data;
 
@@ -33,13 +30,21 @@ export async function POST(request: Request) {
     where: {
       schoolId,
       OR: [
-        { name: { contains: query, mode: "insensitive" } },
-        { phone1: { contains: query, mode: "insensitive" } },
-        { phone2: { contains: query, mode: "insensitive" } },
-        { email: { contains: query, mode: "insensitive" } },
+        { name:    { contains: query, mode: "insensitive" } },
+        { phone1:  { contains: query, mode: "insensitive" } },
+        { phone2:  { contains: query, mode: "insensitive" } },
+        { email:   { contains: query, mode: "insensitive" } },
+        { name_2:  { contains: query, mode: "insensitive" } },
+        { phone_3: { contains: query, mode: "insensitive" } },
+        { phone_4: { contains: query, mode: "insensitive" } },
+        { email_2: { contains: query, mode: "insensitive" } },
       ],
     },
-    select: { id: true, name: true, phone1: true, phone2: true, email: true },
+    select: {
+      id: true,
+      name: true, phone1: true, phone2: true, email: true,
+      name_2: true, phone_3: true, phone_4: true, email_2: true,
+    },
     take: 10,
   });
 

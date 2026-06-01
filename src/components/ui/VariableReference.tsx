@@ -4,6 +4,12 @@ interface VariableReferenceProps {
   mode?: "full" | "payment";
 }
 
+const GUARDIAN2_VARS = [
+  { key: "guardian_2_name", label: "اسم ولي الأمر الثاني" },
+  { key: "guardian_2_phone", label: "رقم جوال ولي الأمر الثاني" },
+  { key: "guardian_2_email", label: "بريد ولي الأمر الثاني" },
+];
+
 const fullVars = [
   "child_name",
   "guardian_name",
@@ -38,6 +44,15 @@ export function VariableReference({ mode = "full" }: VariableReferenceProps) {
             className="px-2 py-0.5 bg-white border border-slate-200 rounded text-xs text-indigo-600 font-mono"
           >
             {t(`variables.${v}`)}
+          </code>
+        ))}
+        {GUARDIAN2_VARS.map((v) => (
+          <code
+            key={v.key}
+            title={v.label}
+            className="px-2 py-0.5 bg-white border border-slate-200 rounded text-xs text-purple-600 font-mono"
+          >
+            {"<"}{v.key}{">"}
           </code>
         ))}
       </div>

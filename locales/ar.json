@@ -6,7 +6,7 @@
     "home": "الرئيسية",
     "students": "الطلاب",
     "classes": "الفصول",
-    "statistics": "الإحصائيات",
+    "statistics": "المالية",
     "teachers": "المعلم",
     "settings": "الإعدادات"
   },
@@ -273,8 +273,8 @@
     "fees": {
       "title": "إعدادات الرسوم",
       "hourlyLateFee": "رسوم التأخير بالساعة",
-      "dailyStudentFee": "الرسوم الطالبية اليومية",
-      "monthlyStudentFee": "الرسوم الطالبية الشهرية"
+      "dailyStudentFee": "الرسوم الطلابية اليومية",
+      "monthlyStudentFee": "الرسوم الطلابية الشهرية"
     },
     "messageTemplate": {
       "title": "قالب الرسالة التلقائية",

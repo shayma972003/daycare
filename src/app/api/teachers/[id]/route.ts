@@ -18,6 +18,13 @@ const updateTeacherSchema = z.object({
   qualification1: z.string().nullish(),
   qualification2: z.string().nullish(),
   qualification3: z.string().nullish(),
+  qualification4: z.string().nullish(),
+  qualification5: z.string().nullish(),
+  qualification6: z.string().nullish(),
+  qualification7: z.string().nullish(),
+  qualification8: z.string().nullish(),
+  qualification9: z.string().nullish(),
+  qualification10: z.string().nullish(),
   enrollmentEndDate: z.string().nullish(),
   isActive: z.boolean().optional(),
 });
@@ -96,9 +103,10 @@ export async function PUT(
   }
   if ("monthlySalary" in data) updateData.monthlySalary = data.monthlySalary ?? null;
   if ("lateDeductionRate" in data) updateData.lateDeductionRate = data.lateDeductionRate ?? null;
-  if ("qualification1" in data) updateData.qualification1 = data.qualification1 ?? null;
-  if ("qualification2" in data) updateData.qualification2 = data.qualification2 ?? null;
-  if ("qualification3" in data) updateData.qualification3 = data.qualification3 ?? null;
+  for (const n of [1,2,3,4,5,6,7,8,9,10] as const) {
+    const key = `qualification${n}` as keyof typeof data;
+    if (key in data) updateData[key] = (data[key] as string | null | undefined) ?? null;
+  }
   if ("enrollmentEndDate" in data) {
     updateData.enrollmentEndDate = data.enrollmentEndDate
       ? new Date(data.enrollmentEndDate)

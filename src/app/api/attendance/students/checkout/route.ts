@@ -32,6 +32,7 @@ export async function POST(request: Request) {
   // Confirm student belongs to school
   const student = await prisma.student.findFirst({
     where: { id: student_id, schoolId },
+    select: { id: true, classId: true, attendanceType: true },
   });
   if (!student) {
     return Response.json({ error: "الطالب غير موجود" }, { status: 404 });
@@ -65,16 +66,23 @@ export async function POST(request: Request) {
     include: { settings: true },
   });
 
-  const [h, m] = (school?.studentCheckoutTime ?? "17:00").split(":").map(Number);
   const now = new Date();
-  // Build cutoff in UTC: AST is UTC+3, so 14:00 AST = 11:00 UTC
-  const cutoffUtc = new Date();
-  cutoffUtc.setUTCHours(h - 3, m, 0, 0);
-
-  const lateMinutes = now > cutoffUtc ? Math.floor((now.getTime() - cutoffUtc.getTime()) / 60000) : 0;
-  const lateHours = lateMinutes / 60;
-  const lateFee = lateHours * (school?.settings?.hourlyLateFee ?? 0);
   const totalHours = (now.getTime() - new Date(existing.checkinAt!).getTime()) / 3600000;
+
+  // Only calculate late hours for regular attendance
+  const isRegular = (student?.attendanceType ?? "دوام منتظم") === "دوام منتظم";
+  let lateMinutes = 0;
+  let lateHours = 0;
+  let lateFee = 0;
+
+  if (isRegular) {
+    const [h, m] = (school?.studentCheckoutTime ?? "17:00").split(":").map(Number);
+    const cutoffUtc = new Date();
+    cutoffUtc.setUTCHours(h - 3, m, 0, 0);
+    lateMinutes = now > cutoffUtc ? Math.floor((now.getTime() - cutoffUtc.getTime()) / 60000) : 0;
+    lateHours = lateMinutes / 60;
+    lateFee = lateHours * (school?.settings?.hourlyLateFee ?? 0);
+  }
 
   // Update attendance
   await prisma.attendance.update({

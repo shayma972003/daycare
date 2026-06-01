@@ -145,7 +145,7 @@ export default function StudentsPage() {
         if (bulkAction === "checkout") await axios.post("/api/attendance/students/checkout", { student_id: id }).catch(() => {});
         if (bulkAction === "reminder") await axios.post(`/api/students/${id}/reminder`).catch(() => {});
       }
-    } else if (["PAID", "LATE", "CANCELLED", "SUSPENDED"].includes(bulkAction)) {
+    } else if (["PAID", "LATE", "CANCELLED", "SUSPENDED", "بانتظار الدفع"].includes(bulkAction)) {
       await axios.put("/api/students/bulk-status", { ids, paymentStatus: bulkAction }).catch(() => {});
     }
 
@@ -207,6 +207,7 @@ export default function StudentsPage() {
             <option value="LATE">{t("paymentStatus.LATE")}</option>
             <option value="CANCELLED">{t("paymentStatus.CANCELLED")}</option>
             <option value="SUSPENDED">{t("paymentStatus.SUSPENDED")}</option>
+            <option value="بانتظار الدفع">بانتظار الدفع</option>
           </select>
 
           {/* Bulk action */}
@@ -224,6 +225,7 @@ export default function StudentsPage() {
               <option value="LATE">تغيير الحالة: متأخر</option>
               <option value="CANCELLED">تغيير الحالة: ملغي</option>
               <option value="SUSPENDED">تغيير الحالة: موقف</option>
+              <option value="بانتظار الدفع">تغيير الحالة: بانتظار الدفع</option>
             </select>
             <button
               onClick={applyBulk}

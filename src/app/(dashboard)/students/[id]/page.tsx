@@ -35,6 +35,7 @@ type StudentData = {
   guardianId: string | null;
   guardian: { id: string; name: string; phone1?: string | null; phone2?: string | null; email?: string | null; name_2?: string | null; phone_3?: string | null; phone_4?: string | null; email_2?: string | null } | null;
   registration_fee: number;
+  attendanceType: string;
   paymentMethod: string;
   enrollmentEndDate: string | null;
   paymentStatus: string;
@@ -64,6 +65,7 @@ type FormData = {
   guardianPhone4: string;
   guardianEmail2: string;
   registrationFee: string;
+  attendanceType: string;
   paymentMethod: string;
   enrollmentEndDate: string;
   paymentStatus: string;
@@ -129,6 +131,7 @@ export default function StudentProfilePage({
           guardianPhone4: s.guardian?.phone_4 ?? "",
           guardianEmail2: s.guardian?.email_2 ?? "",
           registrationFee: String(s.registration_fee ?? 0),
+          attendanceType: s.attendanceType ?? "دوام منتظم",
           paymentMethod: s.paymentMethod,
           enrollmentEndDate: s.enrollmentEndDate ? s.enrollmentEndDate.slice(0, 10) : "",
           paymentStatus: s.paymentStatus,
@@ -166,6 +169,18 @@ export default function StudentProfilePage({
     searchGuardians(value);
   }
 
+  function handleGuardian2FieldChange(value: string) {
+    if (value.length < 3) return;
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(async () => {
+      try {
+        const res = await axios.post<GuardianSuggestion[]>("/api/guardians/search", { query: value });
+        if (res.data.length === 1) selectGuardian(res.data[0]);
+        else if (res.data.length > 1) { setSuggestions(res.data); setShowSuggestions(true); }
+      } catch { /* ignore */ }
+    }, 300);
+  }
+
   function selectGuardian(g: GuardianSuggestion) {
     setGuardianId(g.id);
     setGuardianLinked(true);
@@ -198,6 +213,7 @@ export default function StudentProfilePage({
         nationality: data.nationality || null,
         gender: data.gender,
         allergies: data.allergies || null,
+        attendanceType: data.attendanceType || "دوام منتظم",
         paymentMethod: data.paymentMethod,
         enrollmentEndDate: data.enrollmentEndDate || null,
         paymentStatus: data.paymentStatus,
@@ -436,19 +452,23 @@ export default function StudentProfilePage({
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">اسم ولي الأمر 2</label>
-                    <input {...register("guardianName2")} type="text" className={inputCls} />
+                    <input {...register("guardianName2")} type="text" className={inputCls}
+                      onChange={(e) => { register("guardianName2").onChange(e); handleGuardian2FieldChange(e.target.value); }} />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">رقم الجوال 3</label>
-                    <input {...register("guardianPhone3")} type="tel" dir="ltr" className={inputCls} />
+                    <input {...register("guardianPhone3")} type="tel" dir="ltr" className={inputCls}
+                      onChange={(e) => { register("guardianPhone3").onChange(e); handleGuardian2FieldChange(e.target.value); }} />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">رقم الجوال 4</label>
-                    <input {...register("guardianPhone4")} type="tel" dir="ltr" className={inputCls} />
+                    <input {...register("guardianPhone4")} type="tel" dir="ltr" className={inputCls}
+                      onChange={(e) => { register("guardianPhone4").onChange(e); handleGuardian2FieldChange(e.target.value); }} />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">البريد الإلكتروني 2</label>
-                    <input {...register("guardianEmail2")} type="email" dir="ltr" className={inputCls} />
+                    <input {...register("guardianEmail2")} type="email" dir="ltr" className={inputCls}
+                      onChange={(e) => { register("guardianEmail2").onChange(e); handleGuardian2FieldChange(e.target.value); }} />
                   </div>
                 </div>
               </div>
@@ -457,6 +477,14 @@ export default function StudentProfilePage({
               <div className="bg-white rounded-xl shadow-md p-6">
                 <h2 className="text-base font-bold text-[#1a2340] mb-5">معلومات التسجيل</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">طبيعة الدوام</label>
+                    <select {...register("attendanceType")} className={inputCls}>
+                      <option value="دوام منتظم">دوام منتظم</option>
+                      <option value="شفتات">شفتات</option>
+                      <option value="غيره">غيره</option>
+                    </select>
+                  </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">{t("students.profile.paymentMethod")}</label>
                     <select {...register("paymentMethod")} className={inputCls}>
@@ -472,6 +500,7 @@ export default function StudentProfilePage({
                       <option value="LATE">{t("paymentStatus.LATE")}</option>
                       <option value="CANCELLED">{t("paymentStatus.CANCELLED")}</option>
                       <option value="SUSPENDED">{t("paymentStatus.SUSPENDED")}</option>
+                      <option value="بانتظار الدفع">بانتظار الدفع</option>
                     </select>
                   </div>
                   <div>

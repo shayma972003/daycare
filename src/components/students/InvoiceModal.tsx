@@ -326,6 +326,7 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
                       <option value="متأخر">متأخر</option>
                       <option value="ملغي">ملغي</option>
                       <option value="موقف">موقف</option>
+                      <option value="بانتظار الدفع">بانتظار الدفع</option>
                     </select>
                   </div>
                 </div>

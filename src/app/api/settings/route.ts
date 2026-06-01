@@ -45,6 +45,7 @@ export async function GET(_request: Request) {
         "مرحباً، <guardian_name>، نود إعلامكم بأن الرسوم المستحقة على <child_name> بمبلغ <amount_due> ريال تستحق بتاريخ <due_date>. مع تحيات <school_name>",
     },
     schoolName: school?.name ?? "",
+    logoUrl: school?.logoUrl ?? null,
     plan: school?.plan ?? "basic",
     schoolEmail: school?.email ?? "",
     teacherCheckinTime: school?.teacherCheckinTime ?? "",

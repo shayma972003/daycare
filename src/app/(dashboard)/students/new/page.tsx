@@ -99,6 +99,18 @@ export default function NewStudentPage() {
     searchGuardians(value);
   }
 
+  function handleGuardian2FieldChange(value: string) {
+    if (value.length < 3) return;
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(async () => {
+      try {
+        const res = await axios.post<GuardianSuggestion[]>("/api/guardians/search", { query: value });
+        if (res.data.length === 1) selectGuardian(res.data[0]);
+        else if (res.data.length > 1) { setSuggestions(res.data); setShowSuggestions(true); }
+      } catch { /* ignore */ }
+    }, 300);
+  }
+
   function selectGuardian(g: GuardianSuggestion) {
     setGuardianId(g.id);
     setGuardianLinked(true);
@@ -295,16 +307,20 @@ export default function NewStudentPage() {
                 />
               </Field>
               <Field label="اسم ولي الأمر 2">
-                <input {...register("guardianName2")} type="text" className={inputCls} />
+                <input {...register("guardianName2")} type="text" className={inputCls}
+                  onChange={(e) => { register("guardianName2").onChange(e); handleGuardian2FieldChange(e.target.value); }} />
               </Field>
               <Field label="رقم الجوال 3">
-                <input {...register("guardianPhone3")} type="tel" dir="ltr" className={inputCls} />
+                <input {...register("guardianPhone3")} type="tel" dir="ltr" className={inputCls}
+                  onChange={(e) => { register("guardianPhone3").onChange(e); handleGuardian2FieldChange(e.target.value); }} />
               </Field>
               <Field label="رقم الجوال 4">
-                <input {...register("guardianPhone4")} type="tel" dir="ltr" className={inputCls} />
+                <input {...register("guardianPhone4")} type="tel" dir="ltr" className={inputCls}
+                  onChange={(e) => { register("guardianPhone4").onChange(e); handleGuardian2FieldChange(e.target.value); }} />
               </Field>
               <Field label="البريد الإلكتروني 2">
-                <input {...register("guardianEmail2")} type="email" dir="ltr" className={inputCls} />
+                <input {...register("guardianEmail2")} type="email" dir="ltr" className={inputCls}
+                  onChange={(e) => { register("guardianEmail2").onChange(e); handleGuardian2FieldChange(e.target.value); }} />
               </Field>
             </div>
           </div>

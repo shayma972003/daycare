@@ -66,10 +66,7 @@ export async function GET(_request: Request) {
   });
 
   const paymentStatusBreakdown: Record<string, number> = {
-    PAID: 0,
-    LATE: 0,
-    CANCELLED: 0,
-    SUSPENDED: 0,
+    PAID: 0, LATE: 0, CANCELLED: 0, SUSPENDED: 0, "بانتظار الدفع": 0,
   };
   for (const g of paymentStatusGroups) {
     paymentStatusBreakdown[g.paymentStatus] = g._count.paymentStatus;

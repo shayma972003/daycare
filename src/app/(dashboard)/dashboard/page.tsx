@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import axios from "axios";
+import { useRouter } from "next/navigation";
 import { Topbar } from "@/components/layout/Topbar";
 import { ActivityGrid, type Activity } from "@/components/activities/ActivityGrid";
 import { ActivityFormModal } from "@/components/activities/ActivityFormModal";
@@ -17,13 +18,17 @@ interface NotificationLog {
   sentAt: string;
 }
 
+type EnrollmentNotif = { id: string; full_name: string; submitted_at: string };
+
 const PAGE_SIZE = 15;
 
 export default function HomePage() {
+  const router = useRouter();
   const [currentActivities, setCurrentActivities] = useState<Activity[]>([]);
   const [pastActivities, setPastActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [pendingEnrollments, setPendingEnrollments] = useState<EnrollmentNotif[]>([]);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
@@ -92,6 +97,11 @@ export default function HomePage() {
 
   useEffect(() => { fetchActivities(); }, [fetchActivities]);
   useEffect(() => { fetchLogs(0, false); }, [fetchLogs]);
+  useEffect(() => {
+    axios.get<EnrollmentNotif[]>("/api/enrollment/submissions")
+      .then((r) => setPendingEnrollments(r.data))
+      .catch(() => {});
+  }, []);
 
   const openAddModal = () => { setSelectedActivity(null); setModalOpen(true); };
   const openEditModal = (activity: Activity) => { setSelectedActivity(activity); setModalOpen(true); };
@@ -178,6 +188,47 @@ export default function HomePage() {
       <div className="p-6 space-y-8">
         {error && (
           <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">{error}</div>
+        )}
+
+        {/* ── طلبات التسجيل المعلقة ── */}
+        {pendingEnrollments.length > 0 && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-3">
+                <span className="w-9 h-9 rounded-full bg-amber-400 flex items-center justify-center text-white font-bold text-sm">
+                  {pendingEnrollments.length}
+                </span>
+                <div>
+                  <p className="text-sm font-bold text-[#1a2340]">طلبات تسجيل جديدة تنتظر المراجعة</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    آخر طلب: {pendingEnrollments[0]?.full_name} —{" "}
+                    {new Date(pendingEnrollments[0]?.submitted_at).toLocaleString("ar-SA", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => router.push("/students")}
+                className="px-4 py-2 bg-[#1a2340] text-white rounded-xl text-sm font-medium hover:bg-[#2a3460] transition-colors"
+              >
+                مراجعة الطلبات
+              </button>
+            </div>
+            {pendingEnrollments.length > 1 && (
+              <div className="mt-3 space-y-1.5">
+                {pendingEnrollments.slice(0, 5).map((e) => (
+                  <div key={e.id} className="flex items-center justify-between text-xs text-gray-600 bg-white/60 rounded-lg px-3 py-1.5">
+                    <span className="font-medium">{e.full_name}</span>
+                    <span className="text-gray-400">
+                      {new Date(e.submitted_at).toLocaleString("ar-SA", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </div>
+                ))}
+                {pendingEnrollments.length > 5 && (
+                  <p className="text-xs text-gray-400 text-center pt-1">و {pendingEnrollments.length - 5} طلبات أخرى...</p>
+                )}
+              </div>
+            )}
+          </div>
         )}
 
         {loading ? (

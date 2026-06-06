@@ -160,6 +160,8 @@ model School {
   import_sessions   ImportSession[]
   financial_reports FinancialReport[]
   expenses          Expense[]
+  enrollment_tokens       EnrollmentToken[]
+  enrollment_submissions  EnrollmentSubmission[]
 }
 
 model User {
@@ -473,4 +475,59 @@ model ImportRow {
   created_at  DateTime @default(now())
 
   session ImportSession @relation(fields: [session_id], references: [id], onDelete: Cascade)
+}
+
+model EnrollmentToken {
+  id                 String   @id @default(cuid())
+  school_id          String
+  token              String   @unique @default(cuid())
+  sent_to_phone      String
+  sent_to_email      String?
+  status             String   @default("pending") // "pending" | "active" | "completed" | "expired"
+  otp_code           String?
+  otp_verified       Boolean  @default(false)
+  otp_expires_at     DateTime?
+  device_fingerprint String?
+  submissions_count  Int      @default(0)
+  max_submissions    Int      @default(4)
+  created_at         DateTime @default(now())
+  expires_at         DateTime
+
+  school      School                @relation(fields: [school_id], references: [id])
+  submissions EnrollmentSubmission[]
+}
+
+model EnrollmentSubmission {
+  id              String    @id @default(cuid())
+  token_id        String
+  school_id       String
+  status          String    @default("pending_review") // "pending_review" | "approved" | "rejected"
+
+  full_name        String
+  id_number        String?
+  nationality      String?
+  academic_stage   String?
+  gender           String?
+  period           String?
+  date_of_birth    DateTime?
+  health_condition String?
+  allergies        String?
+  attendance_type  String?
+  payment_method   String?
+
+  guardian_name    String?
+  guardian_phone_1 String?
+  guardian_phone_2 String?
+  guardian_email   String?
+  guardian_name_2  String?
+  guardian_phone_3 String?
+  guardian_phone_4 String?
+  guardian_email_2 String?
+
+  submitted_at DateTime  @default(now())
+  reviewed_at  DateTime?
+  student_id   String?
+
+  token  EnrollmentToken @relation(fields: [token_id], references: [id])
+  school School          @relation(fields: [school_id], references: [id])
 }

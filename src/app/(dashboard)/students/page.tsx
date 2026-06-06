@@ -20,6 +20,30 @@ type Student = {
 
 type Class = { id: string; name: string };
 
+type EnrollmentSubmission = {
+  id: string;
+  full_name: string;
+  guardian_name: string | null;
+  guardian_phone_1: string | null;
+  guardian_phone_2: string | null;
+  guardian_email: string | null;
+  guardian_name_2: string | null;
+  guardian_phone_3: string | null;
+  guardian_phone_4: string | null;
+  guardian_email_2: string | null;
+  id_number: string | null;
+  nationality: string | null;
+  academic_stage: string | null;
+  gender: string | null;
+  period: string | null;
+  date_of_birth: string | null;
+  health_condition: string | null;
+  allergies: string | null;
+  attendance_type: string | null;
+  payment_method: string | null;
+  submitted_at: string;
+};
+
 function LiveTimer({ from }: { from: string }) {
   const [elapsed, setElapsed] = useState(0);
   useEffect(() => {
@@ -59,6 +83,29 @@ export default function StudentsPage() {
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  // Enrollment
+  const [enrollmentModalOpen, setEnrollmentModalOpen] = useState(false);
+  const [enrollPhone, setEnrollPhone] = useState("");
+  const [enrollEmail, setEnrollEmail] = useState("");
+  const [enrollSending, setEnrollSending] = useState(false);
+  const [enrollSuccess, setEnrollSuccess] = useState<string | null>(null);
+  const [enrollError, setEnrollError] = useState<string | null>(null);
+
+  // Review queue
+  const [submissions, setSubmissions] = useState<EnrollmentSubmission[]>([]);
+  const [submissionsExpanded, setSubmissionsExpanded] = useState(false);
+  const [reviewModalSub, setReviewModalSub] = useState<EnrollmentSubmission | null>(null);
+  const [reviewClassId, setReviewClassId] = useState("");
+  const [reviewApproving, setReviewApproving] = useState(false);
+  const [reviewRejecting, setReviewRejecting] = useState(false);
+
+  const fetchSubmissions = useCallback(async () => {
+    try {
+      const res = await axios.get<EnrollmentSubmission[]>("/api/enrollment/submissions");
+      setSubmissions(res.data);
+    } catch { /* ignore */ }
+  }, []);
+
   const fetchStudents = useCallback(async () => {
     setLoading(true);
     try {
@@ -88,7 +135,8 @@ export default function StudentsPage() {
   useEffect(() => {
     axios.get<Class[]>("/api/classes").then((r) => setClasses(r.data)).catch(() => {});
     fetchTodayAttendance();
-  }, [fetchTodayAttendance]);
+    fetchSubmissions();
+  }, [fetchTodayAttendance, fetchSubmissions]);
 
   useEffect(() => {
     if (searchTimeout.current) clearTimeout(searchTimeout.current);
@@ -137,6 +185,51 @@ export default function StudentsPage() {
     alert("تم الإرسال");
   }
 
+  async function sendEnrollmentForm() {
+    setEnrollSending(true);
+    setEnrollSuccess(null);
+    setEnrollError(null);
+    try {
+      const res = await axios.post<{ success: boolean; phone: string }>("/api/enrollment/create-token", {
+        phone: enrollPhone,
+        email: enrollEmail,
+      });
+      setEnrollSuccess(res.data.phone);
+      setEnrollPhone("");
+      setEnrollEmail("");
+    } catch (err) {
+      setEnrollError(axios.isAxiosError(err) ? err.response?.data?.error ?? "حدث خطأ" : "حدث خطأ");
+    } finally {
+      setEnrollSending(false);
+    }
+  }
+
+  async function approveSubmission() {
+    if (!reviewModalSub) return;
+    setReviewApproving(true);
+    try {
+      await axios.post(`/api/enrollment/approve/${reviewModalSub.id}`, { class_id: reviewClassId || undefined });
+      setReviewModalSub(null);
+      setReviewClassId("");
+      fetchSubmissions();
+      fetchStudents();
+    } catch (err) {
+      alert(axios.isAxiosError(err) ? err.response?.data?.error ?? "حدث خطأ" : "حدث خطأ");
+    } finally {
+      setReviewApproving(false);
+    }
+  }
+
+  async function rejectSubmission(id: string) {
+    setReviewRejecting(true);
+    try {
+      await axios.post(`/api/enrollment/reject/${id}`);
+      setReviewModalSub(null);
+      fetchSubmissions();
+    } catch { /* ignore */ }
+    finally { setReviewRejecting(false); }
+  }
+
   async function applyBulk() {
     const ids = Array.from(selected);
     if (!bulkAction || ids.length === 0) return;
@@ -180,6 +273,71 @@ export default function StudentsPage() {
     <div dir="rtl" className="min-h-screen bg-[#f4f6fb]">
       <Topbar title={t("students.title")} />
       <div className="p-6">
+
+        {/* ── Enrollment Submissions Review Queue ── */}
+        {submissions.length > 0 && (
+          <div className="mb-5 bg-white rounded-xl shadow-md overflow-hidden border border-amber-200">
+            <button
+              onClick={() => setSubmissionsExpanded((p) => !p)}
+              className="w-full flex items-center justify-between px-5 py-4 hover:bg-amber-50 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-bold text-[#1a2340]">طلبات التسجيل المعلقة</span>
+                <span className="px-2.5 py-0.5 bg-amber-500 text-white text-xs font-bold rounded-full">
+                  {submissions.length} طلبات جديدة
+                </span>
+              </div>
+              <span className="text-gray-400 text-xs">{submissionsExpanded ? "▲" : "▼"}</span>
+            </button>
+            {submissionsExpanded && (
+              <div className="overflow-x-auto border-t border-amber-100">
+                <table className="w-full text-sm">
+                  <thead className="bg-amber-50 text-right">
+                    <tr>
+                      <th className="px-4 py-3 font-semibold text-gray-700">اسم الطالب</th>
+                      <th className="px-4 py-3 font-semibold text-gray-700">اسم ولي الأمر</th>
+                      <th className="px-4 py-3 font-semibold text-gray-700">رقم الجوال</th>
+                      <th className="px-4 py-3 font-semibold text-gray-700">طبيعة الدوام</th>
+                      <th className="px-4 py-3 font-semibold text-gray-700">وقت التقديم</th>
+                      <th className="px-4 py-3 font-semibold text-gray-700">الإجراءات</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {submissions.map((sub) => (
+                      <tr key={sub.id} className="border-t border-gray-100 hover:bg-gray-50">
+                        <td className="px-4 py-3 font-medium text-[#1a2340]">{sub.full_name}</td>
+                        <td className="px-4 py-3 text-gray-600">{sub.guardian_name ?? "—"}</td>
+                        <td className="px-4 py-3 text-gray-600 font-mono text-xs" dir="ltr">{sub.guardian_phone_1 ?? "—"}</td>
+                        <td className="px-4 py-3 text-gray-600">{sub.attendance_type ?? "—"}</td>
+                        <td className="px-4 py-3 text-gray-400 text-xs">
+                          {new Date(sub.submitted_at).toLocaleDateString("ar-SA", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => { setReviewModalSub(sub); setReviewClassId(""); }}
+                              className="px-3 py-1.5 text-xs bg-[#1a2340] text-white rounded-lg hover:bg-[#2a3460] transition-colors"
+                            >
+                              مراجعة
+                            </button>
+                            <button
+                              onClick={() => rejectSubmission(sub.id)}
+                              disabled={reviewRejecting}
+                              className="px-3 py-1.5 text-xs border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors"
+                            >
+                              رفض
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Top bar */}
         <div className="flex flex-wrap items-center gap-3 mb-5">
           <input
@@ -257,18 +415,24 @@ export default function StudentsPage() {
               <span className="text-xs mr-1">▼</span>
             </button>
             {dropdownOpen && (
-              <div className="absolute left-0 top-full mt-1 w-52 bg-white rounded-xl shadow-lg border border-gray-100 z-30 overflow-hidden">
+              <div className="absolute left-0 top-full mt-1 w-56 bg-white rounded-xl shadow-lg border border-gray-100 z-30 overflow-hidden">
                 <button
                   onClick={() => { setDropdownOpen(false); router.push("/students/new"); }}
-                  className="w-full text-right px-4 py-3 text-sm text-[#1a2340] hover:bg-gray-50 transition-colors border-b border-gray-50"
+                  className="w-full text-right px-4 py-3 text-sm text-[#1a2340] hover:bg-gray-50 transition-colors border-b border-gray-100"
                 >
                   أضف طالب جديد
                 </button>
                 <button
                   onClick={() => { setDropdownOpen(false); router.push("/students/import"); }}
-                  className="w-full text-right px-4 py-3 text-sm text-[#1a2340] hover:bg-gray-50 transition-colors"
+                  className="w-full text-right px-4 py-3 text-sm text-[#1a2340] hover:bg-gray-50 transition-colors border-b border-gray-100"
                 >
                   ارفع ملف الطلاب
+                </button>
+                <button
+                  onClick={() => { setDropdownOpen(false); setEnrollmentModalOpen(true); setEnrollSuccess(null); setEnrollError(null); }}
+                  className="w-full text-right px-4 py-3 text-sm text-[#22c55e] font-medium hover:bg-green-50 transition-colors"
+                >
+                  إنشاء نموذج جديد
                 </button>
               </div>
             )}
@@ -425,6 +589,170 @@ export default function StudentsPage() {
           )}
         </div>
       </div>
+
+      {/* ── Enrollment Send Modal ── */}
+      {enrollmentModalOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setEnrollmentModalOpen(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-bold text-[#1a2340] mb-4">إرسال نموذج التسجيل</h2>
+            {enrollSuccess ? (
+              <div className="text-center py-4">
+                <div className="w-14 h-14 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <span className="text-2xl">✓</span>
+                </div>
+                <p className="text-sm text-gray-700 font-medium">
+                  تم إرسال الرابط إلى <span dir="ltr" className="font-mono">{enrollSuccess}</span>
+                </p>
+                <button
+                  onClick={() => setEnrollmentModalOpen(false)}
+                  className="mt-4 w-full py-2.5 bg-[#1a2340] text-white rounded-xl text-sm font-medium"
+                >
+                  إغلاق
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">رقم الجوال <span className="text-red-500">*</span></label>
+                  <div className="flex gap-2">
+                    <span className="flex items-center px-3 bg-gray-100 border border-gray-200 rounded-xl text-sm text-gray-500 font-mono">966+</span>
+                    <input
+                      type="tel"
+                      dir="ltr"
+                      value={enrollPhone}
+                      onChange={(e) => setEnrollPhone(e.target.value)}
+                      placeholder="5xxxxxxxx"
+                      className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#22c55e]"
+                    />
+                  </div>
+                </div>
+                <div className="mb-5">
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">البريد الإلكتروني <span className="text-gray-400 text-xs">(اختياري)</span></label>
+                  <input
+                    type="email"
+                    dir="ltr"
+                    value={enrollEmail}
+                    onChange={(e) => setEnrollEmail(e.target.value)}
+                    placeholder="example@email.com"
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#22c55e]"
+                  />
+                </div>
+                {enrollError && (
+                  <p className="mb-3 text-sm text-red-600 bg-red-50 p-2.5 rounded-lg">{enrollError}</p>
+                )}
+                <div className="flex gap-2">
+                  <button
+                    onClick={sendEnrollmentForm}
+                    disabled={enrollSending || !enrollPhone.trim()}
+                    className="flex-1 py-2.5 bg-[#22c55e] text-white rounded-xl text-sm font-medium hover:bg-[#16a34a] disabled:opacity-50 transition-colors"
+                  >
+                    {enrollSending ? "جاري الإرسال..." : "إرسال الرابط"}
+                  </button>
+                  <button
+                    onClick={() => setEnrollmentModalOpen(false)}
+                    className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm hover:bg-gray-50 transition-colors"
+                  >
+                    إلغاء
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Review Submission Modal ── */}
+      {reviewModalSub && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setReviewModalSub(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-lg font-bold text-[#1a2340]">مراجعة طلب التسجيل</h2>
+              <button onClick={() => setReviewModalSub(null)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+
+            {/* Student Info */}
+            <div className="bg-gray-50 rounded-xl p-4 mb-4">
+              <h3 className="text-sm font-bold text-gray-700 mb-3">معلومات الطالب</h3>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div><span className="text-gray-500">الاسم:</span> <span className="font-medium">{reviewModalSub.full_name}</span></div>
+                <div><span className="text-gray-500">رقم الهوية:</span> <span className="font-medium">{reviewModalSub.id_number ?? "—"}</span></div>
+                <div><span className="text-gray-500">الجنسية:</span> <span className="font-medium">{reviewModalSub.nationality ?? "—"}</span></div>
+                <div><span className="text-gray-500">المرحلة:</span> <span className="font-medium">{reviewModalSub.academic_stage ?? "—"}</span></div>
+                <div><span className="text-gray-500">الجنس:</span> <span className="font-medium">{reviewModalSub.gender ?? "—"}</span></div>
+                <div><span className="text-gray-500">الفترة:</span> <span className="font-medium">{reviewModalSub.period ?? "—"}</span></div>
+                {reviewModalSub.date_of_birth && (
+                  <div><span className="text-gray-500">تاريخ الميلاد:</span> <span className="font-medium">{new Date(reviewModalSub.date_of_birth).toLocaleDateString("ar-SA")}</span></div>
+                )}
+              </div>
+            </div>
+
+            {/* Health Info */}
+            {(reviewModalSub.health_condition || reviewModalSub.allergies) && (
+              <div className="bg-red-50 rounded-xl p-4 mb-4">
+                <h3 className="text-sm font-bold text-gray-700 mb-3">المعلومات الصحية</h3>
+                <div className="text-sm space-y-2">
+                  {reviewModalSub.health_condition && <div><span className="text-gray-500">الحالة الصحية:</span> <span>{reviewModalSub.health_condition}</span></div>}
+                  {reviewModalSub.allergies && <div><span className="text-gray-500">الحساسيات:</span> <span>{reviewModalSub.allergies}</span></div>}
+                </div>
+              </div>
+            )}
+
+            {/* Guardian Info */}
+            <div className="bg-blue-50 rounded-xl p-4 mb-4">
+              <h3 className="text-sm font-bold text-gray-700 mb-3">معلومات ولي الأمر</h3>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div><span className="text-gray-500">الاسم:</span> <span className="font-medium">{reviewModalSub.guardian_name ?? "—"}</span></div>
+                <div><span className="text-gray-500">الجوال 1:</span> <span className="font-mono font-medium" dir="ltr">{reviewModalSub.guardian_phone_1 ?? "—"}</span></div>
+                {reviewModalSub.guardian_phone_2 && <div><span className="text-gray-500">الجوال 2:</span> <span className="font-mono" dir="ltr">{reviewModalSub.guardian_phone_2}</span></div>}
+                {reviewModalSub.guardian_email && <div><span className="text-gray-500">البريد:</span> <span dir="ltr">{reviewModalSub.guardian_email}</span></div>}
+                {reviewModalSub.guardian_name_2 && <div><span className="text-gray-500">ولي الأمر 2:</span> <span>{reviewModalSub.guardian_name_2}</span></div>}
+                {reviewModalSub.guardian_phone_3 && <div><span className="text-gray-500">الجوال 3:</span> <span className="font-mono" dir="ltr">{reviewModalSub.guardian_phone_3}</span></div>}
+                {reviewModalSub.guardian_phone_4 && <div><span className="text-gray-500">الجوال 4:</span> <span className="font-mono" dir="ltr">{reviewModalSub.guardian_phone_4}</span></div>}
+              </div>
+            </div>
+
+            {/* Registration Info */}
+            <div className="bg-gray-50 rounded-xl p-4 mb-5">
+              <h3 className="text-sm font-bold text-gray-700 mb-3">معلومات التسجيل</h3>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div><span className="text-gray-500">طبيعة الدوام:</span> <span className="font-medium">{reviewModalSub.attendance_type ?? "—"}</span></div>
+                <div><span className="text-gray-500">طريقة الدفع:</span> <span className="font-medium">{reviewModalSub.payment_method ?? "—"}</span></div>
+              </div>
+            </div>
+
+            {/* Class assignment */}
+            <div className="mb-5">
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">تعيين الفصل</label>
+              <select
+                value={reviewClassId}
+                onChange={(e) => setReviewClassId(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#22c55e]"
+              >
+                <option value="">بدون فصل</option>
+                {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3">
+              <button
+                onClick={approveSubmission}
+                disabled={reviewApproving}
+                className="flex-1 py-3 bg-[#22c55e] text-white rounded-xl text-sm font-bold hover:bg-[#16a34a] disabled:opacity-50 transition-colors"
+              >
+                {reviewApproving ? "جاري القبول..." : "قبول وتفعيل"}
+              </button>
+              <button
+                onClick={() => rejectSubmission(reviewModalSub.id)}
+                disabled={reviewRejecting}
+                className="flex-1 py-3 border-2 border-red-300 text-red-600 rounded-xl text-sm font-bold hover:bg-red-50 disabled:opacity-50 transition-colors"
+              >
+                {reviewRejecting ? "..." : "رفض"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

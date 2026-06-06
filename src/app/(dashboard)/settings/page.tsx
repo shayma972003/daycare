@@ -126,6 +126,10 @@ export default function SettingsPage() {
   const [logsSkip, setLogsSkip] = useState(0);
   const [loadingLogs, setLoadingLogs] = useState(true);
   const [loadingMoreLogs, setLoadingMoreLogs] = useState(false);
+  const [confirmDeleteLogId, setConfirmDeleteLogId] = useState<string | null>(null);
+  const [confirmBulkDeleteLog, setConfirmBulkDeleteLog] = useState(false);
+  const [deletingLogId, setDeletingLogId] = useState<string | null>(null);
+  const [deletingBulkLog, setDeletingBulkLog] = useState(false);
   const PAGE_SIZE = 20;
 
   // Fetch settings
@@ -172,6 +176,33 @@ export default function SettingsPage() {
       .catch(() => {})
       .finally(() => setLoadingLogs(false));
   }, []);
+
+  async function handleDeleteOneLog(id: string) {
+    setDeletingLogId(id);
+    try {
+      await axios.delete(`/api/notifications/log/${id}`);
+      setLogs((prev) => prev.filter((l) => l.id !== id));
+      setLogsTotal((t) => t - 1);
+    } catch { /* silent */ }
+    finally {
+      setDeletingLogId(null);
+      setConfirmDeleteLogId(null);
+    }
+  }
+
+  async function handleDeleteBulkLog() {
+    setDeletingBulkLog(true);
+    try {
+      await axios.delete(`/api/notifications/log/bulk?source=other`);
+      setLogs([]);
+      setLogsTotal(0);
+      setLogsSkip(0);
+    } catch { /* silent */ }
+    finally {
+      setDeletingBulkLog(false);
+      setConfirmBulkDeleteLog(false);
+    }
+  }
 
   async function handleLoadMoreLogs() {
     setLoadingMoreLogs(true);
@@ -321,6 +352,32 @@ export default function SettingsPage() {
   return (
     <div dir="rtl" className="min-h-screen bg-gray-50">
       <Topbar title={t("settings.title")} />
+
+      {/* Confirm delete one log */}
+      {confirmDeleteLogId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-80 text-center space-y-4">
+            <p className="text-sm font-medium text-[#1a2340]">هل تريد حذف هذا السجل؟</p>
+            <div className="flex gap-3 justify-center">
+              <button onClick={() => handleDeleteOneLog(confirmDeleteLogId)} disabled={!!deletingLogId} className="px-5 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 disabled:opacity-60">{deletingLogId ? "..." : "حذف"}</button>
+              <button onClick={() => setConfirmDeleteLogId(null)} className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm">إلغاء</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm bulk delete logs */}
+      {confirmBulkDeleteLog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-96 text-center space-y-4">
+            <p className="text-sm font-medium text-[#1a2340]">هل تريد حذف جميع سجلات الإشعارات؟ لا يمكن التراجع عن هذا الإجراء</p>
+            <div className="flex gap-3 justify-center">
+              <button onClick={handleDeleteBulkLog} disabled={deletingBulkLog} className="px-5 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 disabled:opacity-60">{deletingBulkLog ? "..." : "مسح الكل"}</button>
+              <button onClick={() => setConfirmBulkDeleteLog(false)} className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm">إلغاء</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="p-6 space-y-6">
         {/* Search */}
@@ -668,77 +725,57 @@ export default function SettingsPage() {
                 title={t("settings.notificationLog.title")}
               >
                 {loadingLogs ? (
-                  <div className="text-sm text-gray-400">
-                    {t("common.loading")}
-                  </div>
+                  <div className="text-sm text-gray-400">{t("common.loading")}</div>
                 ) : logs.length === 0 ? (
-                  <div className="text-sm text-gray-400 text-center py-6">
-                    {t("common.noData")}
-                  </div>
+                  <div className="text-sm text-gray-400 text-center py-6">{t("common.noData")}</div>
                 ) : (
                   <>
+                    {/* Bulk delete button */}
+                    <div className="flex justify-end mb-2">
+                      <button
+                        onClick={() => setConfirmBulkDeleteLog(true)}
+                        className="px-3 py-1.5 text-sm border border-red-300 text-red-600 rounded-xl hover:bg-red-50 transition-all"
+                      >
+                        مسح الكل
+                      </button>
+                    </div>
+
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="border-b border-gray-100">
-                            <th className="text-right py-3 px-2 font-semibold text-gray-600">
-                              {t("settings.notificationLog.recipient")}
-                            </th>
-                            <th className="text-right py-3 px-2 font-semibold text-gray-600">
-                              {t("settings.notificationLog.type")}
-                            </th>
-                            <th className="text-right py-3 px-2 font-semibold text-gray-600">
-                              {t("settings.notificationLog.content")}
-                            </th>
-                            <th className="text-right py-3 px-2 font-semibold text-gray-600">
-                              {t("settings.notificationLog.sentAt")}
-                            </th>
-                            <th className="text-right py-3 px-2 font-semibold text-gray-600">
-                              {t("settings.notificationLog.status")}
-                            </th>
+                            <th className="text-right py-3 px-2 font-semibold text-gray-600">{t("settings.notificationLog.recipient")}</th>
+                            <th className="text-right py-3 px-2 font-semibold text-gray-600">{t("settings.notificationLog.type")}</th>
+                            <th className="text-right py-3 px-2 font-semibold text-gray-600">{t("settings.notificationLog.content")}</th>
+                            <th className="text-right py-3 px-2 font-semibold text-gray-600">{t("settings.notificationLog.sentAt")}</th>
+                            <th className="text-right py-3 px-2 font-semibold text-gray-600">{t("settings.notificationLog.status")}</th>
+                            <th className="py-3 px-2"></th>
                           </tr>
                         </thead>
                         <tbody>
                           {logs.map((log) => (
-                            <tr
-                              key={log.id}
-                              className="border-b border-gray-50 hover:bg-gray-50"
-                            >
-                              <td className="py-3 px-2 text-gray-800 font-medium">
-                                {log.recipientName}
-                              </td>
+                            <tr key={log.id} className="border-b border-gray-50 hover:bg-gray-50">
+                              <td className="py-3 px-2 text-gray-800 font-medium">{log.recipientName}</td>
                               <td className="py-3 px-2">
-                                <span
-                                  className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                    log.type === "WHATSAPP"
-                                      ? "bg-green-50 text-green-700"
-                                      : "bg-blue-50 text-blue-700"
-                                  }`}
-                                >
+                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${log.type === "WHATSAPP" ? "bg-green-50 text-green-700" : "bg-blue-50 text-blue-700"}`}>
                                   {t(`notificationType.${log.type}`)}
                                 </span>
                               </td>
                               <td className="py-3 px-2 text-gray-600 max-w-xs">
-                                <span title={log.content}>
-                                  {log.content.length > 60
-                                    ? log.content.slice(0, 60) + "..."
-                                    : log.content}
-                                </span>
+                                <span title={log.content}>{log.content.length > 60 ? log.content.slice(0, 60) + "..." : log.content}</span>
                               </td>
                               <td className="py-3 px-2 text-gray-500 whitespace-nowrap">
-                                {new Date(log.sentAt).toLocaleDateString(
-                                  "ar-SA",
-                                  {
-                                    year: "numeric",
-                                    month: "2-digit",
-                                    day: "2-digit",
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                  }
-                                )}
+                                {new Date(log.sentAt).toLocaleDateString("ar-SA", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
                               </td>
+                              <td className="py-3 px-2"><DeliveryStatusBadge status={log.status} /></td>
                               <td className="py-3 px-2">
-                                <DeliveryStatusBadge status={log.status} />
+                                <button
+                                  onClick={() => setConfirmDeleteLogId(log.id)}
+                                  className="text-gray-400 hover:text-red-500 transition-colors text-base"
+                                  title="حذف"
+                                >
+                                  🗑
+                                </button>
                               </td>
                             </tr>
                           ))}
@@ -753,9 +790,7 @@ export default function SettingsPage() {
                           disabled={loadingMoreLogs}
                           className="px-6 py-2 border border-gray-300 text-gray-600 hover:bg-gray-50 rounded-xl text-sm font-medium transition-all disabled:opacity-60"
                         >
-                          {loadingMoreLogs
-                            ? t("common.loading")
-                            : `عرض المزيد (${logsTotal - logs.length} متبقي)`}
+                          {loadingMoreLogs ? t("common.loading") : `عرض المزيد (${logsTotal - logs.length} متبقي)`}
                         </button>
                       </div>
                     )}

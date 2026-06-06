@@ -50,6 +50,7 @@ export default function StudentsPage() {
   const [search, setSearch] = useState("");
   const [classFilter, setClassFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [genderFilter, setGenderFilter] = useState("");
   const [bulkAction, setBulkAction] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [xlsxUploading, setXlsxUploading] = useState(false);
@@ -65,6 +66,7 @@ export default function StudentsPage() {
       if (search) params.set("search", search);
       if (classFilter) params.set("classId", classFilter);
       if (statusFilter) params.set("paymentStatus", statusFilter);
+      if (genderFilter) params.set("gender", genderFilter);
       const res = await axios.get<Student[]>(`/api/students?${params}`);
       setStudents(res.data);
     } catch {
@@ -72,7 +74,7 @@ export default function StudentsPage() {
     } finally {
       setLoading(false);
     }
-  }, [search, classFilter, statusFilter]);
+  }, [search, classFilter, statusFilter, genderFilter]);
 
   const fetchTodayAttendance = useCallback(async () => {
     try {
@@ -208,6 +210,15 @@ export default function StudentsPage() {
             <option value="CANCELLED">{t("paymentStatus.CANCELLED")}</option>
             <option value="SUSPENDED">{t("paymentStatus.SUSPENDED")}</option>
             <option value="بانتظار الدفع">بانتظار الدفع</option>
+          </select>
+          <select
+            value={genderFilter}
+            onChange={(e) => setGenderFilter(e.target.value)}
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a2340]"
+          >
+            <option value="">الكل</option>
+            <option value="MALE">بنين</option>
+            <option value="FEMALE">بنات</option>
           </select>
 
           {/* Bulk action */}

@@ -33,8 +33,12 @@ export default function HomePage() {
   const [logsSkip, setLogsSkip] = useState(0);
   const [loadingLogs, setLoadingLogs] = useState(true);
   const [loadingMoreLogs, setLoadingMoreLogs] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deletingBulk, setDeletingBulk] = useState(false);
 
-  // Filters for the notification log
+  // Filters
   const [filterStatus, setFilterStatus] = useState<"" | "SENT" | "FAILED">("");
   const [filterType, setFilterType] = useState<"" | "WHATSAPP" | "EMAIL">("");
 
@@ -44,11 +48,9 @@ export default function HomePage() {
       params.set("source", "activity");
       params.set("skip", String(skip));
       params.set("take", String(PAGE_SIZE));
-      if (filterStatus) params.set("status", filterStatus);
-      if (filterType) params.set("channel", filterType);
       return `/api/notifications?${params.toString()}`;
     },
-    [filterStatus, filterType]
+    []
   );
 
   const fetchLogs = useCallback(
@@ -88,35 +90,42 @@ export default function HomePage() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchActivities();
-  }, [fetchActivities]);
+  useEffect(() => { fetchActivities(); }, [fetchActivities]);
+  useEffect(() => { fetchLogs(0, false); }, [fetchLogs]);
 
-  // Re-fetch logs when filters change (reset to page 0)
-  useEffect(() => {
-    fetchLogs(0, false);
-  }, [fetchLogs]);
+  const openAddModal = () => { setSelectedActivity(null); setModalOpen(true); };
+  const openEditModal = (activity: Activity) => { setSelectedActivity(activity); setModalOpen(true); };
+  const handleModalClose = () => { setModalOpen(false); setSelectedActivity(null); };
+  const handleSaved = () => { fetchActivities(); };
 
-  const openAddModal = () => {
-    setSelectedActivity(null);
-    setModalOpen(true);
-  };
+  async function handleDeleteOne(id: string) {
+    setDeletingId(id);
+    try {
+      await axios.delete(`/api/notifications/log/${id}`);
+      setLogs((prev) => prev.filter((l) => l.id !== id));
+      setLogsTotal((t) => t - 1);
+    } catch { /* silent */ }
+    finally {
+      setDeletingId(null);
+      setConfirmDeleteId(null);
+    }
+  }
 
-  const openEditModal = (activity: Activity) => {
-    setSelectedActivity(activity);
-    setModalOpen(true);
-  };
+  async function handleDeleteBulk() {
+    setDeletingBulk(true);
+    try {
+      await axios.delete(`/api/notifications/log/bulk?source=activity`);
+      setLogs([]);
+      setLogsTotal(0);
+      setLogsSkip(0);
+    } catch { /* silent */ }
+    finally {
+      setDeletingBulk(false);
+      setConfirmBulkDelete(false);
+    }
+  }
 
-  const handleModalClose = () => {
-    setModalOpen(false);
-    setSelectedActivity(null);
-  };
-
-  const handleSaved = () => {
-    fetchActivities();
-  };
-
-  // Client-side filter on already-loaded logs (status + type)
+  // Client-side filter
   const visibleLogs = logs.filter((log) => {
     if (filterStatus && log.status !== filterStatus) return false;
     if (filterType && log.type !== filterType) return false;
@@ -127,11 +136,48 @@ export default function HomePage() {
     <div dir="rtl" className="min-h-screen bg-[#f4f6fb]">
       <Topbar title={t("home.title")} />
 
+      {/* Confirm delete one */}
+      {confirmDeleteId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-80 text-center space-y-4">
+            <p className="text-sm font-medium text-[#1a2340]">هل تريد حذف هذا السجل؟</p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => handleDeleteOne(confirmDeleteId)}
+                disabled={!!deletingId}
+                className="px-5 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 disabled:opacity-60"
+              >
+                {deletingId ? "..." : "حذف"}
+              </button>
+              <button onClick={() => setConfirmDeleteId(null)} className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm">إلغاء</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm bulk delete */}
+      {confirmBulkDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-96 text-center space-y-4">
+            <p className="text-sm font-medium text-[#1a2340]">هل تريد حذف جميع سجلات إشعارات الفعاليات؟</p>
+            <p className="text-xs text-red-500">لا يمكن التراجع عن هذا الإجراء</p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={handleDeleteBulk}
+                disabled={deletingBulk}
+                className="px-5 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 disabled:opacity-60"
+              >
+                {deletingBulk ? "..." : "مسح الكل"}
+              </button>
+              <button onClick={() => setConfirmBulkDelete(false)} className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm">إلغاء</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="p-6 space-y-8">
         {error && (
-          <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">
-            {error}
-          </div>
+          <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">{error}</div>
         )}
 
         {loading ? (
@@ -144,57 +190,51 @@ export default function HomePage() {
         ) : (
           <>
             <section>
-              <h2 className="text-base font-bold text-[#1a2340] mb-4">
-                {t("home.currentActivities")}
-              </h2>
-              <ActivityGrid
-                activities={currentActivities}
-                onAdd={openAddModal}
-                onSelect={openEditModal}
-              />
+              <h2 className="text-base font-bold text-[#1a2340] mb-4">{t("home.currentActivities")}</h2>
+              <ActivityGrid activities={currentActivities} onAdd={openAddModal} onSelect={openEditModal} />
             </section>
 
             <section>
-              <h2 className="text-base font-bold text-[#1a2340] mb-4">
-                {t("home.pastActivities")}
-              </h2>
+              <h2 className="text-base font-bold text-[#1a2340] mb-4">{t("home.pastActivities")}</h2>
               {pastActivities.length === 0 ? (
-                <p className="text-sm text-gray-400 py-6 text-center">
-                  {t("common.noData")}
-                </p>
+                <p className="text-sm text-gray-400 py-6 text-center">{t("common.noData")}</p>
               ) : (
-                <ActivityGrid
-                  activities={pastActivities}
-                  onAdd={openAddModal}
-                  onSelect={openEditModal}
-                />
+                <ActivityGrid activities={pastActivities} onAdd={openAddModal} onSelect={openEditModal} />
               )}
             </section>
 
             {/* ── سجل إشعارات الفعاليات ─────────────────────────────── */}
             <section>
-              <h2 className="text-base font-bold text-[#1a2340] mb-4">سجل إشعارات الفعاليات</h2>
-
-              {/* Filters */}
-              <div className="flex flex-wrap gap-3 mb-3">
-                <select
-                  value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value as "" | "SENT" | "FAILED")}
-                  className="px-3 py-2 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-[#22c55e]"
-                >
-                  <option value="">كل الحالات</option>
-                  <option value="SENT">تم الإرسال</option>
-                  <option value="FAILED">فشل</option>
-                </select>
-                <select
-                  value={filterType}
-                  onChange={(e) => setFilterType(e.target.value as "" | "WHATSAPP" | "EMAIL")}
-                  className="px-3 py-2 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-[#22c55e]"
-                >
-                  <option value="">كل الأنواع</option>
-                  <option value="WHATSAPP">واتساب</option>
-                  <option value="EMAIL">بريد</option>
-                </select>
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                <h2 className="text-base font-bold text-[#1a2340]">سجل إشعارات الفعاليات</h2>
+                <div className="flex flex-wrap gap-2 items-center">
+                  <select
+                    value={filterStatus}
+                    onChange={(e) => setFilterStatus(e.target.value as "" | "SENT" | "FAILED")}
+                    className="px-3 py-1.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none"
+                  >
+                    <option value="">كل الحالات</option>
+                    <option value="SENT">تم الإرسال</option>
+                    <option value="FAILED">فشل</option>
+                  </select>
+                  <select
+                    value={filterType}
+                    onChange={(e) => setFilterType(e.target.value as "" | "WHATSAPP" | "EMAIL")}
+                    className="px-3 py-1.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none"
+                  >
+                    <option value="">كل الأنواع</option>
+                    <option value="WHATSAPP">واتساب</option>
+                    <option value="EMAIL">بريد</option>
+                  </select>
+                  {logs.length > 0 && (
+                    <button
+                      onClick={() => setConfirmBulkDelete(true)}
+                      className="px-3 py-1.5 text-sm border border-red-300 text-red-600 rounded-xl hover:bg-red-50 transition-all"
+                    >
+                      مسح الكل
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="bg-white rounded-xl shadow-md overflow-hidden">
@@ -216,6 +256,7 @@ export default function HomePage() {
                             <th className="px-4 py-3 text-right font-medium text-gray-600">المحتوى</th>
                             <th className="px-4 py-3 text-right font-medium text-gray-600 whitespace-nowrap">وقت الإرسال</th>
                             <th className="px-4 py-3 text-right font-medium text-gray-600">الحالة</th>
+                            <th className="px-4 py-3 text-right font-medium text-gray-600"></th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50">
@@ -223,34 +264,31 @@ export default function HomePage() {
                             <tr key={log.id} className="hover:bg-gray-50/50 transition-colors">
                               <td className="px-4 py-3 font-medium text-[#1a2340]">{log.recipientName}</td>
                               <td className="px-4 py-3">
-                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                  log.type === "WHATSAPP"
-                                    ? "bg-green-50 text-green-700"
-                                    : "bg-blue-50 text-blue-700"
-                                }`}>
+                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${log.type === "WHATSAPP" ? "bg-green-50 text-green-700" : "bg-blue-50 text-blue-700"}`}>
                                   {log.type === "WHATSAPP" ? "واتساب" : "بريد"}
                                 </span>
                               </td>
                               <td className="px-4 py-3 text-gray-600 max-w-xs">
-                                <span title={log.content}>
-                                  {log.content.length > 60 ? log.content.slice(0, 60) + "…" : log.content}
-                                </span>
+                                <span title={log.content}>{log.content.length > 60 ? log.content.slice(0, 60) + "…" : log.content}</span>
                               </td>
                               <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
-                                {new Date(log.sentAt).toLocaleString("ar-SA", {
-                                  year: "numeric", month: "2-digit", day: "2-digit",
-                                  hour: "2-digit", minute: "2-digit",
-                                })}
+                                {new Date(log.sentAt).toLocaleString("ar-SA", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
                               </td>
+                              <td className="px-4 py-3"><DeliveryStatusBadge status={log.status} /></td>
                               <td className="px-4 py-3">
-                                <DeliveryStatusBadge status={log.status} />
+                                <button
+                                  onClick={() => setConfirmDeleteId(log.id)}
+                                  className="text-gray-400 hover:text-red-500 transition-colors text-base"
+                                  title="حذف"
+                                >
+                                  🗑
+                                </button>
                               </td>
                             </tr>
                           ))}
                         </tbody>
                       </table>
                     </div>
-
                     {logs.length < logsTotal && (
                       <div className="px-4 py-3 border-t border-gray-50 text-center">
                         <button
@@ -270,12 +308,7 @@ export default function HomePage() {
         )}
       </div>
 
-      <ActivityFormModal
-        open={modalOpen}
-        onClose={handleModalClose}
-        activity={selectedActivity}
-        onSaved={handleSaved}
-      />
+      <ActivityFormModal open={modalOpen} onClose={handleModalClose} activity={selectedActivity} onSaved={handleSaved} />
     </div>
   );
 }

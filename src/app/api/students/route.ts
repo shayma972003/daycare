@@ -42,6 +42,7 @@ export async function GET(request: Request) {
   const search = searchParams.get("search");
   const classId = searchParams.get("classId");
   const paymentStatus = searchParams.get("paymentStatus");
+  const gender = searchParams.get("gender");
 
   const where: Record<string, unknown> = { schoolId };
 
@@ -53,6 +54,9 @@ export async function GET(request: Request) {
   }
   if (paymentStatus) {
     where.paymentStatus = paymentStatus;
+  }
+  if (gender) {
+    where.gender = gender;
   }
 
   const students = await prisma.student.findMany({

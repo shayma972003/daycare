@@ -1,6 +1,7 @@
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { sendNotification } from "@/lib/notifications";
+import { buildMessageVars } from "@/lib/message-variables";
 
 export async function POST(
   _request: Request,
@@ -45,18 +46,36 @@ export async function POST(
       const phone = student.guardian?.phone1 ?? student.guardian?.phone2 ?? null;
       const email = student.guardian?.email ?? null;
 
+      const vars = buildMessageVars({
+        student: {
+          name: student.name,
+          registration_fee: student.registration_fee,
+          enrollmentEndDate: student.enrollmentEndDate,
+        },
+        guardian: {
+          name: student.guardian?.name,
+          name_2: student.guardian?.name_2,
+        },
+        school: {
+          name: school?.name,
+          studentCheckinTime: school?.studentCheckinTime,
+          studentCheckoutTime: school?.studentCheckoutTime,
+        },
+        activity: {
+          name: activity.name,
+          activityFee: activity.activityFee,
+          startDate: activity.startDate,
+          endDate: activity.endDate,
+        },
+      });
+
       await sendNotification(
         schoolId,
         guardianName,
         phone,
         email,
         template,
-        {
-          child_name: student.name,
-          guardian_name: guardianName,
-          activity_name: activity.name,
-          school_name: schoolName,
-        },
+        vars,
         schoolName,
         "activity"
       );

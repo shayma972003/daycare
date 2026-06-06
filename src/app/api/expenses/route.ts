@@ -2,13 +2,12 @@ import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
-const upsertExpenseSchema = z.object({
-  rent: z.number().optional(),
-  maintenance: z.number().optional(),
-  materials: z.number().optional(),
-  misc: z.number().optional(),
-  month: z.number().int().min(1).max(12).optional(),
-  year: z.number().int().min(2000).max(2100).optional(),
+const createSchema = z.object({
+  title: z.string().min(1),
+  description: z.string().nullish(),
+  amount: z.number().min(0),
+  type: z.enum(["one_time", "monthly"]),
+  start_date: z.string(),
 });
 
 export async function GET(request: Request) {
@@ -21,31 +20,20 @@ export async function GET(request: Request) {
   const schoolId = (session.user as { schoolId: string }).schoolId;
 
   const { searchParams } = new URL(request.url);
-  const now = new Date();
-  const month = parseInt(searchParams.get("month") ?? String(now.getMonth() + 1));
-  const year = parseInt(searchParams.get("year") ?? String(now.getFullYear()));
+  const typeFilter = searchParams.get("type"); // "one_time" | "monthly" | null
 
-  const [expense, salariesResult] = await Promise.all([
-    prisma.monthlyExpense.findUnique({
-      where: { schoolId_month_year: { schoolId, month, year } },
-    }),
-    prisma.teacher.aggregate({
-      where: { schoolId },
-      _sum: { monthlySalary: true },
-    }),
-  ]);
+  const where: Record<string, unknown> = { school_id: schoolId };
+  if (typeFilter) where.type = typeFilter;
 
-  const salaries = salariesResult._sum.monthlySalary ?? 0;
+  const expenses = await prisma.expense.findMany({
+    where,
+    orderBy: { created_at: "desc" },
+  });
 
-  return Response.json({
-    expense: expense ?? { schoolId, month, year, rent: 0, maintenance: 0, materials: 0, misc: 0 },
-    salaries,
-    month,
-    year,
-  }, { status: 200 });
+  return Response.json(expenses);
 }
 
-export async function PUT(request: Request) {
+export async function POST(request: Request) {
   let session;
   try {
     session = await requireSession();
@@ -61,26 +49,24 @@ export async function PUT(request: Request) {
     return Response.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const parsed = upsertExpenseSchema.safeParse(body);
+  const parsed = createSchema.safeParse(body);
   if (!parsed.success) {
-    return Response.json({ error: parsed.error.flatten() }, { status: 400 });
+    const firstErr = Object.values(parsed.error.flatten().fieldErrors)[0]?.[0];
+    return Response.json({ error: firstErr ?? "بيانات غير صحيحة" }, { status: 422 });
   }
 
-  const now = new Date();
-  const month = parsed.data.month ?? now.getMonth() + 1;
-  const year = parsed.data.year ?? now.getFullYear();
+  const { title, description, amount, type, start_date } = parsed.data;
 
-  const data: Record<string, unknown> = {};
-  if (parsed.data.rent !== undefined) data.rent = parsed.data.rent;
-  if (parsed.data.maintenance !== undefined) data.maintenance = parsed.data.maintenance;
-  if (parsed.data.materials !== undefined) data.materials = parsed.data.materials;
-  if (parsed.data.misc !== undefined) data.misc = parsed.data.misc;
-
-  const expense = await prisma.monthlyExpense.upsert({
-    where: { schoolId_month_year: { schoolId, month, year } },
-    create: { schoolId, month, year, ...data },
-    update: data,
+  const expense = await prisma.expense.create({
+    data: {
+      school_id: schoolId,
+      title,
+      description: description ?? null,
+      amount,
+      type,
+      start_date: new Date(start_date),
+    },
   });
 
-  return Response.json(expense, { status: 200 });
+  return Response.json(expense, { status: 201 });
 }

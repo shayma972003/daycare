@@ -159,6 +159,7 @@ model School {
   monthlyExpenses  MonthlyExpense[]
   import_sessions   ImportSession[]
   financial_reports FinancialReport[]
+  expenses          Expense[]
 }
 
 model User {
@@ -410,6 +411,22 @@ model MonthlyExpense {
   updatedAt   DateTime @updatedAt
 
   @@unique([schoolId, month, year])
+}
+
+model Expense {
+  id           String    @id @default(cuid())
+  school_id    String
+  title        String
+  description  String?
+  amount       Float
+  type         String    // "one_time" | "monthly"
+  start_date   DateTime
+  is_active    Boolean   @default(true)
+  stopped_at   DateTime?
+  created_at   DateTime  @default(now())
+  updated_at   DateTime  @updatedAt
+
+  school School @relation(fields: [school_id], references: [id])
 }
 
 model FinancialReport {

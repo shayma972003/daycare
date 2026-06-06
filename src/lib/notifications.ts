@@ -1,16 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { replaceVariables } from "@/lib/utils";
+import { type MessageContext } from "@/lib/message-variables";
 
-export type NotificationVars = {
-  child_name?: string;
-  guardian_name?: string;
-  checkin_time?: string;
-  checkout_time?: string;
-  amount_due?: string;
-  due_date?: string;
-  school_name?: string;
-  activity_name?: string;
-};
+export type NotificationVars = Record<string, string>;
+export type { MessageContext };
 
 export async function sendWhatsApp(
   to: string,

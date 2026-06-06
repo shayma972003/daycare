@@ -1,160 +1,88 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
-import {
-  PieChart,
-  Pie,
-  Cell,
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from "recharts";
+import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { Topbar } from "@/components/layout/Topbar";
 import { formatCurrency, t } from "@/lib/utils";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-interface FinancialSummary {
-  revenue: number;
-  expenses: number;
-  netProfit: number;
-  totalRegistrationFees: number;
-}
-
 interface PaymentStatusBreakdown {
-  PAID: number;
-  LATE: number;
-  CANCELLED: number;
-  SUSPENDED: number;
+  PAID: number; LATE: number; CANCELLED: number; SUSPENDED: number; "بانتظار الدفع": number;
 }
 
-interface ExpenseBreakdown {
-  rent: number;
-  maintenance: number;
-  materials: number;
-  misc: number;
-  salaries: number;
+interface Expense {
+  id: string;
+  title: string;
+  description: string | null;
+  amount: number;
+  type: "one_time" | "monthly";
+  start_date: string;
+  is_active: boolean;
+  stopped_at: string | null;
+  created_at: string;
 }
 
-interface EnrollmentPoint {
-  month: number;
-  year: number;
-  boys: number;
-  girls: number;
-}
-
-interface AttendanceByClass {
-  className: string;
-  attendanceRate: number;
-}
-
-interface TopStudent {
-  name: string;
-  lateHours: number;
-}
-
-interface LateSummary {
-  totalLateHours: number;
-  totalLateFees: number;
-  topStudents: TopStudent[];
-}
-
-interface StatisticsData {
-  financialSummary: FinancialSummary;
+interface FinancialSummary {
+  totalRegistrationFees: number;
   paymentStatusBreakdown: PaymentStatusBreakdown;
-  expenseBreakdown: ExpenseBreakdown;
-  enrollmentTrend: EnrollmentPoint[];
-  attendanceByClass: AttendanceByClass[];
-  lateSummary: LateSummary;
 }
 
-interface ExpenseData {
-  expense: {
-    rent: number;
-    maintenance: number;
-    materials: number;
-    misc: number;
-  };
-  salaries: number;
-  month: number;
-  year: number;
+interface Report {
+  id: string; name: string; type: string; period_label: string; file_url: string; issued_at: string;
 }
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const PAYMENT_STATUS_COLORS: Record<string, string> = {
-  PAID: "#22c55e",
-  LATE: "#f97316",
-  CANCELLED: "#ef4444",
-  SUSPENDED: "#94a3b8",
-  "بانتظار الدفع": "#8b5cf6",
+  PAID: "#22c55e", LATE: "#f97316", CANCELLED: "#ef4444", SUSPENDED: "#94a3b8", "بانتظار الدفع": "#8b5cf6",
 };
-
 const PAYMENT_STATUS_LABELS: Record<string, string> = {
-  PAID: "مدفوع",
-  LATE: "متأخر",
-  CANCELLED: "ملغي",
-  SUSPENDED: "موقف",
-  "بانتظار الدفع": "بانتظار الدفع",
+  PAID: "مدفوع", LATE: "متأخر", CANCELLED: "ملغي", SUSPENDED: "موقف", "بانتظار الدفع": "بانتظار الدفع",
 };
 
-const EXPENSE_COLORS: Record<string, string> = {
-  rent: "#6366f1",
-  maintenance: "#f59e0b",
-  materials: "#10b981",
-  misc: "#8b5cf6",
-  salaries: "#1a2340",
-};
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-const EXPENSE_LABELS: Record<string, string> = {
-  rent: "الإيجار",
-  maintenance: "الصيانة",
-  materials: "المواد",
-  misc: "مصاريف إضافية",
-  salaries: "الرواتب",
-};
+function countOverlappingMonths(from: Date, to: Date): number {
+  if (from > to) return 0;
+  return (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth()) + 1;
+}
 
-const ARABIC_MONTHS = [
-  "يناير",
-  "فبراير",
-  "مارس",
-  "أبريل",
-  "مايو",
-  "يونيو",
-  "يوليو",
-  "أغسطس",
-  "سبتمبر",
-  "أكتوبر",
-  "نوفمبر",
-  "ديسمبر",
-];
+function calculateExpensesForPeriod(expenses: Expense[], from: Date, to: Date): number {
+  return expenses.reduce((total, exp) => {
+    const startDate = new Date(exp.start_date);
+    if (exp.type === "one_time") {
+      if (startDate >= from && startDate <= to) return total + exp.amount;
+    } else {
+      const effectiveEnd = exp.stopped_at
+        ? new Date(Math.min(new Date(exp.stopped_at).getTime(), to.getTime()))
+        : to;
+      if (startDate <= effectiveEnd) {
+        const months = countOverlappingMonths(
+          new Date(Math.max(startDate.getTime(), from.getTime())),
+          effectiveEnd
+        );
+        return total + exp.amount * months;
+      }
+    }
+    return total;
+  }, 0);
+}
 
-// ── Helper Components ────────────────────────────────────────────────────────
+function getCurrentMonthExpenses(expenses: Expense[]): number {
+  const now = new Date();
+  const from = new Date(now.getFullYear(), now.getMonth(), 1);
+  const to = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  return calculateExpensesForPeriod(expenses, from, to);
+}
 
-function KpiCard({
-  label,
-  value,
-  colorClass,
-  bgClass,
-}: {
-  label: string;
-  value: string;
-  colorClass: string;
-  bgClass: string;
-}) {
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+function KpiCard({ label, value, colorClass, bgClass }: { label: string; value: string; colorClass: string; bgClass: string }) {
   return (
     <div className="bg-white rounded-xl shadow-md p-6 flex flex-col gap-2">
-      <div
-        className={`w-10 h-10 rounded-lg flex items-center justify-center ${bgClass} mb-1`}
-      >
+      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${bgClass} mb-1`}>
         <span className="text-lg">📊</span>
       </div>
       <p className={`text-3xl font-bold ${colorClass}`}>{value}</p>
@@ -163,601 +91,503 @@ function KpiCard({
   );
 }
 
-function SectionTitle({ title }: { title: string }) {
+// ── Add Expense Form ──────────────────────────────────────────────────────────
+
+function AddExpenseForm({ onSaved, onCancel }: { onSaved: (e: Expense) => void; onCancel: () => void }) {
+  const [type, setType] = useState<"one_time" | "monthly">("one_time");
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [amount, setAmount] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!title || !amount || !startDate) { setError("يرجى تعبئة جميع الحقول المطلوبة"); return; }
+    setSaving(true);
+    try {
+      const res = await axios.post<Expense>("/api/expenses", {
+        type, title, description: description || null,
+        amount: parseFloat(amount), start_date: startDate,
+      });
+      onSaved(res.data);
+    } catch (err) {
+      setError(axios.isAxiosError(err) ? err.response?.data?.error ?? "فشل الحفظ" : "فشل الحفظ");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
-    <h2 className="text-base font-bold text-[#1a2340] mb-4">{title}</h2>
+    <form onSubmit={handleSubmit} className="bg-blue-50 border border-blue-200 rounded-xl p-5 mb-4 space-y-3">
+      <h3 className="text-sm font-bold text-[#1a2340]">إضافة مصروف جديد</h3>
+      {error && <p className="text-xs text-red-600">{error}</p>}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">النوع *</label>
+          <select value={type} onChange={(e) => setType(e.target.value as "one_time" | "monthly")}
+            className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#22c55e]">
+            <option value="one_time">دفعة مستقلة</option>
+            <option value="monthly">اشتراك شهري</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">عنوان المصروف *</label>
+          <input value={title} onChange={(e) => setTitle(e.target.value)} required
+            className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#22c55e]" />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">الوصف</label>
+          <input value={description} onChange={(e) => setDescription(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#22c55e]" />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">السعر (ر.س) *</label>
+          <input type="number" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} required
+            className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#22c55e]" />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">تاريخ البداية *</label>
+          <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} required dir="ltr"
+            className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#22c55e]" />
+        </div>
+      </div>
+      <div className="flex gap-2 pt-1">
+        <button type="submit" disabled={saving}
+          className="px-5 py-2 bg-[#22c55e] text-white rounded-xl text-sm font-medium hover:bg-[#16a34a] disabled:opacity-60">
+          {saving ? "جاري الإضافة..." : "إضافة"}
+        </button>
+        <button type="button" onClick={onCancel}
+          className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm hover:bg-gray-50">
+          إلغاء
+        </button>
+      </div>
+    </form>
   );
 }
 
-// ── Main Page ────────────────────────────────────────────────────────────────
+// ── Edit Expense Row ──────────────────────────────────────────────────────────
 
-export default function StatisticsPage() {
-  const [stats, setStats] = useState<StatisticsData | null>(null);
-  const [expenseData, setExpenseData] = useState<ExpenseData | null>(null);
-  const [loadingStats, setLoadingStats] = useState(true);
-  const [loadingExpense, setLoadingExpense] = useState(true);
-  const [statsError, setStatsError] = useState("");
-  const [expenseError, setExpenseError] = useState("");
-  const [savingExpense, setSavingExpense] = useState(false);
-  const [expenseSaved, setExpenseSaved] = useState(false);
+function EditExpenseRow({ expense, onSaved, onCancel }: { expense: Expense; onSaved: (e: Expense) => void; onCancel: () => void }) {
+  const [title, setTitle] = useState(expense.title);
+  const [description, setDescription] = useState(expense.description ?? "");
+  const [amount, setAmount] = useState(String(expense.amount));
+  const [startDate, setStartDate] = useState(expense.start_date.split("T")[0]);
+  const [saving, setSaving] = useState(false);
+  const [stopping, setStopping] = useState(false);
+  const [confirmStop, setConfirmStop] = useState(false);
 
-  const [reports, setReports] = useState<Array<{ id: string; name: string; type: string; period_label: string; file_url: string; issued_at: string }>>([]);
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const res = await axios.put<Expense>(`/api/expenses/${expense.id}`, {
+        title, description: description || null, amount: parseFloat(amount), start_date: startDate,
+      });
+      onSaved(res.data);
+    } catch { /* silent */ }
+    finally { setSaving(false); }
+  }
+
+  async function handleStop() {
+    setStopping(true);
+    try {
+      const res = await axios.put<Expense>(`/api/expenses/${expense.id}/stop`);
+      onSaved(res.data);
+    } catch { /* silent */ }
+    finally { setStopping(false); setConfirmStop(false); }
+  }
+
+  return (
+    <tr className="bg-blue-50/40">
+      <td className="px-4 py-2">
+        <input value={title} onChange={(e) => setTitle(e.target.value)}
+          className="w-full px-2 py-1 text-sm rounded border border-gray-200 focus:outline-none focus:ring-1 focus:ring-[#22c55e]" />
+      </td>
+      <td className="px-4 py-2 text-xs text-gray-500">{expense.type === "monthly" ? "اشتراك شهري" : "دفعة مستقلة"}</td>
+      <td className="px-4 py-2">
+        <input type="number" min="0" value={amount} onChange={(e) => setAmount(e.target.value)}
+          className="w-28 px-2 py-1 text-sm rounded border border-gray-200 focus:outline-none" />
+      </td>
+      <td className="px-4 py-2">
+        <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} dir="ltr"
+          className="px-2 py-1 text-sm rounded border border-gray-200 focus:outline-none" />
+      </td>
+      <td className="px-4 py-2"></td>
+      <td className="px-4 py-2">
+        <div className="flex gap-1.5 flex-wrap">
+          <button onClick={handleSave} disabled={saving}
+            className="px-3 py-1 bg-[#22c55e] text-white rounded-lg text-xs font-medium hover:bg-[#16a34a] disabled:opacity-60">
+            {saving ? "..." : "حفظ"}
+          </button>
+          <button onClick={onCancel}
+            className="px-3 py-1 border border-gray-200 text-gray-600 rounded-lg text-xs hover:bg-gray-50">
+            إلغاء
+          </button>
+          {expense.type === "monthly" && expense.is_active && (
+            confirmStop ? (
+              <>
+                <button onClick={handleStop} disabled={stopping}
+                  className="px-3 py-1 bg-orange-500 text-white rounded-lg text-xs font-medium hover:bg-orange-600 disabled:opacity-60">
+                  {stopping ? "..." : "تأكيد الإيقاف"}
+                </button>
+                <button onClick={() => setConfirmStop(false)}
+                  className="px-2 py-1 text-xs text-gray-500 hover:underline">لا</button>
+              </>
+            ) : (
+              <button onClick={() => setConfirmStop(true)}
+                className="px-3 py-1 border border-orange-300 text-orange-600 rounded-lg text-xs hover:bg-orange-50">
+                إيقاف الدفع
+              </button>
+            )
+          )}
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+// ── TAB 1: Financial Summary ──────────────────────────────────────────────────
+
+function SummaryTab() {
+  const [summary, setSummary] = useState<FinancialSummary | null>(null);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [reports, setReports] = useState<Report[]>([]);
   const [loadingReports, setLoadingReports] = useState(true);
   const [generatingReport, setGeneratingReport] = useState<string | null>(null);
 
-  const [expenseForm, setExpenseForm] = useState({
-    rent: 0,
-    maintenance: 0,
-    materials: 0,
-    misc: 0,
-  });
-
-  const now = new Date();
-  const [expenseMonth, setExpenseMonth] = useState(now.getMonth() + 1);
-  const [expenseYear, setExpenseYear] = useState(now.getFullYear());
-
-  // Fetch statistics
   useEffect(() => {
-    setLoadingStats(true);
-    axios
-      .get<StatisticsData>("/api/statistics")
-      .then((res) => {
-        setStats(res.data);
-        setStatsError("");
-      })
-      .catch(() => setStatsError("فشل تحميل البيانات الإحصائية"))
-      .finally(() => setLoadingStats(false));
+    Promise.all([
+      axios.get<{ totalRegistrationFees: number; paymentStatusBreakdown: PaymentStatusBreakdown }>("/api/statistics/summary"),
+      axios.get<Expense[]>("/api/expenses"),
+    ]).then(([sumRes, expRes]) => {
+      setSummary(sumRes.data);
+      setExpenses(expRes.data);
+    }).finally(() => setLoading(false));
   }, []);
 
-  // Fetch expenses for selected month/year
   useEffect(() => {
-    setLoadingExpense(true);
-    axios
-      .get<ExpenseData>(`/api/expenses?month=${expenseMonth}&year=${expenseYear}`)
-      .then((res) => {
-        setExpenseData(res.data);
-        setExpenseForm({
-          rent: res.data.expense.rent,
-          maintenance: res.data.expense.maintenance,
-          materials: res.data.expense.materials,
-          misc: res.data.expense.misc,
-        });
-        setExpenseError("");
-      })
-      .catch(() => setExpenseError("فشل تحميل بيانات المصاريف"))
-      .finally(() => setLoadingExpense(false));
-  }, [expenseMonth, expenseYear]);
-
-  useEffect(() => {
-    axios.get<typeof reports>("/api/financial-reports")
+    axios.get<Report[]>("/api/financial-reports")
       .then((r) => setReports(r.data))
       .finally(() => setLoadingReports(false));
   }, []);
 
+  const totalExpenses = getCurrentMonthExpenses(expenses);
+
+  const paymentPieData = summary
+    ? Object.entries(summary.paymentStatusBreakdown).filter(([, v]) => v > 0).map(([key, count]) => ({
+        name: PAYMENT_STATUS_LABELS[key] ?? key, value: count, color: PAYMENT_STATUS_COLORS[key] ?? "#ccc",
+      }))
+    : [];
+  const totalPayment = paymentPieData.reduce((s, d) => s + d.value, 0);
+
+  // Expense pie: group by title for one-time, or show monthly grouped
+  const expensePieData = expenses.reduce<{ name: string; value: number; color: string }[]>((acc, exp) => {
+    const existing = acc.find((x) => x.name === exp.title);
+    const val = exp.type === "monthly" ? exp.amount : exp.amount;
+    if (existing) { existing.value += val; }
+    else { acc.push({ name: exp.title, value: val, color: `hsl(${(acc.length * 60) % 360}, 65%, 55%)` }); }
+    return acc;
+  }, []).filter((d) => d.value > 0);
+
   async function handleExportReport(key: string, label: string) {
     setGeneratingReport(key);
     try {
-      const typeMap: Record<string, "monthly" | "semi_annual" | "annual"> = {
-        monthly: "monthly", semiAnnual: "semi_annual", annual: "annual",
-      };
-      const res = await axios.post<{ id: string; name: string; type: string; period_label: string; file_url: string; issued_at: string }>(
-        "/api/financial-reports/generate",
-        { type: typeMap[key], period_label: label, stats, expenseData }
-      );
+      const typeMap: Record<string, string> = { monthly: "monthly", semiAnnual: "semi_annual", annual: "annual" };
+      const res = await axios.post<Report>("/api/financial-reports/generate", { type: typeMap[key], period_label: label });
       setReports((prev) => [res.data, ...prev]);
-      // Open immediately
       const b64 = res.data.file_url.split(",")[1];
       if (b64) {
         const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
         window.open(URL.createObjectURL(new Blob([bytes], { type: "application/pdf" })), "_blank");
       }
-    } catch {
-      alert("فشل إنشاء التقرير");
-    } finally {
-      setGeneratingReport(null);
-    }
+    } catch { alert("فشل إنشاء التقرير"); }
+    finally { setGeneratingReport(null); }
   }
 
-  async function handleSaveExpense() {
-    setSavingExpense(true);
+  if (loading) return <div className="py-20 text-center text-sm text-gray-400">{t("common.loading")}</div>;
+
+  return (
+    <div className="space-y-8">
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <KpiCard label="إجمالي رسوم التسجيل" value={formatCurrency(summary?.totalRegistrationFees ?? 0)} colorClass="text-purple-600" bgClass="bg-purple-50" />
+        <KpiCard label="إجمالي المصاريف (هذا الشهر)" value={formatCurrency(totalExpenses)} colorClass="text-orange-500" bgClass="bg-orange-50" />
+      </div>
+
+      {/* Payment status pie */}
+      <div className="bg-white rounded-xl shadow-md p-6">
+        <h3 className="text-sm font-bold text-[#1a2340] mb-4">{t("statistics.paymentStatus.title")}</h3>
+        {paymentPieData.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-8">{t("common.noData")}</p>
+        ) : (
+          <ResponsiveContainer width="100%" height={280}>
+            <PieChart>
+              <Pie data={paymentPieData} cx="50%" cy="50%" outerRadius={100} dataKey="value" nameKey="name"
+                label={({ name, value }) => `${name}: ${value} (${totalPayment > 0 ? Math.round((value / totalPayment) * 100) : 0}%)`}>
+                {paymentPieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+              </Pie>
+              <Tooltip formatter={(value, name) => [`${Number(value)} طالب (${totalPayment > 0 ? Math.round((Number(value) / totalPayment) * 100) : 0}%)`, name]} />
+              <Legend />
+            </PieChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+
+      {/* Expense breakdown pie */}
+      {expensePieData.length > 0 && (
+        <div className="bg-white rounded-xl shadow-md p-6">
+          <h3 className="text-sm font-bold text-[#1a2340] mb-4">توزيع المصاريف</h3>
+          <ResponsiveContainer width="100%" height={280}>
+            <PieChart>
+              <Pie data={expensePieData} cx="50%" cy="50%" outerRadius={100} dataKey="value" nameKey="name"
+                label={({ name, value }) => `${name}: ${formatCurrency(value)}`}>
+                {expensePieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+              </Pie>
+              <Tooltip formatter={(value, name) => [formatCurrency(Number(value)), name]} />
+              <Legend />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Report export buttons */}
+      <div className="flex flex-wrap gap-3">
+        {([["monthly", t("statistics.reports.monthly")], ["semiAnnual", t("statistics.reports.semiAnnual")], ["annual", t("statistics.reports.annual")]] as [string, string][]).map(([key, label]) => (
+          <button key={key} disabled={generatingReport === key} onClick={() => handleExportReport(key, label)}
+            className="flex items-center gap-2 px-5 py-2.5 border-2 border-[#1a2340] text-[#1a2340] hover:bg-[#1a2340] hover:text-white rounded-xl font-medium text-sm transition-all disabled:opacity-60">
+            <span>{generatingReport === key ? "⏳" : "⬇"}</span>{label}
+          </button>
+        ))}
+      </div>
+
+      {/* Exported reports */}
+      <div className="bg-white rounded-xl shadow-md overflow-hidden">
+        <div className="px-5 py-3 border-b border-gray-100 bg-gray-50">
+          <h3 className="text-sm font-bold text-[#1a2340]">التقارير المصدرة</h3>
+        </div>
+        {loadingReports ? (
+          <div className="p-6 text-sm text-gray-400 text-center">{t("common.loading")}</div>
+        ) : reports.length === 0 ? (
+          <div className="p-6 text-sm text-gray-400 text-center">{t("common.noData")}</div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100 bg-gray-50">
+                <th className="px-5 py-3 text-right font-medium text-gray-600">اسم الملف</th>
+                <th className="px-5 py-3 text-right font-medium text-gray-600">الفترة</th>
+                <th className="px-5 py-3 text-right font-medium text-gray-600">تاريخ الإصدار</th>
+                <th className="px-5 py-3 text-right font-medium text-gray-600">إجراءات</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {reports.map((r) => (
+                <tr key={r.id} className="hover:bg-gray-50/50">
+                  <td className="px-5 py-3 text-gray-800 font-medium">{r.name}</td>
+                  <td className="px-5 py-3 text-gray-500">{r.period_label}</td>
+                  <td className="px-5 py-3 text-gray-500">{new Date(r.issued_at).toLocaleDateString("ar-SA")}</td>
+                  <td className="px-5 py-3">
+                    <div className="flex gap-2">
+                      <button onClick={() => { const b64=r.file_url.split(",")[1]; const bytes=Uint8Array.from(atob(b64),(c)=>c.charCodeAt(0)); window.open(URL.createObjectURL(new Blob([bytes],{type:"application/pdf"})),"_blank"); }}
+                        className="px-2.5 py-1 text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100">عرض</button>
+                      <button onClick={() => { const a=document.createElement("a"); a.href=r.file_url; a.download=`${r.name}.pdf`; document.body.appendChild(a); a.click(); document.body.removeChild(a); }}
+                        className="px-2.5 py-1 text-xs bg-gray-50 text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-100">تنزيل</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── TAB 2: Expenses Management ────────────────────────────────────────────────
+
+function ExpensesTab() {
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [typeFilter, setTypeFilter] = useState("");
+  const [search, setSearch] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const fetchExpenses = useCallback(async () => {
+    setLoading(true);
     try {
-      await axios.put("/api/expenses", { ...expenseForm, month: expenseMonth, year: expenseYear });
-      setExpenseSaved(true);
-      setTimeout(() => setExpenseSaved(false), 3000);
-      // Refresh stats after saving
-      const res = await axios.get<StatisticsData>("/api/statistics");
-      setStats(res.data);
-    } catch {
-      alert("فشل حفظ المصاريف");
-    } finally {
-      setSavingExpense(false);
-    }
+      const res = await axios.get<Expense[]>("/api/expenses");
+      setExpenses(res.data);
+    } catch { /* silent */ }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { fetchExpenses(); }, [fetchExpenses]);
+
+  async function handleDelete(id: string) {
+    setDeletingId(id);
+    try {
+      await axios.delete(`/api/expenses/${id}`);
+      setExpenses((prev) => prev.filter((e) => e.id !== id));
+    } catch { /* silent */ }
+    finally { setDeletingId(null); setConfirmDeleteId(null); }
   }
 
-  // ── Derived chart data ──────────────────────────────────────────────────
+  function handleExpenseSaved(updated: Expense) {
+    setExpenses((prev) => prev.map((e) => e.id === updated.id ? updated : e));
+    setEditingId(null);
+  }
 
-  const paymentPieData = stats
-    ? Object.entries(stats.paymentStatusBreakdown)
-        .filter(([, v]) => v > 0)
-        .map(([key, count]) => ({
-          name: PAYMENT_STATUS_LABELS[key] ?? key,
-          value: count,
-          color: PAYMENT_STATUS_COLORS[key] ?? "#ccc",
-        }))
-    : [];
+  function handleExpenseAdded(newExp: Expense) {
+    setExpenses((prev) => [newExp, ...prev]);
+    setShowAddForm(false);
+  }
 
-  const totalPayment = paymentPieData.reduce((s, d) => s + d.value, 0);
+  const filtered = expenses.filter((exp) => {
+    if (typeFilter && exp.type !== typeFilter) return false;
+    if (search && !exp.title.includes(search)) return false;
+    return true;
+  });
 
-  const expensePieData = stats
-    ? Object.entries(stats.expenseBreakdown)
-        .filter(([, v]) => v > 0)
-        .map(([key, amount]) => ({
-          name: EXPENSE_LABELS[key] ?? key,
-          value: amount,
-          color: EXPENSE_COLORS[key] ?? "#ccc",
-        }))
-    : [];
+  return (
+    <div className="space-y-4">
+      {/* Confirm delete dialog */}
+      {confirmDeleteId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-96 text-center space-y-4">
+            <p className="text-sm font-medium text-[#1a2340]">هل تريد حذف هذا المصروف نهائياً؟ لن يظهر في أي تقارير مستقبلية</p>
+            <div className="flex gap-3 justify-center">
+              <button onClick={() => handleDelete(confirmDeleteId)} disabled={!!deletingId}
+                className="px-5 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 disabled:opacity-60">
+                {deletingId ? "..." : "حذف"}
+              </button>
+              <button onClick={() => setConfirmDeleteId(null)} className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm">إلغاء</button>
+            </div>
+          </div>
+        </div>
+      )}
 
-  const enrollmentChartData = stats
-    ? stats.enrollmentTrend.map((pt) => ({
-        label: ARABIC_MONTHS[pt.month - 1],
-        boys: pt.boys,
-        girls: pt.girls,
-      }))
-    : [];
+      {/* Controls */}
+      <div className="flex flex-wrap items-center gap-3 justify-between">
+        <div className="flex gap-2 flex-wrap">
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="بحث بالاسم..."
+            className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#22c55e] bg-white" />
+          <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}
+            className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#22c55e] bg-white">
+            <option value="">الكل</option>
+            <option value="monthly">اشتراك شهري</option>
+            <option value="one_time">دفعة مستقلة</option>
+          </select>
+        </div>
+        <button onClick={() => setShowAddForm(true)}
+          className="px-4 py-2 bg-[#22c55e] text-white rounded-xl text-sm font-bold hover:bg-[#16a34a] transition-all shadow-md">
+          + أضف مصروف
+        </button>
+      </div>
 
-  const attendanceChartData = stats
-    ? stats.attendanceByClass.map((c) => ({
-        name: c.className,
-        rate: c.attendanceRate,
-      }))
-    : [];
+      {showAddForm && (
+        <AddExpenseForm onSaved={handleExpenseAdded} onCancel={() => setShowAddForm(false)} />
+      )}
 
-  const salaries = expenseData?.salaries ?? 0;
+      <div className="bg-white rounded-xl shadow-md overflow-hidden">
+        {loading ? (
+          <div className="py-20 text-center text-sm text-gray-400">{t("common.loading")}</div>
+        ) : filtered.length === 0 ? (
+          <div className="py-20 text-center text-sm text-gray-400">{t("common.noData")}</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 bg-gray-50">
+                  <th className="px-4 py-3 text-right font-medium text-gray-600">العنوان</th>
+                  <th className="px-4 py-3 text-right font-medium text-gray-600">النوع</th>
+                  <th className="px-4 py-3 text-right font-medium text-gray-600">السعر</th>
+                  <th className="px-4 py-3 text-right font-medium text-gray-600">تاريخ البداية</th>
+                  <th className="px-4 py-3 text-right font-medium text-gray-600">الحالة</th>
+                  <th className="px-4 py-3 text-right font-medium text-gray-600">الإجراءات</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {filtered.map((exp) =>
+                  editingId === exp.id ? (
+                    <EditExpenseRow key={exp.id} expense={exp} onSaved={handleExpenseSaved} onCancel={() => setEditingId(null)} />
+                  ) : (
+                    <tr key={exp.id} className="hover:bg-gray-50/50 transition-colors">
+                      <td className="px-4 py-3 font-medium text-[#1a2340]">
+                        {exp.title}
+                        {exp.description && <span className="block text-xs text-gray-400 font-normal">{exp.description}</span>}
+                      </td>
+                      <td className="px-4 py-3 text-gray-600 text-xs">
+                        {exp.type === "monthly" ? "اشتراك شهري" : "دفعة مستقلة"}
+                      </td>
+                      <td className="px-4 py-3 text-gray-800 font-medium">{formatCurrency(exp.amount)}</td>
+                      <td className="px-4 py-3 text-gray-500 text-xs">
+                        {new Date(exp.start_date).toLocaleDateString("ar-SA")}
+                      </td>
+                      <td className="px-4 py-3">
+                        {exp.type === "monthly" ? (
+                          exp.is_active
+                            ? <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700">نشط</span>
+                            : <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">موقوف</span>
+                        ) : (
+                          <span className="text-gray-300 text-xs">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex gap-2">
+                          <button onClick={() => setEditingId(exp.id)}
+                            className="px-3 py-1 text-xs border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50">
+                            تعديل
+                          </button>
+                          <button onClick={() => setConfirmDeleteId(exp.id)}
+                            className="px-3 py-1 text-xs border border-red-200 text-red-600 rounded-lg hover:bg-red-50">
+                            حذف
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
-  // ── Render ──────────────────────────────────────────────────────────────
+// ── Main Page ─────────────────────────────────────────────────────────────────
+
+export default function StatisticsPage() {
+  const [activeTab, setActiveTab] = useState<"summary" | "expenses">("summary");
 
   return (
     <div dir="rtl" className="min-h-screen bg-gray-50">
       <Topbar title={t("statistics.title")} />
 
-      <div className="p-6 space-y-8">
-        {statsError && (
-          <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
-            {statsError}
-          </div>
-        )}
+      <div className="p-6 space-y-6">
+        {/* Tab navigation */}
+        <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
+          <button
+            onClick={() => setActiveTab("summary")}
+            className={`px-5 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === "summary" ? "bg-white shadow text-[#1a2340]" : "text-gray-500 hover:text-gray-700"}`}
+          >
+            الملخص المالي
+          </button>
+          <button
+            onClick={() => setActiveTab("expenses")}
+            className={`px-5 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === "expenses" ? "bg-white shadow text-[#1a2340]" : "text-gray-500 hover:text-gray-700"}`}
+          >
+            المصاريف
+          </button>
+        </div>
 
-        {/* ── Section 1: Financial KPIs ─────────────────────────────────── */}
-        <section>
-          <SectionTitle title={t("statistics.financial.title")} />
-          {loadingStats ? (
-            <div className="text-sm text-gray-400">{t("common.loading")}</div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <KpiCard
-                label="رسوم التسجيل"
-                value={formatCurrency(stats?.financialSummary.totalRegistrationFees ?? 0)}
-                colorClass="text-purple-600"
-                bgClass="bg-purple-50"
-              />
-              <KpiCard
-                label={t("statistics.financial.expenses")}
-                value={formatCurrency(stats?.financialSummary.expenses ?? 0)}
-                colorClass="text-orange-500"
-                bgClass="bg-orange-50"
-              />
-            </div>
-          )}
-        </section>
-
-        {/* ── Section 2: Payment Status Pie Chart ──────────────────────── */}
-        <section>
-          <SectionTitle title={t("statistics.paymentStatus.title")} />
-          <div className="bg-white rounded-xl shadow-md p-6">
-            {loadingStats ? (
-              <div className="text-sm text-gray-400">{t("common.loading")}</div>
-            ) : paymentPieData.length === 0 ? (
-              <div className="text-sm text-gray-400 text-center py-8">
-                {t("common.noData")}
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={paymentPieData}
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={110}
-                    dataKey="value"
-                    nameKey="name"
-                    label={({ name, value }) =>
-                      `${name}: ${value} (${
-                        totalPayment > 0
-                          ? Math.round((value / totalPayment) * 100)
-                          : 0
-                      }%)`
-                    }
-                  >
-                    {paymentPieData.map((entry, i) => (
-                      <Cell key={i} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    formatter={(value, name) => [
-                      `${Number(value)} طالب (${
-                        totalPayment > 0
-                          ? Math.round((Number(value) / totalPayment) * 100)
-                          : 0
-                      }%)`,
-                      name,
-                    ]}
-                  />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </section>
-
-        {/* ── Section 3: Expense Breakdown Pie Chart ───────────────────── */}
-        <section>
-          <SectionTitle title={t("statistics.expenseBreakdown.title")} />
-          <div className="bg-white rounded-xl shadow-md p-6">
-            {loadingStats ? (
-              <div className="text-sm text-gray-400">{t("common.loading")}</div>
-            ) : expensePieData.length === 0 ? (
-              <div className="text-sm text-gray-400 text-center py-8">
-                {t("common.noData")}
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={expensePieData}
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={110}
-                    dataKey="value"
-                    nameKey="name"
-                    label={({ name, value }) => `${name}: ${formatCurrency(value)}`}
-                  >
-                    {expensePieData.map((entry, i) => (
-                      <Cell key={i} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    formatter={(value, name) => [
-                      formatCurrency(Number(value)),
-                      name,
-                    ]}
-                  />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </section>
-
-        {/* ── Section 4: Enrollment Trend Line Chart ───────────────────── */}
-        <section>
-          <SectionTitle title={t("statistics.enrollmentTrend.title")} />
-          <div className="bg-white rounded-xl shadow-md p-6">
-            {loadingStats ? (
-              <div className="text-sm text-gray-400">{t("common.loading")}</div>
-            ) : (
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={enrollmentChartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis dataKey="label" tick={{ fontSize: 12 }} />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
-                  <Tooltip />
-                  <Legend
-                    formatter={(value) =>
-                      value === "boys"
-                        ? t("statistics.enrollmentTrend.boys")
-                        : t("statistics.enrollmentTrend.girls")
-                    }
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="boys"
-                    stroke="#3b82f6"
-                    strokeWidth={2}
-                    dot={{ r: 3 }}
-                    name="boys"
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="girls"
-                    stroke="#ec4899"
-                    strokeWidth={2}
-                    dot={{ r: 3 }}
-                    name="girls"
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </section>
-
-        {/* ── Section 5: Attendance Rate Bar Chart ─────────────────────── */}
-        <section>
-          <SectionTitle title={t("statistics.attendanceRate.title")} />
-          <div className="bg-white rounded-xl shadow-md p-6">
-            {loadingStats ? (
-              <div className="text-sm text-gray-400">{t("common.loading")}</div>
-            ) : attendanceChartData.length === 0 ? (
-              <div className="text-sm text-gray-400 text-center py-8">
-                {t("common.noData")}
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={attendanceChartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                  <YAxis
-                    domain={[0, 100]}
-                    tickFormatter={(v) => `${v}%`}
-                    tick={{ fontSize: 12 }}
-                  />
-                  <Tooltip
-                    formatter={(value) => [`${Number(value)}%`, "معدل الحضور"]}
-                  />
-                  <Bar dataKey="rate" fill="#1a2340" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </section>
-
-        {/* ── Section 6: Late Departure Summary ────────────────────────── */}
-        <section>
-          <SectionTitle title={t("statistics.lateDeparture.title")} />
-          {loadingStats ? (
-            <div className="text-sm text-gray-400">{t("common.loading")}</div>
-          ) : (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="bg-white rounded-xl shadow-md p-6">
-                  <p className="text-3xl font-bold text-orange-500">
-                    {stats?.lateSummary.totalLateHours ?? 0}
-                  </p>
-                  <p className="text-sm text-gray-500 mt-1">
-                    {t("statistics.lateDeparture.totalLateHours")}
-                  </p>
-                </div>
-                <div className="bg-white rounded-xl shadow-md p-6">
-                  <p className="text-3xl font-bold text-red-600">
-                    {formatCurrency(stats?.lateSummary.totalLateFees ?? 0)}
-                  </p>
-                  <p className="text-sm text-gray-500 mt-1">
-                    {t("statistics.lateDeparture.totalLateFees")}
-                  </p>
-                </div>
-              </div>
-
-              {/* Top 5 students table */}
-              <div className="bg-white rounded-xl shadow-md p-6">
-                <p className="text-sm font-bold text-[#1a2340] mb-3">
-                  {t("statistics.lateDeparture.topStudents")}
-                </p>
-                {(stats?.lateSummary.topStudents ?? []).length === 0 ? (
-                  <p className="text-sm text-gray-400">{t("common.noData")}</p>
-                ) : (
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-gray-100">
-                        <th className="text-right py-2 font-semibold text-gray-600">
-                          {t("statistics.lateDeparture.student")}
-                        </th>
-                        <th className="text-right py-2 font-semibold text-gray-600">
-                          {t("statistics.lateDeparture.lateHours")}
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {stats?.lateSummary.topStudents.map((s, i) => (
-                        <tr
-                          key={i}
-                          className="border-b border-gray-50 hover:bg-gray-50"
-                        >
-                          <td className="py-2 text-gray-800">{s.name}</td>
-                          <td className="py-2 text-orange-600 font-medium">
-                            {s.lateHours} {t("common.hour")}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            </div>
-          )}
-        </section>
-
-        {/* ── Section 7: Expense Entry Form ────────────────────────────── */}
-        <section>
-          <SectionTitle title={t("statistics.expenseEntry.title")} />
-          <div className="bg-white rounded-xl shadow-md p-6">
-            {loadingExpense ? (
-              <div className="text-sm text-gray-400">{t("common.loading")}</div>
-            ) : expenseError ? (
-              <div className="text-sm text-red-600">{expenseError}</div>
-            ) : (
-              <div className="space-y-4">
-                {/* Month/Year picker */}
-                <div className="flex items-center gap-3">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">الشهر</label>
-                    <select
-                      value={expenseMonth}
-                      onChange={(e) => setExpenseMonth(Number(e.target.value))}
-                      className="px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] text-sm"
-                    >
-                      {ARABIC_MONTHS.map((m, i) => (
-                        <option key={i + 1} value={i + 1}>{m}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">السنة</label>
-                    <input
-                      type="number"
-                      value={expenseYear}
-                      onChange={(e) => setExpenseYear(Number(e.target.value))}
-                      min={2020}
-                      max={2099}
-                      className="w-28 px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] text-sm"
-                      dir="ltr"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {(
-                    [
-                      ["rent", t("statistics.expenseEntry.rent")],
-                      ["maintenance", t("statistics.expenseEntry.maintenance")],
-                      ["materials", t("statistics.expenseEntry.materials")],
-                      ["misc", t("statistics.expenseEntry.misc")],
-                    ] as [keyof typeof expenseForm, string][]
-                  ).map(([field, label]) => (
-                    <div key={field}>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        {label}
-                      </label>
-                      <input
-                        type="number"
-                        min={0}
-                        value={expenseForm[field]}
-                        onChange={(e) =>
-                          setExpenseForm((prev) => ({
-                            ...prev,
-                            [field]: parseFloat(e.target.value) || 0,
-                          }))
-                        }
-                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] text-sm"
-                      />
-                    </div>
-                  ))}
-                </div>
-
-                {/* Salaries read-only */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t("statistics.expenseEntry.salaries")}
-                  </label>
-                  <input
-                    type="text"
-                    readOnly
-                    value={formatCurrency(salaries)}
-                    className="w-full px-4 py-2.5 rounded-xl border border-gray-100 bg-gray-50 text-sm text-gray-500 cursor-not-allowed"
-                  />
-                </div>
-
-                {/* Registration fees read-only */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    إجمالي رسوم التسجيل
-                  </label>
-                  <input
-                    type="text"
-                    readOnly
-                    value={formatCurrency(stats?.financialSummary.totalRegistrationFees ?? 0)}
-                    className="w-full px-4 py-2.5 rounded-xl border border-gray-100 bg-purple-50 text-sm text-purple-700 cursor-not-allowed"
-                  />
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={handleSaveExpense}
-                    disabled={savingExpense}
-                    className="px-6 py-2.5 bg-[#22c55e] hover:bg-[#16a34a] text-white rounded-xl font-bold text-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed shadow-md"
-                  >
-                    {savingExpense
-                      ? t("common.loading")
-                      : t("statistics.expenseEntry.save")}
-                  </button>
-                  {expenseSaved && (
-                    <span className="text-green-600 text-sm font-medium">
-                      {t("common.success")}
-                    </span>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        </section>
-
-        {/* ── Export Buttons ────────────────────────────────────────────── */}
-        <section>
-          <div className="flex flex-wrap gap-3">
-            {(
-              [
-                ["monthly", t("statistics.reports.monthly")],
-                ["semiAnnual", t("statistics.reports.semiAnnual")],
-                ["annual", t("statistics.reports.annual")],
-              ] as [string, string][]
-            ).map(([key, label]) => (
-              <button
-                key={key}
-                disabled={generatingReport === key}
-                onClick={() => handleExportReport(key, label)}
-                className="flex items-center gap-2 px-5 py-2.5 border-2 border-[#1a2340] text-[#1a2340] hover:bg-[#1a2340] hover:text-white rounded-xl font-medium text-sm transition-all disabled:opacity-60"
-              >
-                <span>{generatingReport === key ? "⏳" : "⬇"}</span>
-                {label}
-              </button>
-            ))}
-          </div>
-        </section>
-
-        {/* ── التقارير المصدرة ──────────────────────────────────────────── */}
-        <section>
-          <SectionTitle title="التقارير المصدرة" />
-          <div className="bg-white rounded-xl shadow-md overflow-hidden">
-            {loadingReports ? (
-              <div className="p-6 text-sm text-gray-400 text-center">{t("common.loading")}</div>
-            ) : reports.length === 0 ? (
-              <div className="p-6 text-sm text-gray-400 text-center">{t("common.noData")}</div>
-            ) : (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-100 bg-gray-50">
-                    <th className="px-5 py-3 text-right font-medium text-gray-600">اسم الملف</th>
-                    <th className="px-5 py-3 text-right font-medium text-gray-600">الفترة</th>
-                    <th className="px-5 py-3 text-right font-medium text-gray-600">تاريخ الإصدار</th>
-                    <th className="px-5 py-3 text-right font-medium text-gray-600">إجراءات</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {reports.map((r) => (
-                    <tr key={r.id} className="hover:bg-gray-50/50">
-                      <td className="px-5 py-3 text-gray-800 font-medium">{r.name}</td>
-                      <td className="px-5 py-3 text-gray-500">{r.period_label}</td>
-                      <td className="px-5 py-3 text-gray-500">
-                        {new Date(r.issued_at).toLocaleDateString("ar-SA")}
-                      </td>
-                      <td className="px-5 py-3">
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => { const b64=r.file_url.split(",")[1]; const bytes=Uint8Array.from(atob(b64),(c)=>c.charCodeAt(0)); window.open(URL.createObjectURL(new Blob([bytes],{type:"application/pdf"})),"_blank"); }}
-                            className="px-2.5 py-1 text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100"
-                          >عرض</button>
-                          <button
-                            onClick={() => { const a=document.createElement("a"); a.href=r.file_url; a.download=`${r.name}.pdf`; document.body.appendChild(a); a.click(); document.body.removeChild(a); }}
-                            className="px-2.5 py-1 text-xs bg-gray-50 text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-100"
-                          >تنزيل</button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </section>
+        {activeTab === "summary" ? <SummaryTab /> : <ExpensesTab />}
       </div>
     </div>
   );

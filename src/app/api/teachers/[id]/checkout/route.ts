@@ -19,51 +19,52 @@ export async function POST(
     return Response.json({ error: "Not found" }, { status: 404 });
   }
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  // AST today boundaries (UTC+3)
+  const nowUtc = new Date();
+  const offsetMs = 3 * 60 * 60 * 1000;
+  const todayAst = new Date(nowUtc.getTime() + offsetMs);
+  todayAst.setUTCHours(0, 0, 0, 0);
+  const tomorrowAst = new Date(todayAst.getTime() + 24 * 60 * 60 * 1000);
 
   const existing = await prisma.teacherAttendance.findFirst({
     where: {
       teacherId: id,
       schoolId,
-      date: { gte: today, lt: tomorrow },
+      date: { gte: todayAst, lt: tomorrowAst },
+      checkinAt: { not: null },
+      checkoutAt: null,
     },
   });
 
   if (!existing) {
-    return Response.json({ error: "No check-in found for today" }, { status: 404 });
+    return Response.json({ error: "لا يوجد تسجيل دخول نشط اليوم" }, { status: 404 });
   }
 
-  const now = new Date();
+  const school = await prisma.school.findUnique({ where: { id: schoolId } });
+  const [h, m] = (school?.teacherCheckoutTime ?? "17:00").split(":").map(Number);
 
-  // Calculate late minutes: after 17:00
-  const cutoff = new Date(now);
-  cutoff.setHours(17, 0, 0, 0);
+  // Build cutoff in UTC (subtract 3h offset)
+  const cutoffUtc = new Date(nowUtc);
+  cutoffUtc.setUTCHours(h - 3, m, 0, 0);
 
-  let lateMinutes = 0;
-  if (now > cutoff) {
-    lateMinutes = Math.floor((now.getTime() - cutoff.getTime()) / 60000);
-  }
+  const lateMinutes = nowUtc > cutoffUtc
+    ? Math.floor((nowUtc.getTime() - cutoffUtc.getTime()) / 60000)
+    : 0;
+  const totalHours = (nowUtc.getTime() - new Date(existing.checkinAt!).getTime()) / 3600000;
+  const lateHours = lateMinutes / 60;
 
   const attendance = await prisma.teacherAttendance.update({
     where: { id: existing.id },
-    data: {
-      checkoutAt: now,
-      lateMinutes,
-    },
+    data: { checkoutAt: nowUtc, lateMinutes },
   });
 
-  // Update teacher lateHours
-  if (lateMinutes > 0) {
-    await prisma.teacher.update({
-      where: { id },
-      data: {
-        lateHours: { increment: lateMinutes / 60 },
-      },
-    });
-  }
+  await prisma.teacher.update({
+    where: { id },
+    data: {
+      attendanceHours: { increment: totalHours },
+      lateHours: { increment: lateHours },
+    },
+  });
 
   return Response.json(attendance);
 }

@@ -34,22 +34,42 @@ export default function HomePage() {
   const [loadingLogs, setLoadingLogs] = useState(true);
   const [loadingMoreLogs, setLoadingMoreLogs] = useState(false);
 
-  const fetchLogs = useCallback(async (skip = 0, append = false) => {
-    if (skip === 0) setLoadingLogs(true);
-    else setLoadingMoreLogs(true);
-    try {
-      const res = await axios.get<{ logs: NotificationLog[]; total: number }>(
-        `/api/notifications?skip=${skip}&take=${PAGE_SIZE}`
-      );
-      setLogs((prev) => (append ? [...prev, ...res.data.logs] : res.data.logs));
-      setLogsTotal(res.data.total);
-      setLogsSkip(skip + res.data.logs.length);
-    } catch { /* silent */ }
-    finally {
-      setLoadingLogs(false);
-      setLoadingMoreLogs(false);
-    }
-  }, []);
+  // Filters for the notification log
+  const [filterStatus, setFilterStatus] = useState<"" | "SENT" | "FAILED">("");
+  const [filterType, setFilterType] = useState<"" | "WHATSAPP" | "EMAIL">("");
+
+  const buildLogsUrl = useCallback(
+    (skip: number) => {
+      const params = new URLSearchParams();
+      params.set("source", "activity");
+      params.set("skip", String(skip));
+      params.set("take", String(PAGE_SIZE));
+      if (filterStatus) params.set("status", filterStatus);
+      if (filterType) params.set("channel", filterType);
+      return `/api/notifications?${params.toString()}`;
+    },
+    [filterStatus, filterType]
+  );
+
+  const fetchLogs = useCallback(
+    async (skip = 0, append = false) => {
+      if (skip === 0) setLoadingLogs(true);
+      else setLoadingMoreLogs(true);
+      try {
+        const res = await axios.get<{ logs: NotificationLog[]; total: number }>(
+          buildLogsUrl(skip)
+        );
+        setLogs((prev) => (append ? [...prev, ...res.data.logs] : res.data.logs));
+        setLogsTotal(res.data.total);
+        setLogsSkip(skip + res.data.logs.length);
+      } catch { /* silent */ }
+      finally {
+        setLoadingLogs(false);
+        setLoadingMoreLogs(false);
+      }
+    },
+    [buildLogsUrl]
+  );
 
   const fetchActivities = useCallback(async () => {
     setLoading(true);
@@ -72,6 +92,7 @@ export default function HomePage() {
     fetchActivities();
   }, [fetchActivities]);
 
+  // Re-fetch logs when filters change (reset to page 0)
   useEffect(() => {
     fetchLogs(0, false);
   }, [fetchLogs]);
@@ -94,6 +115,13 @@ export default function HomePage() {
   const handleSaved = () => {
     fetchActivities();
   };
+
+  // Client-side filter on already-loaded logs (status + type)
+  const visibleLogs = logs.filter((log) => {
+    if (filterStatus && log.status !== filterStatus) return false;
+    if (filterType && log.type !== filterType) return false;
+    return true;
+  });
 
   return (
     <div dir="rtl" className="min-h-screen bg-[#f4f6fb]">
@@ -143,16 +171,39 @@ export default function HomePage() {
               )}
             </section>
 
-            {/* ── سجل الإشعارات ─────────────────────────────────── */}
+            {/* ── سجل إشعارات الفعاليات ─────────────────────────────── */}
             <section>
-              <h2 className="text-base font-bold text-[#1a2340] mb-4">سجل الإشعارات</h2>
+              <h2 className="text-base font-bold text-[#1a2340] mb-4">سجل إشعارات الفعاليات</h2>
+
+              {/* Filters */}
+              <div className="flex flex-wrap gap-3 mb-3">
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value as "" | "SENT" | "FAILED")}
+                  className="px-3 py-2 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-[#22c55e]"
+                >
+                  <option value="">كل الحالات</option>
+                  <option value="SENT">تم الإرسال</option>
+                  <option value="FAILED">فشل</option>
+                </select>
+                <select
+                  value={filterType}
+                  onChange={(e) => setFilterType(e.target.value as "" | "WHATSAPP" | "EMAIL")}
+                  className="px-3 py-2 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-[#22c55e]"
+                >
+                  <option value="">كل الأنواع</option>
+                  <option value="WHATSAPP">واتساب</option>
+                  <option value="EMAIL">بريد</option>
+                </select>
+              </div>
+
               <div className="bg-white rounded-xl shadow-md overflow-hidden">
                 {loadingLogs ? (
                   <div className="flex items-center justify-center py-10 text-gray-400 text-sm gap-2">
                     <div className="w-5 h-5 border-2 border-gray-200 border-t-[#22c55e] rounded-full animate-spin" />
                     {t("common.loading")}
                   </div>
-                ) : logs.length === 0 ? (
+                ) : visibleLogs.length === 0 ? (
                   <div className="py-10 text-center text-sm text-gray-400">{t("common.noData")}</div>
                 ) : (
                   <>
@@ -168,7 +219,7 @@ export default function HomePage() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50">
-                          {logs.map((log) => (
+                          {visibleLogs.map((log) => (
                             <tr key={log.id} className="hover:bg-gray-50/50 transition-colors">
                               <td className="px-4 py-3 font-medium text-[#1a2340]">{log.recipientName}</td>
                               <td className="px-4 py-3">
@@ -182,7 +233,7 @@ export default function HomePage() {
                               </td>
                               <td className="px-4 py-3 text-gray-600 max-w-xs">
                                 <span title={log.content}>
-                                  {log.content.length > 70 ? log.content.slice(0, 70) + "…" : log.content}
+                                  {log.content.length > 60 ? log.content.slice(0, 60) + "…" : log.content}
                                 </span>
                               </td>
                               <td className="px-4 py-3 text-gray-500 whitespace-nowrap">

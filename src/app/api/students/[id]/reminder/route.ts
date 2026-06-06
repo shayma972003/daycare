@@ -57,7 +57,8 @@ export async function POST(
       due_date: dueDate,
       school_name: schoolName,
     },
-    schoolName
+    schoolName,
+    "reminder"
   );
 
   return Response.json({ success: true });

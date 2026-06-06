@@ -57,7 +57,8 @@ export async function POST(
           activity_name: activity.name,
           school_name: schoolName,
         },
-        schoolName
+        schoolName,
+        "activity"
       );
 
       notificationsSent.push(student.name);

@@ -392,6 +392,7 @@ model NotificationLog {
   type          NotificationType
   content       String
   status        DeliveryStatus   @default(SENT)
+  source        String           @default("other")
   sentAt        DateTime         @default(now())
 }
 

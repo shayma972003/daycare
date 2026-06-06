@@ -157,12 +157,12 @@ export default function SettingsPage() {
       .finally(() => setLoadingSettings(false));
   }, []);
 
-  // Fetch initial notification logs
+  // Fetch initial notification logs (reminders + other, exclude activity logs)
   useEffect(() => {
     setLoadingLogs(true);
     axios
       .get<{ logs: NotificationLog[]; total: number }>(
-        `/api/notifications?skip=0&take=${PAGE_SIZE}`
+        `/api/notifications?skip=0&take=${PAGE_SIZE}&source=other`
       )
       .then((res) => {
         setLogs(res.data.logs);
@@ -177,7 +177,7 @@ export default function SettingsPage() {
     setLoadingMoreLogs(true);
     try {
       const res = await axios.get<{ logs: NotificationLog[]; total: number }>(
-        `/api/notifications?skip=${logsSkip}&take=${PAGE_SIZE}`
+        `/api/notifications?skip=${logsSkip}&take=${PAGE_SIZE}&source=other`
       );
       setLogs((prev) => [...prev, ...res.data.logs]);
       setLogsSkip((prev) => prev + res.data.logs.length);

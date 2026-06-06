@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
 import { Topbar } from "@/components/layout/Topbar";
@@ -8,10 +8,12 @@ import { AvatarPlaceholder } from "@/components/ui/IconPlaceholder";
 import { PeriodBadge } from "@/components/ui/StatusBadge";
 import { t, formatTime } from "@/lib/utils";
 
-interface TeacherAttendance {
+interface TodayAttendance {
   id: string;
-  checkinAt?: string | null;
-  checkoutAt?: string | null;
+  teacherId: string;
+  checkinAt: string | null;
+  checkoutAt: string | null;
+  lateMinutes: number;
 }
 
 interface Teacher {
@@ -19,7 +21,6 @@ interface Teacher {
   name: string;
   period?: "MORNING" | "EVENING" | null;
   classes?: { id: string; name: string }[];
-  teacherAttendance?: TeacherAttendance[];
 }
 
 function LiveTimer({ from }: { from: string }) {
@@ -36,8 +37,8 @@ function LiveTimer({ from }: { from: string }) {
   const s = elapsed % 60;
   const fmt = (n: number) => String(n).padStart(2, "0");
   return (
-    <span className="text-xs text-emerald-600 font-mono font-medium">
-      {h > 0 ? `${fmt(h)}:` : ""}{fmt(m)}:{fmt(s)}
+    <span className="font-mono text-sm font-semibold text-emerald-700 tabular-nums">
+      {fmt(h)}:{fmt(m)}:{fmt(s)}
     </span>
   );
 }
@@ -57,7 +58,19 @@ export default function TeachersPage() {
   const xlsxInputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  async function fetchTeachers() {
+  // Today's attendance map: teacherId → attendance record
+  const [todayAtt, setTodayAtt] = useState<Record<string, TodayAttendance>>({});
+
+  const fetchTodayAttendance = useCallback(async () => {
+    try {
+      const res = await axios.get<TodayAttendance[]>("/api/attendance/teachers/today");
+      const map: Record<string, TodayAttendance> = {};
+      res.data.forEach((a) => { map[a.teacherId] = a; });
+      setTodayAtt(map);
+    } catch { /* silent */ }
+  }, []);
+
+  const fetchTeachers = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -70,12 +83,12 @@ export default function TeachersPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [search]);
 
   useEffect(() => {
     fetchTeachers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search]);
+    fetchTodayAttendance();
+  }, [fetchTeachers, fetchTodayAttendance]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -98,14 +111,14 @@ export default function TeachersPage() {
 
   function toggleAll() {
     if (selected.size === teachers.length) setSelected(new Set());
-    else setSelected(new Set(teachers.map((t) => t.id)));
+    else setSelected(new Set(teachers.map((tc) => tc.id)));
   }
 
   async function handleCheckin(id: string) {
     setActionLoading(id + ":checkin");
     try {
       await axios.post(`/api/teachers/${id}/checkin`);
-      await fetchTeachers();
+      await fetchTodayAttendance();
     } catch {
       // silent
     } finally {
@@ -117,7 +130,7 @@ export default function TeachersPage() {
     setActionLoading(id + ":checkout");
     try {
       await axios.post(`/api/teachers/${id}/checkout`);
-      await fetchTeachers();
+      await fetchTodayAttendance();
     } catch {
       // silent
     } finally {
@@ -135,7 +148,7 @@ export default function TeachersPage() {
         )
       );
       setSelected(new Set());
-      await fetchTeachers();
+      await fetchTodayAttendance();
     } catch {
       // silent
     } finally {
@@ -160,14 +173,6 @@ export default function TeachersPage() {
       setXlsxUploading(false);
       if (xlsxInputRef.current) xlsxInputRef.current.value = "";
     }
-  }
-
-  function getTodayAttendance(teacher: Teacher): TeacherAttendance | undefined {
-    if (!teacher.teacherAttendance?.length) return undefined;
-    const today = new Date().toDateString();
-    return teacher.teacherAttendance.find(
-      (a) => a.checkinAt && new Date(a.checkinAt).toDateString() === today
-    );
   }
 
   return (
@@ -284,9 +289,9 @@ export default function TeachersPage() {
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {teachers.map((teacher) => {
-                    const attendance = getTodayAttendance(teacher);
-                    const checkedIn = !!attendance?.checkinAt;
-                    const checkedOut = !!attendance?.checkoutAt;
+                    const att = todayAtt[teacher.id];
+                    const checkedIn = !!att?.checkinAt;
+                    const checkedOut = !!att?.checkoutAt;
                     const primaryClass = teacher.classes?.[0];
 
                     return (
@@ -321,15 +326,15 @@ export default function TeachersPage() {
 
                         {/* Check-in time + live timer */}
                         <td className="px-4 py-3 text-xs">
-                          {checkedIn && !checkedOut && attendance?.checkinAt ? (
+                          {checkedIn && !checkedOut && att?.checkinAt ? (
                             <div className="flex flex-col gap-0.5">
-                              <span className="text-gray-500">{formatTime(attendance.checkinAt)}</span>
-                              <LiveTimer from={attendance.checkinAt} />
+                              <span className="text-gray-500">{formatTime(att.checkinAt)}</span>
+                              <LiveTimer from={att.checkinAt} />
                             </div>
-                          ) : checkedIn && checkedOut && attendance?.checkoutAt ? (
+                          ) : checkedIn && checkedOut && att?.checkoutAt ? (
                             <div className="flex flex-col gap-0.5">
-                              <span className="text-gray-500">{formatTime(attendance.checkinAt!)}</span>
-                              <span className="text-gray-400">خرج {formatTime(attendance.checkoutAt)}</span>
+                              <span className="text-gray-500">{formatTime(att.checkinAt!)}</span>
+                              <span className="text-gray-400">خرج {formatTime(att.checkoutAt)}</span>
                             </div>
                           ) : (
                             <span className="text-gray-400">—</span>
@@ -351,7 +356,7 @@ export default function TeachersPage() {
                               <button
                                 onClick={() => handleCheckout(teacher.id)}
                                 disabled={actionLoading === teacher.id + ":checkout"}
-                                className="px-3 py-1.5 bg-gray-600 text-white rounded-lg text-xs font-medium hover:bg-gray-700 transition-all disabled:opacity-60"
+                                className="px-3 py-1.5 bg-red-500 text-white rounded-lg text-xs font-medium hover:bg-red-600 transition-all disabled:opacity-60"
                               >
                                 {actionLoading === teacher.id + ":checkout" ? "..." : t("teachers.actions.checkout")}
                               </button>

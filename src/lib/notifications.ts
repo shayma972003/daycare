@@ -107,7 +107,8 @@ export async function sendNotification(
   email: string | null,
   template: string,
   vars: NotificationVars,
-  schoolName: string
+  schoolName: string,
+  source: string = "other"
 ) {
   const message = replaceVariables(template, vars as Record<string, string>);
 
@@ -123,6 +124,7 @@ export async function sendNotification(
             type: "WHATSAPP",
             content: message,
             status: res.success ? "SENT" : "FAILED",
+            source,
           },
         });
       })
@@ -140,6 +142,7 @@ export async function sendNotification(
               type: "EMAIL",
               content: message,
               status: res.success ? "SENT" : "FAILED",
+              source,
             },
           });
         }

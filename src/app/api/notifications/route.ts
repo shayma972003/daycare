@@ -13,17 +13,29 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const skipParam = searchParams.get("skip");
   const takeParam = searchParams.get("take");
+  const sourceParam = searchParams.get("source"); // "activity" | "other" | null (all)
+
   const skip = skipParam ? parseInt(skipParam, 10) : 0;
   const take = takeParam ? parseInt(takeParam, 10) : 20;
 
+  // Build source filter
+  let sourceFilter: Record<string, unknown> = {};
+  if (sourceParam === "activity") {
+    sourceFilter = { source: "activity" };
+  } else if (sourceParam === "other") {
+    sourceFilter = { source: { not: "activity" } };
+  }
+
+  const where = { schoolId, ...sourceFilter };
+
   const [logs, total] = await Promise.all([
     prisma.notificationLog.findMany({
-      where: { schoolId },
+      where,
       orderBy: { sentAt: "desc" },
       skip: isNaN(skip) || skip < 0 ? 0 : skip,
       take: isNaN(take) || take <= 0 ? 20 : take,
     }),
-    prisma.notificationLog.count({ where: { schoolId } }),
+    prisma.notificationLog.count({ where }),
   ]);
 
   return Response.json({ logs, total });

@@ -98,6 +98,37 @@ export default function StudentsPage() {
   const [reviewClassId, setReviewClassId] = useState("");
   const [reviewApproving, setReviewApproving] = useState(false);
   const [reviewRejecting, setReviewRejecting] = useState(false);
+  const [reviewEdit, setReviewEdit] = useState<Partial<EnrollmentSubmission & { date_of_birth_str: string }>>({});
+
+  function openReviewModal(sub: EnrollmentSubmission) {
+    setReviewModalSub(sub);
+    setReviewClassId("");
+    setReviewEdit({
+      full_name: sub.full_name,
+      id_number: sub.id_number ?? "",
+      nationality: sub.nationality ?? "",
+      academic_stage: sub.academic_stage ?? "",
+      gender: sub.gender ?? "",
+      period: sub.period ?? "",
+      date_of_birth_str: sub.date_of_birth ? sub.date_of_birth.slice(0, 10) : "",
+      health_condition: sub.health_condition ?? "",
+      allergies: sub.allergies ?? "",
+      attendance_type: sub.attendance_type ?? "",
+      payment_method: sub.payment_method ?? "",
+      guardian_name: sub.guardian_name ?? "",
+      guardian_phone_1: sub.guardian_phone_1 ?? "",
+      guardian_phone_2: sub.guardian_phone_2 ?? "",
+      guardian_email: sub.guardian_email ?? "",
+      guardian_name_2: sub.guardian_name_2 ?? "",
+      guardian_phone_3: sub.guardian_phone_3 ?? "",
+      guardian_phone_4: sub.guardian_phone_4 ?? "",
+      guardian_email_2: sub.guardian_email_2 ?? "",
+    });
+  }
+
+  function setRE(key: string, val: string) {
+    setReviewEdit((prev) => ({ ...prev, [key]: val }));
+  }
 
   const fetchSubmissions = useCallback(async () => {
     try {
@@ -208,9 +239,15 @@ export default function StudentsPage() {
     if (!reviewModalSub) return;
     setReviewApproving(true);
     try {
-      await axios.post(`/api/enrollment/approve/${reviewModalSub.id}`, { class_id: reviewClassId || undefined });
+      const { date_of_birth_str, ...rest } = reviewEdit as Record<string, string>;
+      await axios.post(`/api/enrollment/approve/${reviewModalSub.id}`, {
+        ...rest,
+        class_id: reviewClassId || undefined,
+        date_of_birth: date_of_birth_str || undefined,
+      });
       setReviewModalSub(null);
       setReviewClassId("");
+      setReviewEdit({});
       fetchSubmissions();
       fetchStudents();
     } catch (err) {
@@ -315,7 +352,7 @@ export default function StudentsPage() {
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
                             <button
-                              onClick={() => { setReviewModalSub(sub); setReviewClassId(""); }}
+                              onClick={() => openReviewModal(sub)}
                               className="px-3 py-1.5 text-xs bg-[#1a2340] text-white rounded-lg hover:bg-[#2a3460] transition-colors"
                             >
                               مراجعة
@@ -671,52 +708,117 @@ export default function StudentsPage() {
             </div>
 
             {/* Student Info */}
-            <div className="bg-gray-50 rounded-xl p-4 mb-4">
-              <h3 className="text-sm font-bold text-gray-700 mb-3">معلومات الطالب</h3>
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div><span className="text-gray-500">الاسم:</span> <span className="font-medium">{reviewModalSub.full_name}</span></div>
-                <div><span className="text-gray-500">رقم الهوية:</span> <span className="font-medium">{reviewModalSub.id_number ?? "—"}</span></div>
-                <div><span className="text-gray-500">الجنسية:</span> <span className="font-medium">{reviewModalSub.nationality ?? "—"}</span></div>
-                <div><span className="text-gray-500">المرحلة:</span> <span className="font-medium">{reviewModalSub.academic_stage ?? "—"}</span></div>
-                <div><span className="text-gray-500">الجنس:</span> <span className="font-medium">{reviewModalSub.gender ?? "—"}</span></div>
-                <div><span className="text-gray-500">الفترة:</span> <span className="font-medium">{reviewModalSub.period ?? "—"}</span></div>
-                {reviewModalSub.date_of_birth && (
-                  <div><span className="text-gray-500">تاريخ الميلاد:</span> <span className="font-medium">{new Date(reviewModalSub.date_of_birth).toLocaleDateString("ar-SA")}</span></div>
-                )}
+            <div className="bg-gray-50 rounded-xl p-4 mb-4 space-y-3">
+              <h3 className="text-sm font-bold text-gray-700">معلومات الطالب</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">الاسم الكامل *</label>
+                  <input className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#22c55e]" value={reviewEdit.full_name ?? ""} onChange={(e) => setRE("full_name", e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">رقم الهوية</label>
+                  <input className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#22c55e]" value={reviewEdit.id_number ?? ""} onChange={(e) => setRE("id_number", e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">الجنسية</label>
+                  <input className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#22c55e]" value={reviewEdit.nationality ?? ""} onChange={(e) => setRE("nationality", e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">المرحلة الدراسية</label>
+                  <input className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#22c55e]" value={reviewEdit.academic_stage ?? ""} onChange={(e) => setRE("academic_stage", e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">الجنس</label>
+                  <select className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#22c55e]" value={reviewEdit.gender ?? ""} onChange={(e) => setRE("gender", e.target.value)}>
+                    <option value="">—</option>
+                    <option value="ذكر">ذكر</option>
+                    <option value="أنثى">أنثى</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">الفترة</label>
+                  <select className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#22c55e]" value={reviewEdit.period ?? ""} onChange={(e) => setRE("period", e.target.value)}>
+                    <option value="">—</option>
+                    <option value="صباحي">صباحي</option>
+                    <option value="مسائي">مسائي</option>
+                  </select>
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-xs text-gray-500 mb-1">تاريخ الميلاد</label>
+                  <input type="date" className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#22c55e]" value={(reviewEdit as Record<string, string>).date_of_birth_str ?? ""} onChange={(e) => setRE("date_of_birth_str", e.target.value)} />
+                </div>
               </div>
             </div>
 
             {/* Health Info */}
-            {(reviewModalSub.health_condition || reviewModalSub.allergies) && (
-              <div className="bg-red-50 rounded-xl p-4 mb-4">
-                <h3 className="text-sm font-bold text-gray-700 mb-3">المعلومات الصحية</h3>
-                <div className="text-sm space-y-2">
-                  {reviewModalSub.health_condition && <div><span className="text-gray-500">الحالة الصحية:</span> <span>{reviewModalSub.health_condition}</span></div>}
-                  {reviewModalSub.allergies && <div><span className="text-gray-500">الحساسيات:</span> <span>{reviewModalSub.allergies}</span></div>}
-                </div>
+            <div className="bg-red-50 rounded-xl p-4 mb-4 space-y-3">
+              <h3 className="text-sm font-bold text-gray-700">المعلومات الصحية</h3>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">الحالة الصحية</label>
+                <textarea className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#22c55e] resize-none h-16" value={reviewEdit.health_condition ?? ""} onChange={(e) => setRE("health_condition", e.target.value)} />
               </div>
-            )}
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">الحساسيات</label>
+                <textarea className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#22c55e] resize-none h-16" value={reviewEdit.allergies ?? ""} onChange={(e) => setRE("allergies", e.target.value)} />
+              </div>
+            </div>
 
             {/* Guardian Info */}
-            <div className="bg-blue-50 rounded-xl p-4 mb-4">
-              <h3 className="text-sm font-bold text-gray-700 mb-3">معلومات ولي الأمر</h3>
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div><span className="text-gray-500">الاسم:</span> <span className="font-medium">{reviewModalSub.guardian_name ?? "—"}</span></div>
-                <div><span className="text-gray-500">الجوال 1:</span> <span className="font-mono font-medium" dir="ltr">{reviewModalSub.guardian_phone_1 ?? "—"}</span></div>
-                {reviewModalSub.guardian_phone_2 && <div><span className="text-gray-500">الجوال 2:</span> <span className="font-mono" dir="ltr">{reviewModalSub.guardian_phone_2}</span></div>}
-                {reviewModalSub.guardian_email && <div><span className="text-gray-500">البريد:</span> <span dir="ltr">{reviewModalSub.guardian_email}</span></div>}
-                {reviewModalSub.guardian_name_2 && <div><span className="text-gray-500">ولي الأمر 2:</span> <span>{reviewModalSub.guardian_name_2}</span></div>}
-                {reviewModalSub.guardian_phone_3 && <div><span className="text-gray-500">الجوال 3:</span> <span className="font-mono" dir="ltr">{reviewModalSub.guardian_phone_3}</span></div>}
-                {reviewModalSub.guardian_phone_4 && <div><span className="text-gray-500">الجوال 4:</span> <span className="font-mono" dir="ltr">{reviewModalSub.guardian_phone_4}</span></div>}
+            <div className="bg-blue-50 rounded-xl p-4 mb-4 space-y-3">
+              <h3 className="text-sm font-bold text-gray-700">معلومات ولي الأمر</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2">
+                  <label className="block text-xs text-gray-500 mb-1">اسم ولي الأمر</label>
+                  <input className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#22c55e]" value={reviewEdit.guardian_name ?? ""} onChange={(e) => setRE("guardian_name", e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">الجوال 1</label>
+                  <input dir="ltr" className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-[#22c55e]" value={reviewEdit.guardian_phone_1 ?? ""} onChange={(e) => setRE("guardian_phone_1", e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">الجوال 2</label>
+                  <input dir="ltr" className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-[#22c55e]" value={reviewEdit.guardian_phone_2 ?? ""} onChange={(e) => setRE("guardian_phone_2", e.target.value)} />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-xs text-gray-500 mb-1">البريد الإلكتروني</label>
+                  <input dir="ltr" type="email" className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#22c55e]" value={reviewEdit.guardian_email ?? ""} onChange={(e) => setRE("guardian_email", e.target.value)} />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-xs text-gray-500 mb-1">اسم ولي الأمر 2</label>
+                  <input className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#22c55e]" value={reviewEdit.guardian_name_2 ?? ""} onChange={(e) => setRE("guardian_name_2", e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">الجوال 3</label>
+                  <input dir="ltr" className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-[#22c55e]" value={reviewEdit.guardian_phone_3 ?? ""} onChange={(e) => setRE("guardian_phone_3", e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">الجوال 4</label>
+                  <input dir="ltr" className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-[#22c55e]" value={reviewEdit.guardian_phone_4 ?? ""} onChange={(e) => setRE("guardian_phone_4", e.target.value)} />
+                </div>
               </div>
             </div>
 
             {/* Registration Info */}
-            <div className="bg-gray-50 rounded-xl p-4 mb-5">
-              <h3 className="text-sm font-bold text-gray-700 mb-3">معلومات التسجيل</h3>
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div><span className="text-gray-500">طبيعة الدوام:</span> <span className="font-medium">{reviewModalSub.attendance_type ?? "—"}</span></div>
-                <div><span className="text-gray-500">طريقة الدفع:</span> <span className="font-medium">{reviewModalSub.payment_method ?? "—"}</span></div>
+            <div className="bg-gray-50 rounded-xl p-4 mb-4 space-y-3">
+              <h3 className="text-sm font-bold text-gray-700">معلومات التسجيل</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">طبيعة الدوام</label>
+                  <select className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#22c55e]" value={reviewEdit.attendance_type ?? ""} onChange={(e) => setRE("attendance_type", e.target.value)}>
+                    <option value="">—</option>
+                    <option value="دوام منتظم">دوام منتظم</option>
+                    <option value="شفتات">شفتات</option>
+                    <option value="غيره">غيره</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">طريقة الدفع</label>
+                  <select className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#22c55e]" value={reviewEdit.payment_method ?? ""} onChange={(e) => setRE("payment_method", e.target.value)}>
+                    <option value="">—</option>
+                    <option value="نقدي">نقدي</option>
+                    <option value="تحويل">تحويل</option>
+                  </select>
+                </div>
               </div>
             </div>
 

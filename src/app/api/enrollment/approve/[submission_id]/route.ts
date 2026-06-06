@@ -3,14 +3,26 @@ import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
 const schema = z.object({
-  class_id: z.string().min(1).optional(),
-  // allow admin to override fields before approval
+  class_id: z.string().optional(),
   full_name: z.string().min(1).optional(),
+  id_number: z.string().nullish(),
+  nationality: z.string().nullish(),
   academic_stage: z.string().nullish(),
   gender: z.string().nullish(),
   period: z.string().nullish(),
+  date_of_birth: z.string().nullish(),
+  health_condition: z.string().nullish(),
+  allergies: z.string().nullish(),
   attendance_type: z.string().nullish(),
   payment_method: z.string().nullish(),
+  guardian_name: z.string().nullish(),
+  guardian_phone_1: z.string().nullish(),
+  guardian_phone_2: z.string().nullish(),
+  guardian_email: z.string().nullish(),
+  guardian_name_2: z.string().nullish(),
+  guardian_phone_3: z.string().nullish(),
+  guardian_phone_4: z.string().nullish(),
+  guardian_email_2: z.string().nullish(),
 });
 
 function mapPeriod(v: string | null | undefined): "MORNING" | "EVENING" {
@@ -53,9 +65,10 @@ export async function POST(
     body = {};
   }
   const parsed = schema.safeParse(body);
-  const overrides = parsed.success ? parsed.data : {};
+  const ov = parsed.success ? parsed.data : {};
 
-  const guardianPhone = sub.guardian_phone_1;
+  // Merge overrides with submission data (override wins)
+  const guardianPhone = ov.guardian_phone_1 ?? sub.guardian_phone_1;
   let guardianId: string | null = null;
 
   if (guardianPhone) {
@@ -64,41 +77,54 @@ export async function POST(
     });
     if (existing) {
       guardianId = existing.id;
+      // Update guardian with any new info from overrides
+      await prisma.guardian.update({
+        where: { id: existing.id },
+        data: {
+          name: ov.guardian_name ?? sub.guardian_name ?? existing.name,
+          phone2: ov.guardian_phone_2 ?? sub.guardian_phone_2 ?? existing.phone2,
+          email: ov.guardian_email ?? sub.guardian_email ?? existing.email,
+          name_2: ov.guardian_name_2 ?? sub.guardian_name_2 ?? existing.name_2,
+          phone_3: ov.guardian_phone_3 ?? sub.guardian_phone_3 ?? existing.phone_3,
+          phone_4: ov.guardian_phone_4 ?? sub.guardian_phone_4 ?? existing.phone_4,
+          email_2: ov.guardian_email_2 ?? sub.guardian_email_2 ?? existing.email_2,
+        },
+      });
     } else {
       const created = await prisma.guardian.create({
         data: {
           schoolId,
-          name: sub.guardian_name ?? "—",
-          phone1: sub.guardian_phone_1 ?? null,
-          phone2: sub.guardian_phone_2 ?? null,
-          email: sub.guardian_email ?? null,
-          name_2: sub.guardian_name_2 ?? null,
-          phone_3: sub.guardian_phone_3 ?? null,
-          phone_4: sub.guardian_phone_4 ?? null,
-          email_2: sub.guardian_email_2 ?? null,
+          name: ov.guardian_name ?? sub.guardian_name ?? "—",
+          phone1: guardianPhone,
+          phone2: ov.guardian_phone_2 ?? sub.guardian_phone_2 ?? null,
+          email: ov.guardian_email ?? sub.guardian_email ?? null,
+          name_2: ov.guardian_name_2 ?? sub.guardian_name_2 ?? null,
+          phone_3: ov.guardian_phone_3 ?? sub.guardian_phone_3 ?? null,
+          phone_4: ov.guardian_phone_4 ?? sub.guardian_phone_4 ?? null,
+          email_2: ov.guardian_email_2 ?? sub.guardian_email_2 ?? null,
         },
       });
       guardianId = created.id;
     }
   }
 
-  const name = (overrides.full_name ?? sub.full_name) || "—";
+  const dobRaw = ov.date_of_birth ?? (sub.date_of_birth ? sub.date_of_birth.toString() : null);
   const student = await prisma.student.create({
     data: {
       schoolId,
-      name,
-      classId: overrides.class_id ?? null,
+      name: (ov.full_name ?? sub.full_name) || "—",
+      classId: ov.class_id || null,
       guardianId,
-      idNumber: sub.id_number ?? null,
-      nationality: sub.nationality ?? null,
-      academicStage: overrides.academic_stage ?? sub.academic_stage ?? null,
-      gender: mapGender(overrides.gender ?? sub.gender),
-      period: mapPeriod(overrides.period ?? sub.period),
-      dateOfBirth: sub.date_of_birth ?? null,
-      healthCondition: sub.health_condition ?? null,
-      allergies: sub.allergies ?? null,
-      attendanceType: overrides.attendance_type ?? sub.attendance_type ?? "دوام منتظم",
-      paymentMethod: mapPaymentMethod(overrides.payment_method ?? sub.payment_method),
+      idNumber: ov.id_number ?? sub.id_number ?? null,
+      nationality: ov.nationality ?? sub.nationality ?? null,
+      academicStage: ov.academic_stage ?? sub.academic_stage ?? null,
+      gender: mapGender(ov.gender ?? sub.gender),
+      period: mapPeriod(ov.period ?? sub.period),
+      dateOfBirth: dobRaw ? new Date(dobRaw) : null,
+      healthCondition: ov.health_condition ?? sub.health_condition ?? null,
+      allergies: ov.allergies ?? sub.allergies ?? null,
+      attendanceType: ov.attendance_type ?? sub.attendance_type ?? "دوام منتظم",
+      paymentMethod: mapPaymentMethod(ov.payment_method ?? sub.payment_method),
       paymentStatus: "بانتظار الدفع",
       registrationDate: new Date(),
     },

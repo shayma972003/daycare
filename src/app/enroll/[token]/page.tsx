@@ -144,7 +144,7 @@ const selectCls = `${inputCls} appearance-none`;
 
 function EnrollmentForm({
   token,
-  school,
+  school: _school,
   initialGuardian,
   submissionsCount,
   maxSubmissions,
@@ -152,7 +152,7 @@ function EnrollmentForm({
 }: {
   token: string;
   school: SchoolInfo;
-  initialGuardian: GuardianPrefill;
+  initialGuardian: GuardianPrefill; // eslint-disable-line @typescript-eslint/no-unused-vars
   submissionsCount: number;
   maxSubmissions: number;
   onSuccess: (childName: string, newCount: number, guardian: GuardianPrefill) => void;
@@ -185,7 +185,7 @@ function EnrollmentForm({
     setForm((prev) => ({ ...prev, [key]: val }));
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.SyntheticEvent) {
     e.preventDefault();
     if (!form.full_name.trim()) {
       setError("الاسم الكامل مطلوب");
@@ -208,6 +208,9 @@ function EnrollmentForm({
         guardian_phone_4: form.guardian_phone_4,
         guardian_email_2: form.guardian_email_2,
       };
+      try {
+        sessionStorage.setItem(`enrollment_guardian_${token}`, JSON.stringify(guardian));
+      } catch { /* ignore */ }
       onSuccess(form.full_name, res.data.submissions_count, guardian);
     } catch (err) {
       if (axios.isAxiosError(err)) {
@@ -344,6 +347,15 @@ export default function EnrollPage() {
   const [resendTimer, setResendTimer] = useState(60);
   const [resending, setResending] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Load guardian prefill from sessionStorage once token is available
+  useEffect(() => {
+    if (!token) return;
+    try {
+      const stored = sessionStorage.getItem(`enrollment_guardian_${token}`);
+      if (stored) setGuardianPrefill(JSON.parse(stored) as GuardianPrefill);
+    } catch { /* ignore */ }
+  }, [token]);
 
   const startResendTimer = useCallback(() => {
     setResendTimer(60);

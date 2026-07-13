@@ -16,7 +16,7 @@ export async function GET(request: Request) {
     prisma.school.findMany({
       include: {
         subscription_plan: true,
-        _count: { select: { students: { where: { isActive: true } } } },
+        _count: { select: { students: { where: { isActive: true, deletedAt: null } } } },
       },
     }),
   ]);

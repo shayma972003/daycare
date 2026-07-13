@@ -157,7 +157,7 @@ export async function POST(request: Request) {
   if (fullParsed.success) {
     const { studentId, invoiceData: inv } = fullParsed.data;
 
-    const student = await prisma.student.findFirst({ where: { id: studentId, schoolId } });
+    const student = await prisma.student.findFirst({ where: { id: studentId, schoolId, deletedAt: null } });
     if (!student) return Response.json({ error: "Student not found" }, { status: 404 });
 
     const PAYMENT_METHODS: Record<string, string> = { CASH: "نقدي", TRANSFER: "تحويل بنكي", CARD: "بطاقة" };
@@ -361,8 +361,8 @@ export async function POST(request: Request) {
 
   if (studentId) {
     invoiceType = "STUDENT";
-    const student = await prisma.student.findUnique({
-      where: { id: studentId, schoolId },
+    const student = await prisma.student.findFirst({
+      where: { id: studentId, schoolId, deletedAt: null },
       include: { class: true, guardian: true },
     });
     if (!student) return Response.json({ error: "Student not found" }, { status: 404 });
@@ -472,8 +472,8 @@ export async function POST(request: Request) {
   } else {
     // Teacher invoice
     invoiceType = "TEACHER";
-    const teacher = await prisma.teacher.findUnique({
-      where: { id: teacherId!, schoolId },
+    const teacher = await prisma.teacher.findFirst({
+      where: { id: teacherId!, schoolId, deletedAt: null },
       include: { classes: true },
     });
     if (!teacher) return Response.json({ error: "Teacher not found" }, { status: 404 });

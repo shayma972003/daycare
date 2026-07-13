@@ -73,7 +73,7 @@ export async function POST(
 
   if (guardianPhone) {
     const existing = await prisma.guardian.findFirst({
-      where: { schoolId, phone1: guardianPhone },
+      where: { schoolId, phone1: guardianPhone, deletedAt: null },
     });
     if (existing) {
       guardianId = existing.id;

@@ -17,6 +17,7 @@ interface ClassItem {
   teacherId?: string | null;
   teacher?: { id: string; name: string } | null;
   students: { id: string }[];
+  needsTeacherWarning?: boolean;
 }
 
 export default function ClassesPage() {
@@ -152,8 +153,16 @@ export default function ClassesPage() {
               <button
                 key={cls.id}
                 onClick={() => openEdit(cls)}
-                className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow text-right w-full"
+                className="relative bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow text-right w-full"
               >
+                {cls.needsTeacherWarning && (
+                  <span
+                    title="هذا الفصل بدون معلم مسؤول"
+                    className="absolute bottom-2 left-2 z-10 flex items-center justify-center w-6 h-6 rounded-full bg-orange-100 text-orange-600 text-sm shadow"
+                  >
+                    ⚠
+                  </span>
+                )}
                 {/* Image placeholder — full width top, gray, 120px */}
                 <div className="w-full bg-gray-100 flex items-center justify-center text-gray-400" style={{ height: 120 }}>
                   <div className="flex flex-col items-center gap-1">

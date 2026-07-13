@@ -46,7 +46,7 @@ export async function GET(
 
   try {
     const student = await prisma.student.findFirst({
-      where: { id, schoolId },
+      where: { id, schoolId, deletedAt: null },
       include: { class: true, guardian: true },
     });
 
@@ -62,6 +62,7 @@ export async function GET(
             guardianId: student.guardianId,
             id: { not: id },
             isActive: true,
+            deletedAt: null,
           },
           select: { id: true, name: true },
         })
@@ -106,7 +107,7 @@ export async function PUT(
     return Response.json({ error: parsed.error.flatten() }, { status: 422 });
   }
 
-  const existing = await prisma.student.findFirst({ where: { id, schoolId } });
+  const existing = await prisma.student.findFirst({ where: { id, schoolId, deletedAt: null } });
   if (!existing) {
     return Response.json({ error: "Not found" }, { status: 404 });
   }
@@ -115,7 +116,10 @@ export async function PUT(
   const updateData: Record<string, unknown> = {};
 
   if (data.name !== undefined) updateData.name = data.name;
-  if ("classId" in data) updateData.classId = data.classId ?? null;
+  if ("classId" in data) {
+    updateData.classId = data.classId ?? null;
+    if (data.classId) updateData.needsClassWarning = false;
+  }
   if ("healthCondition" in data) updateData.healthCondition = data.healthCondition ?? null;
   if ("academicStage" in data) updateData.academicStage = data.academicStage ?? null;
   if ("period" in data) updateData.period = data.period ?? null;
@@ -149,6 +153,7 @@ export async function PUT(
     const foundGuardian = await prisma.guardian.findFirst({
       where: {
         schoolId,
+        deletedAt: null,
         OR: [
           ...(phone1 ? [{ phone1 }] : []),
           ...(email ? [{ email }] : []),
@@ -224,12 +229,12 @@ export async function DELETE(
   const schoolId = (session.user as { schoolId: string }).schoolId;
   const { id } = await params;
 
-  const existing = await prisma.student.findFirst({ where: { id, schoolId } });
+  const existing = await prisma.student.findFirst({ where: { id, schoolId, deletedAt: null } });
   if (!existing) {
     return Response.json({ error: "Not found" }, { status: 404 });
   }
 
-  await prisma.student.delete({ where: { id } });
+  await prisma.student.update({ where: { id }, data: { deletedAt: new Date() } });
 
   return Response.json({ success: true });
 }

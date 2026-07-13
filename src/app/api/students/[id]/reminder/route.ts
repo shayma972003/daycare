@@ -17,7 +17,7 @@ export async function POST(
   const { id } = await params;
 
   const student = await prisma.student.findFirst({
-    where: { id, schoolId },
+    where: { id, schoolId, deletedAt: null },
     include: { class: true, guardian: true },
   });
 

@@ -91,6 +91,8 @@ export default function StudentProfilePage({
   const [guardianLinked, setGuardianLinked] = useState(false);
   const [suggestions, setSuggestions] = useState<GuardianSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [showTrashModal, setShowTrashModal] = useState(false);
+  const [trashing, setTrashing] = useState(false);
   const suggestionsRef = useRef<HTMLDivElement>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -264,6 +266,19 @@ export default function StudentProfilePage({
   async function reactivate() {
     await axios.post(`/api/students/${id}/reactivate`);
     window.location.reload();
+  }
+
+  async function moveToTrash() {
+    setTrashing(true);
+    try {
+      await axios.delete(`/api/students/${id}`);
+      router.push("/students");
+    } catch {
+      alert(t("common.error"));
+    } finally {
+      setTrashing(false);
+      setShowTrashModal(false);
+    }
   }
 
   const guardianNameVal = watch("guardianName");
@@ -566,10 +581,43 @@ export default function StudentProfilePage({
                     {t("students.profile.actions.reactivate")}
                   </button>
                 )}
+                <button
+                  type="button"
+                  onClick={() => setShowTrashModal(true)}
+                  className="w-full py-2.5 border border-red-500 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 transition-colors"
+                >
+                  نقل إلى سلة المحذوفات
+                </button>
               </div>
             </div>
           </div>
         </form>
+
+        {showTrashModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div className="bg-white rounded-2xl shadow-xl p-6 w-96 text-center space-y-4">
+              <p className="text-base font-bold text-[#1a2340]">نقل إلى سلة المحذوفات؟</p>
+              <p className="text-sm text-gray-600 whitespace-pre-line">
+                {`سيتم نقل ملف ${student?.name ?? ""} إلى سلة المحذوفات.\nيمكنك استعادته خلال 30 يوماً.`}
+              </p>
+              <div className="flex gap-3 justify-center">
+                <button
+                  onClick={moveToTrash}
+                  disabled={trashing}
+                  className="px-5 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 disabled:opacity-60"
+                >
+                  {trashing ? "..." : "تأكيد النقل"}
+                </button>
+                <button
+                  onClick={() => setShowTrashModal(false)}
+                  className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm"
+                >
+                  إلغاء
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <InvoiceModal
           open={invoiceModalOpen}

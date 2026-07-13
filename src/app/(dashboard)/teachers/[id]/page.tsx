@@ -52,6 +52,9 @@ export default function TeacherProfilePage() {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
+  const [showTrashModal, setShowTrashModal] = useState(false);
+  const [trashClasses, setTrashClasses] = useState<{ id: string; name: string; group: string }[]>([]);
+  const [trashing, setTrashing] = useState(false);
 
   // Extra qualifications (4–10) stored as array of strings
   const [extraQuals, setExtraQuals] = useState<string[]>([]);
@@ -149,6 +152,29 @@ export default function TeacherProfilePage() {
 
   function onInvoiceIssued(inv: { id: string; amount: number; pdfUrl: string | null; createdAt: string }) {
     setInvoices((prev) => [{ ...inv, type: "TEACHER" }, ...prev]);
+  }
+
+  async function openTrashModal() {
+    try {
+      const res = await axios.get<{ assignedClasses: { id: string; name: string; group: string }[] }>(`/api/teachers/${id}/classes`);
+      setTrashClasses(res.data.assignedClasses ?? []);
+    } catch {
+      setTrashClasses([]);
+    }
+    setShowTrashModal(true);
+  }
+
+  async function moveToTrash() {
+    setTrashing(true);
+    try {
+      await axios.delete(`/api/teachers/${id}`);
+      router.push("/teachers");
+    } catch {
+      alert(t("common.error"));
+    } finally {
+      setTrashing(false);
+      setShowTrashModal(false);
+    }
   }
 
   const inputCls = "w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#22c55e] text-sm";
@@ -335,6 +361,9 @@ export default function TeacherProfilePage() {
                 <button type="button" onClick={handleCancel} disabled={actionLoading === "cancel"} className="w-full py-2.5 border border-red-500 text-red-600 rounded-xl text-sm font-medium hover:bg-red-50 transition-all disabled:opacity-60">
                   {actionLoading === "cancel" ? t("common.loading") : t("teachers.profile.actions.cancel")}
                 </button>
+                <button type="button" onClick={openTrashModal} className="w-full py-2.5 border border-red-500 text-red-600 rounded-xl text-sm font-medium hover:bg-red-50 transition-all">
+                  نقل إلى سلة المحذوفات
+                </button>
               </div>
 
               <div className="bg-white rounded-xl shadow-md p-4 space-y-3">
@@ -401,6 +430,48 @@ export default function TeacherProfilePage() {
       </div>
 
       <TeacherInvoiceModal open={invoiceModalOpen} teacherId={id} onClose={() => setInvoiceModalOpen(false)} onIssued={onInvoiceIssued} />
+
+      {showTrashModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-96 text-center space-y-4">
+            {trashClasses.length === 0 ? (
+              <>
+                <p className="text-base font-bold text-[#1a2340]">نقل إلى سلة المحذوفات؟</p>
+                <p className="text-sm text-gray-600 whitespace-pre-line">
+                  {`سيتم نقل ملف ${teacher?.name ?? ""} إلى سلة المحذوفات.\nيمكنك استعادته خلال 30 يوماً.`}
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-base font-bold text-[#1a2340] text-right">هذا المعلم هو المعلم المسؤول على:</p>
+                <ul className="text-sm text-gray-700 text-right space-y-1 max-h-40 overflow-y-auto">
+                  {trashClasses.map((c) => (
+                    <li key={c.id}>- {c.name} ({c.group})</li>
+                  ))}
+                </ul>
+                <p className="text-sm text-gray-600 whitespace-pre-line text-right">
+                  {"عند الحذف ستبقى هذه الفصول بدون معلم مسؤول\nوسيظهر تنبيه عليها حتى يتم التعيين."}
+                </p>
+              </>
+            )}
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={moveToTrash}
+                disabled={trashing}
+                className="px-5 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 disabled:opacity-60"
+              >
+                {trashing ? "..." : trashClasses.length === 0 ? "تأكيد النقل" : "حذف"}
+              </button>
+              <button
+                onClick={() => setShowTrashModal(false)}
+                className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm"
+              >
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

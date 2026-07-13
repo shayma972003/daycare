@@ -35,7 +35,7 @@ export async function GET(_request: Request) {
       _sum: { monthlySalary: true },
     }),
     prisma.student.aggregate({
-      where: { schoolId, isActive: true },
+      where: { schoolId, isActive: true, deletedAt: null },
       _sum: { registration_fee: true },
     }),
   ]);
@@ -61,7 +61,7 @@ export async function GET(_request: Request) {
   // 2. Payment status breakdown
   const paymentStatusGroups = await prisma.student.groupBy({
     by: ["paymentStatus"],
-    where: { schoolId },
+    where: { schoolId, deletedAt: null },
     _count: { paymentStatus: true },
   });
 
@@ -83,10 +83,10 @@ export async function GET(_request: Request) {
 
     const [boys, girls] = await Promise.all([
       prisma.student.count({
-        where: { schoolId, gender: "MALE", createdAt: { gte: start, lt: end } },
+        where: { schoolId, gender: "MALE", createdAt: { gte: start, lt: end }, deletedAt: null },
       }),
       prisma.student.count({
-        where: { schoolId, gender: "FEMALE", createdAt: { gte: start, lt: end } },
+        where: { schoolId, gender: "FEMALE", createdAt: { gte: start, lt: end }, deletedAt: null },
       }),
     ]);
 
@@ -95,9 +95,9 @@ export async function GET(_request: Request) {
 
   // 4. Attendance by class
   const classes = await prisma.class.findMany({
-    where: { schoolId },
+    where: { schoolId, deletedAt: null },
     include: {
-      students: { select: { id: true } },
+      students: { select: { id: true }, where: { deletedAt: null } },
     },
   });
 
@@ -131,7 +131,7 @@ export async function GET(_request: Request) {
   // 5. Late summary
   const [lateHoursResult, lateFeesResult, topStudents] = await Promise.all([
     prisma.student.aggregate({
-      where: { schoolId },
+      where: { schoolId, deletedAt: null },
       _sum: { lateHours: true },
     }),
     prisma.attendance.aggregate({
@@ -142,7 +142,7 @@ export async function GET(_request: Request) {
       _sum: { lateFee: true },
     }),
     prisma.student.findMany({
-      where: { schoolId },
+      where: { schoolId, deletedAt: null },
       orderBy: { lateHours: "desc" },
       take: 5,
       select: { name: true, lateHours: true },

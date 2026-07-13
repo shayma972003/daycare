@@ -16,6 +16,7 @@ type Student = {
   class?: { id: string; name: string } | null;
   guardian?: { id: string; name: string; phone1?: string | null; phone2?: string | null; email?: string | null } | null;
   isActive: boolean;
+  needsClassWarning?: boolean;
 };
 
 type Class = { id: string; name: string };
@@ -600,7 +601,17 @@ export default function StudentsPage() {
                         <PeriodBadge period={student.period} />
                       </td>
                       <td className="px-4 py-3 text-gray-600">
-                        {student.class?.name ?? "—"}
+                        <span className="inline-flex items-center gap-1.5">
+                          {student.class?.name ?? "—"}
+                          {student.needsClassWarning && (
+                            <span
+                              title="هذا الطالب بدون فصل محدد"
+                              className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-orange-100 text-orange-600 text-xs"
+                            >
+                              ⚠
+                            </span>
+                          )}
+                        </span>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5 flex-wrap">

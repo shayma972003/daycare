@@ -134,6 +134,9 @@ model School {
   vatNumber              String?
   contactNumber          String?
   address                String?
+  phoneNumber            String?
+  twoFaEnabled           Boolean  @default(false)
+  twoFaPhone             String?
 
   // Admin panel fields
   plan_id             String?
@@ -162,6 +165,22 @@ model School {
   expenses          Expense[]
   enrollment_tokens       EnrollmentToken[]
   enrollment_submissions  EnrollmentSubmission[]
+  twoFaSessions           TwoFASession[]
+}
+
+model TwoFASession {
+  id                 String   @id @default(cuid())
+  schoolId           String
+  school             School   @relation(fields: [schoolId], references: [id])
+  userId             String?  // set for purpose=LOGIN, identifies which User is completing login
+  purpose            String   @default("LOGIN") // "LOGIN" | "ACTIVATE"
+  otpCodeHash        String   // bcrypt hash of the 6-digit OTP, never store plaintext
+  attempts           Int      @default(0)
+  verified           Boolean  @default(false)
+  expiresAt          DateTime
+  bypassTokenHash    String?  // sha256 hex of a random bypass token, set only after successful verify (LOGIN purpose)
+  bypassExpires      DateTime?
+  createdAt          DateTime @default(now())
 }
 
 model User {
@@ -211,6 +230,8 @@ model Class {
   registrationDate DateTime @default(now())
   notes            String?
   imageUrl         String?
+  deletedAt           DateTime?
+  needsTeacherWarning Boolean  @default(false)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -249,6 +270,7 @@ model Teacher {
   attendanceHours   Float         @default(0)
   lateHours         Float         @default(0)
   isActive          Boolean       @default(true)
+  deletedAt         DateTime?
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 
@@ -270,6 +292,7 @@ model Guardian {
   phone_3   String?
   phone_4   String?
   email_2   String?
+  deletedAt DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
@@ -303,6 +326,8 @@ model Student {
   registration_fee  Float         @default(0)
   additionalFile    String?
   isActive          Boolean       @default(true)
+  deletedAt         DateTime?
+  needsClassWarning Boolean       @default(false)
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 

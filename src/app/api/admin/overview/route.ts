@@ -19,7 +19,7 @@ export async function GET(request: Request) {
     recentLogs,
   ] = await Promise.all([
     prisma.school.count({ where: { subscription_status: "active" } }),
-    prisma.student.count({ where: { isActive: true } }),
+    prisma.student.count({ where: { isActive: true, deletedAt: null } }),
     prisma.school.count({ where: { createdAt: { gte: monthStart } } }),
     prisma.school.count({
       where: {

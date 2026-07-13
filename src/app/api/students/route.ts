@@ -44,7 +44,7 @@ export async function GET(request: Request) {
   const paymentStatus = searchParams.get("paymentStatus");
   const gender = searchParams.get("gender");
 
-  const where: Record<string, unknown> = { schoolId };
+  const where: Record<string, unknown> = { schoolId, deletedAt: null };
 
   if (search) {
     where.name = { contains: search, mode: "insensitive" };
@@ -123,6 +123,7 @@ export async function POST(request: Request) {
     const existing = await prisma.guardian.findFirst({
       where: {
         schoolId,
+        deletedAt: null,
         OR: [
           ...(guardianPhone1 ? [{ phone1: guardianPhone1 }] : []),
           ...(guardianEmail ? [{ email: guardianEmail }] : []),

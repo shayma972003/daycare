@@ -19,6 +19,7 @@ const updateSettingsSchema = z.object({
   vatNumber: z.string().optional(),
   contactNumber: z.string().optional(),
   address: z.string().optional(),
+  phoneNumber: z.string().optional(),
 });
 
 export async function GET(_request: Request) {
@@ -56,6 +57,8 @@ export async function GET(_request: Request) {
     vatNumber: school?.vatNumber ?? "",
     contactNumber: school?.contactNumber ?? "",
     address: school?.address ?? "",
+    phoneNumber: school?.phoneNumber ?? "",
+    twoFaEnabled: school?.twoFaEnabled ?? false,
   }, { status: 200 });
 }
 
@@ -95,6 +98,7 @@ export async function PUT(request: Request) {
     vatNumber,
     contactNumber,
     address,
+    phoneNumber,
   } = parsed.data;
 
   const settingsData: Record<string, unknown> = {};
@@ -114,6 +118,7 @@ export async function PUT(request: Request) {
   if (vatNumber !== undefined) schoolData.vatNumber = vatNumber;
   if (contactNumber !== undefined) schoolData.contactNumber = contactNumber;
   if (address !== undefined) schoolData.address = address;
+  if (phoneNumber !== undefined) schoolData.phoneNumber = phoneNumber;
 
   const [settings] = await Promise.all([
     prisma.settings.upsert({

@@ -53,6 +53,8 @@ export function ClassFormModal({
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [enrolledCount, setEnrolledCount] = useState(0);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -149,6 +151,18 @@ export function ClassFormModal({
     }
   }
 
+  async function openDeleteConfirm() {
+    if (!classData) return;
+    setError(null);
+    try {
+      const res = await axios.get<{ count: number }>(`/api/classes/${classData.id}/students`);
+      setEnrolledCount(res.data.count ?? 0);
+    } catch {
+      setEnrolledCount(0);
+    }
+    setConfirmDelete(true);
+  }
+
   async function handleDelete() {
     if (!classData) return;
     setDeleting(true);
@@ -161,6 +175,7 @@ export function ClassFormModal({
       setError(t("common.error"));
     } finally {
       setDeleting(false);
+      setConfirmDelete(false);
     }
   }
 
@@ -311,11 +326,11 @@ export function ClassFormModal({
               {isEditing && (
                 <button
                   type="button"
-                  onClick={handleDelete}
+                  onClick={openDeleteConfirm}
                   disabled={deleting}
                   className="border border-red-500 text-red-600 rounded-lg px-4 py-2 text-sm font-medium hover:bg-red-50 transition-all disabled:opacity-60"
                 >
-                  {deleting ? t("common.loading") : t("classes.form.delete")}
+                  {deleting ? t("common.loading") : "نقل إلى سلة المحذوفات"}
                 </button>
               )}
 
@@ -330,6 +345,42 @@ export function ClassFormModal({
           </form>
         </Dialog.Content>
       </Dialog.Portal>
+
+      {confirmDelete && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-96 text-center space-y-4" dir="rtl">
+            {enrolledCount === 0 ? (
+              <p className="text-sm font-medium text-[#1a2340]">
+                هل تريد نقل هذا الفصل إلى سلة المحذوفات؟
+              </p>
+            ) : (
+              <>
+                <p className="text-sm font-medium text-[#1a2340]">
+                  هذا الفصل يحتوي على {enrolledCount} طلاب.
+                </p>
+                <p className="text-sm text-gray-600 whitespace-pre-line">
+                  {"عند الحذف سيبقى هؤلاء الطلاب بدون فصل محدد\nوسيظهر تنبيه عليهم حتى يتم التعيين."}
+                </p>
+              </>
+            )}
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="px-5 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 disabled:opacity-60"
+              >
+                {deleting ? "..." : "حذف"}
+              </button>
+              <button
+                onClick={() => setConfirmDelete(false)}
+                className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm"
+              >
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </Dialog.Root>
   );
 }

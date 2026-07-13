@@ -33,7 +33,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const search = searchParams.get("search");
 
-  const where: Record<string, unknown> = { schoolId };
+  const where: Record<string, unknown> = { schoolId, deletedAt: null };
 
   if (search) {
     where.name = { contains: search, mode: "insensitive" };

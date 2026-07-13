@@ -21,7 +21,7 @@ export async function POST(request: Request) {
 
   const { teacher_id } = parsed.data;
 
-  const teacher = await prisma.teacher.findFirst({ where: { id: teacher_id, schoolId } });
+  const teacher = await prisma.teacher.findFirst({ where: { id: teacher_id, schoolId, deletedAt: null } });
   if (!teacher) return Response.json({ error: "المعلم غير موجود" }, { status: 404 });
 
   const nowUtc = new Date();

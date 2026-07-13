@@ -140,7 +140,7 @@ export async function POST(request: Request) {
 
     const { teacherId, invoiceData: inv } = parsed.data;
 
-    const teacher = await prisma.teacher.findFirst({ where: { id: teacherId, schoolId } });
+    const teacher = await prisma.teacher.findFirst({ where: { id: teacherId, schoolId, deletedAt: null } });
     if (!teacher) return Response.json({ error: "Teacher not found" }, { status: 404 });
 
     // Mirror EXACTLY the same structure as the working student invoice route:

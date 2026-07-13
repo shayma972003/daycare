@@ -17,7 +17,7 @@ export async function GET(
   const [school, student, invoiceCount] = await Promise.all([
     prisma.school.findUnique({ where: { id: schoolId } }),
     prisma.student.findFirst({
-      where: { id: student_id, schoolId },
+      where: { id: student_id, schoolId, deletedAt: null },
       include: { class: true, guardian: true },
     }),
     prisma.invoice.count({ where: { schoolId } }),

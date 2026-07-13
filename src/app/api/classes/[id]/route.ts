@@ -24,10 +24,10 @@ export async function GET(
   const { id } = await params;
 
   const cls = await prisma.class.findFirst({
-    where: { id, schoolId },
+    where: { id, schoolId, deletedAt: null },
     include: {
       teacher: true,
-      students: true,
+      students: { where: { deletedAt: null } },
     },
   });
 
@@ -67,12 +67,15 @@ export async function PUT(
   const updateData: Record<string, unknown> = {};
 
   if (data.name !== undefined) updateData.name = data.name;
-  if ("teacherId" in data) updateData.teacherId = data.teacherId ?? null;
+  if ("teacherId" in data) {
+    updateData.teacherId = data.teacherId ?? null;
+    if (data.teacherId) updateData.needsTeacherWarning = false;
+  }
   if ("group" in data) updateData.group = data.group ?? null;
   if ("period" in data) updateData.period = data.period ?? null;
   if ("notes" in data) updateData.notes = data.notes ?? null;
 
-  const existing = await prisma.class.findFirst({ where: { id, schoolId } });
+  const existing = await prisma.class.findFirst({ where: { id, schoolId, deletedAt: null } });
   if (!existing) {
     return Response.json({ error: "Not found" }, { status: 404 });
   }
@@ -102,12 +105,23 @@ export async function DELETE(
   const schoolId = (session.user as { schoolId: string }).schoolId;
   const { id } = await params;
 
-  const existing = await prisma.class.findFirst({ where: { id, schoolId } });
+  const existing = await prisma.class.findFirst({ where: { id, schoolId, deletedAt: null } });
   if (!existing) {
     return Response.json({ error: "Not found" }, { status: 404 });
   }
 
-  await prisma.class.delete({ where: { id } });
+  const enrolledStudents = await prisma.student.findMany({
+    where: { classId: id, deletedAt: null },
+    select: { id: true, name: true },
+  });
 
-  return Response.json({ success: true });
+  await prisma.$transaction([
+    prisma.class.update({ where: { id }, data: { deletedAt: new Date() } }),
+    prisma.student.updateMany({
+      where: { classId: id, deletedAt: null },
+      data: { classId: null, needsClassWarning: true },
+    }),
+  ]);
+
+  return Response.json({ success: true, enrolledStudents });
 }

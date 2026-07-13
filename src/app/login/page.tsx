@@ -16,11 +16,26 @@ function LoginForm() {
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // 2FA state
+  const [step, setStep] = useState<"credentials" | "otp">("credentials");
+  const [twoFaSessionId, setTwoFaSessionId] = useState("");
+  const [phoneLast4, setPhoneLast4] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [otpError, setOtpError] = useState("");
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+
   useEffect(() => {
     if (searchParams.get("reset") === "1") {
       setSuccess("تم تغيير كلمة المرور بنجاح. يمكنك تسجيل الدخول الآن.");
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const t = setInterval(() => setResendCooldown((v) => Math.max(0, v - 1)), 1000);
+    return () => clearInterval(t);
+  }, [resendCooldown]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -36,11 +51,167 @@ function LoginForm() {
     setLoading(false);
 
     if (result?.error) {
-      setError("البريد الإلكتروني أو كلمة المرور غير صحيحة");
+      if (result.error.startsWith("2FA_REQUIRED:")) {
+        const parts = result.error.split(":");
+        const sessionId = parts[1];
+        const last4 = parts[2];
+        setTwoFaSessionId(sessionId);
+        setPhoneLast4(last4);
+        setStep("otp");
+        setResendCooldown(60);
+      } else {
+        setError("البريد الإلكتروني أو كلمة المرور غير صحيحة");
+      }
     } else {
       router.push("/");
       router.refresh();
     }
+  }
+
+  async function handleVerifyOtp(e: React.FormEvent) {
+    e.preventDefault();
+    setOtpError("");
+    setOtpLoading(true);
+
+    try {
+      const res = await fetch("/api/auth/verify-2fa", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ twoFaSessionId, otp_code: otpCode }),
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        setOtpError(data.error || "رمز التحقق غير صحيح");
+        setOtpLoading(false);
+        return;
+      }
+
+      const result = await signIn("credentials", {
+        twofa_bypass_token: data.bypassToken,
+        redirect: false,
+      });
+
+      setOtpLoading(false);
+
+      if (result?.error) {
+        setOtpError("حدث خطأ أثناء تسجيل الدخول، الرجاء المحاولة مرة أخرى");
+      } else {
+        router.push("/");
+        router.refresh();
+      }
+    } catch {
+      setOtpLoading(false);
+      setOtpError("حدث خطأ، الرجاء المحاولة مرة أخرى");
+    }
+  }
+
+  async function handleResend() {
+    if (resendCooldown > 0) return;
+    setOtpError("");
+    try {
+      const res = await fetch("/api/auth/resend-2fa-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ twoFaSessionId }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setOtpError(data.error || "تعذر إعادة الإرسال");
+        return;
+      }
+      setTwoFaSessionId(data.twoFaSessionId);
+      setResendCooldown(60);
+    } catch {
+      setOtpError("تعذر إعادة الإرسال");
+    }
+  }
+
+  if (step === "otp") {
+    return (
+      <div dir="rtl" className="min-h-screen bg-[#1a2340] flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <div className="flex flex-col items-center mb-8 gap-3">
+            <div className="w-16 h-16 bg-white/10 rounded-2xl border-2 border-white/20" />
+            <h1 className="text-white text-xl font-bold tracking-wide">نظام إدارة الروضة</h1>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-2xl p-8">
+            <h2 className="text-lg font-bold text-[#1a2340] mb-2 text-center">تم إرسال رمز التحقق إلى</h2>
+            <p className="text-sm text-gray-500 mb-6 text-center" dir="ltr">
+              +966•••••{phoneLast4}
+            </p>
+
+            <form onSubmit={handleVerifyOtp} className="space-y-4" noValidate>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  رمز التحقق
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  value={otpCode}
+                  onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
+                  required
+                  placeholder="------"
+                  dir="ltr"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] focus:border-transparent text-center text-lg tracking-[0.5em] transition-all"
+                />
+              </div>
+
+              {otpError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 text-center">
+                  {otpError}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={otpLoading || otpCode.length !== 6}
+                className="w-full py-3 bg-[#22c55e] hover:bg-[#16a34a] text-white rounded-xl font-bold text-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed shadow-md hover:shadow-lg mt-2"
+              >
+                {otpLoading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                    جارٍ التحقق…
+                  </span>
+                ) : (
+                  "تأكيد"
+                )}
+              </button>
+
+              <div className="text-center mt-3">
+                <button
+                  type="button"
+                  onClick={handleResend}
+                  disabled={resendCooldown > 0}
+                  className="text-sm text-gray-500 hover:text-[#1a2340] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {resendCooldown > 0
+                    ? `لم تستلم الرمز؟ إعادة الإرسال (${resendCooldown})`
+                    : "لم تستلم الرمز؟ إعادة الإرسال"}
+                </button>
+              </div>
+
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStep("credentials");
+                    setOtpCode("");
+                    setOtpError("");
+                  }}
+                  className="text-xs text-gray-400 hover:text-[#1a2340] transition-colors"
+                >
+                  الرجوع
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (

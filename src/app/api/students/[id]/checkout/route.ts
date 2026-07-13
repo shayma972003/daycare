@@ -14,7 +14,7 @@ export async function POST(
   const schoolId = (session.user as { schoolId: string }).schoolId;
   const { id } = await params;
 
-  const student = await prisma.student.findFirst({ where: { id, schoolId } });
+  const student = await prisma.student.findFirst({ where: { id, schoolId, deletedAt: null } });
   if (!student) {
     return Response.json({ error: "Not found" }, { status: 404 });
   }

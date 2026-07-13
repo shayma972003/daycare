@@ -28,6 +28,24 @@ interface SettingsData {
   vatNumber: string;
   contactNumber: string;
   address: string;
+  phoneNumber: string;
+  twoFaEnabled: boolean;
+}
+
+interface TrashStudent {
+  id: string;
+  name: string;
+  deletedAt: string;
+}
+interface TrashTeacher {
+  id: string;
+  name: string;
+  deletedAt: string;
+}
+interface TrashClass {
+  id: string;
+  name: string;
+  deletedAt: string;
 }
 
 interface NotificationLog {
@@ -111,6 +129,32 @@ export default function SettingsPage() {
   const [vatNumber, setVatNumber] = useState("");
   const [contactNumber, setContactNumber] = useState("");
   const [address, setAddress] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+
+  // 2FA / security state
+  const [twoFaEnabled, setTwoFaEnabled] = useState(false);
+  const [phoneWarning, setPhoneWarning] = useState("");
+  const [showActivateModal, setShowActivateModal] = useState(false);
+  const [activateStep, setActivateStep] = useState<"confirm" | "otp">("confirm");
+  const [activateSessionId, setActivateSessionId] = useState("");
+  const [activateOtp, setActivateOtp] = useState("");
+  const [activateError, setActivateError] = useState("");
+  const [activateLoading, setActivateLoading] = useState(false);
+  const [twoFaSuccessMsg, setTwoFaSuccessMsg] = useState("");
+
+  const [showDeactivateModal, setShowDeactivateModal] = useState(false);
+  const [deactivatePassword, setDeactivatePassword] = useState("");
+  const [deactivateError, setDeactivateError] = useState("");
+  const [deactivateLoading, setDeactivateLoading] = useState(false);
+
+  // Trash state
+  const [trashTab, setTrashTab] = useState<"students" | "teachers" | "classes">("students");
+  const [trashStudents, setTrashStudents] = useState<TrashStudent[]>([]);
+  const [trashTeachers, setTrashTeachers] = useState<TrashTeacher[]>([]);
+  const [trashClasses, setTrashClasses] = useState<TrashClass[]>([]);
+  const [loadingTrash, setLoadingTrash] = useState(false);
+  const [trashActionId, setTrashActionId] = useState<string | null>(null);
+  const [confirmPermanentDelete, setConfirmPermanentDelete] = useState<{ type: string; id: string } | null>(null);
 
   // Password state
   const [currentPassword, setCurrentPassword] = useState("");
@@ -155,6 +199,8 @@ export default function SettingsPage() {
         setVatNumber(d.vatNumber ?? "");
         setContactNumber(d.contactNumber ?? "");
         setAddress(d.address ?? "");
+        setPhoneNumber(d.phoneNumber ?? "");
+        setTwoFaEnabled(d.twoFaEnabled ?? false);
         setSettingsError("");
       })
       .catch(() => setSettingsError("فشل تحميل الإعدادات"))
@@ -238,6 +284,7 @@ export default function SettingsPage() {
         vatNumber,
         contactNumber,
         address,
+        phoneNumber,
       });
       setSettingsSaved(true);
       setTimeout(() => setSettingsSaved(false), 3000);
@@ -289,6 +336,149 @@ export default function SettingsPage() {
     }
   }
 
+  // ── 2FA handlers ──────────────────────────────────────────────────────────
+
+  function handleToggle2FA() {
+    if (twoFaEnabled) {
+      setDeactivatePassword("");
+      setDeactivateError("");
+      setShowDeactivateModal(true);
+      return;
+    }
+    if (!phoneNumber) {
+      setPhoneWarning("يجب إضافة رقم الجوال في معلومات المنشأة أولاً قبل تفعيل التحقق بخطوتين");
+      return;
+    }
+    setPhoneWarning("");
+    setActivateStep("confirm");
+    setActivateOtp("");
+    setActivateError("");
+    setShowActivateModal(true);
+  }
+
+  async function handleSendActivationOtp() {
+    setActivateLoading(true);
+    setActivateError("");
+    try {
+      const res = await axios.post<{ twoFaSessionId: string }>("/api/settings/2fa/send-activation-otp");
+      setActivateSessionId(res.data.twoFaSessionId);
+      setActivateStep("otp");
+    } catch {
+      setActivateError("تعذر إرسال رمز التحقق");
+    } finally {
+      setActivateLoading(false);
+    }
+  }
+
+  async function handleConfirmActivation() {
+    setActivateLoading(true);
+    setActivateError("");
+    try {
+      await axios.post("/api/settings/2fa/activate", {
+        twoFaSessionId: activateSessionId,
+        otp_code: activateOtp,
+      });
+      setShowActivateModal(false);
+      setTwoFaEnabled(true);
+      setTwoFaSuccessMsg("تم تفعيل التحقق بخطوتين ✓");
+      setTimeout(() => setTwoFaSuccessMsg(""), 4000);
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err) && err.response?.data?.error) {
+        setActivateError(err.response.data.error);
+      } else {
+        setActivateError("رمز التحقق غير صحيح");
+      }
+    } finally {
+      setActivateLoading(false);
+    }
+  }
+
+  async function handleDeactivate2FA() {
+    setDeactivateLoading(true);
+    setDeactivateError("");
+    try {
+      await axios.post("/api/settings/2fa/deactivate", { password: deactivatePassword });
+      setShowDeactivateModal(false);
+      setTwoFaEnabled(false);
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err) && err.response?.data?.error) {
+        setDeactivateError(err.response.data.error);
+      } else {
+        setDeactivateError("حدث خطأ، الرجاء المحاولة مرة أخرى");
+      }
+    } finally {
+      setDeactivateLoading(false);
+    }
+  }
+
+  // ── Trash handlers ────────────────────────────────────────────────────────
+
+  async function loadTrash(tab: "students" | "teachers" | "classes") {
+    setLoadingTrash(true);
+    try {
+      const res = await axios.get(`/api/trash/${tab}`);
+      if (tab === "students") setTrashStudents(res.data.items ?? res.data);
+      if (tab === "teachers") setTrashTeachers(res.data.items ?? res.data);
+      if (tab === "classes") setTrashClasses(res.data.items ?? res.data);
+    } catch {
+      // silent
+    } finally {
+      setLoadingTrash(false);
+    }
+  }
+
+  useEffect(() => {
+    loadTrash(trashTab);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trashTab]);
+
+  const trashTypeSingular: Record<"students" | "teachers" | "classes", string> = {
+    students: "student",
+    teachers: "teacher",
+    classes: "class",
+  };
+
+  async function handleRestore(type: "students" | "teachers" | "classes", id: string) {
+    setTrashActionId(id);
+    try {
+      await axios.post(`/api/trash/restore/${trashTypeSingular[type]}/${id}`);
+      await loadTrash(type);
+    } catch {
+      alert("فشل الاستعادة");
+    } finally {
+      setTrashActionId(null);
+    }
+  }
+
+  async function handlePermanentDelete() {
+    if (!confirmPermanentDelete) return;
+    const { type, id } = confirmPermanentDelete;
+    setTrashActionId(id);
+    try {
+      await axios.delete(`/api/trash/permanent/${type}/${id}`);
+      await loadTrash(trashTab);
+    } catch {
+      alert("فشل الحذف النهائي");
+    } finally {
+      setTrashActionId(null);
+      setConfirmPermanentDelete(null);
+    }
+  }
+
+  function daysRemaining(deletedAt: string) {
+    return Math.ceil(
+      (new Date(deletedAt).getTime() + 30 * 24 * 60 * 60 * 1000 - Date.now()) / (1000 * 60 * 60 * 24)
+    );
+  }
+
+  function formatDMY(dateStr: string) {
+    const d = new Date(dateStr);
+    const dd = String(d.getDate()).padStart(2, "0");
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const yyyy = d.getFullYear();
+    return `${dd}/${mm}/${yyyy}`;
+  }
+
   async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -318,6 +508,8 @@ export default function SettingsPage() {
       { id: "school-info", title: "معلومات المنشأة" },
       { id: "school-hours", title: "ساعات الدوام" },
       { id: "password", title: t("settings.changePassword") },
+      { id: "security", title: "الأمان والخصوصية" },
+      { id: "trash", title: "سلة المحذوفات" },
       { id: "subscription", title: t("settings.subscription.title") },
       { id: "fees", title: t("settings.fees.title") },
       { id: "message-template", title: t("settings.messageTemplate.title") },
@@ -361,6 +553,136 @@ export default function SettingsPage() {
             <div className="flex gap-3 justify-center">
               <button onClick={() => handleDeleteOneLog(confirmDeleteLogId)} disabled={!!deletingLogId} className="px-5 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 disabled:opacity-60">{deletingLogId ? "..." : "حذف"}</button>
               <button onClick={() => setConfirmDeleteLogId(null)} className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm">إلغاء</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Activate 2FA modal */}
+      {showActivateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-96 space-y-4">
+            <h3 className="text-base font-bold text-[#1a2340] text-center">تفعيل التحقق بخطوتين</h3>
+
+            {activateStep === "confirm" ? (
+              <>
+                <p className="text-sm text-gray-600 text-center" dir="ltr">
+                  سيتم إرسال رمز تحقق إلى: +966{phoneNumber}
+                </p>
+                {activateError && (
+                  <p className="text-red-600 text-sm text-center">{activateError}</p>
+                )}
+                <div className="flex gap-3 justify-center">
+                  <button
+                    onClick={handleSendActivationOtp}
+                    disabled={activateLoading}
+                    className="px-5 py-2 bg-[#22c55e] hover:bg-[#16a34a] text-white rounded-xl text-sm font-medium disabled:opacity-60"
+                  >
+                    {activateLoading ? "..." : "إرسال رمز التحقق"}
+                  </button>
+                  <button
+                    onClick={() => setShowActivateModal(false)}
+                    className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm"
+                  >
+                    إلغاء
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <FormField label="رمز التحقق">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={activateOtp}
+                    onChange={(e) => setActivateOtp(e.target.value.replace(/\D/g, ""))}
+                    dir="ltr"
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] text-center text-lg tracking-[0.4em]"
+                  />
+                </FormField>
+                {activateError && (
+                  <p className="text-red-600 text-sm text-center">{activateError}</p>
+                )}
+                <div className="flex gap-3 justify-center">
+                  <button
+                    onClick={handleConfirmActivation}
+                    disabled={activateLoading || activateOtp.length !== 6}
+                    className="px-5 py-2 bg-[#22c55e] hover:bg-[#16a34a] text-white rounded-xl text-sm font-medium disabled:opacity-60"
+                  >
+                    {activateLoading ? "..." : "تأكيد"}
+                  </button>
+                  <button
+                    onClick={() => setShowActivateModal(false)}
+                    className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm"
+                  >
+                    إلغاء
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Deactivate 2FA modal */}
+      {showDeactivateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-96 space-y-4">
+            <h3 className="text-base font-bold text-[#1a2340] text-center">إيقاف التحقق بخطوتين</h3>
+            <FormField label="كلمة المرور الحالية">
+              <input
+                type="password"
+                value={deactivatePassword}
+                onChange={(e) => setDeactivatePassword(e.target.value)}
+                dir="ltr"
+                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] text-sm"
+                placeholder="••••••••"
+              />
+            </FormField>
+            {deactivateError && (
+              <p className="text-red-600 text-sm text-center">{deactivateError}</p>
+            )}
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={handleDeactivate2FA}
+                disabled={deactivateLoading || !deactivatePassword}
+                className="px-5 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl text-sm font-medium disabled:opacity-60"
+              >
+                {deactivateLoading ? "..." : "إيقاف التحقق"}
+              </button>
+              <button
+                onClick={() => setShowDeactivateModal(false)}
+                className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm"
+              >
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm permanent delete (trash) */}
+      {confirmPermanentDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-96 text-center space-y-4">
+            <p className="text-sm font-medium text-[#1a2340]">
+              هل أنت متأكد؟ لا يمكن التراجع عن هذا الإجراء
+            </p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={handlePermanentDelete}
+                disabled={!!trashActionId}
+                className="px-5 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 disabled:opacity-60"
+              >
+                {trashActionId ? "..." : "حذف نهائي"}
+              </button>
+              <button
+                onClick={() => setConfirmPermanentDelete(null)}
+                className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm"
+              >
+                إلغاء
+              </button>
             </div>
           </div>
         </div>
@@ -488,6 +810,16 @@ export default function SettingsPage() {
                       className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] text-sm"
                     />
                   </FormField>
+                  <FormField label="رقم الجوال">
+                    <input
+                      type="text"
+                      value={phoneNumber}
+                      onChange={(e) => setPhoneNumber(e.target.value)}
+                      dir="ltr"
+                      placeholder="5XXXXXXXX"
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] text-sm"
+                    />
+                  </FormField>
                 </div>
               </SettingsSection>
             )}
@@ -600,6 +932,116 @@ export default function SettingsPage() {
                 >
                   {savingPassword ? t("common.loading") : "تغيير كلمة المرور"}
                 </button>
+              </SettingsSection>
+            )}
+
+            {/* ── Security & Privacy ────────────────────────────────── */}
+            {showSection("security") && (
+              <SettingsSection id="security" title="الأمان والخصوصية">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-[#1a2340]">التحقق بخطوتين</p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      حماية حسابك بطبقة أمان إضافية عبر رمز يُرسل إلى جوالك عند كل تسجيل دخول
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleToggle2FA}
+                    className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors shrink-0 ${
+                      twoFaEnabled ? "bg-[#22c55e]" : "bg-gray-300"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                        twoFaEnabled ? "-translate-x-1" : "-translate-x-6"
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {phoneWarning && (
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700">
+                    {phoneWarning}
+                  </div>
+                )}
+                {twoFaSuccessMsg && (
+                  <div className="p-3 bg-green-50 border border-green-200 rounded-xl text-sm text-green-700">
+                    {twoFaSuccessMsg}
+                  </div>
+                )}
+              </SettingsSection>
+            )}
+
+            {/* ── Trash ──────────────────────────────────────────────── */}
+            {showSection("trash") && (
+              <SettingsSection id="trash" title="سلة المحذوفات">
+                <div className="flex gap-2">
+                  {(["students", "teachers", "classes"] as const).map((tab) => (
+                    <button
+                      key={tab}
+                      onClick={() => setTrashTab(tab)}
+                      className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
+                        trashTab === tab
+                          ? "bg-[#1a2340] text-white"
+                          : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                      }`}
+                    >
+                      {tab === "students" ? "طلاب" : tab === "teachers" ? "معلمون" : "فصول"}
+                    </button>
+                  ))}
+                </div>
+
+                {loadingTrash ? (
+                  <div className="text-sm text-gray-400 py-6 text-center">{t("common.loading")}</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-gray-100">
+                          <th className="text-right py-3 px-2 font-semibold text-gray-600">
+                            {trashTab === "students" ? "اسم الطالب" : trashTab === "teachers" ? "اسم المعلم" : "اسم الفصل"}
+                          </th>
+                          <th className="text-right py-3 px-2 font-semibold text-gray-600">تاريخ الحذف</th>
+                          <th className="text-right py-3 px-2 font-semibold text-gray-600">يُحذف نهائياً في</th>
+                          <th className="text-right py-3 px-2 font-semibold text-gray-600">الإجراءات</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(trashTab === "students" ? trashStudents : trashTab === "teachers" ? trashTeachers : trashClasses).map((item) => (
+                          <tr key={item.id} className="border-b border-gray-50 hover:bg-gray-50">
+                            <td className="py-3 px-2 text-gray-800 font-medium">{item.name}</td>
+                            <td className="py-3 px-2 text-gray-500">{formatDMY(item.deletedAt)}</td>
+                            <td className="py-3 px-2 text-gray-500">{daysRemaining(item.deletedAt)} يوم</td>
+                            <td className="py-3 px-2">
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => handleRestore(trashTab, item.id)}
+                                  disabled={trashActionId === item.id}
+                                  className="px-3 py-1.5 text-xs border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-60"
+                                >
+                                  استعادة
+                                </button>
+                                <button
+                                  onClick={() => setConfirmPermanentDelete({ type: trashTypeSingular[trashTab], id: item.id })}
+                                  disabled={trashActionId === item.id}
+                                  className="px-3 py-1.5 text-xs border border-red-300 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-60"
+                                >
+                                  حذف نهائي
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                        {(trashTab === "students" ? trashStudents : trashTab === "teachers" ? trashTeachers : trashClasses).length === 0 && (
+                          <tr>
+                            <td colSpan={4} className="text-center text-gray-400 py-6">{t("common.noData")}</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </SettingsSection>
             )}
 

@@ -20,7 +20,7 @@ export async function GET(
   const [school, teacher, invoiceCount, lateResult] = await Promise.all([
     prisma.school.findUnique({ where: { id: schoolId } }),
     prisma.teacher.findFirst({
-      where: { id: teacher_id, schoolId },
+      where: { id: teacher_id, schoolId, deletedAt: null },
       include: { classes: { take: 1 } },
     }),
     prisma.invoice.count({ where: { schoolId } }),

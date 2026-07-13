@@ -29,6 +29,7 @@ export async function POST(request: Request) {
   const guardians = await prisma.guardian.findMany({
     where: {
       schoolId,
+      deletedAt: null,
       OR: [
         { name:    { contains: query, mode: "insensitive" } },
         { phone1:  { contains: query, mode: "insensitive" } },

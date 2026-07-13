@@ -94,7 +94,7 @@ export async function POST(request: Request) {
       if (v.email) orConditions.push({ email: v.email });
 
       let guardian = orConditions.length > 0
-        ? await prisma.guardian.findFirst({ where: { schoolId, OR: orConditions } })
+        ? await prisma.guardian.findFirst({ where: { schoolId, deletedAt: null, OR: orConditions } })
         : null;
 
       if (!guardian) {

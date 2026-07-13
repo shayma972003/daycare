@@ -31,7 +31,7 @@ export async function POST(request: Request) {
 
   // Confirm student belongs to school
   const student = await prisma.student.findFirst({
-    where: { id: student_id, schoolId },
+    where: { id: student_id, schoolId, deletedAt: null },
     select: { id: true, classId: true, attendanceType: true },
   });
   if (!student) {

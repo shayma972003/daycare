@@ -44,7 +44,7 @@ export async function GET(
 
   try {
     const teacher = await prisma.teacher.findFirst({
-      where: { id, schoolId },
+      where: { id, schoolId, deletedAt: null },
       include: { classes: true },
     });
 
@@ -114,7 +114,7 @@ export async function PUT(
   }
   if (data.isActive !== undefined) updateData.isActive = data.isActive;
 
-  const existing = await prisma.teacher.findFirst({ where: { id, schoolId } });
+  const existing = await prisma.teacher.findFirst({ where: { id, schoolId, deletedAt: null } });
   if (!existing) {
     return Response.json({ error: "Not found" }, { status: 404 });
   }
@@ -141,12 +141,23 @@ export async function DELETE(
   const schoolId = (session.user as { schoolId: string }).schoolId;
   const { id } = await params;
 
-  const existing = await prisma.teacher.findFirst({ where: { id, schoolId } });
+  const existing = await prisma.teacher.findFirst({ where: { id, schoolId, deletedAt: null } });
   if (!existing) {
     return Response.json({ error: "Not found" }, { status: 404 });
   }
 
-  await prisma.teacher.delete({ where: { id } });
+  const assignedClasses = await prisma.class.findMany({
+    where: { teacherId: id, deletedAt: null },
+    select: { id: true, name: true, group: true },
+  });
 
-  return Response.json({ success: true });
+  await prisma.$transaction([
+    prisma.teacher.update({ where: { id }, data: { deletedAt: new Date() } }),
+    prisma.class.updateMany({
+      where: { teacherId: id, deletedAt: null },
+      data: { teacherId: null, needsTeacherWarning: true },
+    }),
+  ]);
+
+  return Response.json({ success: true, assignedClasses });
 }

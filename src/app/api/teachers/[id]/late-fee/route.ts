@@ -14,7 +14,7 @@ export async function DELETE(
   const schoolId = (session.user as { schoolId: string }).schoolId;
   const { id } = await params;
 
-  const teacher = await prisma.teacher.findFirst({ where: { id, schoolId } });
+  const teacher = await prisma.teacher.findFirst({ where: { id, schoolId, deletedAt: null } });
   if (!teacher) {
     return Response.json({ error: "Not found" }, { status: 404 });
   }

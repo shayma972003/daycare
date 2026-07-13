@@ -1,7 +1,14 @@
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
+import { randomInt } from "crypto";
+import { createHash } from "crypto";
 import { prisma } from "@/lib/prisma";
+import { sendWhatsApp } from "@/lib/notifications";
+
+function generateOTP(): string {
+  return String(randomInt(100000, 999999));
+}
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -10,9 +17,50 @@ export const authOptions: NextAuthOptions = {
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
+        twofa_bypass_token: { label: "2FA Bypass Token", type: "text" },
       },
       async authorize(credentials) {
         try {
+          // Bypass-token path: completes login after successful 2FA verification
+          if (credentials?.twofa_bypass_token) {
+            const hash = createHash("sha256").update(credentials.twofa_bypass_token).digest("hex");
+            const session = await prisma.twoFASession.findFirst({
+              where: {
+                bypassTokenHash: hash,
+                bypassExpires: { gt: new Date() },
+                verified: true,
+                purpose: "LOGIN",
+              },
+            });
+            if (!session || !session.userId) return null;
+
+            const user = await prisma.user.findUnique({
+              where: { id: session.userId },
+              include: { school: true },
+            });
+            if (!user) return null;
+
+            // Single-use: clear bypass fields immediately
+            await prisma.twoFASession.update({
+              where: { id: session.id },
+              data: { bypassTokenHash: null, bypassExpires: null },
+            });
+
+            prisma.school.update({
+              where: { id: user.schoolId },
+              data: { last_login_at: new Date() },
+            }).catch(() => {});
+
+            return {
+              id: user.id,
+              email: user.email,
+              name: user.name,
+              schoolId: user.schoolId,
+              schoolName: user.school?.name ?? user.name,
+              role: user.role,
+            };
+          }
+
           if (!credentials?.email || !credentials?.password) return null;
 
           const email = credentials.email.toLowerCase().trim();
@@ -26,6 +74,33 @@ export const authOptions: NextAuthOptions = {
 
           const isValid = await bcrypt.compare(credentials.password, user.password);
           if (!isValid) return null;
+
+          if (user.school?.twoFaEnabled) {
+            if (!user.school.twoFaPhone) {
+              console.error("[auth] 2FA enabled but no twoFaPhone configured for school", user.schoolId);
+              return null;
+            }
+
+            const otp = generateOTP();
+            const otpCodeHash = await bcrypt.hash(otp, 10);
+            const twoFaSession = await prisma.twoFASession.create({
+              data: {
+                schoolId: user.schoolId,
+                userId: user.id,
+                purpose: "LOGIN",
+                otpCodeHash,
+                expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+              },
+            });
+
+            await sendWhatsApp(
+              user.school.twoFaPhone,
+              `رمز التحقق بخطوتين: ${otp}\nصالح لمدة 10 دقائق. لا تشاركه مع أحد.`
+            );
+
+            const last4 = user.school.twoFaPhone.slice(-4);
+            throw new Error(`2FA_REQUIRED:${twoFaSession.id}:${last4}`);
+          }
 
           // Track last login time (fire-and-forget)
           prisma.school.update({
@@ -42,6 +117,9 @@ export const authOptions: NextAuthOptions = {
             role: user.role,
           };
         } catch (err) {
+          if (err instanceof Error && err.message.startsWith("2FA_REQUIRED:")) {
+            throw err;
+          }
           console.error("[auth] authorize error:", err);
           return null;
         }

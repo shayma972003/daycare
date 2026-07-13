@@ -23,7 +23,7 @@ export async function GET(request: Request) {
   const period = searchParams.get("period");
   const group = searchParams.get("group");
 
-  const where: Record<string, unknown> = { schoolId };
+  const where: Record<string, unknown> = { schoolId, deletedAt: null };
 
   if (period) {
     where.period = period;
@@ -36,7 +36,7 @@ export async function GET(request: Request) {
     where,
     include: {
       teacher: true,
-      students: true,
+      students: { where: { deletedAt: null } },
     },
     orderBy: { name: "asc" },
   });

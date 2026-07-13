@@ -1,21 +1,8 @@
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { writeFile, unlink } from "fs/promises";
-import { join } from "path";
-import { randomUUID } from "crypto";
 
-const ALLOWED_EXTENSIONS = ["pdf", "png", "jpg", "jpeg"];
-
-async function deleteUploadedFile(url: string | null | undefined) {
-  if (!url) return;
-  try {
-    const filename = url.split("/").pop();
-    if (!filename) return;
-    await unlink(join(process.cwd(), "public", "uploads", filename));
-  } catch {
-    // best-effort — ignore errors
-  }
-}
+const ALLOWED_MIME_TYPES = ["application/pdf", "image/png", "image/jpeg"];
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
 export async function POST(
   request: Request,
@@ -41,23 +28,20 @@ export async function POST(
     return Response.json({ error: "No file provided" }, { status: 400 });
   }
 
-  const ext = file.name.split(".").pop()?.toLowerCase();
-  if (!ALLOWED_EXTENSIONS.includes(ext ?? "")) {
+  if (!ALLOWED_MIME_TYPES.includes(file.type)) {
     return Response.json({ error: "نوع الملف غير مدعوم" }, { status: 400 });
   }
 
-  const filename = `${randomUUID()}.${ext}`;
-  const uploadDir = join(process.cwd(), "public", "uploads");
+  if (file.size > MAX_FILE_SIZE) {
+    return Response.json({ error: "حجم الملف يتجاوز 5 ميجابايت" }, { status: 400 });
+  }
+
   const buffer = Buffer.from(await file.arrayBuffer());
-  await writeFile(join(uploadDir, filename), buffer);
+  const dataUrl = `data:${file.type};base64,${buffer.toString("base64")}`;
 
-  // best-effort delete of previous evaluation file
-  await deleteUploadedFile(student.evaluationFileUrl);
-
-  const url = `/uploads/${filename}`;
   const updated = await prisma.student.update({
     where: { id },
-    data: { evaluationFileUrl: url, evaluationFileName: file.name },
+    data: { evaluationFileUrl: dataUrl, evaluationFileName: file.name },
   });
 
   return Response.json({
@@ -83,8 +67,6 @@ export async function DELETE(
   if (!student) {
     return Response.json({ error: "Not found" }, { status: 404 });
   }
-
-  await deleteUploadedFile(student.evaluationFileUrl);
 
   await prisma.student.update({
     where: { id },

@@ -463,7 +463,12 @@ export default function StudentProfilePage({
                       <span className="text-gray-700">📄 {evalFileName}</span>
                       <button
                         type="button"
-                        onClick={() => window.open(evalFileUrl, "_blank")}
+                        onClick={() => {
+                          const base64 = evalFileUrl.split(",")[1];
+                          const mime = evalFileUrl.slice(5, evalFileUrl.indexOf(";"));
+                          const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+                          window.open(URL.createObjectURL(new Blob([bytes], { type: mime })), "_blank");
+                        }}
                         className="px-2.5 py-1 text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
                       >
                         عرض

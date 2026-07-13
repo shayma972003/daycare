@@ -54,6 +54,8 @@ export function ClassFormModal({
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [checkingDelete, setCheckingDelete] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [enrolledCount, setEnrolledCount] = useState(0);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -73,8 +75,21 @@ export function ClassFormModal({
   });
 
   useEffect(() => {
-    if (!open) setConfirmDelete(false);
+    if (!open) {
+      setConfirmDelete(false);
+      setDeleteError(null);
+      setCheckingDelete(false);
+    }
   }, [open]);
+
+  useEffect(() => {
+    if (!confirmDelete) return;
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setConfirmDelete(false);
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [confirmDelete]);
 
   useEffect(() => {
     if (!open) return;
@@ -156,30 +171,35 @@ export function ClassFormModal({
   }
 
   async function openDeleteConfirm() {
-    if (!classData) return;
-    setError(null);
+    if (!classData || checkingDelete) return;
+    setDeleteError(null);
+    setCheckingDelete(true);
     try {
       const res = await axios.get<{ count: number }>(`/api/classes/${classData.id}/students`);
       setEnrolledCount(res.data.count ?? 0);
+      setConfirmDelete(true);
     } catch {
-      setEnrolledCount(0);
+      setDeleteError(t("common.error"));
+      setConfirmDelete(true);
+    } finally {
+      setCheckingDelete(false);
     }
-    setConfirmDelete(true);
   }
 
   async function handleDelete() {
     if (!classData) return;
     setDeleting(true);
-    setError(null);
+    setDeleteError(null);
     try {
       await axios.delete(`/api/classes/${classData.id}`);
+      setConfirmDelete(false);
       onSaved();
       onClose();
     } catch {
-      setError(t("common.error"));
+      // keep the confirm dialog open so the failure is visible where the action happened
+      setDeleteError(t("common.error"));
     } finally {
       setDeleting(false);
-      setConfirmDelete(false);
     }
   }
 
@@ -331,10 +351,10 @@ export function ClassFormModal({
                 <button
                   type="button"
                   onClick={openDeleteConfirm}
-                  disabled={deleting}
+                  disabled={checkingDelete || deleting}
                   className="border border-red-500 text-red-600 rounded-lg px-4 py-2 text-sm font-medium hover:bg-red-50 transition-all disabled:opacity-60"
                 >
-                  {deleting ? t("common.loading") : "نقل إلى سلة المحذوفات"}
+                  {checkingDelete ? t("common.loading") : "نقل إلى سلة المحذوفات"}
                 </button>
               )}
 
@@ -351,15 +371,28 @@ export function ClassFormModal({
       </Dialog.Portal>
 
       {confirmDelete && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-96 text-center space-y-4" dir="rtl">
+        <div
+          role="presentation"
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40"
+          onClick={() => {
+            if (!deleting) setConfirmDelete(false);
+          }}
+        >
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="class-delete-confirm-title"
+            className="bg-white rounded-2xl shadow-xl p-6 w-96 text-center space-y-4"
+            dir="rtl"
+            onClick={(e) => e.stopPropagation()}
+          >
             {enrolledCount === 0 ? (
-              <p className="text-sm font-medium text-[#1a2340]">
+              <p id="class-delete-confirm-title" className="text-sm font-medium text-[#1a2340]">
                 هل تريد نقل هذا الفصل إلى سلة المحذوفات؟
               </p>
             ) : (
               <>
-                <p className="text-sm font-medium text-[#1a2340]">
+                <p id="class-delete-confirm-title" className="text-sm font-medium text-[#1a2340]">
                   هذا الفصل يحتوي على {enrolledCount} طلاب.
                 </p>
                 <p className="text-sm text-gray-600 whitespace-pre-line">
@@ -367,17 +400,27 @@ export function ClassFormModal({
                 </p>
               </>
             )}
+
+            {deleteError && (
+              <div className="p-2.5 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
+                {deleteError}
+              </div>
+            )}
+
             <div className="flex gap-3 justify-center">
               <button
+                type="button"
                 onClick={handleDelete}
                 disabled={deleting}
-                className="px-5 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 disabled:opacity-60"
+                className="px-5 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {deleting ? "..." : "حذف"}
+                {deleting ? t("common.loading") : "حذف"}
               </button>
               <button
+                type="button"
                 onClick={() => setConfirmDelete(false)}
-                className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm"
+                disabled={deleting}
+                className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm hover:bg-gray-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 إلغاء
               </button>

@@ -5,6 +5,7 @@ import axios from "axios";
 import { Topbar } from "@/components/layout/Topbar";
 import { PeriodBadge } from "@/components/ui/StatusBadge";
 import { ClassFormModal, ClassData } from "@/components/classes/ClassFormModal";
+import { ClassDeleteConfirmModal } from "@/components/classes/ClassDeleteConfirmModal";
 import { t } from "@/lib/utils";
 
 interface ClassItem {
@@ -31,6 +32,10 @@ export default function ClassesPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedClass, setSelectedClass] = useState<ClassData | null>(null);
 
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string; studentsCount: number } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
   async function fetchClasses() {
     setLoading(true);
     setError(null);
@@ -56,6 +61,21 @@ export default function ClassesPage() {
   function openAdd() {
     setSelectedClass(null);
     setModalOpen(true);
+  }
+
+  async function handleConfirmDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await axios.delete(`/api/classes/${deleteTarget.id}`);
+      setDeleteTarget(null);
+      fetchClasses();
+    } catch {
+      setDeleteError(t("common.error"));
+    } finally {
+      setDeleting(false);
+    }
   }
 
   function openEdit(cls: ClassItem) {
@@ -209,6 +229,21 @@ export default function ClassesPage() {
         onClose={() => setModalOpen(false)}
         classData={selectedClass}
         onSaved={fetchClasses}
+        onRequestDelete={(target) => {
+          setModalOpen(false);
+          setDeleteError(null);
+          setDeleteTarget(target);
+        }}
+      />
+
+      <ClassDeleteConfirmModal
+        isOpen={deleteTarget !== null}
+        className={deleteTarget?.name ?? ""}
+        assignedStudentsCount={deleteTarget?.studentsCount ?? 0}
+        deleting={deleting}
+        error={deleteError}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteTarget(null)}
       />
     </div>
   );

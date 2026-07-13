@@ -39,6 +39,7 @@ interface ClassFormModalProps {
   onClose: () => void;
   classData: ClassData | null;
   onSaved: () => void;
+  onRequestDelete: (target: { id: string; name: string; studentsCount: number }) => void;
 }
 
 export function ClassFormModal({
@@ -46,17 +47,14 @@ export function ClassFormModal({
   onClose,
   classData,
   onSaved,
+  onRequestDelete,
 }: ClassFormModalProps) {
   const isEditing = classData != null;
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [loadingTeachers, setLoadingTeachers] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState(false);
   const [checkingDelete, setCheckingDelete] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [enrolledCount, setEnrolledCount] = useState(0);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -75,21 +73,8 @@ export function ClassFormModal({
   });
 
   useEffect(() => {
-    if (!open) {
-      setConfirmDelete(false);
-      setDeleteError(null);
-      setCheckingDelete(false);
-    }
+    if (!open) setCheckingDelete(false);
   }, [open]);
-
-  useEffect(() => {
-    if (!confirmDelete) return;
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") setConfirmDelete(false);
-    }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [confirmDelete]);
 
   useEffect(() => {
     if (!open) return;
@@ -172,39 +157,24 @@ export function ClassFormModal({
 
   async function openDeleteConfirm() {
     if (!classData || checkingDelete) return;
-    setDeleteError(null);
     setCheckingDelete(true);
     try {
       const res = await axios.get<{ count: number }>(`/api/classes/${classData.id}/students`);
-      setEnrolledCount(res.data.count ?? 0);
-      setConfirmDelete(true);
+      // Close this edit dialog first: the delete-confirmation modal is rendered at the
+      // page level, outside any Radix Dialog, specifically so Radix's DismissableLayer
+      // (which treats clicks outside Dialog.Content as "outside" and dismisses the dialog)
+      // can't race with or swallow clicks on the confirmation modal's own buttons.
+      onClose();
+      onRequestDelete({ id: classData.id, name: classData.name, studentsCount: res.data.count ?? 0 });
     } catch {
-      setDeleteError(t("common.error"));
-      setConfirmDelete(true);
+      setError(t("common.error"));
     } finally {
       setCheckingDelete(false);
     }
   }
 
-  async function handleDelete() {
-    if (!classData) return;
-    setDeleting(true);
-    setDeleteError(null);
-    try {
-      await axios.delete(`/api/classes/${classData.id}`);
-      setConfirmDelete(false);
-      onSaved();
-      onClose();
-    } catch {
-      // keep the confirm dialog open so the failure is visible where the action happened
-      setDeleteError(t("common.error"));
-    } finally {
-      setDeleting(false);
-    }
-  }
-
   return (
-    <Dialog.Root open={open} onOpenChange={(v) => { if (!v) { setConfirmDelete(false); onClose(); } }}>
+    <Dialog.Root open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
         <Dialog.Content
@@ -351,7 +321,7 @@ export function ClassFormModal({
                 <button
                   type="button"
                   onClick={openDeleteConfirm}
-                  disabled={checkingDelete || deleting}
+                  disabled={checkingDelete}
                   className="border border-red-500 text-red-600 rounded-lg px-4 py-2 text-sm font-medium hover:bg-red-50 transition-all disabled:opacity-60"
                 >
                   {checkingDelete ? t("common.loading") : "نقل إلى سلة المحذوفات"}
@@ -369,65 +339,6 @@ export function ClassFormModal({
           </form>
         </Dialog.Content>
       </Dialog.Portal>
-
-      {confirmDelete && (
-        <div
-          role="presentation"
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40"
-          onClick={() => {
-            if (!deleting) setConfirmDelete(false);
-          }}
-        >
-          <div
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby="class-delete-confirm-title"
-            className="bg-white rounded-2xl shadow-xl p-6 w-96 text-center space-y-4"
-            dir="rtl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {enrolledCount === 0 ? (
-              <p id="class-delete-confirm-title" className="text-sm font-medium text-[#1a2340]">
-                هل تريد نقل هذا الفصل إلى سلة المحذوفات؟
-              </p>
-            ) : (
-              <>
-                <p id="class-delete-confirm-title" className="text-sm font-medium text-[#1a2340]">
-                  هذا الفصل يحتوي على {enrolledCount} طلاب.
-                </p>
-                <p className="text-sm text-gray-600 whitespace-pre-line">
-                  {"عند الحذف سيبقى هؤلاء الطلاب بدون فصل محدد\nوسيظهر تنبيه عليهم حتى يتم التعيين."}
-                </p>
-              </>
-            )}
-
-            {deleteError && (
-              <div className="p-2.5 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
-                {deleteError}
-              </div>
-            )}
-
-            <div className="flex gap-3 justify-center">
-              <button
-                type="button"
-                onClick={handleDelete}
-                disabled={deleting}
-                className="px-5 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                {deleting ? t("common.loading") : "حذف"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setConfirmDelete(false)}
-                disabled={deleting}
-                className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm hover:bg-gray-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                إلغاء
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </Dialog.Root>
   );
 }

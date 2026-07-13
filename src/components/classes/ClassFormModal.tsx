@@ -73,6 +73,10 @@ export function ClassFormModal({
   });
 
   useEffect(() => {
+    if (!open) setConfirmDelete(false);
+  }, [open]);
+
+  useEffect(() => {
     if (!open) return;
     setLoadingTeachers(true);
     axios
@@ -180,7 +184,7 @@ export function ClassFormModal({
   }
 
   return (
-    <Dialog.Root open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+    <Dialog.Root open={open} onOpenChange={(v) => { if (!v) { setConfirmDelete(false); onClose(); } }}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
         <Dialog.Content

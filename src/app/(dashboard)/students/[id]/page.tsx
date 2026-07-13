@@ -43,6 +43,8 @@ type StudentData = {
   lateHours: number;
   isActive: boolean;
   siblings: Sibling[];
+  evaluationFileUrl?: string | null;
+  evaluationFileName?: string | null;
 };
 
 type FormData = {
@@ -93,6 +95,14 @@ export default function StudentProfilePage({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [showTrashModal, setShowTrashModal] = useState(false);
   const [trashing, setTrashing] = useState(false);
+  const [showLateFeeConfirm, setShowLateFeeConfirm] = useState(false);
+  const [evalFileUrl, setEvalFileUrl] = useState<string | null>(null);
+  const [evalFileName, setEvalFileName] = useState<string | null>(null);
+  const [evalUploading, setEvalUploading] = useState(false);
+  const [pendingEvalFile, setPendingEvalFile] = useState<File | null>(null);
+  const [showReplaceEvalConfirm, setShowReplaceEvalConfirm] = useState(false);
+  const [showDeleteEvalConfirm, setShowDeleteEvalConfirm] = useState(false);
+  const evalFileInputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -113,6 +123,8 @@ export default function StudentProfilePage({
           setGuardianId(s.guardianId);
           setGuardianLinked(true);
         }
+        setEvalFileUrl(s.evaluationFileUrl ?? null);
+        setEvalFileName(s.evaluationFileName ?? null);
         reset({
           name: s.name,
           healthCondition: s.healthCondition ?? "",
@@ -249,6 +261,65 @@ export default function StudentProfilePage({
     window.location.reload();
   }
 
+  async function confirmDeleteLateFee() {
+    setShowLateFeeConfirm(false);
+    await deleteLateFee();
+  }
+
+  async function uploadEvalFile(file: File) {
+    setEvalUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await axios.post<{ evaluationFileUrl: string; evaluationFileName: string }>(
+        `/api/students/${id}/evaluation`,
+        fd
+      );
+      setEvalFileUrl(res.data.evaluationFileUrl);
+      setEvalFileName(res.data.evaluationFileName);
+    } catch {
+      alert(t("common.error"));
+    } finally {
+      setEvalUploading(false);
+      if (evalFileInputRef.current) evalFileInputRef.current.value = "";
+    }
+  }
+
+  function handleEvalFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (evalFileUrl) {
+      setPendingEvalFile(file);
+      setShowReplaceEvalConfirm(true);
+    } else {
+      uploadEvalFile(file);
+    }
+  }
+
+  function confirmReplaceEvalFile() {
+    setShowReplaceEvalConfirm(false);
+    if (pendingEvalFile) uploadEvalFile(pendingEvalFile);
+    setPendingEvalFile(null);
+  }
+
+  function cancelReplaceEvalFile() {
+    setShowReplaceEvalConfirm(false);
+    setPendingEvalFile(null);
+    if (evalFileInputRef.current) evalFileInputRef.current.value = "";
+  }
+
+  async function deleteEvalFile() {
+    try {
+      await axios.delete(`/api/students/${id}/evaluation`);
+      setEvalFileUrl(null);
+      setEvalFileName(null);
+    } catch {
+      alert(t("common.error"));
+    } finally {
+      setShowDeleteEvalConfirm(false);
+    }
+  }
+
   function issueInvoice() {
     setInvoiceModalOpen(true);
   }
@@ -375,6 +446,54 @@ export default function StudentProfilePage({
                     <label className="block text-xs font-medium text-gray-500 mb-1">{t("students.profile.lateHours")}</label>
                     <input value={student?.lateHours ?? 0} readOnly className={readonlyCls} />
                   </div>
+                </div>
+
+                {/* إضافة تقييم الطفل */}
+                <div className="mt-5 pt-5 border-t border-gray-100">
+                  <h3 className="text-sm font-bold text-[#1a2340] mb-3">إضافة تقييم الطفل</h3>
+                  <input
+                    ref={evalFileInputRef}
+                    type="file"
+                    accept=".pdf,.png,.jpg,.jpeg"
+                    className="hidden"
+                    onChange={handleEvalFileChange}
+                  />
+                  {evalFileUrl ? (
+                    <div className="flex items-center gap-2 flex-wrap text-sm">
+                      <span className="text-gray-700">📄 {evalFileName}</span>
+                      <button
+                        type="button"
+                        onClick={() => window.open(evalFileUrl, "_blank")}
+                        className="px-2.5 py-1 text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
+                      >
+                        عرض
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => evalFileInputRef.current?.click()}
+                        disabled={evalUploading}
+                        className="px-2.5 py-1 text-xs border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60"
+                      >
+                        {evalUploading ? "جاري الرفع..." : "اختر ملفاً"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowDeleteEvalConfirm(true)}
+                        className="px-2.5 py-1 text-xs border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors"
+                      >
+                        حذف
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => evalFileInputRef.current?.click()}
+                      disabled={evalUploading}
+                      className="px-3 py-1.5 text-sm border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60"
+                    >
+                      {evalUploading ? "جاري الرفع..." : "اختر ملفاً"}
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -552,7 +671,7 @@ export default function StudentProfilePage({
                 </button>
                 <button
                   type="button"
-                  onClick={deleteLateFee}
+                  onClick={() => setShowLateFeeConfirm(true)}
                   className="w-full py-2.5 border border-orange-400 text-orange-600 rounded-lg text-sm font-medium hover:bg-orange-50 transition-colors"
                 >
                   {t("students.profile.actions.deleteLateFee")}
@@ -610,6 +729,77 @@ export default function StudentProfilePage({
                 </button>
                 <button
                   onClick={() => setShowTrashModal(false)}
+                  className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm"
+                >
+                  إلغاء
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showLateFeeConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div className="bg-white rounded-2xl shadow-xl p-6 w-96 text-center space-y-4">
+              <p className="text-base font-bold text-[#1a2340]">حذف رسوم التأخير؟</p>
+              <p className="text-sm text-gray-600">هل أنت متأكد من حذف رسوم التأخير لهذا الطالب؟ لن يتم إضافتها إلى الفاتورة.</p>
+              <div className="flex gap-3 justify-center">
+                <button
+                  onClick={confirmDeleteLateFee}
+                  className="px-5 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600"
+                >
+                  حذف
+                </button>
+                <button
+                  onClick={() => setShowLateFeeConfirm(false)}
+                  className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm"
+                >
+                  إلغاء
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showReplaceEvalConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div className="bg-white rounded-2xl shadow-xl p-6 w-96 text-center space-y-4">
+              <p className="text-base font-bold text-[#1a2340]">استبدال الملف؟</p>
+              <p className="text-sm text-gray-600 whitespace-pre-line">
+                {`هل ترغب باستبدال الملف "${evalFileName}"؟\nسيتم حذف الملف الحالي نهائياً.`}
+              </p>
+              <div className="flex gap-3 justify-center">
+                <button
+                  onClick={confirmReplaceEvalFile}
+                  className="px-5 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600"
+                >
+                  استبدال
+                </button>
+                <button
+                  onClick={cancelReplaceEvalFile}
+                  className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm"
+                >
+                  إلغاء
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showDeleteEvalConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div className="bg-white rounded-2xl shadow-xl p-6 w-96 text-center space-y-4">
+              <p className="text-base font-bold text-[#1a2340]">حذف ملف التقييم؟</p>
+              <p className="text-sm text-gray-600">{`سيتم حذف "${evalFileName}" نهائياً.`}</p>
+              <div className="flex gap-3 justify-center">
+                <button
+                  onClick={deleteEvalFile}
+                  className="px-5 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600"
+                >
+                  حذف
+                </button>
+                <button
+                  onClick={() => setShowDeleteEvalConfirm(false)}
                   className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm"
                 >
                   إلغاء

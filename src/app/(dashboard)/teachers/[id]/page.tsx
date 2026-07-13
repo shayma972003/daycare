@@ -55,6 +55,7 @@ export default function TeacherProfilePage() {
   const [showTrashModal, setShowTrashModal] = useState(false);
   const [trashClasses, setTrashClasses] = useState<{ id: string; name: string; group: string }[]>([]);
   const [trashing, setTrashing] = useState(false);
+  const [showLateFeeConfirm, setShowLateFeeConfirm] = useState(false);
 
   // Extra qualifications (4–10) stored as array of strings
   const [extraQuals, setExtraQuals] = useState<string[]>([]);
@@ -142,6 +143,11 @@ export default function TeacherProfilePage() {
     setActionLoading("lateFee");
     try { await axios.delete(`/api/teachers/${id}/late-fee`); await loadTeacher(); }
     catch { /* silent */ } finally { setActionLoading(null); }
+  }
+
+  async function confirmDeleteLateFee() {
+    setShowLateFeeConfirm(false);
+    await handleDeleteLateFee();
   }
 
   async function handleCancel() {
@@ -355,7 +361,7 @@ export default function TeacherProfilePage() {
                 <button type="button" onClick={() => setInvoiceModalOpen(true)} className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-medium transition-all">
                   {t("teachers.profile.actions.issueInvoice")}
                 </button>
-                <button type="button" onClick={handleDeleteLateFee} disabled={actionLoading === "lateFee"} className="w-full py-2.5 border border-orange-400 text-orange-600 rounded-xl text-sm font-medium hover:bg-orange-50 transition-all disabled:opacity-60">
+                <button type="button" onClick={() => setShowLateFeeConfirm(true)} disabled={actionLoading === "lateFee"} className="w-full py-2.5 border border-orange-400 text-orange-600 rounded-xl text-sm font-medium hover:bg-orange-50 transition-all disabled:opacity-60">
                   {actionLoading === "lateFee" ? t("common.loading") : t("teachers.profile.actions.deleteLateFee")}
                 </button>
                 <button type="button" onClick={handleCancel} disabled={actionLoading === "cancel"} className="w-full py-2.5 border border-red-500 text-red-600 rounded-xl text-sm font-medium hover:bg-red-50 transition-all disabled:opacity-60">
@@ -464,6 +470,30 @@ export default function TeacherProfilePage() {
               </button>
               <button
                 onClick={() => setShowTrashModal(false)}
+                className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm"
+              >
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showLateFeeConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-96 text-center space-y-4">
+            <p className="text-base font-bold text-[#1a2340]">حذف رسوم التأخير؟</p>
+            <p className="text-sm text-gray-600">هل أنت متأكد من حذف رسوم التأخير لهذا المعلم؟</p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={confirmDeleteLateFee}
+                disabled={actionLoading === "lateFee"}
+                className="px-5 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 disabled:opacity-60"
+              >
+                {actionLoading === "lateFee" ? "..." : "حذف"}
+              </button>
+              <button
+                onClick={() => setShowLateFeeConfirm(false)}
                 className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm"
               >
                 إلغاء

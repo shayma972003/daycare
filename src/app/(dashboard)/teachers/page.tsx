@@ -51,6 +51,7 @@ export default function TeachersPage() {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [bulkAction, setBulkAction] = useState("");
   const [bulkLoading, setBulkLoading] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [xlsxUploading, setXlsxUploading] = useState(false);
@@ -138,21 +139,19 @@ export default function TeachersPage() {
     }
   }
 
-  async function handleBulkAction(action: "checkin" | "checkout") {
-    if (selected.size === 0) return;
+  async function applyBulk() {
+    const ids = Array.from(selected);
+    if (!bulkAction || ids.length === 0) return;
     setBulkLoading(true);
     try {
-      await Promise.all(
-        Array.from(selected).map((id) =>
-          axios.post(`/api/teachers/${id}/${action}`)
-        )
-      );
-      setSelected(new Set());
+      await axios.post("/api/attendance/teachers/bulk-action", { teacherIds: ids, action: bulkAction });
       await fetchTodayAttendance();
     } catch {
       // silent
     } finally {
       setBulkLoading(false);
+      setSelected(new Set());
+      setBulkAction("");
     }
   }
 
@@ -194,24 +193,25 @@ export default function TeachersPage() {
           </div>
 
           <div className="flex gap-2 items-center">
-            {selected.size > 0 && (
-              <div className="flex gap-2">
-                <button
-                  onClick={() => handleBulkAction("checkin")}
-                  disabled={bulkLoading}
-                  className="px-3 py-2 bg-[#22c55e] text-white rounded-xl text-xs font-medium hover:bg-[#16a34a] transition-all disabled:opacity-60"
-                >
-                  {t("students.bulkCheckin")} ({selected.size})
-                </button>
-                <button
-                  onClick={() => handleBulkAction("checkout")}
-                  disabled={bulkLoading}
-                  className="px-3 py-2 bg-gray-600 text-white rounded-xl text-xs font-medium hover:bg-gray-700 transition-all disabled:opacity-60"
-                >
-                  {t("students.bulkCheckout")} ({selected.size})
-                </button>
-              </div>
-            )}
+            {/* Bulk action */}
+            <div className="flex items-center gap-2">
+              <select
+                value={bulkAction}
+                onChange={(e) => setBulkAction(e.target.value)}
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a2340]"
+              >
+                <option value="">{t("students.bulkAction")}</option>
+                <option value="checkin">تسجيل الدخول</option>
+                <option value="checkout">تسجيل الخروج</option>
+              </select>
+              <button
+                onClick={applyBulk}
+                disabled={!bulkAction || selected.size === 0 || bulkLoading}
+                className="px-3 py-2 bg-[#1a2340] text-white rounded-lg text-sm disabled:opacity-40"
+              >
+                تنفيذ
+              </button>
+            </div>
 
             {/* Add teacher dropdown */}
             <div className="relative" ref={dropdownRef}>

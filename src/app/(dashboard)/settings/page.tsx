@@ -155,6 +155,9 @@ export default function SettingsPage() {
   const [loadingTrash, setLoadingTrash] = useState(false);
   const [trashActionId, setTrashActionId] = useState<string | null>(null);
   const [confirmPermanentDelete, setConfirmPermanentDelete] = useState<{ type: string; id: string } | null>(null);
+  const [showRestoreAllConfirm, setShowRestoreAllConfirm] = useState(false);
+  const [restoringAll, setRestoringAll] = useState(false);
+  const [restoreAllMsg, setRestoreAllMsg] = useState("");
 
   // Password state
   const [currentPassword, setCurrentPassword] = useState("");
@@ -429,6 +432,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     loadTrash(trashTab);
+    setRestoreAllMsg("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trashTab]);
 
@@ -447,6 +451,35 @@ export default function SettingsPage() {
       alert("فشل الاستعادة");
     } finally {
       setTrashActionId(null);
+    }
+  }
+
+  async function handleRestoreAll() {
+    setRestoringAll(true);
+    setRestoreAllMsg("");
+    try {
+      if (trashTab === "students") {
+        const res = await axios.post<{ restored: number; needsReassignment: number }>(
+          "/api/trash/restore-all/students"
+        );
+        let msg = `تم استعادة ${res.data.restored} طالب`;
+        if (res.data.needsReassignment > 0) {
+          msg += `\nيحتاج ${res.data.needsReassignment} طالب إلى تعيين فصل`;
+        }
+        setRestoreAllMsg(msg);
+      } else if (trashTab === "teachers") {
+        const res = await axios.post<{ restored: number }>("/api/trash/restore-all/teachers");
+        setRestoreAllMsg(`تم استعادة ${res.data.restored} معلم`);
+      } else {
+        const res = await axios.post<{ restored: number }>("/api/trash/restore-all/classes");
+        setRestoreAllMsg(`تم استعادة ${res.data.restored} فصل`);
+      }
+      await loadTrash(trashTab);
+    } catch {
+      alert("فشل الاستعادة");
+    } finally {
+      setRestoringAll(false);
+      setShowRestoreAllConfirm(false);
     }
   }
 
@@ -679,6 +712,36 @@ export default function SettingsPage() {
               </button>
               <button
                 onClick={() => setConfirmPermanentDelete(null)}
+                className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm"
+              >
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm restore all (trash) */}
+      {showRestoreAllConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-96 text-center space-y-4">
+            <p className="text-sm font-medium text-[#1a2340]">
+              {trashTab === "students"
+                ? `هل تريد استعادة جميع الطلاب المحذوفين؟ (${trashStudents.length} طلاب)`
+                : trashTab === "teachers"
+                ? `هل تريد استعادة جميع المعلمين المحذوفين؟ (${trashTeachers.length} معلمين)`
+                : `هل تريد استعادة جميع الفصول المحذوفة؟ (${trashClasses.length} فصول)`}
+            </p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={handleRestoreAll}
+                disabled={restoringAll}
+                className="px-5 py-2 bg-[#22c55e] text-white rounded-xl text-sm font-medium hover:bg-[#16a34a] disabled:opacity-60"
+              >
+                {restoringAll ? "..." : "استعادة الكل"}
+              </button>
+              <button
+                onClick={() => setShowRestoreAllConfirm(false)}
                 className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm"
               >
                 إلغاء
@@ -974,23 +1037,41 @@ export default function SettingsPage() {
             )}
 
             {/* ── Trash ──────────────────────────────────────────────── */}
-            {showSection("trash") && (
+            {showSection("trash") && (() => {
+              const currentTrashList = trashTab === "students" ? trashStudents : trashTab === "teachers" ? trashTeachers : trashClasses;
+              return (
               <SettingsSection id="trash" title="سلة المحذوفات">
-                <div className="flex gap-2">
-                  {(["students", "teachers", "classes"] as const).map((tab) => (
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex gap-2">
+                    {(["students", "teachers", "classes"] as const).map((tab) => (
+                      <button
+                        key={tab}
+                        onClick={() => setTrashTab(tab)}
+                        className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
+                          trashTab === tab
+                            ? "bg-[#1a2340] text-white"
+                            : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                        }`}
+                      >
+                        {tab === "students" ? "طلاب" : tab === "teachers" ? "معلمون" : "فصول"}
+                      </button>
+                    ))}
+                  </div>
+                  {currentTrashList.length > 0 && (
                     <button
-                      key={tab}
-                      onClick={() => setTrashTab(tab)}
-                      className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
-                        trashTab === tab
-                          ? "bg-[#1a2340] text-white"
-                          : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                      }`}
+                      onClick={() => setShowRestoreAllConfirm(true)}
+                      className="px-4 py-1.5 border-2 border-[#22c55e] text-[#16a34a] rounded-full text-sm font-medium hover:bg-green-50 transition-all"
                     >
-                      {tab === "students" ? "طلاب" : tab === "teachers" ? "معلمون" : "فصول"}
+                      استعادة الكل
                     </button>
-                  ))}
+                  )}
                 </div>
+
+                {restoreAllMsg && (
+                  <div className="p-3 bg-green-50 border border-green-200 rounded-xl text-sm text-green-700 whitespace-pre-line">
+                    {restoreAllMsg}
+                  </div>
+                )}
 
                 {loadingTrash ? (
                   <div className="text-sm text-gray-400 py-6 text-center">{t("common.loading")}</div>
@@ -1008,7 +1089,7 @@ export default function SettingsPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {(trashTab === "students" ? trashStudents : trashTab === "teachers" ? trashTeachers : trashClasses).map((item) => (
+                        {currentTrashList.map((item) => (
                           <tr key={item.id} className="border-b border-gray-50 hover:bg-gray-50">
                             <td className="py-3 px-2 text-gray-800 font-medium">{item.name}</td>
                             <td className="py-3 px-2 text-gray-500">{formatDMY(item.deletedAt)}</td>
@@ -1033,7 +1114,7 @@ export default function SettingsPage() {
                             </td>
                           </tr>
                         ))}
-                        {(trashTab === "students" ? trashStudents : trashTab === "teachers" ? trashTeachers : trashClasses).length === 0 && (
+                        {currentTrashList.length === 0 && (
                           <tr>
                             <td colSpan={4} className="text-center text-gray-400 py-6">{t("common.noData")}</td>
                           </tr>
@@ -1043,7 +1124,8 @@ export default function SettingsPage() {
                   </div>
                 )}
               </SettingsSection>
-            )}
+              );
+            })()}
 
             {/* ── Subscription ──────────────────────────────────────── */}
             {showSection("subscription") && (

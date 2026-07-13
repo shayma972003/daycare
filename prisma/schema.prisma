@@ -325,6 +325,8 @@ model Student {
   attendanceType    String        @default("دوام منتظم")
   registration_fee  Float         @default(0)
   additionalFile    String?
+  evaluationFileUrl  String?
+  evaluationFileName String?
   isActive          Boolean       @default(true)
   deletedAt         DateTime?
   needsClassWarning Boolean       @default(false)

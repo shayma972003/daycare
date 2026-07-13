@@ -14,6 +14,7 @@ type Student = {
   period: "MORNING" | "EVENING";
   paymentStatus: "PAID" | "LATE" | "CANCELLED" | "SUSPENDED";
   class?: { id: string; name: string } | null;
+  classId?: string | null;
   guardian?: { id: string; name: string; phone1?: string | null; phone2?: string | null; email?: string | null } | null;
   isActive: boolean;
   needsClassWarning?: boolean;
@@ -603,7 +604,7 @@ export default function StudentsPage() {
                       <td className="px-4 py-3 text-gray-600">
                         <span className="inline-flex items-center gap-1.5">
                           {student.class?.name ?? "—"}
-                          {student.needsClassWarning && (
+                          {(student.needsClassWarning || !student.classId) && (
                             <span
                               title="هذا الطالب بدون فصل محدد"
                               className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-orange-100 text-orange-600 text-xs"

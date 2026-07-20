@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import axios from "axios";
 import { Topbar } from "@/components/layout/Topbar";
-import { VariableReference } from "@/components/ui/VariableReference";
 import { DeliveryStatusBadge } from "@/components/ui/StatusBadge";
 import { t } from "@/lib/utils";
 
@@ -1218,7 +1217,34 @@ export default function SettingsPage() {
                     className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] text-sm resize-none"
                   />
                 </FormField>
-                <VariableReference mode="payment" />
+                <div className="mt-3 p-4 bg-gray-50 rounded-xl text-right">
+                  <p className="text-sm font-bold text-gray-700 mb-3">المتغيرات المتاحة:</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {[
+                      { key: "child_name", desc: "اسم الطفل" },
+                      { key: "guardian_name", desc: "اسم ولي الأمر الأول" },
+                      { key: "guardian_2_name", desc: "اسم ولي الأمر الثاني" },
+                      { key: "school_name", desc: "اسم المنشأة" },
+                      { key: "checkin_time", desc: "وقت الدخول من الإعدادات" },
+                      { key: "checkout_time", desc: "وقت الخروج من الإعدادات" },
+                      { key: "subscription_fee", desc: "رسوم التسجيل من ملف الطالب" },
+                      { key: "due_date", desc: "تاريخ انتهاء الاشتراك" },
+                      { key: "activity_name", desc: "اسم الفعالية" },
+                      { key: "activity_fee", desc: "رسوم الفعالية" },
+                      { key: "activity_date", desc: "من (تاريخ البدء) إلى (تاريخ الانتهاء)" },
+                    ].map(({ key, desc }) => (
+                      <div key={key} className="flex items-center gap-2">
+                        <code className="text-xs bg-white border border-gray-200 rounded px-2 py-1 text-green-700 font-mono">
+                          {`<${key}>`}
+                        </code>
+                        <span className="text-xs text-gray-500">{desc}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-400 mt-3">
+                    اكتب المتغير في نص الرسالة وسيتم استبداله تلقائياً بالقيمة الفعلية عند الإرسال.
+                  </p>
+                </div>
               </SettingsSection>
             )}
 

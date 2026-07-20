@@ -7,7 +7,9 @@ const updateClassSchema = z.object({
   teacherId: z.string().nullish(),
   group: z.string().nullish(),
   period: z.enum(["MORNING", "EVENING"]).nullish(),
+  registrationDate: z.string().nullish(),
   notes: z.string().nullish(),
+  imageUrl: z.string().nullish(),
 });
 
 export async function GET(
@@ -26,8 +28,23 @@ export async function GET(
   const cls = await prisma.class.findFirst({
     where: { id, schoolId, deletedAt: null },
     include: {
-      teacher: true,
-      students: { where: { deletedAt: null } },
+      teacher: { select: { id: true, name: true } },
+      students: {
+        where: { deletedAt: null, isActive: true },
+        select: {
+          id: true,
+          name: true,
+          avatarUrl: true,
+          period: true,
+          guardian: { select: { name: true, phone1: true } },
+        },
+        orderBy: { name: "asc" },
+      },
+      _count: {
+        select: {
+          students: { where: { deletedAt: null, isActive: true } },
+        },
+      },
     },
   });
 
@@ -73,7 +90,11 @@ export async function PUT(
   }
   if ("group" in data) updateData.group = data.group ?? null;
   if ("period" in data) updateData.period = data.period ?? null;
+  if ("registrationDate" in data) {
+    updateData.registrationDate = data.registrationDate ? new Date(data.registrationDate) : null;
+  }
   if ("notes" in data) updateData.notes = data.notes ?? null;
+  if ("imageUrl" in data) updateData.imageUrl = data.imageUrl ?? null;
 
   const existing = await prisma.class.findFirst({ where: { id, schoolId, deletedAt: null } });
   if (!existing) {
@@ -84,8 +105,21 @@ export async function PUT(
     where: { id },
     data: updateData,
     include: {
-      teacher: true,
-      students: true,
+      teacher: { select: { id: true, name: true } },
+      students: {
+        where: { deletedAt: null, isActive: true },
+        select: {
+          id: true,
+          name: true,
+          avatarUrl: true,
+          period: true,
+          guardian: { select: { name: true, phone1: true } },
+        },
+        orderBy: { name: "asc" },
+      },
+      _count: {
+        select: { students: { where: { deletedAt: null, isActive: true } } },
+      },
     },
   });
 

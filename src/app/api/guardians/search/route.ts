@@ -45,6 +45,10 @@ export async function POST(request: Request) {
       id: true,
       name: true, phone1: true, phone2: true, email: true,
       name_2: true, phone_3: true, phone_4: true, email_2: true,
+      students: {
+        where: { deletedAt: null, isActive: true },
+        select: { id: true, name: true, avatarUrl: true },
+      },
     },
     take: 10,
   });

@@ -18,6 +18,7 @@ type Student = {
   guardian?: { id: string; name: string; phone1?: string | null; phone2?: string | null; email?: string | null } | null;
   isActive: boolean;
   needsClassWarning?: boolean;
+  avatarUrl?: string | null;
 };
 
 type Class = { id: string; name: string };
@@ -588,7 +589,13 @@ export default function StudentsPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
-                          <AvatarPlaceholder name={student.name} />
+                          {student.avatarUrl ? (
+                            <div className="w-9 h-9 rounded-full overflow-hidden bg-gray-100 flex-shrink-0">
+                              <img src={student.avatarUrl} alt={student.name} className="w-full h-full object-cover" />
+                            </div>
+                          ) : (
+                            <AvatarPlaceholder name={student.name} />
+                          )}
                           <span className="font-medium text-[#1a2340]">{student.name}</span>
                           {!student.isActive && (
                             <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">موقوف</span>

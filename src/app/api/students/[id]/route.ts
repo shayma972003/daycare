@@ -64,7 +64,7 @@ export async function GET(
             isActive: true,
             deletedAt: null,
           },
-          select: { id: true, name: true },
+          select: { id: true, name: true, avatarUrl: true },
         })
       : [];
 

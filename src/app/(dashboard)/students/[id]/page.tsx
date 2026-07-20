@@ -16,8 +16,8 @@ type Invoice = {
   pdfUrl?: string | null;
   createdAt: string;
 };
-type GuardianSuggestion = { id: string; name: string; phone1?: string | null; phone2?: string | null; email?: string | null; name_2?: string | null; phone_3?: string | null; phone_4?: string | null; email_2?: string | null };
-type Sibling = { id: string; name: string };
+type GuardianSuggestion = { id: string; name: string; phone1?: string | null; phone2?: string | null; email?: string | null; name_2?: string | null; phone_3?: string | null; phone_4?: string | null; email_2?: string | null; students?: { id: string; name: string; avatarUrl?: string | null }[] };
+type Sibling = { id: string; name: string; avatarUrl?: string | null };
 
 type StudentData = {
   id: string;
@@ -45,6 +45,7 @@ type StudentData = {
   siblings: Sibling[];
   evaluationFileUrl?: string | null;
   evaluationFileName?: string | null;
+  avatarUrl?: string | null;
 };
 
 type FormData = {
@@ -103,6 +104,9 @@ export default function StudentProfilePage({
   const [showReplaceEvalConfirm, setShowReplaceEvalConfirm] = useState(false);
   const [showDeleteEvalConfirm, setShowDeleteEvalConfirm] = useState(false);
   const evalFileInputRef = useRef<HTMLInputElement>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -125,6 +129,7 @@ export default function StudentProfilePage({
         }
         setEvalFileUrl(s.evaluationFileUrl ?? null);
         setEvalFileName(s.evaluationFileName ?? null);
+        setAvatarUrl(s.avatarUrl ?? null);
         reset({
           name: s.name,
           healthCondition: s.healthCondition ?? "",
@@ -266,6 +271,32 @@ export default function StudentProfilePage({
     await deleteLateFee();
   }
 
+  async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAvatarUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await axios.post<{ avatar_url: string }>(`/api/students/${id}/avatar`, fd);
+      setAvatarUrl(res.data.avatar_url);
+    } catch (err) {
+      alert(axios.isAxiosError(err) ? err.response?.data?.error ?? t("common.error") : t("common.error"));
+    } finally {
+      setAvatarUploading(false);
+      if (avatarInputRef.current) avatarInputRef.current.value = "";
+    }
+  }
+
+  async function handleRemoveAvatar() {
+    try {
+      await axios.delete(`/api/students/${id}/avatar`);
+      setAvatarUrl(null);
+    } catch {
+      alert(t("common.error"));
+    }
+  }
+
   async function uploadEvalFile(file: File) {
     setEvalUploading(true);
     try {
@@ -393,14 +424,57 @@ export default function StudentProfilePage({
                           key={sib.id}
                           type="button"
                           onClick={() => router.push(`/students/${sib.id}`)}
-                          className="text-xs bg-blue-50 text-blue-700 border border-blue-200 px-2.5 py-1 rounded-full hover:bg-blue-100 transition-colors"
+                          className="flex items-center gap-1.5 text-xs bg-blue-50 text-blue-700 border border-blue-200 px-2.5 py-1 rounded-full hover:bg-blue-100 transition-colors"
                         >
+                          <span className="w-6 h-6 rounded-full overflow-hidden bg-blue-100 flex-shrink-0">
+                            {sib.avatarUrl ? (
+                              <img src={sib.avatarUrl} alt={sib.name} className="w-full h-full object-cover" />
+                            ) : null}
+                          </span>
                           {sib.name}
                         </button>
                       ))}
                     </div>
                   )}
                 </div>
+
+                {/* Avatar */}
+                <div className="flex flex-col items-center mb-6">
+                  <div
+                    className="w-24 h-24 rounded-full overflow-hidden bg-gray-100 border-2 border-gray-200 cursor-pointer relative group"
+                    onClick={() => avatarInputRef.current?.click()}
+                  >
+                    {avatarUrl ? (
+                      <img src={avatarUrl} alt={student?.name ?? ""} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
+                        <span className="text-xs mt-1">إضافة صورة</span>
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-black/30 rounded-full hidden group-hover:flex items-center justify-center">
+                      <span className="text-white text-xs">{avatarUploading ? "..." : "تغيير"}</span>
+                    </div>
+                  </div>
+
+                  <input
+                    ref={avatarInputRef}
+                    type="file"
+                    accept=".jpg,.jpeg,.png"
+                    className="hidden"
+                    onChange={handleAvatarUpload}
+                  />
+
+                  {avatarUrl && (
+                    <button
+                      type="button"
+                      onClick={handleRemoveAvatar}
+                      className="text-xs text-red-500 mt-1"
+                    >
+                      إزالة الصورة
+                    </button>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {[
                     ["name", t("students.profile.name"), "text"],
@@ -552,8 +626,27 @@ export default function StudentProfilePage({
                             onClick={() => selectGuardian(g)}
                             className="w-full text-right px-4 py-2.5 text-sm hover:bg-gray-50 border-b border-gray-50 last:border-0"
                           >
-                            <div className="font-medium text-[#1a2340]">{g.name}</div>
-                            <div className="text-xs text-gray-400">{[g.phone1, g.email].filter(Boolean).join(" · ")}</div>
+                            <div className="flex items-center justify-between gap-2">
+                              <div>
+                                <div className="font-medium text-[#1a2340]">{g.name}</div>
+                                <div className="text-xs text-gray-400">{[g.phone1, g.email].filter(Boolean).join(" · ")}</div>
+                              </div>
+                              {g.students && g.students.length > 0 && (
+                                <div className="flex items-center -space-x-2 rtl:space-x-reverse flex-shrink-0">
+                                  {g.students.slice(0, 4).map((child) => (
+                                    <div
+                                      key={child.id}
+                                      title={child.name}
+                                      className="w-6 h-6 rounded-full overflow-hidden bg-gray-100 border border-white"
+                                    >
+                                      {child.avatarUrl ? (
+                                        <img src={child.avatarUrl} alt={child.name} className="w-full h-full object-cover" />
+                                      ) : null}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
                           </button>
                         ))}
                       </div>

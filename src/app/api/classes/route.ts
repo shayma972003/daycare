@@ -7,7 +7,9 @@ const createClassSchema = z.object({
   teacherId: z.string().optional(),
   group: z.string().optional(),
   period: z.enum(["MORNING", "EVENING"]).optional(),
+  registrationDate: z.string().optional(),
   notes: z.string().optional(),
+  imageUrl: z.string().optional(),
 });
 
 export async function GET(request: Request) {
@@ -65,7 +67,7 @@ export async function POST(request: Request) {
     return Response.json({ error: parsed.error.flatten() }, { status: 422 });
   }
 
-  const { name, teacherId, group, period, notes } = parsed.data;
+  const { name, teacherId, group, period, registrationDate, notes, imageUrl } = parsed.data;
 
   const cls = await prisma.class.create({
     data: {
@@ -74,10 +76,12 @@ export async function POST(request: Request) {
       ...(teacherId !== undefined && { teacherId }),
       ...(group !== undefined && { group }),
       ...(period !== undefined && { period }),
+      ...(registrationDate !== undefined && { registrationDate: new Date(registrationDate) }),
       ...(notes !== undefined && { notes }),
+      ...(imageUrl !== undefined && { imageUrl }),
     },
     include: {
-      teacher: true,
+      teacher: { select: { id: true, name: true } },
       students: true,
     },
   });

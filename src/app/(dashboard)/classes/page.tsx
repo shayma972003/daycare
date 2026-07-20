@@ -2,10 +2,9 @@
 
 import { useEffect, useState } from "react";
 import axios from "axios";
+import { useRouter } from "next/navigation";
 import { Topbar } from "@/components/layout/Topbar";
 import { PeriodBadge } from "@/components/ui/StatusBadge";
-import { ClassFormModal, ClassData } from "@/components/classes/ClassFormModal";
-import { ClassDeleteConfirmModal } from "@/components/classes/ClassDeleteConfirmModal";
 import { t } from "@/lib/utils";
 
 interface ClassItem {
@@ -17,24 +16,19 @@ interface ClassItem {
   notes?: string | null;
   teacherId?: string | null;
   teacher?: { id: string; name: string } | null;
+  imageUrl?: string | null;
   students: { id: string }[];
   needsTeacherWarning?: boolean;
 }
 
 export default function ClassesPage() {
+  const router = useRouter();
   const [classes, setClasses] = useState<ClassItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [periodFilter, setPeriodFilter] = useState<"MORNING" | "EVENING" | "all">("all");
   const [groupFilter, setGroupFilter] = useState<"kg1" | "kg2" | "kg3" | "nursery" | "all">("all");
-
-  const [modalOpen, setModalOpen] = useState(false);
-  const [selectedClass, setSelectedClass] = useState<ClassData | null>(null);
-
-  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string; studentsCount: number } | null>(null);
-  const [deleting, setDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   async function fetchClasses() {
     setLoading(true);
@@ -57,41 +51,6 @@ export default function ClassesPage() {
     fetchClasses();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [periodFilter, groupFilter]);
-
-  function openAdd() {
-    setSelectedClass(null);
-    setModalOpen(true);
-  }
-
-  async function handleConfirmDelete() {
-    if (!deleteTarget) return;
-    setDeleting(true);
-    setDeleteError(null);
-    try {
-      await axios.delete(`/api/classes/${deleteTarget.id}`);
-      setDeleteTarget(null);
-      fetchClasses();
-    } catch {
-      setDeleteError(t("common.error"));
-    } finally {
-      setDeleting(false);
-    }
-  }
-
-  function openEdit(cls: ClassItem) {
-    setSelectedClass({
-      id: cls.id,
-      name: cls.name,
-      teacherId: cls.teacherId,
-      teacher: cls.teacher,
-      group: cls.group,
-      period: cls.period,
-      registrationDate: cls.registrationDate,
-      notes: cls.notes,
-      students: cls.students,
-    });
-    setModalOpen(true);
-  }
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -157,7 +116,7 @@ export default function ClassesPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {/* Add card */}
             <button
-              onClick={openAdd}
+              onClick={() => router.push("/classes/new")}
               className="bg-white rounded-xl shadow-md border-2 border-dashed border-gray-200 flex flex-col items-center justify-center gap-2 min-h-[220px] hover:border-[#22c55e] hover:shadow-lg transition-all group cursor-pointer"
             >
               <div className="w-12 h-12 rounded-full bg-gray-100 group-hover:bg-[#22c55e]/10 flex items-center justify-center text-2xl text-gray-400 group-hover:text-[#22c55e] transition-colors">
@@ -172,7 +131,7 @@ export default function ClassesPage() {
             {classes.map((cls) => (
               <button
                 key={cls.id}
-                onClick={() => openEdit(cls)}
+                onClick={() => router.push(`/classes/${cls.id}`)}
                 className="relative bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow text-right w-full"
               >
                 {cls.needsTeacherWarning && (
@@ -183,13 +142,17 @@ export default function ClassesPage() {
                     ⚠
                   </span>
                 )}
-                {/* Image placeholder — full width top, gray, 120px */}
+                {/* Image */}
                 <div className="w-full bg-gray-100 flex items-center justify-center text-gray-400" style={{ height: 120 }}>
-                  <div className="flex flex-col items-center gap-1">
-                    <div className="w-10 h-10 bg-gray-200 rounded flex items-center justify-center text-xs">
-                      [img]
+                  {cls.imageUrl ? (
+                    <img src={cls.imageUrl} alt={cls.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="flex flex-col items-center gap-1">
+                      <div className="w-10 h-10 bg-gray-200 rounded flex items-center justify-center text-xs">
+                        [img]
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 {/* Card body */}
@@ -223,28 +186,6 @@ export default function ClassesPage() {
           </div>
         )}
       </div>
-
-      <ClassFormModal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        classData={selectedClass}
-        onSaved={fetchClasses}
-        onRequestDelete={(target) => {
-          setModalOpen(false);
-          setDeleteError(null);
-          setDeleteTarget(target);
-        }}
-      />
-
-      <ClassDeleteConfirmModal
-        isOpen={deleteTarget !== null}
-        className={deleteTarget?.name ?? ""}
-        assignedStudentsCount={deleteTarget?.studentsCount ?? 0}
-        deleting={deleting}
-        error={deleteError}
-        onConfirm={handleConfirmDelete}
-        onCancel={() => setDeleteTarget(null)}
-      />
     </div>
   );
 }

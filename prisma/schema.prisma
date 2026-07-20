@@ -327,6 +327,7 @@ model Student {
   additionalFile    String?
   evaluationFileUrl  String?
   evaluationFileName String?
+  avatarUrl         String?
   isActive          Boolean       @default(true)
   deletedAt         DateTime?
   needsClassWarning Boolean       @default(false)

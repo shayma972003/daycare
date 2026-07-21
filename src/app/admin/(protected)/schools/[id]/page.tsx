@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import axios from "axios";
 import * as Tabs from "@radix-ui/react-tabs";
+import { AdminInvoiceModal } from "@/components/admin/AdminInvoiceModal";
 
 interface SchoolDetail {
   school: {
@@ -25,6 +26,16 @@ interface SchoolDetail {
 }
 
 interface Plan { id: string; name: string; price: number }
+
+interface AdminInvoice {
+  id: string;
+  invoice_number: string;
+  subscription_type: string | null;
+  issue_date: string;
+  total_amount: number;
+  status: string;
+  file_url: string | null;
+}
 
 const STATUS_LABELS: Record<string, string> = {
   active: "نشط", suspended: "موقوف", expired: "منتهٍ", trial: "تجريبي",
@@ -52,6 +63,35 @@ export default function SchoolDetailPage() {
   // Delete dialog
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState("");
+
+  // Admin invoices
+  const [invoices, setInvoices] = useState<AdminInvoice[]>([]);
+  const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
+
+  function loadInvoices() {
+    axios.get<AdminInvoice[]>(`/api/admin/invoices/${id}`).then((res) => setInvoices(res.data));
+  }
+
+  useEffect(() => {
+    loadInvoices();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  function viewInvoicePdf(fileUrl: string) {
+    const base64 = fileUrl.split(",")[1];
+    const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+    const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+    window.open(url, "_blank");
+  }
+
+  function downloadInvoicePdf(fileUrl: string, name: string) {
+    const link = document.createElement("a");
+    link.href = fileUrl;
+    link.download = `${name}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
 
   useEffect(() => {
     Promise.all([
@@ -229,6 +269,66 @@ export default function SchoolDetailPage() {
 
         {/* Messages Tab */}
         <Tabs.Content value="messages">
+          <div className="flex items-center justify-end mb-4">
+            <button
+              onClick={() => setInvoiceModalOpen(true)}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm rounded-xl"
+            >
+              إنشاء فاتورة
+            </button>
+          </div>
+
+          <div className="bg-[#1e1e2e] rounded-2xl border border-white/5 overflow-hidden mb-6">
+            <div className="px-5 py-3 border-b border-white/5">
+              <h4 className="text-white font-bold text-sm">الفواتير المصدرة</h4>
+            </div>
+            {invoices.length === 0 ? (
+              <p className="text-center text-gray-500 text-sm py-8">لا توجد فواتير مصدرة بعد</p>
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-white/5">
+                    <th className="px-5 py-3 text-right text-gray-400 font-medium">رقم الفاتورة</th>
+                    <th className="px-5 py-3 text-right text-gray-400 font-medium">نوع الاشتراك</th>
+                    <th className="px-5 py-3 text-right text-gray-400 font-medium">تاريخ الإصدار</th>
+                    <th className="px-5 py-3 text-right text-gray-400 font-medium">المبلغ الكلي</th>
+                    <th className="px-5 py-3 text-right text-gray-400 font-medium">الحالة</th>
+                    <th className="px-5 py-3 text-right text-gray-400 font-medium">الإجراءات</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {invoices.map((inv) => (
+                    <tr key={inv.id}>
+                      <td className="px-5 py-3 text-white">{inv.invoice_number}</td>
+                      <td className="px-5 py-3 text-gray-400">{inv.subscription_type ?? "—"}</td>
+                      <td className="px-5 py-3 text-gray-400">{new Date(inv.issue_date).toLocaleDateString("ar-SA")}</td>
+                      <td className="px-5 py-3 text-gray-400">{inv.total_amount.toFixed(2)} ر.س</td>
+                      <td className="px-5 py-3 text-gray-400">{inv.status}</td>
+                      <td className="px-5 py-3">
+                        {inv.file_url && (
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => viewInvoicePdf(inv.file_url!)}
+                              className="px-2.5 py-1 text-xs bg-indigo-600/20 text-indigo-300 border border-indigo-500/30 rounded-lg hover:bg-indigo-600/30 transition-colors"
+                            >
+                              عرض
+                            </button>
+                            <button
+                              onClick={() => downloadInvoicePdf(inv.file_url!, `فاتورة-${inv.invoice_number}`)}
+                              className="px-2.5 py-1 text-xs bg-white/5 text-gray-300 border border-white/10 rounded-lg hover:bg-white/10 transition-colors"
+                            >
+                              تنزيل
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+
           <div className="bg-[#1e1e2e] rounded-2xl border border-white/5 overflow-hidden">
             <table className="w-full text-sm">
               <thead>
@@ -256,6 +356,13 @@ export default function SchoolDetailPage() {
           </div>
         </Tabs.Content>
       </Tabs.Root>
+
+      <AdminInvoiceModal
+        open={invoiceModalOpen}
+        schoolId={id}
+        onClose={() => setInvoiceModalOpen(false)}
+        onIssued={() => loadInvoices()}
+      />
 
       {/* Suspend Dialog */}
       {suspendOpen && (

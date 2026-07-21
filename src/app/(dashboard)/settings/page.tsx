@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
+import { useRouter } from "next/navigation";
 import axios from "axios";
 import { Topbar } from "@/components/layout/Topbar";
 import { DeliveryStatusBadge } from "@/components/ui/StatusBadge";
@@ -97,6 +98,7 @@ function FormField({
 // ── Main Page ────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
+  const router = useRouter();
   const [search, setSearch] = useState("");
 
   // Settings state
@@ -525,6 +527,7 @@ export default function SettingsPage() {
       form.append("logo", file);
       const res = await axios.put<{ logoUrl: string }>("/api/settings/logo", form);
       setLogoUrl(res.data.logoUrl);
+      router.refresh();
     } catch {
       alert("فشل رفع الشعار");
     } finally {

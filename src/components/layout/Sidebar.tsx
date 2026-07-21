@@ -14,11 +14,17 @@ const navItems = [
   { href: "/settings", label: t("nav.settings"), icon: "⚙️" },
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+  schoolName?: string | null;
+  schoolLogo?: string | null;
+}
+
+export function Sidebar({ schoolName: schoolNameProp, schoolLogo }: SidebarProps = {}) {
   const pathname = usePathname();
   const { data: session } = useSession();
 
   const schoolName =
+    schoolNameProp ??
     (session?.user as { schoolName?: string } | undefined)?.schoolName ??
     t("app.name");
 
@@ -27,8 +33,12 @@ export function Sidebar() {
       {/* School branding */}
       <div className="p-5 border-b border-white/10">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-xs text-white font-bold shrink-0">
-            [logo]
+          <div className="w-10 h-10 bg-white/20 rounded-xl overflow-hidden flex items-center justify-center text-xs text-white font-bold shrink-0">
+            {schoolLogo ? (
+              <img src={schoolLogo} alt={schoolName ?? "شعار المدرسة"} className="w-full h-full object-contain" />
+            ) : (
+              "[logo]"
+            )}
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-white font-bold text-sm leading-tight truncate">

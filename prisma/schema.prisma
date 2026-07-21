@@ -166,6 +166,41 @@ model School {
   enrollment_tokens       EnrollmentToken[]
   enrollment_submissions  EnrollmentSubmission[]
   twoFaSessions           TwoFASession[]
+  admin_invoices          AdminInvoice[]
+}
+
+model AdminInvoice {
+  id                 String    @id @default(cuid())
+  school_id          String
+  invoice_number     String
+  subscription_type  String?
+  issue_date         DateTime  @default(now())
+  due_date           DateTime?
+  status             String    @default("متأخر") // مدفوع | متأخر | ملغي | بانتظار الدفع
+  payment_method     String?
+
+  // معلومات شركتنا (SaaS provider) — قابلة للتعديل
+  our_company_name   String?
+  our_commercial_reg String?
+  our_vat_number     String?
+  our_contact_number String?
+  our_email          String?
+  our_address        String?
+
+  // معلومات المدرسة — مسحوبة من DB وقابلة للتعديل
+  school_name           String
+  school_commercial_reg String?
+  school_vat_number     String?
+  school_contact        String?
+  school_email          String?
+  school_address        String?
+
+  line_items   Json // array of line item objects
+  total_amount Float @default(0)
+  file_url     String?
+  created_at   DateTime @default(now())
+
+  school School @relation(fields: [school_id], references: [id])
 }
 
 model TwoFASession {

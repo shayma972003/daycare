@@ -611,7 +611,7 @@ export default function SettingsPage() {
                   <button
                     onClick={handleSendActivationOtp}
                     disabled={activateLoading}
-                    className="px-5 py-2 bg-[#22c55e] hover:bg-[#16a34a] text-white rounded-xl text-sm font-medium disabled:opacity-60"
+                    className="px-5 py-2 bg-[#F64651] hover:bg-[#D93A44] text-white rounded-xl text-sm font-medium disabled:opacity-60"
                   >
                     {activateLoading ? "..." : "إرسال رمز التحقق"}
                   </button>
@@ -643,7 +643,7 @@ export default function SettingsPage() {
                   <button
                     onClick={handleConfirmActivation}
                     disabled={activateLoading || activateOtp.length !== 6}
-                    className="px-5 py-2 bg-[#22c55e] hover:bg-[#16a34a] text-white rounded-xl text-sm font-medium disabled:opacity-60"
+                    className="px-5 py-2 bg-[#F64651] hover:bg-[#D93A44] text-white rounded-xl text-sm font-medium disabled:opacity-60"
                   >
                     {activateLoading ? "..." : "تأكيد"}
                   </button>
@@ -738,7 +738,7 @@ export default function SettingsPage() {
               <button
                 onClick={handleRestoreAll}
                 disabled={restoringAll}
-                className="px-5 py-2 bg-[#22c55e] text-white rounded-xl text-sm font-medium hover:bg-[#16a34a] disabled:opacity-60"
+                className="px-5 py-2 bg-[#F64651] text-white rounded-xl text-sm font-medium hover:bg-[#D93A44] disabled:opacity-60"
               >
                 {restoringAll ? "..." : "استعادة الكل"}
               </button>
@@ -985,7 +985,7 @@ export default function SettingsPage() {
                   <p className="text-red-600 text-sm">{passwordError}</p>
                 )}
                 {passwordSuccess && (
-                  <p className="text-green-600 text-sm">
+                  <p className="text-success-text text-sm">
                     تم تغيير كلمة المرور بنجاح
                   </p>
                 )}
@@ -1014,7 +1014,7 @@ export default function SettingsPage() {
                     type="button"
                     onClick={handleToggle2FA}
                     className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors shrink-0 ${
-                      twoFaEnabled ? "bg-[#22c55e]" : "bg-gray-300"
+                      twoFaEnabled ? "bg-[#F64651]" : "bg-gray-300"
                     }`}
                   >
                     <span
@@ -1031,7 +1031,7 @@ export default function SettingsPage() {
                   </div>
                 )}
                 {twoFaSuccessMsg && (
-                  <div className="p-3 bg-green-50 border border-green-200 rounded-xl text-sm text-green-700">
+                  <div className="p-3 bg-success-bg border border-success-text/20 rounded-xl text-sm text-success-text">
                     {twoFaSuccessMsg}
                   </div>
                 )}
@@ -1062,7 +1062,7 @@ export default function SettingsPage() {
                   {currentTrashList.length > 0 && (
                     <button
                       onClick={() => setShowRestoreAllConfirm(true)}
-                      className="px-4 py-1.5 border-2 border-[#22c55e] text-[#16a34a] rounded-full text-sm font-medium hover:bg-green-50 transition-all"
+                      className="px-4 py-1.5 border-2 border-[#F64651] text-[#D93A44] rounded-full text-sm font-medium hover:bg-success-bg transition-all"
                     >
                       استعادة الكل
                     </button>
@@ -1070,7 +1070,7 @@ export default function SettingsPage() {
                 </div>
 
                 {restoreAllMsg && (
-                  <div className="p-3 bg-green-50 border border-green-200 rounded-xl text-sm text-green-700 whitespace-pre-line">
+                  <div className="p-3 bg-success-bg border border-success-text/20 rounded-xl text-sm text-success-text whitespace-pre-line">
                     {restoreAllMsg}
                   </div>
                 )}
@@ -1237,7 +1237,7 @@ export default function SettingsPage() {
                       { key: "activity_date", desc: "من (تاريخ البدء) إلى (تاريخ الانتهاء)" },
                     ].map(({ key, desc }) => (
                       <div key={key} className="flex items-center gap-2">
-                        <code className="text-xs bg-white border border-gray-200 rounded px-2 py-1 text-green-700 font-mono">
+                        <code className="text-xs bg-white border border-gray-200 rounded px-2 py-1 text-success-text font-mono">
                           {`<${key}>`}
                         </code>
                         <span className="text-xs text-gray-500">{desc}</span>
@@ -1259,12 +1259,12 @@ export default function SettingsPage() {
                 <button
                   onClick={handleSaveSettings}
                   disabled={savingSettings}
-                  className="px-8 py-3 bg-[#22c55e] hover:bg-[#16a34a] text-white rounded-xl font-bold text-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed shadow-md"
+                  className="px-8 py-3 bg-[#F64651] hover:bg-[#D93A44] text-white rounded-xl font-bold text-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed shadow-md"
                 >
                   {savingSettings ? t("common.loading") : t("settings.save")}
                 </button>
                 {settingsSaved && (
-                  <span className="text-green-600 text-sm font-medium">
+                  <span className="text-success-text text-sm font-medium">
                     {t("common.success")}
                   </span>
                 )}
@@ -1310,7 +1310,7 @@ export default function SettingsPage() {
                             <tr key={log.id} className="border-b border-gray-50 hover:bg-gray-50">
                               <td className="py-3 px-2 text-gray-800 font-medium">{log.recipientName}</td>
                               <td className="py-3 px-2">
-                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${log.type === "WHATSAPP" ? "bg-green-50 text-green-700" : "bg-blue-50 text-blue-700"}`}>
+                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${log.type === "WHATSAPP" ? "bg-success-bg text-success-text" : "bg-blue-50 text-blue-700"}`}>
                                   {t(`notificationType.${log.type}`)}
                                 </span>
                               </td>

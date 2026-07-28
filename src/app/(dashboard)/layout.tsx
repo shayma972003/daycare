@@ -24,7 +24,7 @@ export default async function DashboardLayout({
     <SessionProvider>
       <div className="min-h-screen flex">
         <Sidebar schoolName={school?.name} schoolLogo={school?.logoUrl} />
-        <main className="flex-1 mr-60 min-h-screen">{children}</main>
+        <main className="flex-1 mr-[220px] min-h-screen bg-brand-bg">{children}</main>
       </div>
     </SessionProvider>
   );

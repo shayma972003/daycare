@@ -76,7 +76,7 @@ export default function NewClassPage() {
   }
 
   return (
-    <div dir="rtl" className="min-h-screen bg-[#f4f6fb]">
+    <div dir="rtl" className="min-h-screen bg-brand-bg">
       <Topbar title={t("classes.addClass")} />
       <div className="p-6 space-y-5 max-w-2xl">
         <button
@@ -93,7 +93,7 @@ export default function NewClassPage() {
               {t("classes.form.image")}
             </label>
             <div
-              className="border-2 border-dashed border-gray-200 rounded-xl overflow-hidden cursor-pointer hover:border-[#22c55e] transition-colors"
+              className="border-2 border-dashed border-gray-200 rounded-xl overflow-hidden cursor-pointer hover:border-[#F64651] transition-colors"
               onClick={() => fileInputRef.current?.click()}
             >
               {imagePreview ? (
@@ -119,7 +119,7 @@ export default function NewClassPage() {
             <input
               value={form.name}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#22c55e] text-sm"
+              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#F64651] text-sm"
               placeholder={t("classes.form.name")}
             />
           </div>
@@ -129,7 +129,7 @@ export default function NewClassPage() {
             <select
               value={form.teacherId}
               onChange={(e) => setForm((f) => ({ ...f, teacherId: e.target.value }))}
-              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#22c55e] text-sm bg-white"
+              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#F64651] text-sm bg-white"
             >
               <option value="">{t("common.select")}</option>
               {teachers.map((tch) => (
@@ -143,7 +143,7 @@ export default function NewClassPage() {
             <select
               value={form.group}
               onChange={(e) => setForm((f) => ({ ...f, group: e.target.value }))}
-              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#22c55e] text-sm bg-white"
+              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#F64651] text-sm bg-white"
             >
               <option value="">{t("common.select")}</option>
               <option value="kg1">{t("groups.kg1")}</option>
@@ -158,7 +158,7 @@ export default function NewClassPage() {
             <select
               value={form.period}
               onChange={(e) => setForm((f) => ({ ...f, period: e.target.value as "" | "MORNING" | "EVENING" }))}
-              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#22c55e] text-sm bg-white"
+              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#F64651] text-sm bg-white"
             >
               <option value="">{t("common.select")}</option>
               <option value="MORNING">{t("periods.MORNING")}</option>
@@ -173,7 +173,7 @@ export default function NewClassPage() {
               dir="ltr"
               value={form.registrationDate}
               onChange={(e) => setForm((f) => ({ ...f, registrationDate: e.target.value }))}
-              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#22c55e] text-sm"
+              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#F64651] text-sm"
             />
           </div>
 
@@ -183,7 +183,7 @@ export default function NewClassPage() {
               value={form.notes}
               onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
               rows={4}
-              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#22c55e] text-sm resize-none"
+              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#F64651] text-sm resize-none"
             />
           </div>
 
@@ -197,7 +197,7 @@ export default function NewClassPage() {
             <button
               onClick={handleSave}
               disabled={saving || uploadingImage}
-              className="flex-1 py-2.5 bg-[#22c55e] hover:bg-[#16a34a] text-white rounded-xl font-bold text-sm transition-all disabled:opacity-60"
+              className="flex-1 py-2.5 bg-[#F64651] hover:bg-[#D93A44] text-white rounded-xl font-bold text-sm transition-all disabled:opacity-60"
             >
               {saving ? t("common.loading") : t("classes.form.save")}
             </button>

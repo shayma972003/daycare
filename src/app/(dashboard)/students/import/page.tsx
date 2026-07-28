@@ -81,7 +81,7 @@ function StepIndicator({ currentStep }: { currentStep: number }) {
               <div
                 className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold border-2 transition-all ${
                   isCompleted
-                    ? "bg-green-500 border-green-500 text-white"
+                    ? "bg-success-bg0 border-success-text text-white"
                     : isCurrent
                     ? "bg-[#1a2340] border-[#1a2340] text-white"
                     : "bg-white border-gray-300 text-gray-400"
@@ -91,7 +91,7 @@ function StepIndicator({ currentStep }: { currentStep: number }) {
               </div>
               <span
                 className={`text-xs mt-1 whitespace-nowrap ${
-                  isCurrent ? "text-[#1a2340] font-semibold" : isCompleted ? "text-green-600" : "text-gray-400"
+                  isCurrent ? "text-[#1a2340] font-semibold" : isCompleted ? "text-success-text" : "text-gray-400"
                 }`}
               >
                 {label}
@@ -100,7 +100,7 @@ function StepIndicator({ currentStep }: { currentStep: number }) {
             {i < STEPS.length - 1 && (
               <div
                 className={`w-10 h-0.5 mx-1 mb-4 ${
-                  stepNum < currentStep ? "bg-green-500" : "bg-gray-200"
+                  stepNum < currentStep ? "bg-success-bg0" : "bg-gray-200"
                 }`}
               />
             )}
@@ -291,7 +291,7 @@ export default function StudentsImportPage() {
 
   // Render steps
   return (
-    <div dir="rtl" className="min-h-screen bg-[#f4f6fb]">
+    <div dir="rtl" className="min-h-screen bg-brand-bg">
       <Topbar title="استيراد الطلاب من ملف" />
       <div className="p-6 max-w-5xl mx-auto">
         <StepIndicator currentStep={step} />
@@ -309,7 +309,7 @@ export default function StudentsImportPage() {
             <p className="text-sm text-gray-500 mb-6">يدعم النظام ملفات .xlsx و .csv</p>
             <div
               className={`border-2 border-dashed rounded-2xl p-12 text-center transition-colors cursor-pointer ${
-                dragOver ? "border-[#22c55e] bg-green-50" : "border-gray-200 hover:border-[#1a2340]"
+                dragOver ? "border-[#F64651] bg-success-bg" : "border-gray-200 hover:border-[#1a2340]"
               }`}
               onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
               onDragLeave={() => setDragOver(false)}
@@ -322,7 +322,7 @@ export default function StudentsImportPage() {
               <p className="text-[#1a2340] font-semibold mb-1">اسحب الملف هنا أو انقر للاختيار</p>
               <p className="text-xs text-gray-400">الصيغ المدعومة: .xlsx, .csv</p>
               {selectedFile && (
-                <p className="mt-3 text-sm text-green-700 font-medium">
+                <p className="mt-3 text-sm text-success-text font-medium">
                   تم اختيار: {selectedFile.name}
                 </p>
               )}
@@ -486,7 +486,7 @@ export default function StudentsImportPage() {
                       </td>
                       <td className="px-4 py-3">
                         {entry.mappedField && entry.confidence >= 0.7 ? (
-                          <span className="text-green-600 text-lg">✓</span>
+                          <span className="text-success-text text-lg">✓</span>
                         ) : entry.mappedField ? (
                           <span className="text-blue-500 text-xs bg-blue-50 px-2 py-0.5 rounded-full">مراجعة</span>
                         ) : (
@@ -512,8 +512,8 @@ export default function StudentsImportPage() {
                 <div className="text-3xl font-bold text-[#1a2340]">{sessionData.total_rows}</div>
                 <div className="text-sm text-gray-500 mt-1">إجمالي الصفوف المكتشفة</div>
               </div>
-              <div className="bg-green-50 rounded-xl p-4 text-center border border-green-100">
-                <div className="text-3xl font-bold text-green-600">{sessionData.valid_rows}</div>
+              <div className="bg-success-bg rounded-xl p-4 text-center border border-success-text/15">
+                <div className="text-3xl font-bold text-success-text">{sessionData.valid_rows}</div>
                 <div className="text-sm text-gray-500 mt-1">صفوف صحيحة جاهزة للاستيراد</div>
               </div>
               <div className="bg-red-50 rounded-xl p-4 text-center border border-red-100">
@@ -565,7 +565,7 @@ export default function StudentsImportPage() {
               {sessionData.valid_rows > 0 && (
                 <button
                   onClick={() => { confirmCalledRef.current = false; setStep(5); }}
-                  className="px-6 py-2 bg-[#22c55e] text-white rounded-xl text-sm font-bold hover:bg-[#16a34a] transition-colors"
+                  className="px-6 py-2 bg-[#F64651] text-white rounded-xl text-sm font-bold hover:bg-[#D93A44] transition-colors"
                 >
                   تأكيد الاستيراد ({sessionData.valid_rows} طالب)
                 </button>
@@ -577,7 +577,7 @@ export default function StudentsImportPage() {
         {/* STEP 5: Importing */}
         {step === 5 && (
           <div className="bg-white rounded-2xl shadow-md p-12 flex flex-col items-center justify-center gap-6">
-            <div className="w-16 h-16 border-4 border-gray-100 border-t-[#22c55e] rounded-full animate-spin" />
+            <div className="w-16 h-16 border-4 border-gray-100 border-t-[#F64651] rounded-full animate-spin" />
             <div className="text-center">
               <p className="text-xl font-bold text-[#1a2340]">جاري الاستيراد...</p>
               <p className="text-sm text-gray-500 mt-1">يرجى الانتظار، لا تغلق الصفحة</p>
@@ -594,7 +594,7 @@ export default function StudentsImportPage() {
         {step === 6 && sessionData && (
           <div className="bg-white rounded-2xl shadow-md p-6">
             <div className="text-center mb-6">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+              <div className="w-16 h-16 bg-success-bg rounded-full flex items-center justify-center mx-auto mb-3">
                 <span className="text-3xl">✓</span>
               </div>
               <h2 className="text-xl font-bold text-[#1a2340]">تم الاستيراد بنجاح</h2>
@@ -602,8 +602,8 @@ export default function StudentsImportPage() {
 
             {/* Report summary */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-              <div className="bg-green-50 rounded-xl p-4 text-center border border-green-100">
-                <div className="text-2xl font-bold text-green-600">
+              <div className="bg-success-bg rounded-xl p-4 text-center border border-success-text/15">
+                <div className="text-2xl font-bold text-success-text">
                   {sessionData.rows.filter((r) => r.status === "imported").length}
                 </div>
                 <div className="text-xs text-gray-500 mt-1">تم استيرادهم</div>

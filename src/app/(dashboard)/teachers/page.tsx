@@ -6,6 +6,7 @@ import axios from "axios";
 import { Topbar } from "@/components/layout/Topbar";
 import { AvatarPlaceholder } from "@/components/ui/IconPlaceholder";
 import { PeriodBadge } from "@/components/ui/StatusBadge";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { t, formatTime } from "@/lib/utils";
 
 interface TodayAttendance {
@@ -37,7 +38,7 @@ function LiveTimer({ from }: { from: string }) {
   const s = elapsed % 60;
   const fmt = (n: number) => String(n).padStart(2, "0");
   return (
-    <span className="font-mono text-sm font-semibold text-emerald-700 tabular-nums">
+    <span className="font-mono text-sm font-semibold text-success-text tabular-nums">
       {fmt(h)}:{fmt(m)}:{fmt(s)}
     </span>
   );
@@ -187,7 +188,7 @@ export default function TeachersPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={t("students.searchPlaceholder")}
-              className="w-64 px-4 py-2 pr-9 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#22c55e] text-sm bg-white shadow-sm"
+              className="w-64 px-4 py-2 pr-9 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#F64651] text-sm bg-white shadow-sm"
             />
             <span className="absolute left-auto right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
           </div>
@@ -217,7 +218,7 @@ export default function TeachersPage() {
             <div className="relative" ref={dropdownRef}>
               <button
                 onClick={() => setDropdownOpen(!dropdownOpen)}
-                className="flex items-center gap-1 px-4 py-2 bg-[#22c55e] text-white rounded-xl text-sm font-bold hover:bg-[#16a34a] transition-all shadow-md"
+                className="flex items-center gap-1 px-4 py-2 bg-[#F64651] text-white rounded-xl text-sm font-bold hover:bg-[#D93A44] transition-all shadow-md"
               >
                 + {t("teachers.addTeacher")}
                 <span className="text-xs mr-1">▼</span>
@@ -248,9 +249,9 @@ export default function TeachersPage() {
           <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">جاري معالجة الملف...</div>
         )}
         {xlsxResult && (
-          <div className={`p-4 rounded-lg text-sm border ${xlsxResult.failed > 0 ? "bg-orange-50 border-orange-200" : "bg-green-50 border-green-200"}`}>
+          <div className={`p-4 rounded-lg text-sm border ${xlsxResult.failed > 0 ? "bg-orange-50 border-orange-200" : "bg-success-bg border-success-text/20"}`}>
             <p className="font-medium mb-1">
-              تمت الإضافة: <span className="text-green-700">{xlsxResult.added} معلم</span>
+              تمت الإضافة: <span className="text-success-text">{xlsxResult.added} معلم</span>
               {xlsxResult.failed > 0 && <> · فشل: <span className="text-red-600">{xlsxResult.failed} صف</span></>}
             </p>
             {xlsxResult.errors.length > 0 && (
@@ -270,7 +271,7 @@ export default function TeachersPage() {
           {loading ? (
             <div className="flex items-center justify-center py-20 text-gray-400 text-sm">{t("common.loading")}</div>
           ) : teachers.length === 0 ? (
-            <div className="flex items-center justify-center py-20 text-gray-400 text-sm">{t("common.noData")}</div>
+            <EmptyState title="لا يوجد معلمون بعد" description="ابدأ بإضافة أول معلم لعرضه هنا" />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -348,7 +349,7 @@ export default function TeachersPage() {
                               <button
                                 onClick={() => handleCheckin(teacher.id)}
                                 disabled={actionLoading === teacher.id + ":checkin"}
-                                className="px-3 py-1.5 bg-[#22c55e] text-white rounded-lg text-xs font-medium hover:bg-[#16a34a] transition-all disabled:opacity-60"
+                                className="px-3 py-1.5 bg-[#F64651] text-white rounded-lg text-xs font-medium hover:bg-[#D93A44] transition-all disabled:opacity-60"
                               >
                                 {actionLoading === teacher.id + ":checkin" ? "..." : t("teachers.actions.checkin")}
                               </button>

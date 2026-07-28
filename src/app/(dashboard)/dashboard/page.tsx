@@ -143,7 +143,7 @@ export default function HomePage() {
   });
 
   return (
-    <div dir="rtl" className="min-h-screen bg-[#f4f6fb]">
+    <div dir="rtl" className="min-h-screen bg-brand-bg">
       <Topbar title={t("home.title")} />
 
       {/* Confirm delete one */}
@@ -234,7 +234,7 @@ export default function HomePage() {
         {loading ? (
           <div className="flex items-center justify-center h-64">
             <div className="flex flex-col items-center gap-3 text-gray-400">
-              <div className="w-8 h-8 border-2 border-gray-200 border-t-[#22c55e] rounded-full animate-spin" />
+              <div className="w-8 h-8 border-2 border-gray-200 border-t-[#F64651] rounded-full animate-spin" />
               <span className="text-sm">{t("common.loading")}</span>
             </div>
           </div>
@@ -291,7 +291,7 @@ export default function HomePage() {
               <div className="bg-white rounded-xl shadow-md overflow-hidden">
                 {loadingLogs ? (
                   <div className="flex items-center justify-center py-10 text-gray-400 text-sm gap-2">
-                    <div className="w-5 h-5 border-2 border-gray-200 border-t-[#22c55e] rounded-full animate-spin" />
+                    <div className="w-5 h-5 border-2 border-gray-200 border-t-[#F64651] rounded-full animate-spin" />
                     {t("common.loading")}
                   </div>
                 ) : visibleLogs.length === 0 ? (
@@ -315,7 +315,7 @@ export default function HomePage() {
                             <tr key={log.id} className="hover:bg-gray-50/50 transition-colors">
                               <td className="px-4 py-3 font-medium text-[#1a2340]">{log.recipientName}</td>
                               <td className="px-4 py-3">
-                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${log.type === "WHATSAPP" ? "bg-green-50 text-green-700" : "bg-blue-50 text-blue-700"}`}>
+                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${log.type === "WHATSAPP" ? "bg-success-bg text-success-text" : "bg-blue-50 text-blue-700"}`}>
                                   {log.type === "WHATSAPP" ? "واتساب" : "بريد"}
                                 </span>
                               </td>

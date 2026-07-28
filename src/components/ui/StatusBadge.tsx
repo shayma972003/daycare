@@ -5,11 +5,11 @@ import { t } from "@/lib/utils";
 type DeliveryStatus = "SENT" | "FAILED";
 
 const PAYMENT_COLORS: Record<string, string> = {
-  PAID:             "bg-green-100 text-green-700",
-  LATE:             "bg-orange-100 text-orange-700",
-  CANCELLED:        "bg-red-100 text-red-700",
-  SUSPENDED:        "bg-slate-100 text-slate-600",
-  "بانتظار الدفع":  "bg-purple-100 text-purple-700",
+  PAID:             "bg-success-bg text-success-text",
+  LATE:             "bg-warning-bg text-warning-text",
+  CANCELLED:        "bg-danger-bg text-danger-text",
+  SUSPENDED:        "bg-neutral-bg text-neutral-text",
+  "بانتظار الدفع":  "bg-pending-bg text-pending-text",
 };
 
 const PAYMENT_LABELS: Record<string, string> = {
@@ -21,8 +21,8 @@ const PAYMENT_LABELS: Record<string, string> = {
 };
 
 const deliveryColors: Record<DeliveryStatus, string> = {
-  SENT: "bg-green-100 text-green-700",
-  FAILED: "bg-red-100 text-red-700",
+  SENT: "bg-success-bg text-success-text",
+  FAILED: "bg-danger-bg text-danger-text",
 };
 
 export function PaymentStatusBadge({ status }: { status: string }) {
@@ -45,7 +45,7 @@ export function DeliveryStatusBadge({ status }: { status: DeliveryStatus }) {
 
 export function PeriodBadge({ period }: { period: "MORNING" | "EVENING" }) {
   return (
-    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
+    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-light text-teal-dark">
       {t(`periods.${period}`)}
     </span>
   );

@@ -36,7 +36,7 @@ interface Report {
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const PAYMENT_STATUS_COLORS: Record<string, string> = {
-  PAID: "#22c55e", LATE: "#f97316", CANCELLED: "#ef4444", SUSPENDED: "#94a3b8", "بانتظار الدفع": "#8b5cf6",
+  PAID: "#2D7A4F", LATE: "#C45000", CANCELLED: "#C0232C", SUSPENDED: "#666666", "بانتظار الدفع": "#7C3AED",
 };
 const PAYMENT_STATUS_LABELS: Record<string, string> = {
   PAID: "مدفوع", LATE: "متأخر", CANCELLED: "ملغي", SUSPENDED: "موقف", "بانتظار الدفع": "بانتظار الدفع",
@@ -127,7 +127,7 @@ function AddExpenseForm({ onSaved, onCancel }: { onSaved: (e: Expense) => void; 
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">النوع *</label>
           <select value={type} onChange={(e) => setType(e.target.value as "one_time" | "monthly")}
-            className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#22c55e]">
+            className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651]">
             <option value="one_time">دفعة مستقلة</option>
             <option value="monthly">اشتراك شهري</option>
           </select>
@@ -135,27 +135,27 @@ function AddExpenseForm({ onSaved, onCancel }: { onSaved: (e: Expense) => void; 
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">عنوان المصروف *</label>
           <input value={title} onChange={(e) => setTitle(e.target.value)} required
-            className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#22c55e]" />
+            className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651]" />
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">الوصف</label>
           <input value={description} onChange={(e) => setDescription(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#22c55e]" />
+            className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651]" />
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">السعر (ر.س) *</label>
           <input type="number" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} required
-            className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#22c55e]" />
+            className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651]" />
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">تاريخ البداية *</label>
           <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} required dir="ltr"
-            className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#22c55e]" />
+            className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651]" />
         </div>
       </div>
       <div className="flex gap-2 pt-1">
         <button type="submit" disabled={saving}
-          className="px-5 py-2 bg-[#22c55e] text-white rounded-xl text-sm font-medium hover:bg-[#16a34a] disabled:opacity-60">
+          className="px-5 py-2 bg-[#F64651] text-white rounded-xl text-sm font-medium hover:bg-[#D93A44] disabled:opacity-60">
           {saving ? "جاري الإضافة..." : "إضافة"}
         </button>
         <button type="button" onClick={onCancel}
@@ -202,7 +202,7 @@ function EditExpenseRow({ expense, onSaved, onCancel }: { expense: Expense; onSa
     <tr className="bg-blue-50/40">
       <td className="px-4 py-2">
         <input value={title} onChange={(e) => setTitle(e.target.value)}
-          className="w-full px-2 py-1 text-sm rounded border border-gray-200 focus:outline-none focus:ring-1 focus:ring-[#22c55e]" />
+          className="w-full px-2 py-1 text-sm rounded border border-gray-200 focus:outline-none focus:ring-1 focus:ring-[#F64651]" />
       </td>
       <td className="px-4 py-2 text-xs text-gray-500">{expense.type === "monthly" ? "اشتراك شهري" : "دفعة مستقلة"}</td>
       <td className="px-4 py-2">
@@ -217,7 +217,7 @@ function EditExpenseRow({ expense, onSaved, onCancel }: { expense: Expense; onSa
       <td className="px-4 py-2">
         <div className="flex gap-1.5 flex-wrap">
           <button onClick={handleSave} disabled={saving}
-            className="px-3 py-1 bg-[#22c55e] text-white rounded-lg text-xs font-medium hover:bg-[#16a34a] disabled:opacity-60">
+            className="px-3 py-1 bg-[#F64651] text-white rounded-lg text-xs font-medium hover:bg-[#D93A44] disabled:opacity-60">
             {saving ? "..." : "حفظ"}
           </button>
           <button onClick={onCancel}
@@ -475,16 +475,16 @@ function ExpensesTab() {
       <div className="flex flex-wrap items-center gap-3 justify-between">
         <div className="flex gap-2 flex-wrap">
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="بحث بالاسم..."
-            className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#22c55e] bg-white" />
+            className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651] bg-white" />
           <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}
-            className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#22c55e] bg-white">
+            className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651] bg-white">
             <option value="">الكل</option>
             <option value="monthly">اشتراك شهري</option>
             <option value="one_time">دفعة مستقلة</option>
           </select>
         </div>
         <button onClick={() => setShowAddForm(true)}
-          className="px-4 py-2 bg-[#22c55e] text-white rounded-xl text-sm font-bold hover:bg-[#16a34a] transition-all shadow-md">
+          className="px-4 py-2 bg-[#F64651] text-white rounded-xl text-sm font-bold hover:bg-[#D93A44] transition-all shadow-md">
           + أضف مصروف
         </button>
       </div>
@@ -531,7 +531,7 @@ function ExpensesTab() {
                       <td className="px-4 py-3">
                         {exp.type === "monthly" ? (
                           exp.is_active
-                            ? <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700">نشط</span>
+                            ? <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-success-bg text-success-text">نشط</span>
                             : <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">موقوف</span>
                         ) : (
                           <span className="text-gray-300 text-xs">—</span>

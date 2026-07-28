@@ -81,7 +81,7 @@ export default function NewTeacherPage() {
   }
 
   return (
-    <div dir="rtl" className="min-h-screen bg-[#f4f6fb]">
+    <div dir="rtl" className="min-h-screen bg-brand-bg">
       <Topbar title="إضافة معلم جديد" />
       <div className="p-6">
         <button
@@ -184,7 +184,7 @@ export default function NewTeacherPage() {
               <button
                 type="submit"
                 disabled={saving}
-                className="px-8 py-2.5 bg-[#22c55e] text-white rounded-xl text-sm font-bold hover:bg-[#16a34a] transition-colors disabled:opacity-60"
+                className="px-8 py-2.5 bg-[#F64651] text-white rounded-xl text-sm font-bold hover:bg-[#D93A44] transition-colors disabled:opacity-60"
               >
                 {saving ? t("common.loading") : "حفظ وإضافة المعلم"}
               </button>

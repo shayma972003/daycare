@@ -82,16 +82,16 @@ export function AddTeacherModal({ open, onClose, onSaved }: AddTeacherModalProps
   }
 
   const inputCls =
-    "w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#22c55e] text-sm";
+    "w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#F64651] text-sm";
   const selectCls =
-    "w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#22c55e] text-sm bg-white";
+    "w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#F64651] text-sm bg-white";
   const labelCls = "block text-sm font-medium text-gray-700 mb-1.5";
 
   return (
     <Dialog.Root open={open} onOpenChange={(v) => { if (!v) handleClose(); }}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
-        <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-lg bg-white rounded-2xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto">
+        <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-lg bg-white rounded-2xl shadow-modal p-6 max-h-[90vh] overflow-y-auto animate-scale-in">
           <Dialog.Title className="text-lg font-bold text-[#1a2340] mb-5">
             {t("teachers.addTeacher")}
           </Dialog.Title>
@@ -223,7 +223,7 @@ export function AddTeacherModal({ open, onClose, onSaved }: AddTeacherModalProps
               <button
                 type="submit"
                 disabled={saving}
-                className="flex-1 py-2.5 bg-[#22c55e] hover:bg-[#16a34a] text-white rounded-xl font-bold text-sm transition-all disabled:opacity-60"
+                className="flex-1 py-2.5 bg-[#F64651] hover:bg-[#D93A44] text-white rounded-xl font-bold text-sm transition-all disabled:opacity-60"
               >
                 {saving ? t("common.loading") : t("common.save")}
               </button>

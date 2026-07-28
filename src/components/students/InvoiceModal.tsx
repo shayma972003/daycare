@@ -50,9 +50,9 @@ interface InvoiceModalProps {
 }
 
 const inputCls =
-  "w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#22c55e]";
+  "w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651]";
 const tdInput =
-  "border border-gray-200 rounded px-2 py-1 text-sm w-full focus:outline-none focus:ring-1 focus:ring-[#22c55e]";
+  "border border-gray-200 rounded px-2 py-1 text-sm w-full focus:outline-none focus:ring-1 focus:ring-[#F64651]";
 
 function calcTotal(items: Array<{ qty: number | ""; price: number | "" }>) {
   return items.reduce((s, r) => s + (Number(r.qty) || 0) * (Number(r.price) || 0), 0);
@@ -242,7 +242,7 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
         <Dialog.Overlay className="fixed inset-0 bg-black/50 z-50" />
         <Dialog.Content
           dir="rtl"
-          className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[92vh] overflow-y-auto p-6 focus:outline-none"
+          className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-white rounded-2xl shadow-modal w-full max-w-3xl max-h-[92vh] overflow-y-auto p-6 focus:outline-none animate-scale-in"
         >
           <Dialog.Description className="sr-only">نافذة إصدار فاتورة للطالب</Dialog.Description>
           <div className="flex items-center justify-between mb-5">
@@ -256,7 +256,7 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
 
           {loading ? (
             <div className="flex justify-center py-12">
-              <div className="w-7 h-7 border-2 border-gray-200 border-t-[#22c55e] rounded-full animate-spin" />
+              <div className="w-7 h-7 border-2 border-gray-200 border-t-[#F64651] rounded-full animate-spin" />
             </div>
           ) : (
             <div className="space-y-5">
@@ -439,7 +439,7 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
                     <button
                       type="button"
                       onClick={addLineItem}
-                      className="text-sm text-[#22c55e] hover:underline font-medium"
+                      className="text-sm text-[#F64651] hover:underline font-medium"
                     >
                       + إضافة صف
                     </button>
@@ -457,7 +457,7 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
                     type="checkbox"
                     checked={includeActivities}
                     onChange={(e) => setIncludeActivities(e.target.checked)}
-                    className="w-4 h-4 accent-[#22c55e]"
+                    className="w-4 h-4 accent-[#F64651]"
                   />
                   <span className="text-sm font-medium text-[#1a2340]">أضف الفعاليات إلى الفاتورة</span>
                 </label>
@@ -547,7 +547,7 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
                   type="button"
                   onClick={handleGenerate}
                   disabled={generating}
-                  className="flex-1 py-2.5 bg-[#22c55e] text-white rounded-xl font-bold text-sm hover:bg-[#16a34a] transition-colors disabled:opacity-60"
+                  className="flex-1 py-2.5 bg-[#F64651] text-white rounded-xl font-bold text-sm hover:bg-[#D93A44] transition-colors disabled:opacity-60"
                 >
                   {generating ? "جاري الإصدار..." : "اصدر فاتورة"}
                 </button>

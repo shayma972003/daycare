@@ -214,7 +214,7 @@ export function ActivityFormModal({
         <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
         <Dialog.Content
           dir="rtl"
-          className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto p-6 focus:outline-none"
+          className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-white rounded-2xl shadow-modal w-full max-w-xl max-h-[90vh] overflow-y-auto p-6 focus:outline-none animate-scale-in"
         >
           <Dialog.Description className="sr-only">
             نافذة إضافة أو تعديل نشاط
@@ -245,7 +245,7 @@ export function ActivityFormModal({
               <input
                 type="text"
                 {...register("name", { required: true })}
-                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#22c55e] ${
+                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651] ${
                   errors.name ? "border-red-400" : "border-gray-200"
                 }`}
               />
@@ -261,7 +261,7 @@ export function ActivityFormModal({
               ) : (
                 <select
                   {...register("teacherId", { required: true })}
-                  className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#22c55e] ${
+                  className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651] ${
                     errors.teacherId ? "border-red-400" : "border-gray-200"
                   }`}
                 >
@@ -285,7 +285,7 @@ export function ActivityFormModal({
                   type="number"
                   min={0}
                   {...register("childrenCount", { valueAsNumber: true })}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#22c55e]"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651]"
                 />
               </div>
               <div>
@@ -294,7 +294,7 @@ export function ActivityFormModal({
                 </label>
                 <select
                   {...register("group")}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#22c55e]"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651]"
                 >
                   <option value="kg1">{t("groups.kg1")}</option>
                   <option value="kg2">{t("groups.kg2")}</option>
@@ -311,7 +311,7 @@ export function ActivityFormModal({
               </label>
               <select
                 {...register("period")}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#22c55e]"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651]"
               >
                 <option value="MORNING">{t("periods.MORNING")}</option>
                 <option value="EVENING">{t("periods.EVENING")}</option>
@@ -327,7 +327,7 @@ export function ActivityFormModal({
                 <input
                   type="date"
                   {...register("startDate", { required: true })}
-                  className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#22c55e] ${errors.startDate ? "border-red-400" : "border-gray-200"}`}
+                  className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651] ${errors.startDate ? "border-red-400" : "border-gray-200"}`}
                   dir="ltr"
                 />
               </div>
@@ -338,7 +338,7 @@ export function ActivityFormModal({
                 <input
                   type="date"
                   {...register("endDate", { required: true })}
-                  className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#22c55e] ${errors.endDate ? "border-red-400" : "border-gray-200"}`}
+                  className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651] ${errors.endDate ? "border-red-400" : "border-gray-200"}`}
                   dir="ltr"
                 />
               </div>
@@ -355,7 +355,7 @@ export function ActivityFormModal({
                   min={0}
                   step="0.01"
                   {...register("fee", { valueAsNumber: true })}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#22c55e] pl-12"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651] pl-12"
                 />
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">
                   {t("common.sar")}
@@ -369,7 +369,7 @@ export function ActivityFormModal({
                 {t("home.activityForm.image")}
               </label>
               <div
-                className="border-2 border-dashed border-gray-200 rounded-xl overflow-hidden cursor-pointer hover:border-[#22c55e] transition-colors"
+                className="border-2 border-dashed border-gray-200 rounded-xl overflow-hidden cursor-pointer hover:border-[#F64651] transition-colors"
                 onClick={() => fileInputRef.current?.click()}
               >
                 {imagePreview ? (
@@ -416,7 +416,7 @@ export function ActivityFormModal({
               <textarea
                 {...register("message")}
                 rows={3}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#22c55e] resize-none"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651] resize-none"
               />
               <VariableReference mode="full" />
             </div>
@@ -441,7 +441,7 @@ export function ActivityFormModal({
                         type="checkbox"
                         checked={selectedClassIds.includes(cls.id)}
                         onChange={() => toggleClass(cls.id)}
-                        className="accent-[#22c55e]"
+                        className="accent-[#F64651]"
                       />
                       {cls.name}
                     </label>
@@ -455,7 +455,7 @@ export function ActivityFormModal({
               <button
                 type="submit"
                 disabled={saving || uploadingImage}
-                className="flex-1 bg-[#22c55e] text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-[#16a34a] transition-colors disabled:opacity-60"
+                className="flex-1 bg-[#F64651] text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-[#D93A44] transition-colors disabled:opacity-60"
               >
                 {saving ? t("common.loading") : t("home.activityForm.saveAndSend")}
               </button>

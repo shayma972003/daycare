@@ -69,7 +69,7 @@ export default function ClassesPage() {
                   onClick={() => setPeriodFilter(p)}
                   className={`px-3 py-1.5 text-xs font-medium transition-all ${
                     periodFilter === p
-                      ? "bg-[#22c55e] text-white"
+                      ? "bg-[#F64651] text-white"
                       : "text-gray-600 hover:bg-gray-50"
                   }`}
                 >
@@ -89,7 +89,7 @@ export default function ClassesPage() {
                   onClick={() => setGroupFilter(g)}
                   className={`px-3 py-1.5 text-xs font-medium transition-all ${
                     groupFilter === g
-                      ? "bg-[#22c55e] text-white"
+                      ? "bg-[#F64651] text-white"
                       : "text-gray-600 hover:bg-gray-50"
                   }`}
                 >
@@ -117,12 +117,12 @@ export default function ClassesPage() {
             {/* Add card */}
             <button
               onClick={() => router.push("/classes/new")}
-              className="bg-white rounded-xl shadow-md border-2 border-dashed border-gray-200 flex flex-col items-center justify-center gap-2 min-h-[220px] hover:border-[#22c55e] hover:shadow-lg transition-all group cursor-pointer"
+              className="bg-white rounded-xl shadow-md border-2 border-dashed border-gray-200 flex flex-col items-center justify-center gap-2 min-h-[220px] hover:border-[#F64651] hover:shadow-lg transition-all group cursor-pointer"
             >
-              <div className="w-12 h-12 rounded-full bg-gray-100 group-hover:bg-[#22c55e]/10 flex items-center justify-center text-2xl text-gray-400 group-hover:text-[#22c55e] transition-colors">
+              <div className="w-12 h-12 rounded-full bg-gray-100 group-hover:bg-[#F64651]/10 flex items-center justify-center text-2xl text-gray-400 group-hover:text-[#F64651] transition-colors">
                 +
               </div>
-              <span className="text-sm text-gray-400 group-hover:text-[#22c55e] font-medium transition-colors">
+              <span className="text-sm text-gray-400 group-hover:text-[#F64651] font-medium transition-colors">
                 {t("classes.addClass")}
               </span>
             </button>

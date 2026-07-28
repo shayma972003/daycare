@@ -64,7 +64,7 @@ export function AddStudentModal({ open, onClose, onSaved, classes }: Props) {
         <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
         <Dialog.Content
           dir="rtl"
-          className="fixed right-1/2 top-1/2 z-50 -translate-y-1/2 translate-x-1/2 w-full max-w-lg bg-white rounded-2xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto"
+          className="fixed right-1/2 top-1/2 z-50 -translate-y-1/2 translate-x-1/2 w-full max-w-lg bg-white rounded-2xl shadow-modal p-6 max-h-[90vh] overflow-y-auto animate-scale-in"
         >
           <Dialog.Title className="text-lg font-bold text-[#1a2340] mb-5">
             {t("students.addStudent")}
@@ -217,7 +217,7 @@ export function AddStudentModal({ open, onClose, onSaved, classes }: Props) {
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-1 py-2.5 bg-[#22c55e] text-white rounded-lg text-sm font-medium hover:bg-[#16a34a] disabled:opacity-60 transition-colors"
+                className="flex-1 py-2.5 bg-[#F64651] text-white rounded-lg text-sm font-medium hover:bg-[#D93A44] disabled:opacity-60 transition-colors"
               >
                 {loading ? t("common.loading") : t("common.add")}
               </button>

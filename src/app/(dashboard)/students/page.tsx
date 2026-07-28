@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Topbar } from "@/components/layout/Topbar";
 import { PaymentStatusBadge, PeriodBadge } from "@/components/ui/StatusBadge";
 import { AvatarPlaceholder } from "@/components/ui/IconPlaceholder";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { t, formatTime } from "@/lib/utils";
 
 type Student = {
@@ -61,7 +62,7 @@ function LiveTimer({ from }: { from: string }) {
   const s = elapsed % 60;
   const fmt = (n: number) => String(n).padStart(2, "0");
   return (
-    <span className="font-mono text-sm font-semibold text-emerald-700 tabular-nums">
+    <span className="font-mono text-sm font-semibold text-success-text tabular-nums">
       {fmt(h)}:{fmt(m)}:{fmt(s)}
     </span>
   );
@@ -310,7 +311,7 @@ export default function StudentsPage() {
   }
 
   return (
-    <div dir="rtl" className="min-h-screen bg-[#f4f6fb]">
+    <div dir="rtl" className="min-h-screen bg-brand-bg">
       <Topbar title={t("students.title")} />
       <div className="p-6">
 
@@ -449,7 +450,7 @@ export default function StudentsPage() {
           <div className="relative mr-auto" ref={dropdownRef}>
             <button
               onClick={() => setDropdownOpen(!dropdownOpen)}
-              className="flex items-center gap-1 px-4 py-2 bg-[#22c55e] text-white rounded-lg text-sm font-medium hover:bg-[#16a34a] transition-colors"
+              className="flex items-center gap-1 px-4 py-2 bg-[#F64651] text-white rounded-lg text-sm font-medium hover:bg-[#D93A44] transition-colors"
             >
               + {t("students.addStudent")}
               <span className="text-xs mr-1">▼</span>
@@ -470,7 +471,7 @@ export default function StudentsPage() {
                 </button>
                 <button
                   onClick={() => { setDropdownOpen(false); setEnrollmentModalOpen(true); setEnrollSuccess(null); setEnrollError(null); }}
-                  className="w-full text-right px-4 py-3 text-sm text-[#22c55e] font-medium hover:bg-green-50 transition-colors"
+                  className="w-full text-right px-4 py-3 text-sm text-[#F64651] font-medium hover:bg-success-bg transition-colors"
                 >
                   إنشاء نموذج جديد
                 </button>
@@ -494,9 +495,9 @@ export default function StudentsPage() {
           </div>
         )}
         {xlsxResult && (
-          <div className={`mb-4 p-4 rounded-lg text-sm border ${xlsxResult.failed > 0 ? "bg-orange-50 border-orange-200" : "bg-green-50 border-green-200"}`}>
+          <div className={`mb-4 p-4 rounded-lg text-sm border ${xlsxResult.failed > 0 ? "bg-orange-50 border-orange-200" : "bg-success-bg border-success-text/20"}`}>
             <p className="font-medium mb-1">
-              تمت الإضافة: <span className="text-green-700">{xlsxResult.added} طالب</span>
+              تمت الإضافة: <span className="text-success-text">{xlsxResult.added} طالب</span>
               {xlsxResult.failed > 0 && <> · فشل: <span className="text-red-600">{xlsxResult.failed} صف</span></>}
             </p>
             {xlsxResult.errors.length > 0 && (
@@ -512,7 +513,7 @@ export default function StudentsPage() {
         <div className="bg-white rounded-xl shadow-md overflow-hidden">
           {loading ? (
             <div className="flex justify-center items-center h-48">
-              <div className="w-7 h-7 border-2 border-gray-200 border-t-[#22c55e] rounded-full animate-spin" />
+              <div className="w-7 h-7 border-2 border-gray-200 border-t-[#F64651] rounded-full animate-spin" />
             </div>
           ) : (
             <table className="w-full text-sm">
@@ -537,8 +538,8 @@ export default function StudentsPage() {
               <tbody>
                 {students.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="text-center py-12 text-gray-400">
-                      {t("common.noData")}
+                    <td colSpan={7}>
+                      <EmptyState title="لا يوجد طلاب بعد" description="ابدأ بإضافة أول طالب لعرضه هنا" />
                     </td>
                   </tr>
                 )}
@@ -579,7 +580,7 @@ export default function StudentsPage() {
                               <span className="font-mono text-sm text-gray-300">00:00</span>
                               <button
                                 onClick={() => checkin(student.id)}
-                                className="px-2 py-1 text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors whitespace-nowrap"
+                                className="px-2 py-1 text-xs bg-success-bg text-success-text border border-success-text/20 rounded-lg hover:bg-success-bg transition-colors whitespace-nowrap"
                               >
                                 تسجيل الوصول
                               </button>
@@ -653,7 +654,7 @@ export default function StudentsPage() {
             <h2 className="text-lg font-bold text-[#1a2340] mb-4">إرسال نموذج التسجيل</h2>
             {enrollSuccess ? (
               <div className="text-center py-4">
-                <div className="w-14 h-14 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                <div className="w-14 h-14 bg-success-bg rounded-full flex items-center justify-center mx-auto mb-3">
                   <span className="text-2xl">✓</span>
                 </div>
                 <p className="text-sm text-gray-700 font-medium">
@@ -678,7 +679,7 @@ export default function StudentsPage() {
                       value={enrollPhone}
                       onChange={(e) => setEnrollPhone(e.target.value)}
                       placeholder="5xxxxxxxx"
-                      className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#22c55e]"
+                      className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651]"
                     />
                   </div>
                 </div>
@@ -690,7 +691,7 @@ export default function StudentsPage() {
                     value={enrollEmail}
                     onChange={(e) => setEnrollEmail(e.target.value)}
                     placeholder="example@email.com"
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#22c55e]"
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651]"
                   />
                 </div>
                 {enrollError && (
@@ -700,7 +701,7 @@ export default function StudentsPage() {
                   <button
                     onClick={sendEnrollmentForm}
                     disabled={enrollSending || !enrollPhone.trim()}
-                    className="flex-1 py-2.5 bg-[#22c55e] text-white rounded-xl text-sm font-medium hover:bg-[#16a34a] disabled:opacity-50 transition-colors"
+                    className="flex-1 py-2.5 bg-[#F64651] text-white rounded-xl text-sm font-medium hover:bg-[#D93A44] disabled:opacity-50 transition-colors"
                   >
                     {enrollSending ? "جاري الإرسال..." : "إرسال الرابط"}
                   </button>
@@ -732,23 +733,23 @@ export default function StudentsPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">الاسم الكامل *</label>
-                  <input className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#22c55e]" value={reviewEdit.full_name ?? ""} onChange={(e) => setRE("full_name", e.target.value)} />
+                  <input className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.full_name ?? ""} onChange={(e) => setRE("full_name", e.target.value)} />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">رقم الهوية</label>
-                  <input className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#22c55e]" value={reviewEdit.id_number ?? ""} onChange={(e) => setRE("id_number", e.target.value)} />
+                  <input className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.id_number ?? ""} onChange={(e) => setRE("id_number", e.target.value)} />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">الجنسية</label>
-                  <input className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#22c55e]" value={reviewEdit.nationality ?? ""} onChange={(e) => setRE("nationality", e.target.value)} />
+                  <input className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.nationality ?? ""} onChange={(e) => setRE("nationality", e.target.value)} />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">المرحلة الدراسية</label>
-                  <input className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#22c55e]" value={reviewEdit.academic_stage ?? ""} onChange={(e) => setRE("academic_stage", e.target.value)} />
+                  <input className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.academic_stage ?? ""} onChange={(e) => setRE("academic_stage", e.target.value)} />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">الجنس</label>
-                  <select className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#22c55e]" value={reviewEdit.gender ?? ""} onChange={(e) => setRE("gender", e.target.value)}>
+                  <select className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.gender ?? ""} onChange={(e) => setRE("gender", e.target.value)}>
                     <option value="">—</option>
                     <option value="ذكر">ذكر</option>
                     <option value="أنثى">أنثى</option>
@@ -756,7 +757,7 @@ export default function StudentsPage() {
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">الفترة</label>
-                  <select className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#22c55e]" value={reviewEdit.period ?? ""} onChange={(e) => setRE("period", e.target.value)}>
+                  <select className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.period ?? ""} onChange={(e) => setRE("period", e.target.value)}>
                     <option value="">—</option>
                     <option value="صباحي">صباحي</option>
                     <option value="مسائي">مسائي</option>
@@ -764,7 +765,7 @@ export default function StudentsPage() {
                 </div>
                 <div className="col-span-2">
                   <label className="block text-xs text-gray-500 mb-1">تاريخ الميلاد</label>
-                  <input type="date" className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#22c55e]" value={(reviewEdit as Record<string, string>).date_of_birth_str ?? ""} onChange={(e) => setRE("date_of_birth_str", e.target.value)} />
+                  <input type="date" className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={(reviewEdit as Record<string, string>).date_of_birth_str ?? ""} onChange={(e) => setRE("date_of_birth_str", e.target.value)} />
                 </div>
               </div>
             </div>
@@ -774,11 +775,11 @@ export default function StudentsPage() {
               <h3 className="text-sm font-bold text-gray-700">المعلومات الصحية</h3>
               <div>
                 <label className="block text-xs text-gray-500 mb-1">الحالة الصحية</label>
-                <textarea className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#22c55e] resize-none h-16" value={reviewEdit.health_condition ?? ""} onChange={(e) => setRE("health_condition", e.target.value)} />
+                <textarea className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651] resize-none h-16" value={reviewEdit.health_condition ?? ""} onChange={(e) => setRE("health_condition", e.target.value)} />
               </div>
               <div>
                 <label className="block text-xs text-gray-500 mb-1">الحساسيات</label>
-                <textarea className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#22c55e] resize-none h-16" value={reviewEdit.allergies ?? ""} onChange={(e) => setRE("allergies", e.target.value)} />
+                <textarea className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651] resize-none h-16" value={reviewEdit.allergies ?? ""} onChange={(e) => setRE("allergies", e.target.value)} />
               </div>
             </div>
 
@@ -788,31 +789,31 @@ export default function StudentsPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="col-span-2">
                   <label className="block text-xs text-gray-500 mb-1">اسم ولي الأمر</label>
-                  <input className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#22c55e]" value={reviewEdit.guardian_name ?? ""} onChange={(e) => setRE("guardian_name", e.target.value)} />
+                  <input className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.guardian_name ?? ""} onChange={(e) => setRE("guardian_name", e.target.value)} />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">الجوال 1</label>
-                  <input dir="ltr" className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-[#22c55e]" value={reviewEdit.guardian_phone_1 ?? ""} onChange={(e) => setRE("guardian_phone_1", e.target.value)} />
+                  <input dir="ltr" className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.guardian_phone_1 ?? ""} onChange={(e) => setRE("guardian_phone_1", e.target.value)} />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">الجوال 2</label>
-                  <input dir="ltr" className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-[#22c55e]" value={reviewEdit.guardian_phone_2 ?? ""} onChange={(e) => setRE("guardian_phone_2", e.target.value)} />
+                  <input dir="ltr" className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.guardian_phone_2 ?? ""} onChange={(e) => setRE("guardian_phone_2", e.target.value)} />
                 </div>
                 <div className="col-span-2">
                   <label className="block text-xs text-gray-500 mb-1">البريد الإلكتروني</label>
-                  <input dir="ltr" type="email" className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#22c55e]" value={reviewEdit.guardian_email ?? ""} onChange={(e) => setRE("guardian_email", e.target.value)} />
+                  <input dir="ltr" type="email" className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.guardian_email ?? ""} onChange={(e) => setRE("guardian_email", e.target.value)} />
                 </div>
                 <div className="col-span-2">
                   <label className="block text-xs text-gray-500 mb-1">اسم ولي الأمر 2</label>
-                  <input className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#22c55e]" value={reviewEdit.guardian_name_2 ?? ""} onChange={(e) => setRE("guardian_name_2", e.target.value)} />
+                  <input className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.guardian_name_2 ?? ""} onChange={(e) => setRE("guardian_name_2", e.target.value)} />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">الجوال 3</label>
-                  <input dir="ltr" className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-[#22c55e]" value={reviewEdit.guardian_phone_3 ?? ""} onChange={(e) => setRE("guardian_phone_3", e.target.value)} />
+                  <input dir="ltr" className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.guardian_phone_3 ?? ""} onChange={(e) => setRE("guardian_phone_3", e.target.value)} />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">الجوال 4</label>
-                  <input dir="ltr" className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-[#22c55e]" value={reviewEdit.guardian_phone_4 ?? ""} onChange={(e) => setRE("guardian_phone_4", e.target.value)} />
+                  <input dir="ltr" className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.guardian_phone_4 ?? ""} onChange={(e) => setRE("guardian_phone_4", e.target.value)} />
                 </div>
               </div>
             </div>
@@ -823,7 +824,7 @@ export default function StudentsPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">طبيعة الدوام</label>
-                  <select className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#22c55e]" value={reviewEdit.attendance_type ?? ""} onChange={(e) => setRE("attendance_type", e.target.value)}>
+                  <select className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.attendance_type ?? ""} onChange={(e) => setRE("attendance_type", e.target.value)}>
                     <option value="">—</option>
                     <option value="دوام منتظم">دوام منتظم</option>
                     <option value="شفتات">شفتات</option>
@@ -832,7 +833,7 @@ export default function StudentsPage() {
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">طريقة الدفع</label>
-                  <select className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#22c55e]" value={reviewEdit.payment_method ?? ""} onChange={(e) => setRE("payment_method", e.target.value)}>
+                  <select className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.payment_method ?? ""} onChange={(e) => setRE("payment_method", e.target.value)}>
                     <option value="">—</option>
                     <option value="نقدي">نقدي</option>
                     <option value="تحويل">تحويل</option>
@@ -847,7 +848,7 @@ export default function StudentsPage() {
               <select
                 value={reviewClassId}
                 onChange={(e) => setReviewClassId(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#22c55e]"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651]"
               >
                 <option value="">بدون فصل</option>
                 {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -859,7 +860,7 @@ export default function StudentsPage() {
               <button
                 onClick={approveSubmission}
                 disabled={reviewApproving}
-                className="flex-1 py-3 bg-[#22c55e] text-white rounded-xl text-sm font-bold hover:bg-[#16a34a] disabled:opacity-50 transition-colors"
+                className="flex-1 py-3 bg-[#F64651] text-white rounded-xl text-sm font-bold hover:bg-[#D93A44] disabled:opacity-50 transition-colors"
               >
                 {reviewApproving ? "جاري القبول..." : "قبول وتفعيل"}
               </button>

@@ -51,7 +51,7 @@ export function ClassDeleteConfirmModal({
         aria-labelledby="class-delete-confirm-title"
         dir="rtl"
         style={{ position: "relative", zIndex: 101 }}
-        className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md text-right space-y-4"
+        className="bg-white rounded-2xl shadow-modal p-6 w-full max-w-md text-right space-y-4 animate-scale-in"
         onClick={(e) => e.stopPropagation()}
       >
         {assignedStudentsCount > 0 ? (

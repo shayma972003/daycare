@@ -183,9 +183,9 @@ export default function TeacherProfilePage() {
     }
   }
 
-  const inputCls = "w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#22c55e] text-sm";
+  const inputCls = "w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#F64651] text-sm";
   const readonlyCls = "w-full px-4 py-2.5 rounded-xl border border-gray-100 bg-gray-50 text-sm text-gray-600 cursor-default";
-  const selectCls = "w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#22c55e] text-sm bg-white";
+  const selectCls = "w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#F64651] text-sm bg-white";
   const labelCls = "block text-sm font-medium text-gray-700 mb-1.5";
 
   const baseSalary = teacher?.monthlySalary ?? 0;
@@ -328,7 +328,7 @@ export default function TeacherProfilePage() {
                     <button
                       type="button"
                       onClick={() => setExtraQuals((prev) => [...prev, ""])}
-                      className="text-sm text-[#22c55e] hover:underline font-medium"
+                      className="text-sm text-[#F64651] hover:underline font-medium"
                     >
                       + إضافة مؤهل
                     </button>
@@ -349,13 +349,13 @@ export default function TeacherProfilePage() {
 
               {/* Feedback */}
               {saveError && <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{saveError}</div>}
-              {saveSuccess && <div className="p-3 bg-green-50 border border-green-200 rounded-xl text-sm text-green-700">{t("common.success")}</div>}
+              {saveSuccess && <div className="p-3 bg-success-bg border border-success-text/20 rounded-xl text-sm text-success-text">{t("common.success")}</div>}
             </div>
 
             {/* Sidebar */}
             <div className="w-72 space-y-4 shrink-0">
               <div className="bg-white rounded-xl shadow-md p-4 space-y-3">
-                <button type="submit" disabled={saving} className="w-full py-2.5 bg-[#22c55e] hover:bg-[#16a34a] text-white rounded-xl font-bold text-sm transition-all disabled:opacity-60">
+                <button type="submit" disabled={saving} className="w-full py-2.5 bg-[#F64651] hover:bg-[#D93A44] text-white rounded-xl font-bold text-sm transition-all disabled:opacity-60">
                   {saving ? t("common.loading") : t("teachers.profile.actions.save")}
                 </button>
                 <button type="button" onClick={() => setInvoiceModalOpen(true)} className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-medium transition-all">
@@ -385,7 +385,7 @@ export default function TeacherProfilePage() {
                   </div>
                   <div className="flex justify-between items-center py-2 bg-gray-50 rounded-lg px-2">
                     <span className="font-bold text-[#1a2340]">{t("teachers.profile.salaryCalc.netSalary")}</span>
-                    <span className="font-bold text-[#22c55e] text-base">{formatCurrency(netSalary)}</span>
+                    <span className="font-bold text-[#F64651] text-base">{formatCurrency(netSalary)}</span>
                   </div>
                   <p className="text-xs text-gray-400 text-center pt-1">{lateHrs} {t("common.hours")} × {formatCurrency(deductionRate)} = {formatCurrency(lateDeduction)}</p>
                 </div>

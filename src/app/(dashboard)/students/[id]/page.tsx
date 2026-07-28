@@ -387,17 +387,17 @@ export default function StudentProfilePage({
 
   if (loading) {
     return (
-      <div dir="rtl" className="min-h-screen bg-[#f4f6fb]">
+      <div dir="rtl" className="min-h-screen bg-brand-bg">
         <Topbar title={t("students.profile.title")} />
         <div className="flex justify-center items-center h-64">
-          <div className="w-7 h-7 border-2 border-gray-200 border-t-[#22c55e] rounded-full animate-spin" />
+          <div className="w-7 h-7 border-2 border-gray-200 border-t-[#F64651] rounded-full animate-spin" />
         </div>
       </div>
     );
   }
 
   return (
-    <div dir="rtl" className="min-h-screen bg-[#f4f6fb]">
+    <div dir="rtl" className="min-h-screen bg-brand-bg">
       <Topbar title={t("students.profile.title")} />
       <div className="p-6">
         <button
@@ -596,7 +596,7 @@ export default function StudentProfilePage({
                 <div className="flex items-center justify-between mb-5">
                   <h2 className="text-base font-bold text-[#1a2340]">معلومات ولي الأمر</h2>
                   {guardianLinked && (
-                    <span className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1 rounded-full font-medium">
+                    <span className="text-xs bg-success-bg text-success-text border border-success-text/20 px-3 py-1 rounded-full font-medium">
                       تم ربط ولي الأمر الموجود
                     </span>
                   )}
@@ -756,7 +756,7 @@ export default function StudentProfilePage({
                 <button
                   type="submit"
                   disabled={saving}
-                  className="w-full py-2.5 bg-[#22c55e] text-white rounded-lg text-sm font-medium hover:bg-[#16a34a] disabled:opacity-60 transition-colors"
+                  className="w-full py-2.5 bg-[#F64651] text-white rounded-lg text-sm font-medium hover:bg-[#D93A44] disabled:opacity-60 transition-colors"
                 >
                   {saving ? t("common.loading") : t("students.profile.actions.save")}
                 </button>
@@ -793,7 +793,7 @@ export default function StudentProfilePage({
                   <button
                     type="button"
                     onClick={reactivate}
-                    className="w-full py-2.5 border border-emerald-500 text-emerald-600 rounded-lg text-sm font-medium hover:bg-emerald-50 transition-colors"
+                    className="w-full py-2.5 border border-success-text text-success-text rounded-lg text-sm font-medium hover:bg-success-bg transition-colors"
                   >
                     {t("students.profile.actions.reactivate")}
                   </button>

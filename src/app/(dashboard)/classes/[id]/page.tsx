@@ -188,10 +188,10 @@ export default function ClassProfilePage({
 
   if (loading) {
     return (
-      <div dir="rtl" className="min-h-screen bg-[#f4f6fb]">
+      <div dir="rtl" className="min-h-screen bg-brand-bg">
         <Topbar title={t("classes.form.title")} />
         <div className="flex justify-center items-center h-64">
-          <div className="w-7 h-7 border-2 border-gray-200 border-t-[#22c55e] rounded-full animate-spin" />
+          <div className="w-7 h-7 border-2 border-gray-200 border-t-[#F64651] rounded-full animate-spin" />
         </div>
       </div>
     );
@@ -199,7 +199,7 @@ export default function ClassProfilePage({
 
   if (notFound || !cls) {
     return (
-      <div dir="rtl" className="min-h-screen bg-[#f4f6fb]">
+      <div dir="rtl" className="min-h-screen bg-brand-bg">
         <Topbar title={t("classes.form.title")} />
         <div className="p-6 text-center text-gray-400">{t("common.noData")}</div>
       </div>
@@ -211,7 +211,7 @@ export default function ClassProfilePage({
   );
 
   return (
-    <div dir="rtl" className="min-h-screen bg-[#f4f6fb]">
+    <div dir="rtl" className="min-h-screen bg-brand-bg">
       <Topbar title={cls.name} />
       <div className="p-6 space-y-5">
         <div className="flex items-center justify-between flex-wrap gap-3">
@@ -235,7 +235,7 @@ export default function ClassProfilePage({
                 <button
                   onClick={saveEditing}
                   disabled={saving || uploadingImage}
-                  className="px-4 py-2 bg-[#22c55e] text-white rounded-lg text-sm font-medium hover:bg-[#16a34a] disabled:opacity-60 transition-colors"
+                  className="px-4 py-2 bg-[#F64651] text-white rounded-lg text-sm font-medium hover:bg-[#D93A44] disabled:opacity-60 transition-colors"
                 >
                   {saving ? t("common.loading") : t("classes.form.save")}
                 </button>
@@ -269,7 +269,7 @@ export default function ClassProfilePage({
           {editing ? (
             <div className="p-4">
               <div
-                className="border-2 border-dashed border-gray-200 rounded-xl overflow-hidden cursor-pointer hover:border-[#22c55e] transition-colors"
+                className="border-2 border-dashed border-gray-200 rounded-xl overflow-hidden cursor-pointer hover:border-[#F64651] transition-colors"
                 onClick={() => fileInputRef.current?.click()}
               >
                 {imagePreview ? (

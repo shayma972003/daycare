@@ -22,17 +22,17 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 11, color: "#6b7280", textAlign: "right", marginBottom: 24 },
   section: { marginBottom: 16, backgroundColor: "#f9fafb", padding: 12, borderRadius: 4 },
   sectionTitle: { fontSize: 13, fontWeight: "bold", color: "#1a2340", textAlign: "right", marginBottom: 10 },
+  subsectionTitle: { fontSize: 11, fontWeight: "bold", color: "#374151", textAlign: "right", marginTop: 8, marginBottom: 6 },
   row: { flexDirection: "row-reverse", justifyContent: "space-between", marginBottom: 6 },
   label: { fontSize: 10, color: "#6b7280" },
   value: { fontSize: 10, fontWeight: "bold", color: "#111827" },
+  empty: { fontSize: 10, color: "#9ca3af", textAlign: "right", marginBottom: 6 },
   footer: { position: "absolute", bottom: 30, left: 40, right: 40, textAlign: "center", fontSize: 9, color: "#9ca3af" },
 });
 
 const schema = z.object({
   type: z.enum(["monthly", "semi_annual", "annual"]),
   period_label: z.string(),
-  stats: z.any().optional(),
-  expenseData: z.any().optional(),
 });
 
 const TYPE_LABELS: Record<string, string> = {
@@ -43,6 +43,43 @@ const TYPE_LABELS: Record<string, string> = {
 
 function fmt(n: number) {
   return `${Number(n).toFixed(2)} ر.س`;
+}
+
+function getPeriodRange(type: "monthly" | "semi_annual" | "annual") {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  if (type === "annual") {
+    return { from: new Date(y, 0, 1), to: new Date(y, 11, 31, 23, 59, 59, 999) };
+  }
+  if (type === "semi_annual") {
+    return { from: new Date(y, m - 5, 1), to: new Date(y, m + 1, 0, 23, 59, 59, 999) };
+  }
+  return { from: new Date(y, m, 1), to: new Date(y, m + 1, 0, 23, 59, 59, 999) };
+}
+
+function countOverlappingMonths(from: Date, to: Date): number {
+  if (from > to) return 0;
+  return (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth()) + 1;
+}
+
+function expenseAmountInPeriod(
+  exp: { amount: number; type: string; start_date: Date; stopped_at: Date | null },
+  from: Date,
+  to: Date
+): number {
+  const startDate = new Date(exp.start_date);
+  if (exp.type === "one_time") {
+    return startDate >= from && startDate <= to ? exp.amount : 0;
+  }
+  const effectiveEnd = exp.stopped_at
+    ? new Date(Math.min(new Date(exp.stopped_at).getTime(), to.getTime()))
+    : to;
+  if (startDate <= effectiveEnd) {
+    const months = countOverlappingMonths(new Date(Math.max(startDate.getTime(), from.getTime())), effectiveEnd);
+    return exp.amount * months;
+  }
+  return 0;
 }
 
 export async function POST(request: Request) {
@@ -60,24 +97,43 @@ export async function POST(request: Request) {
   const parsed = schema.safeParse(body);
   if (!parsed.success) return Response.json({ error: "Invalid data" }, { status: 422 });
 
-  const { type, period_label, stats, expenseData } = parsed.data;
+  const { type, period_label } = parsed.data;
+  const { from, to } = getPeriodRange(type);
 
-  const school = await prisma.school.findUnique({ where: { id: schoolId } });
+  const [school, studentRevenue, teacherInvoices, expenses, regFeeResult, paymentStatusGroups] = await Promise.all([
+    prisma.school.findUnique({ where: { id: schoolId } }),
+    prisma.invoice.aggregate({
+      where: { schoolId, type: "STUDENT", createdAt: { gte: from, lte: to } },
+      _sum: { amount: true },
+    }),
+    prisma.invoice.findMany({
+      where: { schoolId, type: "TEACHER", createdAt: { gte: from, lte: to } },
+      include: { teacher: { select: { name: true } } },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.expense.findMany({ where: { school_id: schoolId } }),
+    prisma.student.aggregate({ where: { schoolId, isActive: true }, _sum: { registration_fee: true } }),
+    prisma.student.groupBy({ by: ["paymentStatus"], where: { schoolId }, _count: { paymentStatus: true } }),
+  ]);
 
-  const revenue = stats?.financialSummary?.revenue ?? 0;
-  const expenses = stats?.financialSummary?.expenses ?? 0;
-  const netProfit = stats?.financialSummary?.netProfit ?? 0;
-  const regFees = stats?.financialSummary?.totalRegistrationFees ?? 0;
+  const revenue = studentRevenue._sum.amount ?? 0;
+  const regFees = regFeeResult._sum.registration_fee ?? 0;
 
-  const paid = stats?.paymentStatusBreakdown?.PAID ?? 0;
-  const late = stats?.paymentStatusBreakdown?.LATE ?? 0;
-  const pending = stats?.paymentStatusBreakdown?.["بانتظار الدفع"] ?? 0;
+  const paymentStatusBreakdown: Record<string, number> = { PAID: 0, LATE: 0, "بانتظار الدفع": 0 };
+  for (const g of paymentStatusGroups) {
+    if (g.paymentStatus in paymentStatusBreakdown) paymentStatusBreakdown[g.paymentStatus] = g._count.paymentStatus;
+  }
 
-  const rent = expenseData?.expense?.rent ?? 0;
-  const maintenance = expenseData?.expense?.maintenance ?? 0;
-  const materials = expenseData?.expense?.materials ?? 0;
-  const misc = expenseData?.expense?.misc ?? 0;
-  const salaries = expenseData?.salaries ?? 0;
+  const salaryItems = teacherInvoices.map((inv) => ({ name: inv.teacher?.name ?? "معلم", amount: inv.amount }));
+  const salariesTotal = salaryItems.reduce((s, i) => s + i.amount, 0);
+
+  const expenseItems = expenses
+    .map((e) => ({ title: e.title, amount: expenseAmountInPeriod(e, from, to) }))
+    .filter((e) => e.amount > 0);
+  const manualExpensesTotal = expenseItems.reduce((s, i) => s + i.amount, 0);
+
+  const totalExpenses = salariesTotal + manualExpensesTotal;
+  const netProfit = revenue - totalExpenses;
 
   const reportName = `${TYPE_LABELS[type] ?? "تقرير"} — ${period_label}`;
 
@@ -90,24 +146,39 @@ export async function POST(request: Request) {
         createElement(Text, { style: styles.sectionTitle }, "الملخص المالي"),
         createElement(View, { style: styles.row }, createElement(Text, { style: styles.label }, "الإيرادات"), createElement(Text, { style: styles.value }, fmt(revenue))),
         createElement(View, { style: styles.row }, createElement(Text, { style: styles.label }, "رسوم التسجيل"), createElement(Text, { style: styles.value }, fmt(regFees))),
-        createElement(View, { style: styles.row }, createElement(Text, { style: styles.label }, "المصاريف الكلية"), createElement(Text, { style: styles.value }, fmt(expenses))),
+        createElement(View, { style: styles.row }, createElement(Text, { style: styles.label }, "المصاريف الكلية"), createElement(Text, { style: styles.value }, fmt(totalExpenses))),
         createElement(View, { style: styles.row }, createElement(Text, { style: styles.label }, netProfit >= 0 ? "صافي الربح" : "صافي الخسارة"), createElement(Text, { style: { ...styles.value, color: netProfit >= 0 ? "#22c55e" : "#ef4444" } }, fmt(Math.abs(netProfit)))),
       ),
 
       createElement(View, { style: styles.section },
         createElement(Text, { style: styles.sectionTitle }, "توزيع حالات الدفع"),
-        createElement(View, { style: styles.row }, createElement(Text, { style: styles.label }, "مدفوع"), createElement(Text, { style: styles.value }, String(paid))),
-        createElement(View, { style: styles.row }, createElement(Text, { style: styles.label }, "متأخر"), createElement(Text, { style: styles.value }, String(late))),
-        createElement(View, { style: styles.row }, createElement(Text, { style: styles.label }, "بانتظار الدفع"), createElement(Text, { style: styles.value }, String(pending))),
+        createElement(View, { style: styles.row }, createElement(Text, { style: styles.label }, "مدفوع"), createElement(Text, { style: styles.value }, String(paymentStatusBreakdown.PAID))),
+        createElement(View, { style: styles.row }, createElement(Text, { style: styles.label }, "متأخر"), createElement(Text, { style: styles.value }, String(paymentStatusBreakdown.LATE))),
+        createElement(View, { style: styles.row }, createElement(Text, { style: styles.label }, "بانتظار الدفع"), createElement(Text, { style: styles.value }, String(paymentStatusBreakdown["بانتظار الدفع"]))),
       ),
 
       createElement(View, { style: styles.section },
         createElement(Text, { style: styles.sectionTitle }, "تفصيل المصاريف"),
-        createElement(View, { style: styles.row }, createElement(Text, { style: styles.label }, "الإيجار"), createElement(Text, { style: styles.value }, fmt(rent))),
-        createElement(View, { style: styles.row }, createElement(Text, { style: styles.label }, "الصيانة"), createElement(Text, { style: styles.value }, fmt(maintenance))),
-        createElement(View, { style: styles.row }, createElement(Text, { style: styles.label }, "المواد"), createElement(Text, { style: styles.value }, fmt(materials))),
-        createElement(View, { style: styles.row }, createElement(Text, { style: styles.label }, "مصاريف إضافية"), createElement(Text, { style: styles.value }, fmt(misc))),
-        createElement(View, { style: styles.row }, createElement(Text, { style: styles.label }, "الرواتب"), createElement(Text, { style: styles.value }, fmt(salaries))),
+
+        createElement(Text, { style: styles.subsectionTitle }, "الرواتب المصروفة"),
+        ...(salaryItems.length > 0
+          ? salaryItems.map((s, i) =>
+              createElement(View, { key: `sal-${i}`, style: styles.row },
+                createElement(Text, { style: styles.label }, s.name),
+                createElement(Text, { style: styles.value }, fmt(s.amount)),
+              )
+            )
+          : [createElement(Text, { key: "sal-empty", style: styles.empty }, "لا توجد رواتب مصروفة خلال هذه الفترة")]),
+
+        createElement(Text, { style: styles.subsectionTitle }, "المصاريف المضافة يدويًا"),
+        ...(expenseItems.length > 0
+          ? expenseItems.map((e, i) =>
+              createElement(View, { key: `exp-${i}`, style: styles.row },
+                createElement(Text, { style: styles.label }, e.title),
+                createElement(Text, { style: styles.value }, fmt(e.amount)),
+              )
+            )
+          : [createElement(Text, { key: "exp-empty", style: styles.empty }, "لا توجد مصاريف مضافة خلال هذه الفترة")]),
       ),
 
       createElement(Text, { style: styles.footer }, school?.name ?? ""),

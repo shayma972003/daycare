@@ -2,15 +2,12 @@
 
 import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
-import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, Label } from "recharts";
 import { Topbar } from "@/components/layout/Topbar";
 import { formatCurrency, t } from "@/lib/utils";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-interface PaymentStatusBreakdown {
-  PAID: number; LATE: number; CANCELLED: number; SUSPENDED: number; "بانتظار الدفع": number;
-}
+type ReportPeriodType = "monthly" | "semi_annual" | "annual";
 
 interface Expense {
   id: string;
@@ -24,78 +21,54 @@ interface Expense {
   created_at: string;
 }
 
-interface FinancialSummary {
-  totalRegistrationFees: number;
-  paymentStatusBreakdown: PaymentStatusBreakdown;
+interface DetailRow {
+  id: string;
+  date: string;
+  amount: number;
+  label: string;
+}
+
+interface DashboardSummary {
+  revenue: { total: number; monthlyFees: number; registrationFeesCollected: number; activities: number };
+  expenses: { total: number; salaries: number; salaryItems: { name: string; amount: number }[]; manual: { title: string; amount: number }[]; manualTotal: number };
+  netIncome: number;
+  amountDue: number;
+  comparison: { revenuePct: number | null; expensesPct: number | null };
+  collection: { paid: number; late: number; pending: number; paidCount: number; lateCount: number; pendingCount: number };
+  salaries: { totalBudgeted: number; paid: number; remaining: number };
+  cashFlow: { openingBalance: number; inflows: number; outflows: number; closingBalance: number };
+  details: { revenue: DetailRow[]; salaries: DetailRow[]; manualExpenses: DetailRow[] };
 }
 
 interface Report {
   id: string; name: string; type: string; period_label: string; file_url: string; issued_at: string;
 }
 
-// ── Constants ────────────────────────────────────────────────────────────────
-
-// Teal family — base + progressively lighter shades
-const PAYMENT_STATUS_COLORS: Record<string, string> = {
-  PAID: "#2F96A6", LATE: "#5BAEBA", CANCELLED: "#87C6CF", SUSPENDED: "#B3DCE3", "بانتظار الدفع": "#D9EEF1",
-};
-const PAYMENT_STATUS_LABELS: Record<string, string> = {
-  PAID: "مدفوع", LATE: "متأخر", CANCELLED: "ملغي", SUSPENDED: "موقف", "بانتظار الدفع": "بانتظار الدفع",
-};
-
-// Teal family (base + 2 shades) followed by yellow family (base + 2 shades), gray as fallback
-const EXPENSE_COLORS = [
-  "#2F96A6", "#5BAEBA", "#87C6CF",
-  "#F8B500", "#FACC4D", "#FCD97A",
-  "#9CA3AF", "#C4CAD3", "#E2E5E9",
-];
-
-function DonutCenterLabel({ cx, cy, value, unit, valueFontSize = 22 }: { cx: number; cy: number; value: string; unit: string; valueFontSize?: number }) {
+function DetailList({ rows, emptyText }: { rows: { label: string; date: string; amount: number }[]; emptyText: string }) {
+  if (rows.length === 0) return <p className="text-sm text-gray-400 text-center py-6">{emptyText}</p>;
+  const sorted = [...rows].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   return (
-    <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle">
-      <tspan x={cx} dy="-0.4em" fontSize={valueFontSize} fontWeight="700" fill="#111111">
-        {value}
-      </tspan>
-      <tspan x={cx} dy="1.4em" fontSize="11" fill="#9CA3AF">
-        {unit}
-      </tspan>
-    </text>
+    <div className="mt-3 overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-gray-100 bg-gray-50">
+            <th className="px-4 py-2 text-right font-medium text-gray-600">البند</th>
+            <th className="px-4 py-2 text-right font-medium text-gray-600">التاريخ</th>
+            <th className="px-4 py-2 text-right font-medium text-gray-600">المبلغ</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-50">
+          {sorted.map((r, i) => (
+            <tr key={i}>
+              <td className="px-4 py-2 text-gray-800">{r.label}</td>
+              <td className="px-4 py-2 text-gray-500">{new Date(r.date).toLocaleDateString("ar-SA")}</td>
+              <td className="px-4 py-2 font-bold text-gray-900">{formatCurrency(r.amount)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function countOverlappingMonths(from: Date, to: Date): number {
-  if (from > to) return 0;
-  return (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth()) + 1;
-}
-
-function calculateExpensesForPeriod(expenses: Expense[], from: Date, to: Date): number {
-  return expenses.reduce((total, exp) => {
-    const startDate = new Date(exp.start_date);
-    if (exp.type === "one_time") {
-      if (startDate >= from && startDate <= to) return total + exp.amount;
-    } else {
-      const effectiveEnd = exp.stopped_at
-        ? new Date(Math.min(new Date(exp.stopped_at).getTime(), to.getTime()))
-        : to;
-      if (startDate <= effectiveEnd) {
-        const months = countOverlappingMonths(
-          new Date(Math.max(startDate.getTime(), from.getTime())),
-          effectiveEnd
-        );
-        return total + exp.amount * months;
-      }
-    }
-    return total;
-  }, 0);
-}
-
-function getCurrentMonthExpenses(expenses: Expense[]): number {
-  const now = new Date();
-  const from = new Date(now.getFullYear(), now.getMonth(), 1);
-  const to = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-  return calculateExpensesForPeriod(expenses, from, to);
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -272,26 +245,71 @@ function EditExpenseRow({ expense, onSaved, onCancel }: { expense: Expense; onSa
 
 // ── TAB 1: Financial Summary ──────────────────────────────────────────────────
 
+const PERIOD_TABS: { key: ReportPeriodType; label: string }[] = [
+  { key: "monthly", label: "شهري" },
+  { key: "semi_annual", label: "نصف سنوي" },
+  { key: "annual", label: "سنوي" },
+];
+
+function pctBadge(pct: number | null) {
+  if (pct === null) return <span className="text-gray-400 text-xs">لا تتوفر بيانات للمقارنة</span>;
+  const up = pct >= 0;
+  return (
+    <span className={`text-xs font-bold ${up ? "text-emerald-600" : "text-red-500"}`}>
+      {up ? "↑" : "↓"} {Math.abs(pct).toFixed(1)}%
+    </span>
+  );
+}
+
+function downloadCsv(filename: string, rows: { label: string; date?: string; amount: number }[]) {
+  const header = "البند,التاريخ,المبلغ (ر.س)\n";
+  const body = rows
+    .map((r) => `"${r.label.replace(/"/g, '""')}",${r.date ? new Date(r.date).toLocaleDateString("ar-SA") : ""},${r.amount}`)
+    .join("\n");
+  const blob = new Blob(["﻿" + header + body], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="bg-white rounded-xl p-6 shadow-[0_1px_4px_rgba(0,0,0,0.06)] space-y-3">
+      <h3 className="text-sm font-bold text-gray-900 border-b border-gray-100 pb-3">{title}</h3>
+      {children}
+    </div>
+  );
+}
+
+function SummaryRow({ label, value, valueClass }: { label: string; value: string; valueClass?: string }) {
+  return (
+    <div className="flex items-center justify-between text-sm py-1">
+      <span className={`font-bold ${valueClass ?? "text-gray-900"}`}>{value}</span>
+      <span className="text-gray-500">{label}</span>
+    </div>
+  );
+}
+
 function SummaryTab() {
-  const [summary, setSummary] = useState<FinancialSummary | null>(null);
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [teacherInvoices, setTeacherInvoices] = useState<{ amount: number; createdAt: string }[]>([]);
+  const [periodType, setPeriodType] = useState<ReportPeriodType>("monthly");
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [reports, setReports] = useState<Report[]>([]);
   const [loadingReports, setLoadingReports] = useState(true);
-  const [generatingReport, setGeneratingReport] = useState<string | null>(null);
+  const [generatingReport, setGeneratingReport] = useState(false);
+  const [openPanel, setOpenPanel] = useState<"revenue" | "expenses" | "payments" | null>(null);
 
   useEffect(() => {
-    Promise.all([
-      axios.get<{ totalRegistrationFees: number; paymentStatusBreakdown: PaymentStatusBreakdown }>("/api/statistics/summary"),
-      axios.get<Expense[]>("/api/expenses"),
-      axios.get<{ amount: number; createdAt: string }[]>("/api/invoices?type=TEACHER"),
-    ]).then(([sumRes, expRes, teacherInvRes]) => {
-      setSummary(sumRes.data);
-      setExpenses(expRes.data);
-      setTeacherInvoices(teacherInvRes.data);
-    }).finally(() => setLoading(false));
-  }, []);
+    setLoading(true);
+    axios.get<DashboardSummary>(`/api/statistics/dashboard?type=${periodType}`)
+      .then((r) => setSummary(r.data))
+      .finally(() => setLoading(false));
+  }, [periodType]);
 
   useEffect(() => {
     axios.get<Report[]>("/api/financial-reports")
@@ -299,40 +317,11 @@ function SummaryTab() {
       .finally(() => setLoadingReports(false));
   }, []);
 
-  const salariesThisMonth = (() => {
-    const now = new Date();
-    return teacherInvoices
-      .filter((inv) => {
-        const d = new Date(inv.createdAt);
-        return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-      })
-      .reduce((s, inv) => s + inv.amount, 0);
-  })();
-
-  const totalExpenses = getCurrentMonthExpenses(expenses) + salariesThisMonth;
-
-  const paymentPieData = summary
-    ? Object.entries(summary.paymentStatusBreakdown).filter(([, v]) => v > 0).map(([key, count]) => ({
-        name: PAYMENT_STATUS_LABELS[key] ?? key, value: count, color: PAYMENT_STATUS_COLORS[key] ?? "#ccc",
-      }))
-    : [];
-  const totalPayment = paymentPieData.reduce((s, d) => s + d.value, 0);
-
-  // Expense pie: group by title for one-time, or show monthly grouped
-  const expensePieData = expenses.reduce<{ name: string; value: number }[]>((acc, exp) => {
-    const existing = acc.find((x) => x.name === exp.title);
-    const val = exp.type === "monthly" ? exp.amount : exp.amount;
-    if (existing) { existing.value += val; }
-    else { acc.push({ name: exp.title, value: val }); }
-    return acc;
-  }, []).filter((d) => d.value > 0);
-  const totalExpensePie = expensePieData.reduce((s, d) => s + d.value, 0);
-
-  async function handleExportReport(key: string, label: string) {
-    setGeneratingReport(key);
+  async function handleExportReport() {
+    setGeneratingReport(true);
     try {
-      const typeMap: Record<string, string> = { monthly: "monthly", semiAnnual: "semi_annual", annual: "annual" };
-      const res = await axios.post<Report>("/api/financial-reports/generate", { type: typeMap[key], period_label: label });
+      const label = PERIOD_TABS.find((p) => p.key === periodType)?.label ?? periodType;
+      const res = await axios.post<Report>("/api/financial-reports/generate", { type: periodType, period_label: label });
       setReports((prev) => [res.data, ...prev]);
       const b64 = res.data.file_url.split(",")[1];
       if (b64) {
@@ -340,76 +329,173 @@ function SummaryTab() {
         window.open(URL.createObjectURL(new Blob([bytes], { type: "application/pdf" })), "_blank");
       }
     } catch { alert("فشل إنشاء التقرير"); }
-    finally { setGeneratingReport(null); }
+    finally { setGeneratingReport(false); }
   }
 
-  if (loading) return <div className="py-20 text-center text-sm text-gray-400">{t("common.loading")}</div>;
+  function handleExportExcel() {
+    if (!summary) return;
+    const rows = [
+      ...summary.details.revenue.map((r) => ({ label: r.label, date: r.date, amount: r.amount })),
+      ...summary.details.salaries.map((r) => ({ label: r.label, date: r.date, amount: -r.amount })),
+      ...summary.details.manualExpenses.map((r) => ({ label: r.label, date: r.date, amount: -r.amount })),
+    ];
+    downloadCsv(`التقرير-المالي-${periodType}.csv`, rows);
+  }
+
+  if (loading || !summary) return <div className="py-20 text-center text-sm text-gray-400">{t("common.loading")}</div>;
+
+  const combinedPayments = [
+    ...summary.details.revenue.map((r) => ({ ...r, kind: "إيراد" as const })),
+    ...summary.details.salaries.map((r) => ({ ...r, kind: "راتب" as const })),
+    ...summary.details.manualExpenses.map((r) => ({ ...r, kind: "مصروف" as const })),
+  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   return (
-    <div className="space-y-8">
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <KpiCard label="إجمالي رسوم التسجيل" value={formatCurrency(summary?.totalRegistrationFees ?? 0)} colorClass="text-purple-600" bgClass="bg-purple-50" />
-        <KpiCard label="إجمالي المصاريف (هذا الشهر)" value={formatCurrency(totalExpenses)} colorClass="text-orange-500" bgClass="bg-orange-50" />
-      </div>
-
-      {/* Payment status donut */}
-      <div className="bg-white rounded-xl p-6 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
-        <h3 className="text-sm font-bold text-gray-900 mb-4 text-right">{t("statistics.paymentStatus.title")}</h3>
-        {paymentPieData.length === 0 ? (
-          <p className="text-sm text-gray-400 text-center py-8">{t("common.noData")}</p>
-        ) : (
-          <div className="flex items-center justify-center">
-            <ResponsiveContainer width="100%" height={280}>
-              <PieChart>
-                <Pie data={paymentPieData} cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={3} dataKey="value" nameKey="name">
-                  {paymentPieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                  <Label content={({ viewBox }) => {
-                    const { cx, cy } = viewBox as { cx: number; cy: number };
-                    return <DonutCenterLabel cx={cx} cy={cy} value={String(totalPayment)} unit="طالب" />;
-                  }} position="center" />
-                </Pie>
-                <Tooltip formatter={(value, name) => [`${Number(value)} طالب (${totalPayment > 0 ? Math.round((Number(value) / totalPayment) * 100) : 0}%)`, name]}
-                  contentStyle={{ borderRadius: "8px", border: "1px solid #EBEBEB", fontSize: "12px" }} />
-                <Legend iconType="circle" iconSize={8} formatter={(value) => <span style={{ fontSize: "12px", color: "#6B7280" }}>{value}</span>} />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        )}
-      </div>
-
-      {/* Expense breakdown donut */}
-      {expensePieData.length > 0 && (
-        <div className="bg-white rounded-xl p-6 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
-          <h3 className="text-sm font-bold text-gray-900 mb-4 text-right">توزيع المصاريف</h3>
-          <div className="flex items-center justify-center">
-            <ResponsiveContainer width="100%" height={280}>
-              <PieChart>
-                <Pie data={expensePieData} cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={3} dataKey="value" nameKey="name">
-                  {expensePieData.map((entry, i) => <Cell key={i} fill={EXPENSE_COLORS[i % EXPENSE_COLORS.length]} />)}
-                  <Label content={({ viewBox }) => {
-                    const { cx, cy } = viewBox as { cx: number; cy: number };
-                    return <DonutCenterLabel cx={cx} cy={cy} value={totalExpensePie.toLocaleString("ar-SA")} unit="ر.س" valueFontSize={16} />;
-                  }} position="center" />
-                </Pie>
-                <Tooltip formatter={(value, name) => [formatCurrency(Number(value)), name]}
-                  contentStyle={{ borderRadius: "8px", border: "1px solid #EBEBEB", fontSize: "12px" }} />
-                <Legend iconType="circle" iconSize={8} formatter={(value) => <span style={{ fontSize: "12px", color: "#6B7280" }}>{value}</span>} />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      )}
-
-      {/* Report export buttons */}
-      <div className="flex flex-wrap gap-3">
-        {([["monthly", t("statistics.reports.monthly")], ["semiAnnual", t("statistics.reports.semiAnnual")], ["annual", t("statistics.reports.annual")]] as [string, string][]).map(([key, label]) => (
-          <button key={key} disabled={generatingReport === key} onClick={() => handleExportReport(key, label)}
-            className="flex items-center gap-2 px-5 py-2.5 border-2 border-[#111111] text-[#111111] hover:bg-[#111111] hover:text-white rounded-xl font-medium text-sm transition-all disabled:opacity-60">
-            <span>{generatingReport === key ? "⏳" : "⬇"}</span>{label}
+    <div className="space-y-6">
+      {/* Period selector */}
+      <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
+        {PERIOD_TABS.map((p) => (
+          <button key={p.key} onClick={() => setPeriodType(p.key)}
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${periodType === p.key ? "bg-white shadow text-[#111111]" : "text-gray-500 hover:text-gray-700"}`}>
+            {p.label}
           </button>
         ))}
       </div>
+
+      {/* المالية — top KPI cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <KpiCard label="الإيرادات" value={formatCurrency(summary.revenue.total)} colorClass="text-emerald-600" bgClass="bg-emerald-50" />
+        <KpiCard label="المصروفات" value={formatCurrency(summary.expenses.total)} colorClass="text-orange-500" bgClass="bg-orange-50" />
+        <KpiCard label="صافي الدخل" value={formatCurrency(summary.netIncome)} colorClass={summary.netIncome >= 0 ? "text-emerald-600" : "text-red-500"} bgClass={summary.netIncome >= 0 ? "bg-emerald-50" : "bg-red-50"} />
+        <KpiCard label="المبالغ المستحقة" value={formatCurrency(summary.amountDue)} colorClass="text-purple-600" bgClass="bg-purple-50" />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* الأداء المالي */}
+        <SectionCard title="الأداء المالي">
+          <SummaryRow label="الإيرادات" value={formatCurrency(summary.revenue.total)} valueClass="text-emerald-600" />
+          <SummaryRow label="المصروفات" value={formatCurrency(summary.expenses.total)} valueClass="text-orange-500" />
+          <SummaryRow label="صافي الدخل" value={formatCurrency(summary.netIncome)} valueClass={summary.netIncome >= 0 ? "text-emerald-600" : "text-red-500"} />
+          <div className="pt-3 border-t border-gray-100 space-y-2">
+            <p className="text-xs text-gray-400">مقارنة بالفترة السابقة</p>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-500">الإيرادات</span>
+              {pctBadge(summary.comparison.revenuePct)}
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-500">المصروفات</span>
+              {pctBadge(summary.comparison.expensesPct)}
+            </div>
+          </div>
+        </SectionCard>
+
+        {/* الإيرادات breakdown */}
+        <SectionCard title="الإيرادات">
+          <SummaryRow label="الرسوم الشهرية وغرامات التأخير" value={formatCurrency(summary.revenue.monthlyFees)} />
+          <SummaryRow label="رسوم التسجيل المحصّلة" value={formatCurrency(summary.revenue.registrationFeesCollected)} />
+          <SummaryRow label="الأنشطة" value={formatCurrency(summary.revenue.activities)} />
+        </SectionCard>
+
+        {/* التحصيل */}
+        <SectionCard title="التحصيل (حسب حالة دفع الطلاب النشطين)">
+          <SummaryRow label={`مدفوع (${summary.collection.paidCount} طالب)`} value={formatCurrency(summary.collection.paid)} valueClass="text-emerald-600" />
+          <SummaryRow label={`متأخر (${summary.collection.lateCount} طالب)`} value={formatCurrency(summary.collection.late)} valueClass="text-red-500" />
+          <SummaryRow label={`بانتظار الدفع (${summary.collection.pendingCount} طالب)`} value={formatCurrency(summary.collection.pending)} valueClass="text-amber-500" />
+        </SectionCard>
+
+        {/* المصروفات breakdown */}
+        <SectionCard title="المصروفات">
+          <SummaryRow label="الرواتب" value={formatCurrency(summary.expenses.salaries)} />
+          {summary.expenses.manual.length === 0 ? (
+            <p className="text-xs text-gray-400 py-2">لا توجد مصاريف مضافة يدويًا خلال هذه الفترة</p>
+          ) : (
+            summary.expenses.manual.map((e, i) => <SummaryRow key={i} label={e.title} value={formatCurrency(e.amount)} />)
+          )}
+        </SectionCard>
+
+        {/* الرواتب */}
+        <SectionCard title="الرواتب">
+          <SummaryRow label="إجمالي الرواتب (حسب عقود المعلمين النشطين)" value={formatCurrency(summary.salaries.totalBudgeted)} />
+          <SummaryRow label="مصروف" value={formatCurrency(summary.salaries.paid)} valueClass="text-emerald-600" />
+          <SummaryRow label="متبقي" value={formatCurrency(summary.salaries.remaining)} valueClass="text-amber-500" />
+        </SectionCard>
+
+        {/* التدفق النقدي */}
+        <SectionCard title="التدفق النقدي">
+          <SummaryRow label="الرصيد الافتتاحي" value={formatCurrency(summary.cashFlow.openingBalance)} />
+          <SummaryRow label="المتحصلات" value={`+ ${formatCurrency(summary.cashFlow.inflows)}`} valueClass="text-emerald-600" />
+          <SummaryRow label="المصروفات" value={`- ${formatCurrency(summary.cashFlow.outflows)}`} valueClass="text-red-500" />
+          <div className="pt-2 border-t border-gray-100">
+            <SummaryRow label="الرصيد الحالي" value={formatCurrency(summary.cashFlow.closingBalance)} valueClass={summary.cashFlow.closingBalance >= 0 ? "text-emerald-600" : "text-red-500"} />
+          </div>
+        </SectionCard>
+      </div>
+
+      {/* التفاصيل */}
+      <SectionCard title="التفاصيل">
+        <div className="flex flex-wrap gap-3">
+          <button onClick={() => setOpenPanel(openPanel === "revenue" ? null : "revenue")}
+            className="px-4 py-2 text-sm border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
+            عرض جميع الإيرادات
+          </button>
+          <button onClick={() => setOpenPanel(openPanel === "expenses" ? null : "expenses")}
+            className="px-4 py-2 text-sm border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
+            عرض جميع المصروفات
+          </button>
+          <button onClick={() => setOpenPanel(openPanel === "payments" ? null : "payments")}
+            className="px-4 py-2 text-sm border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
+            عرض جميع المدفوعات
+          </button>
+          <button onClick={handleExportReport} disabled={generatingReport}
+            className="px-4 py-2 text-sm bg-[#111111] text-white rounded-xl hover:bg-gray-800 transition-colors disabled:opacity-60">
+            {generatingReport ? "⏳ جارٍ التصدير…" : "⬇ تصدير PDF"}
+          </button>
+          <button onClick={handleExportExcel}
+            className="px-4 py-2 text-sm border-2 border-[#111111] text-[#111111] rounded-xl hover:bg-[#111111] hover:text-white transition-colors">
+            ⬇ تصدير Excel
+          </button>
+        </div>
+
+        {openPanel === "revenue" && (
+          <DetailList rows={summary.details.revenue.map((r) => ({ label: r.label, date: r.date, amount: r.amount }))} emptyText="لا توجد إيرادات خلال هذه الفترة" />
+        )}
+        {openPanel === "expenses" && (
+          <DetailList
+            rows={[...summary.details.salaries, ...summary.details.manualExpenses].map((r) => ({ label: r.label, date: r.date, amount: r.amount }))}
+            emptyText="لا توجد مصروفات خلال هذه الفترة"
+          />
+        )}
+        {openPanel === "payments" && (
+          <div className="mt-3 overflow-x-auto">
+            {combinedPayments.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-6">لا توجد حركات مالية خلال هذه الفترة</p>
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100 bg-gray-50">
+                    <th className="px-4 py-2 text-right font-medium text-gray-600">النوع</th>
+                    <th className="px-4 py-2 text-right font-medium text-gray-600">البند</th>
+                    <th className="px-4 py-2 text-right font-medium text-gray-600">التاريخ</th>
+                    <th className="px-4 py-2 text-right font-medium text-gray-600">المبلغ</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {combinedPayments.map((r) => (
+                    <tr key={`${r.kind}-${r.id}`}>
+                      <td className="px-4 py-2 text-gray-500">{r.kind}</td>
+                      <td className="px-4 py-2 text-gray-800">{r.label}</td>
+                      <td className="px-4 py-2 text-gray-500">{new Date(r.date).toLocaleDateString("ar-SA")}</td>
+                      <td className={`px-4 py-2 font-bold ${r.kind === "إيراد" ? "text-emerald-600" : "text-red-500"}`}>
+                        {r.kind === "إيراد" ? "+" : "-"} {formatCurrency(r.amount)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+      </SectionCard>
 
       {/* Exported reports */}
       <div className="bg-white rounded-xl shadow-md overflow-hidden">

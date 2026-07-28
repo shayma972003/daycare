@@ -2,6 +2,7 @@ export const runtime = "nodejs";
 
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { getFinancialSummary, type ReportPeriodType } from "@/lib/finance";
 import { renderToBuffer, Document, Page, Text, View, StyleSheet, Font } from "@react-pdf/renderer";
 import { createElement } from "react";
 import { join } from "path";
@@ -45,41 +46,16 @@ function fmt(n: number) {
   return `${Number(n).toFixed(2)} ر.س`;
 }
 
-function getPeriodRange(type: "monthly" | "semi_annual" | "annual") {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = now.getMonth();
-  if (type === "annual") {
-    return { from: new Date(y, 0, 1), to: new Date(y, 11, 31, 23, 59, 59, 999) };
-  }
-  if (type === "semi_annual") {
-    return { from: new Date(y, m - 5, 1), to: new Date(y, m + 1, 0, 23, 59, 59, 999) };
-  }
-  return { from: new Date(y, m, 1), to: new Date(y, m + 1, 0, 23, 59, 59, 999) };
+function pctLabel(pct: number | null): string {
+  if (pct === null) return "لا تتوفر بيانات للمقارنة";
+  return `${pct >= 0 ? "↑" : "↓"} ${Math.abs(pct).toFixed(1)}%`;
 }
 
-function countOverlappingMonths(from: Date, to: Date): number {
-  if (from > to) return 0;
-  return (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth()) + 1;
-}
-
-function expenseAmountInPeriod(
-  exp: { amount: number; type: string; start_date: Date; stopped_at: Date | null },
-  from: Date,
-  to: Date
-): number {
-  const startDate = new Date(exp.start_date);
-  if (exp.type === "one_time") {
-    return startDate >= from && startDate <= to ? exp.amount : 0;
-  }
-  const effectiveEnd = exp.stopped_at
-    ? new Date(Math.min(new Date(exp.stopped_at).getTime(), to.getTime()))
-    : to;
-  if (startDate <= effectiveEnd) {
-    const months = countOverlappingMonths(new Date(Math.max(startDate.getTime(), from.getTime())), effectiveEnd);
-    return exp.amount * months;
-  }
-  return 0;
+function row(label: string, value: string, valueColor?: string) {
+  return createElement(View, { style: styles.row },
+    createElement(Text, { style: styles.label }, label),
+    createElement(Text, { style: valueColor ? { ...styles.value, color: valueColor } : styles.value }, value),
+  );
 }
 
 export async function POST(request: Request) {
@@ -98,81 +74,78 @@ export async function POST(request: Request) {
   if (!parsed.success) return Response.json({ error: "Invalid data" }, { status: 422 });
 
   const { type, period_label } = parsed.data;
-  const { from, to } = getPeriodRange(type);
-
-  const [school, regFeeResult, teacherInvoices, expenses, paymentStatusGroups] = await Promise.all([
+  const [school, summary] = await Promise.all([
     prisma.school.findUnique({ where: { id: schoolId } }),
-    prisma.student.aggregate({ where: { schoolId, isActive: true }, _sum: { registration_fee: true } }),
-    prisma.invoice.findMany({
-      where: { schoolId, type: "TEACHER", createdAt: { gte: from, lte: to } },
-      include: { teacher: { select: { name: true } } },
-      orderBy: { createdAt: "asc" },
-    }),
-    prisma.expense.findMany({ where: { school_id: schoolId } }),
-    prisma.student.groupBy({ by: ["paymentStatus"], where: { schoolId }, _count: { paymentStatus: true } }),
+    getFinancialSummary(schoolId, type as ReportPeriodType),
   ]);
 
-  const regFees = regFeeResult._sum.registration_fee ?? 0;
-
-  const paymentStatusBreakdown: Record<string, number> = { PAID: 0, LATE: 0, "بانتظار الدفع": 0 };
-  for (const g of paymentStatusGroups) {
-    if (g.paymentStatus in paymentStatusBreakdown) paymentStatusBreakdown[g.paymentStatus] = g._count.paymentStatus;
-  }
-
-  const salaryItems = teacherInvoices.map((inv) => ({ name: inv.teacher?.name ?? "معلم", amount: inv.amount }));
-  const salariesTotal = salaryItems.reduce((s, i) => s + i.amount, 0);
-
-  const expenseItems = expenses
-    .map((e) => ({ title: e.title, amount: expenseAmountInPeriod(e, from, to) }))
-    .filter((e) => e.amount > 0);
-  const manualExpensesTotal = expenseItems.reduce((s, i) => s + i.amount, 0);
-
-  const totalExpenses = salariesTotal + manualExpensesTotal;
-  const netProfit = regFees - totalExpenses;
-
   const reportName = `${TYPE_LABELS[type] ?? "تقرير"} — ${period_label}`;
+  const netColor = summary.netIncome >= 0 ? "#22c55e" : "#ef4444";
 
   const doc = createElement(Document, null,
     createElement(Page, { size: "A4", style: styles.page },
       createElement(Text, { style: styles.title }, reportName),
       createElement(Text, { style: styles.subtitle }, `المنشأة: ${school?.name ?? ""} — ${period_label}`),
 
+      // المالية
       createElement(View, { style: styles.section },
-        createElement(Text, { style: styles.sectionTitle }, "الملخص المالي"),
-        createElement(View, { style: styles.row }, createElement(Text, { style: styles.label }, "إجمالي رسوم التسجيل"), createElement(Text, { style: styles.value }, fmt(regFees))),
-        createElement(View, { style: styles.row }, createElement(Text, { style: styles.label }, "المصاريف الكلية"), createElement(Text, { style: styles.value }, fmt(totalExpenses))),
-        createElement(View, { style: styles.row }, createElement(Text, { style: styles.label }, netProfit >= 0 ? "صافي الربح" : "صافي الخسارة"), createElement(Text, { style: { ...styles.value, color: netProfit >= 0 ? "#22c55e" : "#ef4444" } }, fmt(Math.abs(netProfit)))),
+        createElement(Text, { style: styles.sectionTitle }, "المالية"),
+        row("الإيرادات", fmt(summary.revenue.total)),
+        row("المصروفات", fmt(summary.expenses.total)),
+        row(summary.netIncome >= 0 ? "صافي الدخل" : "صافي الخسارة", fmt(Math.abs(summary.netIncome)), netColor),
+        row("المبالغ المستحقة", fmt(summary.amountDue)),
       ),
 
+      // الأداء المالي
       createElement(View, { style: styles.section },
-        createElement(Text, { style: styles.sectionTitle }, "توزيع حالات الدفع"),
-        createElement(View, { style: styles.row }, createElement(Text, { style: styles.label }, "مدفوع"), createElement(Text, { style: styles.value }, String(paymentStatusBreakdown.PAID))),
-        createElement(View, { style: styles.row }, createElement(Text, { style: styles.label }, "متأخر"), createElement(Text, { style: styles.value }, String(paymentStatusBreakdown.LATE))),
-        createElement(View, { style: styles.row }, createElement(Text, { style: styles.label }, "بانتظار الدفع"), createElement(Text, { style: styles.value }, String(paymentStatusBreakdown["بانتظار الدفع"]))),
+        createElement(Text, { style: styles.sectionTitle }, "الأداء المالي — مقارنة بالفترة السابقة"),
+        row("الإيرادات", pctLabel(summary.comparison.revenuePct)),
+        row("المصروفات", pctLabel(summary.comparison.expensesPct)),
       ),
 
+      // الإيرادات
       createElement(View, { style: styles.section },
-        createElement(Text, { style: styles.sectionTitle }, "تفصيل المصاريف"),
+        createElement(Text, { style: styles.sectionTitle }, "الإيرادات"),
+        row("الرسوم الشهرية وغرامات التأخير", fmt(summary.revenue.monthlyFees)),
+        row("رسوم التسجيل المحصّلة", fmt(summary.revenue.registrationFeesCollected)),
+        row("الأنشطة", fmt(summary.revenue.activities)),
+      ),
 
-        createElement(Text, { style: styles.subsectionTitle }, "الرواتب المصروفة"),
-        ...(salaryItems.length > 0
-          ? salaryItems.map((s, i) =>
-              createElement(View, { key: `sal-${i}`, style: styles.row },
-                createElement(Text, { style: styles.label }, s.name),
-                createElement(Text, { style: styles.value }, fmt(s.amount)),
-              )
-            )
-          : [createElement(Text, { key: "sal-empty", style: styles.empty }, "لا توجد رواتب مصروفة خلال هذه الفترة")]),
+      // التحصيل
+      createElement(View, { style: styles.section },
+        createElement(Text, { style: styles.sectionTitle }, "التحصيل (حسب حالة دفع الطلاب النشطين)"),
+        row(`مدفوع (${summary.collection.paidCount} طالب)`, fmt(summary.collection.paid)),
+        row(`متأخر (${summary.collection.lateCount} طالب)`, fmt(summary.collection.late)),
+        row(`بانتظار الدفع (${summary.collection.pendingCount} طالب)`, fmt(summary.collection.pending)),
+      ),
 
-        createElement(Text, { style: styles.subsectionTitle }, "المصاريف المضافة يدويًا"),
-        ...(expenseItems.length > 0
-          ? expenseItems.map((e, i) =>
-              createElement(View, { key: `exp-${i}`, style: styles.row },
-                createElement(Text, { style: styles.label }, e.title),
-                createElement(Text, { style: styles.value }, fmt(e.amount)),
-              )
-            )
-          : [createElement(Text, { key: "exp-empty", style: styles.empty }, "لا توجد مصاريف مضافة خلال هذه الفترة")]),
+      // المصروفات
+      createElement(View, { style: styles.section },
+        createElement(Text, { style: styles.sectionTitle }, "المصروفات"),
+        row("الرواتب", fmt(summary.expenses.salaries)),
+        ...(summary.expenses.manual.length > 0
+          ? summary.expenses.manual.map((e, i) => createElement(View, { key: `exp-${i}`, style: styles.row },
+              createElement(Text, { style: styles.label }, e.title),
+              createElement(Text, { style: styles.value }, fmt(e.amount)),
+            ))
+          : [createElement(Text, { key: "exp-empty", style: styles.empty }, "لا توجد مصاريف مضافة يدويًا خلال هذه الفترة")]),
+      ),
+
+      // الرواتب
+      createElement(View, { style: styles.section },
+        createElement(Text, { style: styles.sectionTitle }, "الرواتب"),
+        row("إجمالي الرواتب (حسب عقود المعلمين النشطين)", fmt(summary.salaries.totalBudgeted)),
+        row("مصروف", fmt(summary.salaries.paid)),
+        row("متبقي", fmt(summary.salaries.remaining)),
+      ),
+
+      // التدفق النقدي
+      createElement(View, { style: styles.section },
+        createElement(Text, { style: styles.sectionTitle }, "التدفق النقدي"),
+        row("الرصيد الافتتاحي", fmt(summary.cashFlow.openingBalance)),
+        row("المتحصلات", `+ ${fmt(summary.cashFlow.inflows)}`),
+        row("المصروفات", `- ${fmt(summary.cashFlow.outflows)}`),
+        row("الرصيد الحالي", fmt(summary.cashFlow.closingBalance)),
       ),
 
       createElement(Text, { style: styles.footer }, school?.name ?? ""),

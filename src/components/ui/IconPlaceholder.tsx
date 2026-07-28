@@ -45,7 +45,7 @@ export function AvatarPlaceholder({
   return (
     <div
       className={cn(
-        "w-9 h-9 rounded-full bg-[#1a2340] text-white flex items-center justify-center text-xs font-bold shrink-0",
+        "w-9 h-9 rounded-full bg-[#111111] text-white flex items-center justify-center text-xs font-bold shrink-0",
         className
       )}
     >

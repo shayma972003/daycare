@@ -56,7 +56,7 @@ export function ClassDeleteConfirmModal({
       >
         {assignedStudentsCount > 0 ? (
           <>
-            <h2 id="class-delete-confirm-title" className="text-sm font-medium text-[#1a2340]">
+            <h2 id="class-delete-confirm-title" className="text-sm font-medium text-[#111111]">
               هذا الفصل يحتوي على {assignedStudentsCount} طلاب.
             </h2>
             <p className="text-sm text-gray-600 whitespace-pre-line">
@@ -64,7 +64,7 @@ export function ClassDeleteConfirmModal({
             </p>
           </>
         ) : (
-          <h2 id="class-delete-confirm-title" className="text-sm font-medium text-[#1a2340]">
+          <h2 id="class-delete-confirm-title" className="text-sm font-medium text-[#111111]">
             {`سيتم نقل فصل "${className}" إلى سلة المحذوفات. يمكنك استعادته خلال 30 يوماً.`}
           </h2>
         )}

@@ -11,12 +11,12 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variants: Record<ButtonVariant, string> = {
-  primary: "bg-coral text-white hover:bg-coral-dark active:scale-[0.98]",
-  secondary: "bg-white text-coral border-2 border-coral hover:bg-coral-light active:scale-[0.98]",
-  destructive: "bg-white text-danger-text border-2 border-danger-text hover:bg-danger-bg active:scale-[0.98]",
-  neutral: "bg-gray-100 text-navy hover:bg-teal-light hover:text-teal active:scale-[0.98]",
-  success: "bg-success-text text-white hover:opacity-90 active:scale-[0.98]",
-  ghost: "bg-transparent text-navy hover:bg-gray-100 active:scale-[0.98]",
+  primary: "bg-coral text-white hover:bg-coral-dark active:scale-[0.98] shadow-sm",
+  secondary: "bg-white text-gray-700 border border-gray-200 hover:border-gray-300 hover:bg-gray-50 active:scale-[0.98]",
+  destructive: "bg-white text-red-600 border border-red-200 hover:bg-red-50 hover:border-red-300 active:scale-[0.98]",
+  neutral: "bg-gray-100 text-gray-700 hover:bg-gray-200 active:scale-[0.98]",
+  success: "bg-[#2D7A4F] text-white hover:bg-[#256040] active:scale-[0.98] shadow-sm",
+  ghost: "bg-transparent text-gray-600 hover:bg-gray-100 active:scale-[0.98]",
 };
 
 const sizes: Record<ButtonSize, string> = {

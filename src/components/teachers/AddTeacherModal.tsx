@@ -92,7 +92,7 @@ export function AddTeacherModal({ open, onClose, onSaved }: AddTeacherModalProps
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
         <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-lg bg-white rounded-2xl shadow-modal p-6 max-h-[90vh] overflow-y-auto animate-scale-in">
-          <Dialog.Title className="text-lg font-bold text-[#1a2340] mb-5">
+          <Dialog.Title className="text-lg font-bold text-[#111111] mb-5">
             {t("teachers.addTeacher")}
           </Dialog.Title>
           <Dialog.Description className="sr-only">

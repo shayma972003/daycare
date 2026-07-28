@@ -199,7 +199,7 @@ export default function TeachersPage() {
               <select
                 value={bulkAction}
                 onChange={(e) => setBulkAction(e.target.value)}
-                className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a2340]"
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111111]"
               >
                 <option value="">{t("students.bulkAction")}</option>
                 <option value="checkin">تسجيل الدخول</option>
@@ -208,7 +208,7 @@ export default function TeachersPage() {
               <button
                 onClick={applyBulk}
                 disabled={!bulkAction || selected.size === 0 || bulkLoading}
-                className="px-3 py-2 bg-[#1a2340] text-white rounded-lg text-sm disabled:opacity-40"
+                className="px-3 py-2 bg-[#111111] text-white rounded-lg text-sm disabled:opacity-40"
               >
                 تنفيذ
               </button>
@@ -227,13 +227,13 @@ export default function TeachersPage() {
                 <div className="absolute left-0 top-full mt-1 w-52 bg-white rounded-xl shadow-lg border border-gray-100 z-30 overflow-hidden">
                   <button
                     onClick={() => { setDropdownOpen(false); router.push("/teachers/new"); }}
-                    className="w-full text-right px-4 py-3 text-sm text-[#1a2340] hover:bg-gray-50 transition-colors border-b border-gray-50"
+                    className="w-full text-right px-4 py-3 text-sm text-[#111111] hover:bg-gray-50 transition-colors border-b border-gray-50"
                   >
                     أضف معلم جديد
                   </button>
                   <button
                     onClick={() => { setDropdownOpen(false); router.push("/teachers/import"); }}
-                    className="w-full text-right px-4 py-3 text-sm text-[#1a2340] hover:bg-gray-50 transition-colors"
+                    className="w-full text-right px-4 py-3 text-sm text-[#111111] hover:bg-gray-50 transition-colors"
                   >
                     ارفع ملف المعلمين
                   </button>
@@ -304,7 +304,7 @@ export default function TeachersPage() {
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2.5">
                             <AvatarPlaceholder name={teacher.name} />
-                            <span className="font-medium text-[#1a2340] text-sm">{teacher.name}</span>
+                            <span className="font-medium text-[#111111] text-sm">{teacher.name}</span>
                           </div>
                         </td>
 
@@ -319,7 +319,7 @@ export default function TeachersPage() {
                         <td className="px-4 py-3">
                           <button
                             onClick={() => router.push(`/teachers/${teacher.id}`)}
-                            className="px-3 py-1.5 border border-[#1a2340] text-[#1a2340] rounded-lg text-xs font-medium hover:bg-[#1a2340] hover:text-white transition-all"
+                            className="px-3 py-1.5 border border-[#111111] text-[#111111] rounded-lg text-xs font-medium hover:bg-[#111111] hover:text-white transition-all"
                           >
                             {t("teachers.actions.viewMore")}
                           </button>

@@ -44,7 +44,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-const inputCls = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a2340]";
+const inputCls = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111111]";
 
 export default function NewStudentPage() {
   const router = useRouter();
@@ -171,7 +171,7 @@ export default function NewStudentPage() {
       <div className="p-6">
         <button
           onClick={() => router.push("/students")}
-          className="mb-4 text-sm text-[#1a2340] hover:underline flex items-center gap-1"
+          className="mb-4 text-sm text-[#111111] hover:underline flex items-center gap-1"
         >
           ← {t("students.title")}
         </button>
@@ -185,7 +185,7 @@ export default function NewStudentPage() {
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
           {/* Card 1: معلومات الطالب */}
           <div className="bg-white rounded-xl shadow-md p-6">
-            <h2 className="text-base font-bold text-[#1a2340] mb-5">معلومات الطالب</h2>
+            <h2 className="text-base font-bold text-[#111111] mb-5">معلومات الطالب</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <Field label={t("students.profile.name")}>
                 <input {...register("name", { required: true })} type="text" className={`${inputCls} ${errors.name ? "border-red-400" : ""}`} />
@@ -225,7 +225,7 @@ export default function NewStudentPage() {
 
           {/* Card 2: المعلومات الصحية */}
           <div className="bg-white rounded-xl shadow-md p-6">
-            <h2 className="text-base font-bold text-[#1a2340] mb-5">المعلومات الصحية</h2>
+            <h2 className="text-base font-bold text-[#111111] mb-5">المعلومات الصحية</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label={t("students.profile.healthCondition")}>
                 <input {...register("healthCondition")} type="text" className={inputCls} />
@@ -239,7 +239,7 @@ export default function NewStudentPage() {
           {/* Card 3: معلومات ولي الأمر */}
           <div className="bg-white rounded-xl shadow-md p-6">
             <div className="flex items-center justify-between mb-5">
-              <h2 className="text-base font-bold text-[#1a2340]">معلومات ولي الأمر</h2>
+              <h2 className="text-base font-bold text-[#111111]">معلومات ولي الأمر</h2>
               {guardianLinked && (
                 <span className="text-xs bg-success-bg text-success-text border border-success-text/20 px-3 py-1 rounded-full font-medium">
                   تم ربط ولي الأمر الموجود
@@ -272,7 +272,7 @@ export default function NewStudentPage() {
                         onClick={() => selectGuardian(g)}
                         className="w-full text-right px-4 py-2.5 text-sm hover:bg-gray-50 border-b border-gray-50 last:border-0"
                       >
-                        <div className="font-medium text-[#1a2340]">{g.name}</div>
+                        <div className="font-medium text-[#111111]">{g.name}</div>
                         <div className="text-xs text-gray-400">{[g.phone1, g.email].filter(Boolean).join(" · ")}</div>
                       </button>
                     ))}
@@ -327,7 +327,7 @@ export default function NewStudentPage() {
 
           {/* Card 4: معلومات التسجيل */}
           <div className="bg-white rounded-xl shadow-md p-6">
-            <h2 className="text-base font-bold text-[#1a2340] mb-5">معلومات التسجيل</h2>
+            <h2 className="text-base font-bold text-[#111111] mb-5">معلومات التسجيل</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <Field label={t("students.profile.paymentMethod")}>
                 <select {...register("paymentMethod")} className={inputCls}>

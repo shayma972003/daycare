@@ -217,7 +217,7 @@ export default function ClassProfilePage({
         <div className="flex items-center justify-between flex-wrap gap-3">
           <button
             onClick={() => router.push("/classes")}
-            className="text-sm text-[#1a2340] hover:underline flex items-center gap-1"
+            className="text-sm text-[#111111] hover:underline flex items-center gap-1"
           >
             ← {t("classes.title")}
           </button>
@@ -226,7 +226,7 @@ export default function ClassProfilePage({
             {!editing ? (
               <button
                 onClick={startEditing}
-                className="px-4 py-2 border border-[#1a2340] text-[#1a2340] rounded-lg text-sm font-medium hover:bg-[#1a2340] hover:text-white transition-colors"
+                className="px-4 py-2 border border-[#111111] text-[#111111] rounded-lg text-sm font-medium hover:bg-[#111111] hover:text-white transition-colors"
               >
                 تعديل الفصل
               </button>
@@ -304,7 +304,7 @@ export default function ClassProfilePage({
 
         {/* Info card */}
         <div className="bg-white rounded-xl shadow-md p-6">
-          <h2 className="text-base font-bold text-[#1a2340] mb-5">معلومات الفصل</h2>
+          <h2 className="text-base font-bold text-[#111111] mb-5">معلومات الفصل</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">{t("classes.form.name")}</label>
@@ -312,10 +312,10 @@ export default function ClassProfilePage({
                 <input
                   value={form.name}
                   onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a2340]"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111111]"
                 />
               ) : (
-                <p className="text-sm font-medium text-[#1a2340]">{cls.name}</p>
+                <p className="text-sm font-medium text-[#111111]">{cls.name}</p>
               )}
             </div>
 
@@ -325,7 +325,7 @@ export default function ClassProfilePage({
                 <select
                   value={form.teacherId}
                   onChange={(e) => setForm((f) => ({ ...f, teacherId: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#1a2340]"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#111111]"
                 >
                   <option value="">{t("common.select")}</option>
                   {teachers.map((tch) => (
@@ -350,7 +350,7 @@ export default function ClassProfilePage({
                 <select
                   value={form.group}
                   onChange={(e) => setForm((f) => ({ ...f, group: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#1a2340]"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#111111]"
                 >
                   <option value="">{t("common.select")}</option>
                   <option value="kg1">{t("groups.kg1")}</option>
@@ -369,7 +369,7 @@ export default function ClassProfilePage({
                 <select
                   value={form.period}
                   onChange={(e) => setForm((f) => ({ ...f, period: e.target.value as "" | "MORNING" | "EVENING" }))}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#1a2340]"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#111111]"
                 >
                   <option value="">{t("common.select")}</option>
                   <option value="MORNING">{t("periods.MORNING")}</option>
@@ -390,7 +390,7 @@ export default function ClassProfilePage({
                   dir="ltr"
                   value={form.registrationDate}
                   onChange={(e) => setForm((f) => ({ ...f, registrationDate: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a2340]"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111111]"
                 />
               ) : (
                 <p className="text-sm text-gray-700">
@@ -403,13 +403,13 @@ export default function ClassProfilePage({
 
         {/* Notes card */}
         <div className="bg-white rounded-xl shadow-md p-6">
-          <h2 className="text-base font-bold text-[#1a2340] mb-5">{t("classes.form.notes")}</h2>
+          <h2 className="text-base font-bold text-[#111111] mb-5">{t("classes.form.notes")}</h2>
           {editing ? (
             <textarea
               value={form.notes}
               onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
               rows={5}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#1a2340]"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#111111]"
             />
           ) : (
             <p className="text-sm text-gray-700 whitespace-pre-line min-h-[2rem]">
@@ -421,7 +421,7 @@ export default function ClassProfilePage({
         {/* Enrolled children card */}
         <div className="bg-white rounded-xl shadow-md p-6">
           <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
-            <h2 className="text-base font-bold text-[#1a2340]">الأطفال المسجلين في هذا الفصل</h2>
+            <h2 className="text-base font-bold text-[#111111]">الأطفال المسجلين في هذا الفصل</h2>
             <div className="flex items-center gap-3">
               <span className="text-xs text-gray-400">{cls.students.length} طالب</span>
               <input
@@ -429,7 +429,7 @@ export default function ClassProfilePage({
                 placeholder="بحث بالاسم..."
                 value={studentSearch}
                 onChange={(e) => setStudentSearch(e.target.value)}
-                className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a2340]"
+                className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#111111]"
               />
             </div>
           </div>

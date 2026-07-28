@@ -81,12 +81,14 @@ function getCurrentMonthExpenses(expenses: Expense[]): number {
 
 function KpiCard({ label, value, colorClass, bgClass }: { label: string; value: string; colorClass: string; bgClass: string }) {
   return (
-    <div className="bg-white rounded-xl shadow-md p-6 flex flex-col gap-2">
-      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${bgClass} mb-1`}>
-        <span className="text-lg">📊</span>
+    <div className="bg-white rounded-xl shadow-card p-6 flex items-start justify-between gap-3">
+      <div>
+        <p className="text-3xl font-bold text-gray-900">{value}</p>
+        <p className="text-sm text-gray-500 font-medium mt-1">{label}</p>
       </div>
-      <p className={`text-3xl font-bold ${colorClass}`}>{value}</p>
-      <p className="text-sm text-gray-500 font-medium">{label}</p>
+      <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${bgClass} ${colorClass}`}>
+        <div className="w-5 h-5 bg-current rounded opacity-60" />
+      </div>
     </div>
   );
 }
@@ -121,7 +123,7 @@ function AddExpenseForm({ onSaved, onCancel }: { onSaved: (e: Expense) => void; 
 
   return (
     <form onSubmit={handleSubmit} className="bg-blue-50 border border-blue-200 rounded-xl p-5 mb-4 space-y-3">
-      <h3 className="text-sm font-bold text-[#1a2340]">إضافة مصروف جديد</h3>
+      <h3 className="text-sm font-bold text-[#111111]">إضافة مصروف جديد</h3>
       {error && <p className="text-xs text-red-600">{error}</p>}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
@@ -318,7 +320,7 @@ function SummaryTab() {
 
       {/* Payment status pie */}
       <div className="bg-white rounded-xl shadow-md p-6">
-        <h3 className="text-sm font-bold text-[#1a2340] mb-4">{t("statistics.paymentStatus.title")}</h3>
+        <h3 className="text-sm font-bold text-[#111111] mb-4">{t("statistics.paymentStatus.title")}</h3>
         {paymentPieData.length === 0 ? (
           <p className="text-sm text-gray-400 text-center py-8">{t("common.noData")}</p>
         ) : (
@@ -338,7 +340,7 @@ function SummaryTab() {
       {/* Expense breakdown pie */}
       {expensePieData.length > 0 && (
         <div className="bg-white rounded-xl shadow-md p-6">
-          <h3 className="text-sm font-bold text-[#1a2340] mb-4">توزيع المصاريف</h3>
+          <h3 className="text-sm font-bold text-[#111111] mb-4">توزيع المصاريف</h3>
           <ResponsiveContainer width="100%" height={280}>
             <PieChart>
               <Pie data={expensePieData} cx="50%" cy="50%" outerRadius={100} dataKey="value" nameKey="name"
@@ -356,7 +358,7 @@ function SummaryTab() {
       <div className="flex flex-wrap gap-3">
         {([["monthly", t("statistics.reports.monthly")], ["semiAnnual", t("statistics.reports.semiAnnual")], ["annual", t("statistics.reports.annual")]] as [string, string][]).map(([key, label]) => (
           <button key={key} disabled={generatingReport === key} onClick={() => handleExportReport(key, label)}
-            className="flex items-center gap-2 px-5 py-2.5 border-2 border-[#1a2340] text-[#1a2340] hover:bg-[#1a2340] hover:text-white rounded-xl font-medium text-sm transition-all disabled:opacity-60">
+            className="flex items-center gap-2 px-5 py-2.5 border-2 border-[#111111] text-[#111111] hover:bg-[#111111] hover:text-white rounded-xl font-medium text-sm transition-all disabled:opacity-60">
             <span>{generatingReport === key ? "⏳" : "⬇"}</span>{label}
           </button>
         ))}
@@ -365,7 +367,7 @@ function SummaryTab() {
       {/* Exported reports */}
       <div className="bg-white rounded-xl shadow-md overflow-hidden">
         <div className="px-5 py-3 border-b border-gray-100 bg-gray-50">
-          <h3 className="text-sm font-bold text-[#1a2340]">التقارير المصدرة</h3>
+          <h3 className="text-sm font-bold text-[#111111]">التقارير المصدرة</h3>
         </div>
         {loadingReports ? (
           <div className="p-6 text-sm text-gray-400 text-center">{t("common.loading")}</div>
@@ -459,7 +461,7 @@ function ExpensesTab() {
       {confirmDeleteId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl shadow-xl p-6 w-96 text-center space-y-4">
-            <p className="text-sm font-medium text-[#1a2340]">هل تريد حذف هذا المصروف نهائياً؟ لن يظهر في أي تقارير مستقبلية</p>
+            <p className="text-sm font-medium text-[#111111]">هل تريد حذف هذا المصروف نهائياً؟ لن يظهر في أي تقارير مستقبلية</p>
             <div className="flex gap-3 justify-center">
               <button onClick={() => handleDelete(confirmDeleteId)} disabled={!!deletingId}
                 className="px-5 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 disabled:opacity-60">
@@ -517,7 +519,7 @@ function ExpensesTab() {
                     <EditExpenseRow key={exp.id} expense={exp} onSaved={handleExpenseSaved} onCancel={() => setEditingId(null)} />
                   ) : (
                     <tr key={exp.id} className="hover:bg-gray-50/50 transition-colors">
-                      <td className="px-4 py-3 font-medium text-[#1a2340]">
+                      <td className="px-4 py-3 font-medium text-[#111111]">
                         {exp.title}
                         {exp.description && <span className="block text-xs text-gray-400 font-normal">{exp.description}</span>}
                       </td>
@@ -575,13 +577,13 @@ export default function StatisticsPage() {
         <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
           <button
             onClick={() => setActiveTab("summary")}
-            className={`px-5 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === "summary" ? "bg-white shadow text-[#1a2340]" : "text-gray-500 hover:text-gray-700"}`}
+            className={`px-5 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === "summary" ? "bg-white shadow text-[#111111]" : "text-gray-500 hover:text-gray-700"}`}
           >
             الملخص المالي
           </button>
           <button
             onClick={() => setActiveTab("expenses")}
-            className={`px-5 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === "expenses" ? "bg-white shadow text-[#1a2340]" : "text-gray-500 hover:text-gray-700"}`}
+            className={`px-5 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === "expenses" ? "bg-white shadow text-[#111111]" : "text-gray-500 hover:text-gray-700"}`}
           >
             المصاريف
           </button>

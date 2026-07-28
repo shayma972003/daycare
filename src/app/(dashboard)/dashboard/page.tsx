@@ -150,7 +150,7 @@ export default function HomePage() {
       {confirmDeleteId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl shadow-xl p-6 w-80 text-center space-y-4">
-            <p className="text-sm font-medium text-[#1a2340]">هل تريد حذف هذا السجل؟</p>
+            <p className="text-sm font-medium text-[#111111]">هل تريد حذف هذا السجل؟</p>
             <div className="flex gap-3 justify-center">
               <button
                 onClick={() => handleDeleteOne(confirmDeleteId)}
@@ -169,7 +169,7 @@ export default function HomePage() {
       {confirmBulkDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl shadow-xl p-6 w-96 text-center space-y-4">
-            <p className="text-sm font-medium text-[#1a2340]">هل تريد حذف جميع سجلات إشعارات الفعاليات؟</p>
+            <p className="text-sm font-medium text-[#111111]">هل تريد حذف جميع سجلات إشعارات الفعاليات؟</p>
             <p className="text-xs text-red-500">لا يمكن التراجع عن هذا الإجراء</p>
             <div className="flex gap-3 justify-center">
               <button
@@ -199,7 +199,7 @@ export default function HomePage() {
                   {pendingEnrollments.length}
                 </span>
                 <div>
-                  <p className="text-sm font-bold text-[#1a2340]">طلبات تسجيل جديدة تنتظر المراجعة</p>
+                  <p className="text-sm font-bold text-[#111111]">طلبات تسجيل جديدة تنتظر المراجعة</p>
                   <p className="text-xs text-gray-500 mt-0.5">
                     آخر طلب: {pendingEnrollments[0]?.full_name} —{" "}
                     {new Date(pendingEnrollments[0]?.submitted_at).toLocaleString("ar-SA", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
@@ -208,7 +208,7 @@ export default function HomePage() {
               </div>
               <button
                 onClick={() => router.push("/students")}
-                className="px-4 py-2 bg-[#1a2340] text-white rounded-xl text-sm font-medium hover:bg-[#2a3460] transition-colors"
+                className="px-4 py-2 bg-[#111111] text-white rounded-xl text-sm font-medium hover:bg-[#2a3460] transition-colors"
               >
                 مراجعة الطلبات
               </button>
@@ -241,12 +241,12 @@ export default function HomePage() {
         ) : (
           <>
             <section>
-              <h2 className="text-base font-bold text-[#1a2340] mb-4">{t("home.currentActivities")}</h2>
+              <h2 className="text-base font-bold text-[#111111] mb-4">{t("home.currentActivities")}</h2>
               <ActivityGrid activities={currentActivities} onAdd={openAddModal} onSelect={openEditModal} />
             </section>
 
             <section>
-              <h2 className="text-base font-bold text-[#1a2340] mb-4">{t("home.pastActivities")}</h2>
+              <h2 className="text-base font-bold text-[#111111] mb-4">{t("home.pastActivities")}</h2>
               {pastActivities.length === 0 ? (
                 <p className="text-sm text-gray-400 py-6 text-center">{t("common.noData")}</p>
               ) : (
@@ -257,7 +257,7 @@ export default function HomePage() {
             {/* ── سجل إشعارات الفعاليات ─────────────────────────────── */}
             <section>
               <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-                <h2 className="text-base font-bold text-[#1a2340]">سجل إشعارات الفعاليات</h2>
+                <h2 className="text-base font-bold text-[#111111]">سجل إشعارات الفعاليات</h2>
                 <div className="flex flex-wrap gap-2 items-center">
                   <select
                     value={filterStatus}
@@ -313,7 +313,7 @@ export default function HomePage() {
                         <tbody className="divide-y divide-gray-50">
                           {visibleLogs.map((log) => (
                             <tr key={log.id} className="hover:bg-gray-50/50 transition-colors">
-                              <td className="px-4 py-3 font-medium text-[#1a2340]">{log.recipientName}</td>
+                              <td className="px-4 py-3 font-medium text-[#111111]">{log.recipientName}</td>
                               <td className="px-4 py-3">
                                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${log.type === "WHATSAPP" ? "bg-success-bg text-success-text" : "bg-blue-50 text-blue-700"}`}>
                                   {log.type === "WHATSAPP" ? "واتساب" : "بريد"}

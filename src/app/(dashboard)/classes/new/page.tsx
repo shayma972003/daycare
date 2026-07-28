@@ -81,7 +81,7 @@ export default function NewClassPage() {
       <div className="p-6 space-y-5 max-w-2xl">
         <button
           onClick={() => router.push("/classes")}
-          className="text-sm text-[#1a2340] hover:underline flex items-center gap-1"
+          className="text-sm text-[#111111] hover:underline flex items-center gap-1"
         >
           ← {t("classes.title")}
         </button>

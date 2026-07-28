@@ -4,12 +4,20 @@ import { t } from "@/lib/utils";
 
 type DeliveryStatus = "SENT" | "FAILED";
 
-const PAYMENT_COLORS: Record<string, string> = {
-  PAID:             "bg-success-bg text-success-text",
-  LATE:             "bg-warning-bg text-warning-text",
-  CANCELLED:        "bg-danger-bg text-danger-text",
-  SUSPENDED:        "bg-neutral-bg text-neutral-text",
-  "بانتظار الدفع":  "bg-pending-bg text-pending-text",
+const PAYMENT_DOT_COLORS: Record<string, string> = {
+  PAID:             "bg-[#2D7A4F]",
+  LATE:             "bg-[#C45000]",
+  CANCELLED:        "bg-[#C0232C]",
+  SUSPENDED:        "bg-gray-400",
+  "بانتظار الدفع":  "bg-[#7C3AED]",
+};
+
+const PAYMENT_TEXT_COLORS: Record<string, string> = {
+  PAID:             "text-[#2D7A4F]",
+  LATE:             "text-[#C45000]",
+  CANCELLED:        "text-[#C0232C]",
+  SUSPENDED:        "text-gray-500",
+  "بانتظار الدفع":  "text-[#7C3AED]",
 };
 
 const PAYMENT_LABELS: Record<string, string> = {
@@ -20,16 +28,23 @@ const PAYMENT_LABELS: Record<string, string> = {
   "بانتظار الدفع":  "بانتظار الدفع",
 };
 
-const deliveryColors: Record<DeliveryStatus, string> = {
-  SENT: "bg-success-bg text-success-text",
-  FAILED: "bg-danger-bg text-danger-text",
+const deliveryDotColors: Record<DeliveryStatus, string> = {
+  SENT: "bg-[#2D7A4F]",
+  FAILED: "bg-[#C0232C]",
+};
+
+const deliveryTextColors: Record<DeliveryStatus, string> = {
+  SENT: "text-[#2D7A4F]",
+  FAILED: "text-[#C0232C]",
 };
 
 export function PaymentStatusBadge({ status }: { status: string }) {
-  const cls = PAYMENT_COLORS[status] ?? "bg-gray-100 text-gray-600";
+  const dot = PAYMENT_DOT_COLORS[status] ?? "bg-gray-300";
+  const text = PAYMENT_TEXT_COLORS[status] ?? "text-gray-500";
   const label = PAYMENT_LABELS[status] ?? (t(`paymentStatus.${status}`) || status);
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${cls}`}>
+    <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${text}`}>
+      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${dot}`} />
       {label}
     </span>
   );
@@ -37,7 +52,8 @@ export function PaymentStatusBadge({ status }: { status: string }) {
 
 export function DeliveryStatusBadge({ status }: { status: DeliveryStatus }) {
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${deliveryColors[status]}`}>
+    <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${deliveryTextColors[status]}`}>
+      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${deliveryDotColors[status]}`} />
       {t(`deliveryStatus.${status}`)}
     </span>
   );
@@ -45,7 +61,8 @@ export function DeliveryStatusBadge({ status }: { status: DeliveryStatus }) {
 
 export function PeriodBadge({ period }: { period: "MORNING" | "EVENING" }) {
   return (
-    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-light text-teal-dark">
+    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-teal">
+      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-teal" />
       {t(`periods.${period}`)}
     </span>
   );

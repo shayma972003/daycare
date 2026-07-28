@@ -75,9 +75,9 @@ function StepIndicator({ currentStep }: { currentStep: number }) {
               <div
                 className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold border-2 transition-all ${
                   isCompleted
-                    ? "bg-success-bg0 border-success-text text-white"
+                    ? "bg-success-text border-success-text text-white"
                     : isCurrent
-                    ? "bg-[#1a2340] border-[#1a2340] text-white"
+                    ? "bg-[#111111] border-[#111111] text-white"
                     : "bg-white border-gray-300 text-gray-400"
                 }`}
               >
@@ -85,7 +85,7 @@ function StepIndicator({ currentStep }: { currentStep: number }) {
               </div>
               <span
                 className={`text-xs mt-1 whitespace-nowrap ${
-                  isCurrent ? "text-[#1a2340] font-semibold" : isCompleted ? "text-success-text" : "text-gray-400"
+                  isCurrent ? "text-[#111111] font-semibold" : isCompleted ? "text-success-text" : "text-gray-400"
                 }`}
               >
                 {label}
@@ -94,7 +94,7 @@ function StepIndicator({ currentStep }: { currentStep: number }) {
             {i < STEPS.length - 1 && (
               <div
                 className={`w-10 h-0.5 mx-1 mb-4 ${
-                  stepNum < currentStep ? "bg-success-bg0" : "bg-gray-200"
+                  stepNum < currentStep ? "bg-success-text" : "bg-gray-200"
                 }`}
               />
             )}
@@ -288,11 +288,11 @@ export default function TeachersImportPage() {
         {/* STEP 1: Upload */}
         {step === 1 && (
           <div className="bg-white rounded-2xl shadow-md p-8">
-            <h2 className="text-xl font-bold text-[#1a2340] mb-2">رفع ملف المعلمين</h2>
+            <h2 className="text-xl font-bold text-[#111111] mb-2">رفع ملف المعلمين</h2>
             <p className="text-sm text-gray-500 mb-6">يدعم النظام ملفات .xlsx و .csv</p>
             <div
               className={`border-2 border-dashed rounded-2xl p-12 text-center transition-colors cursor-pointer ${
-                dragOver ? "border-[#F64651] bg-success-bg" : "border-gray-200 hover:border-[#1a2340]"
+                dragOver ? "border-[#F64651] bg-success-bg" : "border-gray-200 hover:border-[#111111]"
               }`}
               onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
               onDragLeave={() => setDragOver(false)}
@@ -302,7 +302,7 @@ export default function TeachersImportPage() {
               <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <span className="text-3xl">📄</span>
               </div>
-              <p className="text-[#1a2340] font-semibold mb-1">اسحب الملف هنا أو انقر للاختيار</p>
+              <p className="text-[#111111] font-semibold mb-1">اسحب الملف هنا أو انقر للاختيار</p>
               <p className="text-xs text-gray-400">الصيغ المدعومة: .xlsx, .csv</p>
               {selectedFile && (
                 <p className="mt-3 text-sm text-success-text font-medium">
@@ -318,8 +318,8 @@ export default function TeachersImportPage() {
               onChange={handleFileInputChange}
             />
             {loading && (
-              <div className="mt-6 flex items-center justify-center gap-3 text-[#1a2340]">
-                <div className="w-5 h-5 border-2 border-gray-200 border-t-[#1a2340] rounded-full animate-spin" />
+              <div className="mt-6 flex items-center justify-center gap-3 text-[#111111]">
+                <div className="w-5 h-5 border-2 border-gray-200 border-t-[#111111] rounded-full animate-spin" />
                 <span className="text-sm">جاري رفع الملف...</span>
               </div>
             )}
@@ -331,10 +331,10 @@ export default function TeachersImportPage() {
           <div className="bg-white rounded-2xl shadow-md p-6">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-xl font-bold text-[#1a2340]">معاينة الملف</h2>
+                <h2 className="text-xl font-bold text-[#111111]">معاينة الملف</h2>
                 <p className="text-sm text-gray-500 mt-1">
                   إجمالي الصفوف المكتشفة:{" "}
-                  <span className="font-bold text-[#1a2340]">{previewData.total_rows} صف</span>
+                  <span className="font-bold text-[#111111]">{previewData.total_rows} صف</span>
                 </p>
               </div>
               <div className="flex gap-2">
@@ -347,7 +347,7 @@ export default function TeachersImportPage() {
                 <button
                   onClick={handleDetectMapping}
                   disabled={loading}
-                  className="px-5 py-2 bg-[#1a2340] text-white rounded-xl text-sm font-medium hover:bg-[#243060] transition-colors disabled:opacity-60 flex items-center gap-2"
+                  className="px-5 py-2 bg-[#111111] text-white rounded-xl text-sm font-medium hover:bg-[#243060] transition-colors disabled:opacity-60 flex items-center gap-2"
                 >
                   {loading && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
                   المتابعة
@@ -357,9 +357,9 @@ export default function TeachersImportPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="bg-[#1a2340] text-white">
+                  <tr className="bg-gray-50 border-b border-gray-100">
                     {previewData.headers.map((h) => (
-                      <th key={h} className="px-3 py-2 text-right font-medium whitespace-nowrap">
+                      <th key={h} className="px-3 py-2 text-right font-medium text-gray-500 whitespace-nowrap">
                         {h}
                       </th>
                     ))}
@@ -391,13 +391,13 @@ export default function TeachersImportPage() {
           <div className="bg-white rounded-2xl shadow-md p-6">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-xl font-bold text-[#1a2340]">تعيين الأعمدة</h2>
+                <h2 className="text-xl font-bold text-[#111111]">تعيين الأعمدة</h2>
                 <p className="text-sm text-gray-500 mt-1">تحقق من تعيين كل عمود للحقل الصحيح</p>
               </div>
               <button
                 onClick={handleSaveMappingAndProceed}
                 disabled={loading}
-                className="px-5 py-2 bg-[#1a2340] text-white rounded-xl text-sm font-medium hover:bg-[#243060] transition-colors disabled:opacity-60 flex items-center gap-2"
+                className="px-5 py-2 bg-[#111111] text-white rounded-xl text-sm font-medium hover:bg-[#243060] transition-colors disabled:opacity-60 flex items-center gap-2"
               >
                 {loading && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
                 تأكيد التعيين والمتابعة
@@ -423,12 +423,12 @@ export default function TeachersImportPage() {
                           : "bg-white"
                       }`}
                     >
-                      <td className="px-4 py-3 font-medium text-[#1a2340]">{entry.uploadedColumn}</td>
+                      <td className="px-4 py-3 font-medium text-[#111111]">{entry.uploadedColumn}</td>
                       <td className="px-4 py-3">
                         <select
                           value={entry.mappedField ?? ""}
                           onChange={(e) => updateMappingField(index, e.target.value || null)}
-                          className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a2340] w-full"
+                          className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#111111] w-full"
                         >
                           <option value="">تجاهل هذا العمود</option>
                           {ALL_TEACHER_FIELDS.map((field) => (
@@ -467,7 +467,7 @@ export default function TeachersImportPage() {
           <div className="bg-white rounded-2xl shadow-md p-12 flex flex-col items-center justify-center gap-6">
             <div className="w-16 h-16 border-4 border-gray-100 border-t-[#F64651] rounded-full animate-spin" />
             <div className="text-center">
-              <p className="text-xl font-bold text-[#1a2340]">جاري الاستيراد...</p>
+              <p className="text-xl font-bold text-[#111111]">جاري الاستيراد...</p>
               <p className="text-sm text-gray-500 mt-1">يرجى الانتظار، لا تغلق الصفحة</p>
             </div>
             {error && (
@@ -485,7 +485,7 @@ export default function TeachersImportPage() {
               <div className="w-16 h-16 bg-success-bg rounded-full flex items-center justify-center mx-auto mb-3">
                 <span className="text-3xl">✓</span>
               </div>
-              <h2 className="text-xl font-bold text-[#1a2340]">تم الاستيراد بنجاح</h2>
+              <h2 className="text-xl font-bold text-[#111111]">تم الاستيراد بنجاح</h2>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
@@ -518,7 +518,7 @@ export default function TeachersImportPage() {
                     .map((row) => (
                       <div key={row.id} className="px-4 py-2 border-b border-red-50 last:border-b-0 bg-red-50/50">
                         <span className="text-xs font-medium text-gray-500">صف {row.row_number}: </span>
-                        <span className="text-xs text-[#1a2340] font-medium">
+                        <span className="text-xs text-[#111111] font-medium">
                           {String((row.mapped_data as Record<string, unknown>)?.full_name ?? "")}
                         </span>
                         <div className="mt-0.5">
@@ -546,7 +546,7 @@ export default function TeachersImportPage() {
               )}
               <button
                 onClick={() => router.push("/teachers")}
-                className="px-5 py-2 bg-[#1a2340] text-white rounded-xl text-sm font-medium hover:bg-[#243060] transition-colors"
+                className="px-5 py-2 bg-[#111111] text-white rounded-xl text-sm font-medium hover:bg-[#243060] transition-colors"
               >
                 العودة إلى قائمة المعلمين
               </button>

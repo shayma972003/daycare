@@ -246,7 +246,7 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
         >
           <Dialog.Description className="sr-only">نافذة إصدار فاتورة للطالب</Dialog.Description>
           <div className="flex items-center justify-between mb-5">
-            <Dialog.Title className="text-lg font-bold text-[#1a2340]">إصدار فاتورة</Dialog.Title>
+            <Dialog.Title className="text-lg font-bold text-[#111111]">إصدار فاتورة</Dialog.Title>
             <Dialog.Close asChild>
               <button className="text-gray-400 hover:text-gray-600 text-xl font-bold w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors">
                 ×
@@ -268,7 +268,7 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
 
               {/* School info */}
               <div className="bg-gray-50 rounded-xl p-4">
-                <h3 className="text-sm font-bold text-[#1a2340] mb-3">بيانات الحضانة</h3>
+                <h3 className="text-sm font-bold text-[#111111] mb-3">بيانات الحضانة</h3>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs text-gray-500 block mb-1">اسم الحضانة</label>
@@ -299,7 +299,7 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
 
               {/* Invoice meta */}
               <div className="bg-gray-50 rounded-xl p-4">
-                <h3 className="text-sm font-bold text-[#1a2340] mb-3">بيانات الفاتورة</h3>
+                <h3 className="text-sm font-bold text-[#111111] mb-3">بيانات الفاتورة</h3>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs text-gray-500 block mb-1">رقم الفاتورة</label>
@@ -334,7 +334,7 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
 
               {/* Student / Guardian */}
               <div className="bg-gray-50 rounded-xl p-4">
-                <h3 className="text-sm font-bold text-[#1a2340] mb-3">بيانات الطالب وولي الأمر</h3>
+                <h3 className="text-sm font-bold text-[#111111] mb-3">بيانات الطالب وولي الأمر</h3>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs text-gray-500 block mb-1">اسم الطفل</label>
@@ -373,10 +373,10 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
 
               {/* Main line items */}
               <div>
-                <h3 className="text-sm font-bold text-[#1a2340] mb-3">بنود الفاتورة</h3>
+                <h3 className="text-sm font-bold text-[#111111] mb-3">بنود الفاتورة</h3>
                 <div className="border border-gray-200 rounded-xl overflow-hidden">
                   <table className="w-full text-sm">
-                    <thead className="bg-[#1a2340] text-white">
+                    <thead className="bg-gray-50 border-b border-gray-100 text-gray-500">
                       <tr>
                         <th className="px-3 py-2 text-right">الوصف</th>
                         <th className="px-3 py-2 text-right w-20">الكمية</th>
@@ -443,7 +443,7 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
                     >
                       + إضافة صف
                     </button>
-                    <span className="text-sm font-bold text-[#1a2340]">
+                    <span className="text-sm font-bold text-[#111111]">
                       الإجمالي: {calcTotal(lineItems).toFixed(2)} ر.س
                     </span>
                   </div>
@@ -459,7 +459,7 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
                     onChange={(e) => setIncludeActivities(e.target.checked)}
                     className="w-4 h-4 accent-[#F64651]"
                   />
-                  <span className="text-sm font-medium text-[#1a2340]">أضف الفعاليات إلى الفاتورة</span>
+                  <span className="text-sm font-medium text-[#111111]">أضف الفعاليات إلى الفاتورة</span>
                 </label>
 
                 {includeActivities && (
@@ -474,7 +474,7 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
                           <span className="text-xs font-semibold text-gray-600">الفعاليات</span>
                         </div>
                         <table className="w-full text-sm">
-                          <thead className="bg-[#1a2340]/80 text-white">
+                          <thead className="bg-gray-50 border-b border-gray-100 text-gray-500">
                             <tr>
                               <th className="px-3 py-2 text-right">الوصف</th>
                               <th className="px-3 py-2 text-right w-20">الكمية</th>
@@ -523,7 +523,7 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
                           </tbody>
                         </table>
                         <div className="px-3 py-2 bg-gray-50 flex justify-end">
-                          <span className="text-sm font-bold text-[#1a2340]">
+                          <span className="text-sm font-bold text-[#111111]">
                             إجمالي الفعاليات: {calcTotal(activityItems).toFixed(2)} ر.س
                           </span>
                         </div>
@@ -535,9 +535,9 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
 
               {/* Grand total */}
               <div className="flex justify-end">
-                <div className="bg-[#1a2340] text-white rounded-xl px-6 py-3">
-                  <span className="text-sm">الإجمالي الكلي: </span>
-                  <span className="text-lg font-bold">{grandTotal.toFixed(2)} ر.س</span>
+                <div className="bg-gray-50 border border-gray-100 rounded-xl px-6 py-3">
+                  <span className="text-sm text-gray-500">الإجمالي الكلي: </span>
+                  <span className="text-lg font-bold text-coral">{grandTotal.toFixed(2)} ر.س</span>
                 </div>
               </div>
 

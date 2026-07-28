@@ -157,7 +157,7 @@ export default function ClassesPage() {
 
                 {/* Card body */}
                 <div className="p-3 space-y-2">
-                  <p className="font-bold text-[#1a2340] text-sm leading-tight line-clamp-1">
+                  <p className="font-bold text-[#111111] text-sm leading-tight line-clamp-1">
                     {cls.name}
                   </p>
 

@@ -7,10 +7,10 @@ interface CardProps {
   hoverable?: boolean;
 }
 
-const accentColors = {
-  coral: "border-r-4 border-r-coral",
-  yellow: "border-r-4 border-r-yellow",
-  teal: "border-r-4 border-r-teal",
+const accentLine = {
+  coral: "before:absolute before:top-0 before:right-0 before:left-0 before:h-[3px] before:bg-coral before:rounded-t-xl",
+  yellow: "before:absolute before:top-0 before:right-0 before:left-0 before:h-[3px] before:bg-yellow before:rounded-t-xl",
+  teal: "before:absolute before:top-0 before:right-0 before:left-0 before:h-[3px] before:bg-teal before:rounded-t-xl",
   none: "",
 };
 
@@ -18,9 +18,10 @@ export function Card({ children, className, accent = "none", hoverable = false }
   return (
     <div
       className={cn(
-        "bg-white rounded-xl p-card shadow-card",
-        hoverable && "cursor-pointer hover:shadow-card-hover hover:-translate-y-0.5",
-        accentColors[accent],
+        "relative bg-white rounded-xl p-card shadow-card",
+        hoverable && "cursor-pointer hover:shadow-card-hover hover:-translate-y-0.5 transition-all",
+        accent !== "none" && "overflow-hidden",
+        accentLine[accent],
         className
       )}
     >
@@ -34,5 +35,5 @@ export function CardHeader({ children, className }: { children: React.ReactNode;
 }
 
 export function CardTitle({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <h3 className={cn("font-bold text-navy text-lg", className)}>{children}</h3>;
+  return <h3 className={cn("font-bold text-gray-900 text-lg", className)}>{children}</h3>;
 }

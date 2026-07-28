@@ -233,7 +233,7 @@ export function TeacherInvoiceModal({ open, teacherId, onClose, onIssued }: Teac
           <Dialog.Description className="sr-only">نافذة إصدار فاتورة للمعلم</Dialog.Description>
 
           <div className="flex items-center justify-between mb-5">
-            <Dialog.Title className="text-lg font-bold text-[#1a2340]">إصدار فاتورة — معلم</Dialog.Title>
+            <Dialog.Title className="text-lg font-bold text-[#111111]">إصدار فاتورة — معلم</Dialog.Title>
             <Dialog.Close asChild>
               <button className="text-gray-400 hover:text-gray-600 text-xl font-bold w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors">
                 ×
@@ -255,7 +255,7 @@ export function TeacherInvoiceModal({ open, teacherId, onClose, onIssued }: Teac
 
               {/* School info */}
               <div className="bg-gray-50 rounded-xl p-4">
-                <h3 className="text-sm font-bold text-[#1a2340] mb-3">بيانات الحضانة</h3>
+                <h3 className="text-sm font-bold text-[#111111] mb-3">بيانات الحضانة</h3>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs text-gray-500 block mb-1">اسم الحضانة</label>
@@ -286,7 +286,7 @@ export function TeacherInvoiceModal({ open, teacherId, onClose, onIssued }: Teac
 
               {/* Invoice meta */}
               <div className="bg-gray-50 rounded-xl p-4">
-                <h3 className="text-sm font-bold text-[#1a2340] mb-3">بيانات الفاتورة</h3>
+                <h3 className="text-sm font-bold text-[#111111] mb-3">بيانات الفاتورة</h3>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs text-gray-500 block mb-1">رقم الفاتورة</label>
@@ -321,7 +321,7 @@ export function TeacherInvoiceModal({ open, teacherId, onClose, onIssued }: Teac
 
               {/* Teacher info */}
               <div className="bg-gray-50 rounded-xl p-4">
-                <h3 className="text-sm font-bold text-[#1a2340] mb-3">بيانات المعلم</h3>
+                <h3 className="text-sm font-bold text-[#111111] mb-3">بيانات المعلم</h3>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs text-gray-500 block mb-1">اسم المعلم</label>
@@ -351,10 +351,10 @@ export function TeacherInvoiceModal({ open, teacherId, onClose, onIssued }: Teac
 
               {/* Line items table */}
               <div>
-                <h3 className="text-sm font-bold text-[#1a2340] mb-3">تفاصيل الراتب</h3>
+                <h3 className="text-sm font-bold text-[#111111] mb-3">تفاصيل الراتب</h3>
                 <div className="border border-gray-200 rounded-xl overflow-hidden">
                   <table className="w-full text-sm">
-                    <thead className="bg-[#1a2340] text-white">
+                    <thead className="bg-gray-50 border-b border-gray-100 text-gray-500">
                       <tr>
                         <th className="px-3 py-2 text-right">الوصف</th>
                         <th className="px-3 py-2 text-right w-28">ساعات التأخير</th>
@@ -432,7 +432,7 @@ export function TeacherInvoiceModal({ open, teacherId, onClose, onIssued }: Teac
                     >
                       + إضافة صف
                     </button>
-                    <span className="text-sm font-bold text-[#1a2340]">
+                    <span className="text-sm font-bold text-[#111111]">
                       صافي الراتب: {netSalary.toFixed(2)} ر.س
                     </span>
                   </div>
@@ -441,9 +441,9 @@ export function TeacherInvoiceModal({ open, teacherId, onClose, onIssued }: Teac
 
               {/* Net salary summary */}
               <div className="flex justify-end">
-                <div className="bg-[#1a2340] text-white rounded-xl px-6 py-3">
-                  <span className="text-sm">صافي الراتب: </span>
-                  <span className="text-lg font-bold">{netSalary.toFixed(2)} ر.س</span>
+                <div className="bg-gray-50 border border-gray-100 rounded-xl px-6 py-3">
+                  <span className="text-sm text-gray-500">صافي الراتب: </span>
+                  <span className="text-lg font-bold text-coral">{netSalary.toFixed(2)} ر.س</span>
                 </div>
               </div>
 

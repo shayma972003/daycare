@@ -38,7 +38,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-const inputCls = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a2340]";
+const inputCls = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111111]";
 
 export default function NewTeacherPage() {
   const router = useRouter();
@@ -86,7 +86,7 @@ export default function NewTeacherPage() {
       <div className="p-6">
         <button
           onClick={() => router.push("/teachers")}
-          className="mb-4 text-sm text-[#1a2340] hover:underline flex items-center gap-1"
+          className="mb-4 text-sm text-[#111111] hover:underline flex items-center gap-1"
         >
           ← {t("teachers.title")}
         </button>
@@ -97,7 +97,7 @@ export default function NewTeacherPage() {
 
         <form onSubmit={handleSubmit(onSubmit)}>
           <div className="bg-white rounded-xl shadow-md p-6">
-            <h2 className="text-base font-bold text-[#1a2340] mb-5">بيانات المعلم</h2>
+            <h2 className="text-base font-bold text-[#111111] mb-5">بيانات المعلم</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
 
               <Field label="الاسم الكامل">

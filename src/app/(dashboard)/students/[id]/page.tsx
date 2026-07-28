@@ -74,7 +74,7 @@ type FormData = {
   paymentStatus: string;
 };
 
-const inputCls = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a2340]";
+const inputCls = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111111]";
 const readonlyCls = "w-full border border-gray-100 bg-gray-50 rounded-lg px-3 py-2 text-sm text-gray-500";
 
 export default function StudentProfilePage({
@@ -402,7 +402,7 @@ export default function StudentProfilePage({
       <div className="p-6">
         <button
           onClick={() => router.push("/students")}
-          className="mb-4 text-sm text-[#1a2340] hover:underline flex items-center gap-1"
+          className="mb-4 text-sm text-[#111111] hover:underline flex items-center gap-1"
         >
           ← {t("students.title")}
         </button>
@@ -414,7 +414,7 @@ export default function StudentProfilePage({
               {/* Card 1: معلومات الطالب */}
               <div className="bg-white rounded-xl shadow-md p-6">
                 <div className="flex items-center justify-between mb-5">
-                  <h2 className="text-base font-bold text-[#1a2340]">معلومات الطالب</h2>
+                  <h2 className="text-base font-bold text-[#111111]">معلومات الطالب</h2>
                   {/* Siblings */}
                   {student?.siblings && student.siblings.length > 0 && (
                     <div className="flex items-center gap-2 flex-wrap">
@@ -524,7 +524,7 @@ export default function StudentProfilePage({
 
                 {/* إضافة تقييم الطفل */}
                 <div className="mt-5 pt-5 border-t border-gray-100">
-                  <h3 className="text-sm font-bold text-[#1a2340] mb-3">إضافة تقييم الطفل</h3>
+                  <h3 className="text-sm font-bold text-[#111111] mb-3">إضافة تقييم الطفل</h3>
                   <input
                     ref={evalFileInputRef}
                     type="file"
@@ -578,7 +578,7 @@ export default function StudentProfilePage({
 
               {/* Card 2: المعلومات الصحية */}
               <div className="bg-white rounded-xl shadow-md p-6">
-                <h2 className="text-base font-bold text-[#1a2340] mb-5">المعلومات الصحية</h2>
+                <h2 className="text-base font-bold text-[#111111] mb-5">المعلومات الصحية</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">{t("students.profile.healthCondition")}</label>
@@ -594,7 +594,7 @@ export default function StudentProfilePage({
               {/* Card 3: معلومات ولي الأمر */}
               <div className="bg-white rounded-xl shadow-md p-6">
                 <div className="flex items-center justify-between mb-5">
-                  <h2 className="text-base font-bold text-[#1a2340]">معلومات ولي الأمر</h2>
+                  <h2 className="text-base font-bold text-[#111111]">معلومات ولي الأمر</h2>
                   {guardianLinked && (
                     <span className="text-xs bg-success-bg text-success-text border border-success-text/20 px-3 py-1 rounded-full font-medium">
                       تم ربط ولي الأمر الموجود
@@ -628,7 +628,7 @@ export default function StudentProfilePage({
                           >
                             <div className="flex items-center justify-between gap-2">
                               <div>
-                                <div className="font-medium text-[#1a2340]">{g.name}</div>
+                                <div className="font-medium text-[#111111]">{g.name}</div>
                                 <div className="text-xs text-gray-400">{[g.phone1, g.email].filter(Boolean).join(" · ")}</div>
                               </div>
                               {g.students && g.students.length > 0 && (
@@ -707,7 +707,7 @@ export default function StudentProfilePage({
 
               {/* Card 4: معلومات التسجيل */}
               <div className="bg-white rounded-xl shadow-md p-6">
-                <h2 className="text-base font-bold text-[#1a2340] mb-5">معلومات التسجيل</h2>
+                <h2 className="text-base font-bold text-[#111111] mb-5">معلومات التسجيل</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">طبيعة الدوام</label>
@@ -813,7 +813,7 @@ export default function StudentProfilePage({
         {showTrashModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
             <div className="bg-white rounded-2xl shadow-xl p-6 w-96 text-center space-y-4">
-              <p className="text-base font-bold text-[#1a2340]">نقل إلى سلة المحذوفات؟</p>
+              <p className="text-base font-bold text-[#111111]">نقل إلى سلة المحذوفات؟</p>
               <p className="text-sm text-gray-600 whitespace-pre-line">
                 {`سيتم نقل ملف ${student?.name ?? ""} إلى سلة المحذوفات.\nيمكنك استعادته خلال 30 يوماً.`}
               </p>
@@ -839,7 +839,7 @@ export default function StudentProfilePage({
         {showLateFeeConfirm && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
             <div className="bg-white rounded-2xl shadow-xl p-6 w-96 text-center space-y-4">
-              <p className="text-base font-bold text-[#1a2340]">حذف رسوم التأخير؟</p>
+              <p className="text-base font-bold text-[#111111]">حذف رسوم التأخير؟</p>
               <p className="text-sm text-gray-600">هل أنت متأكد من حذف رسوم التأخير لهذا الطالب؟ لن يتم إضافتها إلى الفاتورة.</p>
               <div className="flex gap-3 justify-center">
                 <button
@@ -862,7 +862,7 @@ export default function StudentProfilePage({
         {showReplaceEvalConfirm && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
             <div className="bg-white rounded-2xl shadow-xl p-6 w-96 text-center space-y-4">
-              <p className="text-base font-bold text-[#1a2340]">استبدال الملف؟</p>
+              <p className="text-base font-bold text-[#111111]">استبدال الملف؟</p>
               <p className="text-sm text-gray-600 whitespace-pre-line">
                 {`هل ترغب باستبدال الملف "${evalFileName}"؟\nسيتم حذف الملف الحالي نهائياً.`}
               </p>
@@ -887,7 +887,7 @@ export default function StudentProfilePage({
         {showDeleteEvalConfirm && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
             <div className="bg-white rounded-2xl shadow-xl p-6 w-96 text-center space-y-4">
-              <p className="text-base font-bold text-[#1a2340]">حذف ملف التقييم؟</p>
+              <p className="text-base font-bold text-[#111111]">حذف ملف التقييم؟</p>
               <p className="text-sm text-gray-600">{`سيتم حذف "${evalFileName}" نهائياً.`}</p>
               <div className="flex gap-3 justify-center">
                 <button
@@ -916,7 +916,7 @@ export default function StudentProfilePage({
 
         {/* Invoices */}
         <div className="mt-5 bg-white rounded-xl shadow-md p-6">
-          <h3 className="text-base font-bold text-[#1a2340] mb-4">{t("students.profile.invoices")}</h3>
+          <h3 className="text-base font-bold text-[#111111] mb-4">{t("students.profile.invoices")}</h3>
           {invoices.length === 0 ? (
             <p className="text-sm text-gray-400 text-center py-6">{t("common.noData")}</p>
           ) : (

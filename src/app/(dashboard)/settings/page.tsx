@@ -70,7 +70,7 @@ function SettingsSection({
 }) {
   return (
     <section id={id} className="bg-white rounded-xl shadow-md p-6 space-y-4">
-      <h2 className="text-base font-bold text-[#1a2340] border-b border-gray-100 pb-3">
+      <h2 className="text-base font-bold text-[#111111] border-b border-gray-100 pb-3">
         {title}
       </h2>
       {children}
@@ -584,7 +584,7 @@ export default function SettingsPage() {
       {confirmDeleteLogId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl shadow-xl p-6 w-80 text-center space-y-4">
-            <p className="text-sm font-medium text-[#1a2340]">هل تريد حذف هذا السجل؟</p>
+            <p className="text-sm font-medium text-[#111111]">هل تريد حذف هذا السجل؟</p>
             <div className="flex gap-3 justify-center">
               <button onClick={() => handleDeleteOneLog(confirmDeleteLogId)} disabled={!!deletingLogId} className="px-5 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 disabled:opacity-60">{deletingLogId ? "..." : "حذف"}</button>
               <button onClick={() => setConfirmDeleteLogId(null)} className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm">إلغاء</button>
@@ -597,7 +597,7 @@ export default function SettingsPage() {
       {showActivateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl shadow-xl p-6 w-96 space-y-4">
-            <h3 className="text-base font-bold text-[#1a2340] text-center">تفعيل التحقق بخطوتين</h3>
+            <h3 className="text-base font-bold text-[#111111] text-center">تفعيل التحقق بخطوتين</h3>
 
             {activateStep === "confirm" ? (
               <>
@@ -633,7 +633,7 @@ export default function SettingsPage() {
                     value={activateOtp}
                     onChange={(e) => setActivateOtp(e.target.value.replace(/\D/g, ""))}
                     dir="ltr"
-                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] text-center text-lg tracking-[0.4em]"
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-center text-lg tracking-[0.4em]"
                   />
                 </FormField>
                 {activateError && (
@@ -664,14 +664,14 @@ export default function SettingsPage() {
       {showDeactivateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl shadow-xl p-6 w-96 space-y-4">
-            <h3 className="text-base font-bold text-[#1a2340] text-center">إيقاف التحقق بخطوتين</h3>
+            <h3 className="text-base font-bold text-[#111111] text-center">إيقاف التحقق بخطوتين</h3>
             <FormField label="كلمة المرور الحالية">
               <input
                 type="password"
                 value={deactivatePassword}
                 onChange={(e) => setDeactivatePassword(e.target.value)}
                 dir="ltr"
-                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] text-sm"
+                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                 placeholder="••••••••"
               />
             </FormField>
@@ -701,7 +701,7 @@ export default function SettingsPage() {
       {confirmPermanentDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl shadow-xl p-6 w-96 text-center space-y-4">
-            <p className="text-sm font-medium text-[#1a2340]">
+            <p className="text-sm font-medium text-[#111111]">
               هل أنت متأكد؟ لا يمكن التراجع عن هذا الإجراء
             </p>
             <div className="flex gap-3 justify-center">
@@ -727,7 +727,7 @@ export default function SettingsPage() {
       {showRestoreAllConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl shadow-xl p-6 w-96 text-center space-y-4">
-            <p className="text-sm font-medium text-[#1a2340]">
+            <p className="text-sm font-medium text-[#111111]">
               {trashTab === "students"
                 ? `هل تريد استعادة جميع الطلاب المحذوفين؟ (${trashStudents.length} طلاب)`
                 : trashTab === "teachers"
@@ -757,7 +757,7 @@ export default function SettingsPage() {
       {confirmBulkDeleteLog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl shadow-xl p-6 w-96 text-center space-y-4">
-            <p className="text-sm font-medium text-[#1a2340]">هل تريد حذف جميع سجلات الإشعارات؟ لا يمكن التراجع عن هذا الإجراء</p>
+            <p className="text-sm font-medium text-[#111111]">هل تريد حذف جميع سجلات الإشعارات؟ لا يمكن التراجع عن هذا الإجراء</p>
             <div className="flex gap-3 justify-center">
               <button onClick={handleDeleteBulkLog} disabled={deletingBulkLog} className="px-5 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 disabled:opacity-60">{deletingBulkLog ? "..." : "مسح الكل"}</button>
               <button onClick={() => setConfirmBulkDeleteLog(false)} className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm">إلغاء</button>
@@ -777,7 +777,7 @@ export default function SettingsPage() {
             placeholder={t("settings.search")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pr-9 pl-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] text-sm bg-white"
+            className="w-full pr-9 pl-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm bg-white"
           />
         </div>
 
@@ -829,7 +829,7 @@ export default function SettingsPage() {
                       type="text"
                       value={schoolName}
                       onChange={(e) => setSchoolName(e.target.value)}
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] text-sm"
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                     />
                   </FormField>
                   <FormField label={t("settings.email")}>
@@ -838,7 +838,7 @@ export default function SettingsPage() {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       dir="ltr"
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] text-sm"
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                     />
                   </FormField>
                   <FormField label="رقم السجل التجاري">
@@ -846,7 +846,7 @@ export default function SettingsPage() {
                       type="text"
                       value={commercialRegistration}
                       onChange={(e) => setCommercialRegistration(e.target.value)}
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] text-sm"
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                     />
                   </FormField>
                   <FormField label="الرقم الضريبي VAT">
@@ -855,7 +855,7 @@ export default function SettingsPage() {
                       value={vatNumber}
                       onChange={(e) => setVatNumber(e.target.value)}
                       dir="ltr"
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] text-sm"
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                     />
                   </FormField>
                   <FormField label="رقم التواصل">
@@ -864,7 +864,7 @@ export default function SettingsPage() {
                       value={contactNumber}
                       onChange={(e) => setContactNumber(e.target.value)}
                       dir="ltr"
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] text-sm"
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                     />
                   </FormField>
                   <FormField label="العنوان">
@@ -872,7 +872,7 @@ export default function SettingsPage() {
                       type="text"
                       value={address}
                       onChange={(e) => setAddress(e.target.value)}
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] text-sm"
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                     />
                   </FormField>
                   <FormField label="رقم الجوال">
@@ -882,7 +882,7 @@ export default function SettingsPage() {
                       onChange={(e) => setPhoneNumber(e.target.value)}
                       dir="ltr"
                       placeholder="5XXXXXXXX"
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] text-sm"
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                     />
                   </FormField>
                 </div>
@@ -895,7 +895,7 @@ export default function SettingsPage() {
                 <div className="space-y-4">
                   <p className="text-xs text-gray-500">تُستخدم هذه الأوقات لحساب ساعات التأخير تلقائياً</p>
                   <div>
-                    <h3 className="text-sm font-semibold text-[#1a2340] mb-3">المعلمون</h3>
+                    <h3 className="text-sm font-semibold text-[#111111] mb-3">المعلمون</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <FormField label="وقت الدخول">
                         <input
@@ -903,7 +903,7 @@ export default function SettingsPage() {
                           value={teacherCheckinTime}
                           onChange={(e) => setTeacherCheckinTime(e.target.value)}
                           dir="ltr"
-                          className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] text-sm"
+                          className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                         />
                       </FormField>
                       <FormField label="وقت الخروج">
@@ -912,13 +912,13 @@ export default function SettingsPage() {
                           value={teacherCheckoutTime}
                           onChange={(e) => setTeacherCheckoutTime(e.target.value)}
                           dir="ltr"
-                          className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] text-sm"
+                          className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                         />
                       </FormField>
                     </div>
                   </div>
                   <div>
-                    <h3 className="text-sm font-semibold text-[#1a2340] mb-3">الطلاب</h3>
+                    <h3 className="text-sm font-semibold text-[#111111] mb-3">الطلاب</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <FormField label="وقت الدخول">
                         <input
@@ -926,7 +926,7 @@ export default function SettingsPage() {
                           value={studentCheckinTime}
                           onChange={(e) => setStudentCheckinTime(e.target.value)}
                           dir="ltr"
-                          className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] text-sm"
+                          className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                         />
                       </FormField>
                       <FormField label="وقت الخروج">
@@ -935,7 +935,7 @@ export default function SettingsPage() {
                           value={studentCheckoutTime}
                           onChange={(e) => setStudentCheckoutTime(e.target.value)}
                           dir="ltr"
-                          className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] text-sm"
+                          className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                         />
                       </FormField>
                     </div>
@@ -956,7 +956,7 @@ export default function SettingsPage() {
                     value={currentPassword}
                     onChange={(e) => setCurrentPassword(e.target.value)}
                     dir="ltr"
-                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] text-sm"
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                     placeholder="••••••••"
                   />
                 </FormField>
@@ -966,7 +966,7 @@ export default function SettingsPage() {
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     dir="ltr"
-                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] text-sm"
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                     placeholder="••••••••"
                   />
                 </FormField>
@@ -976,7 +976,7 @@ export default function SettingsPage() {
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     dir="ltr"
-                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] text-sm"
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                     placeholder="••••••••"
                   />
                 </FormField>
@@ -993,7 +993,7 @@ export default function SettingsPage() {
                 <button
                   onClick={handleChangePassword}
                   disabled={savingPassword}
-                  className="px-6 py-2.5 bg-[#1a2340] hover:bg-[#253055] text-white rounded-xl font-bold text-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="px-6 py-2.5 bg-[#111111] hover:bg-[#253055] text-white rounded-xl font-bold text-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {savingPassword ? t("common.loading") : "تغيير كلمة المرور"}
                 </button>
@@ -1005,7 +1005,7 @@ export default function SettingsPage() {
               <SettingsSection id="security" title="الأمان والخصوصية">
                 <div className="flex items-center justify-between gap-4">
                   <div>
-                    <p className="text-sm font-medium text-[#1a2340]">التحقق بخطوتين</p>
+                    <p className="text-sm font-medium text-[#111111]">التحقق بخطوتين</p>
                     <p className="text-xs text-gray-500 mt-1">
                       حماية حسابك بطبقة أمان إضافية عبر رمز يُرسل إلى جوالك عند كل تسجيل دخول
                     </p>
@@ -1051,7 +1051,7 @@ export default function SettingsPage() {
                         onClick={() => setTrashTab(tab)}
                         className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
                           trashTab === tab
-                            ? "bg-[#1a2340] text-white"
+                            ? "bg-[#111111] text-white"
                             : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                         }`}
                       >
@@ -1141,7 +1141,7 @@ export default function SettingsPage() {
                   </span>
                   <button
                     onClick={() => alert("سيتم التواصل معكم لتحديث الخطة")}
-                    className="px-5 py-2 border-2 border-[#1a2340] text-[#1a2340] hover:bg-[#1a2340] hover:text-white rounded-xl font-medium text-sm transition-all"
+                    className="px-5 py-2 border-2 border-[#111111] text-[#111111] hover:bg-[#111111] hover:text-white rounded-xl font-medium text-sm transition-all"
                   >
                     {t("settings.subscription.update")}
                   </button>
@@ -1162,7 +1162,7 @@ export default function SettingsPage() {
                         onChange={(e) =>
                           setHourlyLateFee(parseFloat(e.target.value) || 0)
                         }
-                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] text-sm"
+                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                       />
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
                         {t("common.sar")}
@@ -1178,7 +1178,7 @@ export default function SettingsPage() {
                         onChange={(e) =>
                           setDailyStudentFee(parseFloat(e.target.value) || 0)
                         }
-                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] text-sm"
+                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                       />
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
                         {t("common.sar")}
@@ -1194,7 +1194,7 @@ export default function SettingsPage() {
                         onChange={(e) =>
                           setMonthlyStudentFee(parseFloat(e.target.value) || 0)
                         }
-                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] text-sm"
+                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                       />
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
                         {t("common.sar")}
@@ -1217,7 +1217,7 @@ export default function SettingsPage() {
                     onChange={(e) => setReminderTemplate(e.target.value)}
                     rows={5}
                     placeholder={t("settings.messageTemplate.placeholder")}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] text-sm resize-none"
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm resize-none"
                   />
                 </FormField>
                 <div className="mt-3 p-4 bg-gray-50 rounded-xl text-right">

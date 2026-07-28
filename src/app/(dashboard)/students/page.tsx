@@ -323,7 +323,7 @@ export default function StudentsPage() {
               className="w-full flex items-center justify-between px-5 py-4 hover:bg-amber-50 transition-colors"
             >
               <div className="flex items-center gap-3">
-                <span className="text-sm font-bold text-[#1a2340]">طلبات التسجيل المعلقة</span>
+                <span className="text-sm font-bold text-[#111111]">طلبات التسجيل المعلقة</span>
                 <span className="px-2.5 py-0.5 bg-amber-500 text-white text-xs font-bold rounded-full">
                   {submissions.length} طلبات جديدة
                 </span>
@@ -346,7 +346,7 @@ export default function StudentsPage() {
                   <tbody>
                     {submissions.map((sub) => (
                       <tr key={sub.id} className="border-t border-gray-100 hover:bg-gray-50">
-                        <td className="px-4 py-3 font-medium text-[#1a2340]">{sub.full_name}</td>
+                        <td className="px-4 py-3 font-medium text-[#111111]">{sub.full_name}</td>
                         <td className="px-4 py-3 text-gray-600">{sub.guardian_name ?? "—"}</td>
                         <td className="px-4 py-3 text-gray-600 font-mono text-xs" dir="ltr">{sub.guardian_phone_1 ?? "—"}</td>
                         <td className="px-4 py-3 text-gray-600">{sub.attendance_type ?? "—"}</td>
@@ -357,7 +357,7 @@ export default function StudentsPage() {
                           <div className="flex items-center gap-2">
                             <button
                               onClick={() => openReviewModal(sub)}
-                              className="px-3 py-1.5 text-xs bg-[#1a2340] text-white rounded-lg hover:bg-[#2a3460] transition-colors"
+                              className="px-3 py-1.5 text-xs bg-[#111111] text-white rounded-lg hover:bg-[#2a3460] transition-colors"
                             >
                               مراجعة
                             </button>
@@ -386,12 +386,12 @@ export default function StudentsPage() {
             placeholder={t("students.searchPlaceholder")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a2340] min-w-[200px]"
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111111] min-w-[200px]"
           />
           <select
             value={classFilter}
             onChange={(e) => setClassFilter(e.target.value)}
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a2340]"
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111111]"
           >
             <option value="">{t("students.filterByClass")}</option>
             {classes.map((c) => (
@@ -401,7 +401,7 @@ export default function StudentsPage() {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a2340]"
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111111]"
           >
             <option value="">{t("students.filterByStatus")}</option>
             <option value="PAID">{t("paymentStatus.PAID")}</option>
@@ -413,7 +413,7 @@ export default function StudentsPage() {
           <select
             value={genderFilter}
             onChange={(e) => setGenderFilter(e.target.value)}
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a2340]"
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111111]"
           >
             <option value="">الكل</option>
             <option value="MALE">بنين</option>
@@ -425,7 +425,7 @@ export default function StudentsPage() {
             <select
               value={bulkAction}
               onChange={(e) => setBulkAction(e.target.value)}
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a2340]"
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111111]"
             >
               <option value="">{t("students.bulkAction")}</option>
               <option value="checkin">{t("students.bulkCheckin")}</option>
@@ -440,7 +440,7 @@ export default function StudentsPage() {
             <button
               onClick={applyBulk}
               disabled={!bulkAction || selected.size === 0}
-              className="px-3 py-2 bg-[#1a2340] text-white rounded-lg text-sm disabled:opacity-40"
+              className="px-3 py-2 bg-[#111111] text-white rounded-lg text-sm disabled:opacity-40"
             >
               تنفيذ
             </button>
@@ -459,13 +459,13 @@ export default function StudentsPage() {
               <div className="absolute left-0 top-full mt-1 w-56 bg-white rounded-xl shadow-lg border border-gray-100 z-30 overflow-hidden">
                 <button
                   onClick={() => { setDropdownOpen(false); router.push("/students/new"); }}
-                  className="w-full text-right px-4 py-3 text-sm text-[#1a2340] hover:bg-gray-50 transition-colors border-b border-gray-100"
+                  className="w-full text-right px-4 py-3 text-sm text-[#111111] hover:bg-gray-50 transition-colors border-b border-gray-100"
                 >
                   أضف طالب جديد
                 </button>
                 <button
                   onClick={() => { setDropdownOpen(false); router.push("/students/import"); }}
-                  className="w-full text-right px-4 py-3 text-sm text-[#1a2340] hover:bg-gray-50 transition-colors border-b border-gray-100"
+                  className="w-full text-right px-4 py-3 text-sm text-[#111111] hover:bg-gray-50 transition-colors border-b border-gray-100"
                 >
                   ارفع ملف الطلاب
                 </button>
@@ -517,7 +517,7 @@ export default function StudentsPage() {
             </div>
           ) : (
             <table className="w-full text-sm">
-              <thead className="bg-[#1a2340] text-white text-right">
+              <thead className="bg-gray-50 border-b border-gray-100 text-gray-500 text-right">
                 <tr>
                   <th className="px-4 py-3 w-10">
                     <input
@@ -597,7 +597,7 @@ export default function StudentsPage() {
                           ) : (
                             <AvatarPlaceholder name={student.name} />
                           )}
-                          <span className="font-medium text-[#1a2340]">{student.name}</span>
+                          <span className="font-medium text-[#111111]">{student.name}</span>
                           {!student.isActive && (
                             <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">موقوف</span>
                           )}
@@ -626,7 +626,7 @@ export default function StudentsPage() {
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <button
                             onClick={() => router.push(`/students/${student.id}`)}
-                            className="px-2.5 py-1 text-xs border border-[#1a2340] text-[#1a2340] rounded-lg hover:bg-[#1a2340] hover:text-white transition-colors"
+                            className="px-2.5 py-1 text-xs border border-[#111111] text-[#111111] rounded-lg hover:bg-[#111111] hover:text-white transition-colors"
                           >
                             {t("students.actions.viewMore")}
                           </button>
@@ -651,7 +651,7 @@ export default function StudentsPage() {
       {enrollmentModalOpen && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setEnrollmentModalOpen(false)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-bold text-[#1a2340] mb-4">إرسال نموذج التسجيل</h2>
+            <h2 className="text-lg font-bold text-[#111111] mb-4">إرسال نموذج التسجيل</h2>
             {enrollSuccess ? (
               <div className="text-center py-4">
                 <div className="w-14 h-14 bg-success-bg rounded-full flex items-center justify-center mx-auto mb-3">
@@ -662,7 +662,7 @@ export default function StudentsPage() {
                 </p>
                 <button
                   onClick={() => setEnrollmentModalOpen(false)}
-                  className="mt-4 w-full py-2.5 bg-[#1a2340] text-white rounded-xl text-sm font-medium"
+                  className="mt-4 w-full py-2.5 bg-[#111111] text-white rounded-xl text-sm font-medium"
                 >
                   إغلاق
                 </button>
@@ -723,7 +723,7 @@ export default function StudentsPage() {
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setReviewModalSub(null)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
-              <h2 className="text-lg font-bold text-[#1a2340]">مراجعة طلب التسجيل</h2>
+              <h2 className="text-lg font-bold text-[#111111]">مراجعة طلب التسجيل</h2>
               <button onClick={() => setReviewModalSub(null)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
             </div>
 

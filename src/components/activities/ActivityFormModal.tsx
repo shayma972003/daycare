@@ -220,7 +220,7 @@ export function ActivityFormModal({
             نافذة إضافة أو تعديل نشاط
           </Dialog.Description>
           <div className="flex items-center justify-between mb-5">
-            <Dialog.Title className="text-lg font-bold text-[#1a2340]">
+            <Dialog.Title className="text-lg font-bold text-[#111111]">
               {t("home.activityForm.title")}
             </Dialog.Title>
             <Dialog.Close asChild>

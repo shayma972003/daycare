@@ -13,13 +13,19 @@
   --color-teal-dark: #237585;
   --color-teal-light: #E0F7FA;
 
-  /* Neutrals */
-  --color-navy: #1A2340;
-  --color-brand-bg: #FFF8F0;
+  /* Neutrals — now the dominant palette */
+  --color-navy: #111111;        /* sidebar background — near black */
+  --color-brand-bg: #F7F8FA;    /* page background — cool light gray */
   --color-brand-surface: #FFFFFF;
-  --color-brand-border: #F0EDE8;
+  --color-brand-border: #EBEBEB;
 
-  /* Status Colors */
+  /* Status Colors — flat, for dot + text badges */
+  --color-success: #2D7A4F;
+  --color-warning: #C45000;
+  --color-danger: #C0232C;
+  --color-pending: #7C3AED;
+
+  /* Status Colors — bg/text pairs, for occasional alert banners only */
   --color-success-bg: #E8F5EE;
   --color-success-text: #2D7A4F;
   --color-warning-bg: #FFF0E0;
@@ -40,10 +46,10 @@
   --radius-xl: 20px;
   --radius-2xl: 24px;
 
-  /* Shadows */
-  --shadow-card: 0 2px 12px rgba(0,0,0,0.06);
-  --shadow-card-hover: 0 6px 20px rgba(0,0,0,0.10);
-  --shadow-modal: 0 20px 60px rgba(0,0,0,0.15);
+  /* Shadows — subtle */
+  --shadow-card: 0 1px 4px rgba(0,0,0,0.06);
+  --shadow-card-hover: 0 4px 16px rgba(0,0,0,0.08);
+  --shadow-modal: 0 20px 60px rgba(0,0,0,0.12);
 
   /* Spacing */
   --spacing-page: 32px;
@@ -67,7 +73,7 @@
 
 :root {
   /* legacy aliases kept for any remaining references */
-  --sidebar-bg: #1a2340;
+  --sidebar-bg: #111111;
   --primary-green: #F64651;
   --font-arabic: "Tajawal", sans-serif;
 }

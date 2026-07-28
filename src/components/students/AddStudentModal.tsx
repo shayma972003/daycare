@@ -66,7 +66,7 @@ export function AddStudentModal({ open, onClose, onSaved, classes }: Props) {
           dir="rtl"
           className="fixed right-1/2 top-1/2 z-50 -translate-y-1/2 translate-x-1/2 w-full max-w-lg bg-white rounded-2xl shadow-modal p-6 max-h-[90vh] overflow-y-auto animate-scale-in"
         >
-          <Dialog.Title className="text-lg font-bold text-[#1a2340] mb-5">
+          <Dialog.Title className="text-lg font-bold text-[#111111] mb-5">
             {t("students.addStudent")}
           </Dialog.Title>
           <Dialog.Description className="sr-only">
@@ -81,7 +81,7 @@ export function AddStudentModal({ open, onClose, onSaved, classes }: Props) {
                 </label>
                 <input
                   {...register("name", { required: true })}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a2340]"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111111]"
                 />
               </div>
 
@@ -91,7 +91,7 @@ export function AddStudentModal({ open, onClose, onSaved, classes }: Props) {
                 </label>
                 <input
                   {...register("guardianName1")}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a2340]"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111111]"
                 />
               </div>
 
@@ -102,7 +102,7 @@ export function AddStudentModal({ open, onClose, onSaved, classes }: Props) {
                 <input
                   {...register("phone1")}
                   dir="ltr"
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a2340]"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111111]"
                 />
               </div>
 
@@ -113,7 +113,7 @@ export function AddStudentModal({ open, onClose, onSaved, classes }: Props) {
                 <input
                   {...register("phone2")}
                   dir="ltr"
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a2340]"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111111]"
                 />
               </div>
 
@@ -125,7 +125,7 @@ export function AddStudentModal({ open, onClose, onSaved, classes }: Props) {
                   {...register("email")}
                   type="email"
                   dir="ltr"
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a2340]"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111111]"
                 />
               </div>
 
@@ -135,7 +135,7 @@ export function AddStudentModal({ open, onClose, onSaved, classes }: Props) {
                 </label>
                 <select
                   {...register("period")}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a2340]"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111111]"
                 >
                   <option value="MORNING">{t("periods.MORNING")}</option>
                   <option value="EVENING">{t("periods.EVENING")}</option>
@@ -148,7 +148,7 @@ export function AddStudentModal({ open, onClose, onSaved, classes }: Props) {
                 </label>
                 <select
                   {...register("classId")}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a2340]"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111111]"
                 >
                   <option value="">— {t("common.select")} —</option>
                   {classes.map((c) => (
@@ -163,7 +163,7 @@ export function AddStudentModal({ open, onClose, onSaved, classes }: Props) {
                 </label>
                 <select
                   {...register("gender")}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a2340]"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111111]"
                 >
                   <option value="MALE">{t("gender.MALE")}</option>
                   <option value="FEMALE">{t("gender.FEMALE")}</option>
@@ -176,7 +176,7 @@ export function AddStudentModal({ open, onClose, onSaved, classes }: Props) {
                 </label>
                 <select
                   {...register("paymentMethod")}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a2340]"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111111]"
                 >
                   <option value="CASH">{t("paymentMethod.CASH")}</option>
                   <option value="TRANSFER">{t("paymentMethod.TRANSFER")}</option>
@@ -192,7 +192,7 @@ export function AddStudentModal({ open, onClose, onSaved, classes }: Props) {
                   {...register("dateOfBirth")}
                   type="date"
                   dir="ltr"
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a2340]"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111111]"
                 />
               </div>
 
@@ -202,7 +202,7 @@ export function AddStudentModal({ open, onClose, onSaved, classes }: Props) {
                 </label>
                 <input
                   {...register("nationality")}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a2340]"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111111]"
                 />
               </div>
             </div>

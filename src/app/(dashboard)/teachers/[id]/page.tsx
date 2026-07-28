@@ -201,11 +201,11 @@ export default function TeacherProfilePage() {
     <div className="flex flex-col min-h-screen">
       {/* Header */}
       <div className="h-16 bg-white border-b border-gray-100 flex items-center px-6 shadow-sm sticky top-0 z-30 gap-3">
-        <button onClick={() => router.push("/teachers")} className="text-sm text-gray-500 hover:text-[#1a2340] transition-colors flex items-center gap-1.5">
+        <button onClick={() => router.push("/teachers")} className="text-sm text-gray-500 hover:text-[#111111] transition-colors flex items-center gap-1.5">
           ← {t("teachers.title")}
         </button>
         <span className="text-gray-300">|</span>
-        <h1 className="text-lg font-bold text-[#1a2340]">{teacher.name}</h1>
+        <h1 className="text-lg font-bold text-[#111111]">{teacher.name}</h1>
         {!teacher.isActive && <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">غير نشط</span>}
       </div>
 
@@ -217,7 +217,7 @@ export default function TeacherProfilePage() {
 
               {/* ── بطاقة البيانات الشخصية ─────────────────────────── */}
               <div className="bg-white rounded-xl shadow-md p-6 space-y-4">
-                <h2 className="font-bold text-[#1a2340] text-base border-b border-gray-100 pb-3">البيانات الشخصية</h2>
+                <h2 className="font-bold text-[#111111] text-base border-b border-gray-100 pb-3">البيانات الشخصية</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="sm:col-span-2">
                     <label className={labelCls}>الاسم الكامل</label>
@@ -267,7 +267,7 @@ export default function TeacherProfilePage() {
 
               {/* ── بطاقة بيانات التوظيف ──────────────────────────── */}
               <div className="bg-white rounded-xl shadow-md p-6 space-y-4">
-                <h2 className="font-bold text-[#1a2340] text-base border-b border-gray-100 pb-3">بيانات التوظيف</h2>
+                <h2 className="font-bold text-[#111111] text-base border-b border-gray-100 pb-3">بيانات التوظيف</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className={labelCls}>تاريخ الانضمام</label>
@@ -304,7 +304,7 @@ export default function TeacherProfilePage() {
 
               {/* ── بطاقة المؤهلات الوظيفية ────────────────────────── */}
               <div className="bg-white rounded-xl shadow-md p-6 space-y-4">
-                <h2 className="font-bold text-[#1a2340] text-base border-b border-gray-100 pb-3">المؤهلات الوظيفية</h2>
+                <h2 className="font-bold text-[#111111] text-base border-b border-gray-100 pb-3">المؤهلات الوظيفية</h2>
                 <div className="space-y-3">
                   {([1, 2, 3] as const).map((n) => (
                     <div key={n}>
@@ -373,18 +373,18 @@ export default function TeacherProfilePage() {
               </div>
 
               <div className="bg-white rounded-xl shadow-md p-4 space-y-3">
-                <h3 className="font-bold text-[#1a2340] text-sm">{t("teachers.profile.salaryCalc.title")}</h3>
+                <h3 className="font-bold text-[#111111] text-sm">{t("teachers.profile.salaryCalc.title")}</h3>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between items-center py-1.5 border-b border-gray-50">
                     <span className="text-gray-500">{t("teachers.profile.salaryCalc.baseSalary")}</span>
-                    <span className="font-medium text-[#1a2340]">{formatCurrency(baseSalary)}</span>
+                    <span className="font-medium text-[#111111]">{formatCurrency(baseSalary)}</span>
                   </div>
                   <div className="flex justify-between items-center py-1.5 border-b border-gray-50">
                     <span className="text-gray-500">{t("teachers.profile.salaryCalc.lateDeduction")}</span>
                     <span className="font-medium text-red-600">- {formatCurrency(lateDeduction)}</span>
                   </div>
                   <div className="flex justify-between items-center py-2 bg-gray-50 rounded-lg px-2">
-                    <span className="font-bold text-[#1a2340]">{t("teachers.profile.salaryCalc.netSalary")}</span>
+                    <span className="font-bold text-[#111111]">{t("teachers.profile.salaryCalc.netSalary")}</span>
                     <span className="font-bold text-[#F64651] text-base">{formatCurrency(netSalary)}</span>
                   </div>
                   <p className="text-xs text-gray-400 text-center pt-1">{lateHrs} {t("common.hours")} × {formatCurrency(deductionRate)} = {formatCurrency(lateDeduction)}</p>
@@ -397,7 +397,7 @@ export default function TeacherProfilePage() {
         {/* ── بطاقة الفواتير المصدرة ─────────────────────────────── */}
         <div className="mt-6 bg-white rounded-xl shadow-md overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100">
-            <h2 className="font-bold text-[#1a2340] text-base">{t("teachers.profile.invoices")}</h2>
+            <h2 className="font-bold text-[#111111] text-base">{t("teachers.profile.invoices")}</h2>
           </div>
           {invoices.length === 0 ? (
             <div className="flex items-center justify-center py-10 text-gray-400 text-sm">{t("common.noData")}</div>
@@ -442,14 +442,14 @@ export default function TeacherProfilePage() {
           <div className="bg-white rounded-2xl shadow-xl p-6 w-96 text-center space-y-4">
             {trashClasses.length === 0 ? (
               <>
-                <p className="text-base font-bold text-[#1a2340]">نقل إلى سلة المحذوفات؟</p>
+                <p className="text-base font-bold text-[#111111]">نقل إلى سلة المحذوفات؟</p>
                 <p className="text-sm text-gray-600 whitespace-pre-line">
                   {`سيتم نقل ملف ${teacher?.name ?? ""} إلى سلة المحذوفات.\nيمكنك استعادته خلال 30 يوماً.`}
                 </p>
               </>
             ) : (
               <>
-                <p className="text-base font-bold text-[#1a2340] text-right">هذا المعلم هو المعلم المسؤول على:</p>
+                <p className="text-base font-bold text-[#111111] text-right">هذا المعلم هو المعلم المسؤول على:</p>
                 <ul className="text-sm text-gray-700 text-right space-y-1 max-h-40 overflow-y-auto">
                   {trashClasses.map((c) => (
                     <li key={c.id}>- {c.name} ({c.group})</li>
@@ -482,7 +482,7 @@ export default function TeacherProfilePage() {
       {showLateFeeConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl shadow-xl p-6 w-96 text-center space-y-4">
-            <p className="text-base font-bold text-[#1a2340]">حذف رسوم التأخير؟</p>
+            <p className="text-base font-bold text-[#111111]">حذف رسوم التأخير؟</p>
             <p className="text-sm text-gray-600">هل أنت متأكد من حذف رسوم التأخير لهذا المعلم؟</p>
             <div className="flex gap-3 justify-center">
               <button

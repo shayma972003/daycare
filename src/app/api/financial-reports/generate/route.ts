@@ -100,7 +100,7 @@ export async function POST(request: Request) {
   const { type, period_label } = parsed.data;
   const { from, to } = getPeriodRange(type);
 
-  const [school, studentRevenue, teacherInvoices, expenses, regFeeResult, paymentStatusGroups] = await Promise.all([
+  const [school, studentRevenue, teacherInvoices, expenses, paymentStatusGroups] = await Promise.all([
     prisma.school.findUnique({ where: { id: schoolId } }),
     prisma.invoice.aggregate({
       where: { schoolId, type: "STUDENT", createdAt: { gte: from, lte: to } },
@@ -112,12 +112,10 @@ export async function POST(request: Request) {
       orderBy: { createdAt: "asc" },
     }),
     prisma.expense.findMany({ where: { school_id: schoolId } }),
-    prisma.student.aggregate({ where: { schoolId, isActive: true }, _sum: { registration_fee: true } }),
     prisma.student.groupBy({ by: ["paymentStatus"], where: { schoolId }, _count: { paymentStatus: true } }),
   ]);
 
   const revenue = studentRevenue._sum.amount ?? 0;
-  const regFees = regFeeResult._sum.registration_fee ?? 0;
 
   const paymentStatusBreakdown: Record<string, number> = { PAID: 0, LATE: 0, "بانتظار الدفع": 0 };
   for (const g of paymentStatusGroups) {
@@ -145,7 +143,6 @@ export async function POST(request: Request) {
       createElement(View, { style: styles.section },
         createElement(Text, { style: styles.sectionTitle }, "الملخص المالي"),
         createElement(View, { style: styles.row }, createElement(Text, { style: styles.label }, "الإيرادات"), createElement(Text, { style: styles.value }, fmt(revenue))),
-        createElement(View, { style: styles.row }, createElement(Text, { style: styles.label }, "رسوم التسجيل"), createElement(Text, { style: styles.value }, fmt(regFees))),
         createElement(View, { style: styles.row }, createElement(Text, { style: styles.label }, "المصاريف الكلية"), createElement(Text, { style: styles.value }, fmt(totalExpenses))),
         createElement(View, { style: styles.row }, createElement(Text, { style: styles.label }, netProfit >= 0 ? "صافي الربح" : "صافي الخسارة"), createElement(Text, { style: { ...styles.value, color: netProfit >= 0 ? "#22c55e" : "#ef4444" } }, fmt(Math.abs(netProfit)))),
       ),

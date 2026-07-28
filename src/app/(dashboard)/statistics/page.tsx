@@ -275,6 +275,7 @@ function EditExpenseRow({ expense, onSaved, onCancel }: { expense: Expense; onSa
 function SummaryTab() {
   const [summary, setSummary] = useState<FinancialSummary | null>(null);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [teacherInvoices, setTeacherInvoices] = useState<{ amount: number; createdAt: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [reports, setReports] = useState<Report[]>([]);
   const [loadingReports, setLoadingReports] = useState(true);
@@ -284,9 +285,11 @@ function SummaryTab() {
     Promise.all([
       axios.get<{ totalRegistrationFees: number; paymentStatusBreakdown: PaymentStatusBreakdown }>("/api/statistics/summary"),
       axios.get<Expense[]>("/api/expenses"),
-    ]).then(([sumRes, expRes]) => {
+      axios.get<{ amount: number; createdAt: string }[]>("/api/invoices?type=TEACHER"),
+    ]).then(([sumRes, expRes, teacherInvRes]) => {
       setSummary(sumRes.data);
       setExpenses(expRes.data);
+      setTeacherInvoices(teacherInvRes.data);
     }).finally(() => setLoading(false));
   }, []);
 
@@ -296,7 +299,17 @@ function SummaryTab() {
       .finally(() => setLoadingReports(false));
   }, []);
 
-  const totalExpenses = getCurrentMonthExpenses(expenses);
+  const salariesThisMonth = (() => {
+    const now = new Date();
+    return teacherInvoices
+      .filter((inv) => {
+        const d = new Date(inv.createdAt);
+        return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+      })
+      .reduce((s, inv) => s + inv.amount, 0);
+  })();
+
+  const totalExpenses = getCurrentMonthExpenses(expenses) + salariesThisMonth;
 
   const paymentPieData = summary
     ? Object.entries(summary.paymentStatusBreakdown).filter(([, v]) => v > 0).map(([key, count]) => ({

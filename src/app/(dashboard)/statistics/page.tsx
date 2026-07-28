@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
-import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, Label } from "recharts";
 import { Topbar } from "@/components/layout/Topbar";
 import { formatCurrency, t } from "@/lib/utils";
 
@@ -35,12 +35,33 @@ interface Report {
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
+// Teal family — base + progressively lighter shades
 const PAYMENT_STATUS_COLORS: Record<string, string> = {
-  PAID: "#2D7A4F", LATE: "#C45000", CANCELLED: "#C0232C", SUSPENDED: "#666666", "بانتظار الدفع": "#7C3AED",
+  PAID: "#2F96A6", LATE: "#5BAEBA", CANCELLED: "#87C6CF", SUSPENDED: "#B3DCE3", "بانتظار الدفع": "#D9EEF1",
 };
 const PAYMENT_STATUS_LABELS: Record<string, string> = {
   PAID: "مدفوع", LATE: "متأخر", CANCELLED: "ملغي", SUSPENDED: "موقف", "بانتظار الدفع": "بانتظار الدفع",
 };
+
+// Teal family (base + 2 shades) followed by yellow family (base + 2 shades), gray as fallback
+const EXPENSE_COLORS = [
+  "#2F96A6", "#5BAEBA", "#87C6CF",
+  "#F8B500", "#FACC4D", "#FCD97A",
+  "#9CA3AF", "#C4CAD3", "#E2E5E9",
+];
+
+function DonutCenterLabel({ cx, cy, value, unit, valueFontSize = 22 }: { cx: number; cy: number; value: string; unit: string; valueFontSize?: number }) {
+  return (
+    <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle">
+      <tspan x={cx} dy="-0.4em" fontSize={valueFontSize} fontWeight="700" fill="#111111">
+        {value}
+      </tspan>
+      <tspan x={cx} dy="1.4em" fontSize="11" fill="#9CA3AF">
+        {unit}
+      </tspan>
+    </text>
+  );
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -285,13 +306,14 @@ function SummaryTab() {
   const totalPayment = paymentPieData.reduce((s, d) => s + d.value, 0);
 
   // Expense pie: group by title for one-time, or show monthly grouped
-  const expensePieData = expenses.reduce<{ name: string; value: number; color: string }[]>((acc, exp) => {
+  const expensePieData = expenses.reduce<{ name: string; value: number }[]>((acc, exp) => {
     const existing = acc.find((x) => x.name === exp.title);
     const val = exp.type === "monthly" ? exp.amount : exp.amount;
     if (existing) { existing.value += val; }
-    else { acc.push({ name: exp.title, value: val, color: `hsl(${(acc.length * 60) % 360}, 65%, 55%)` }); }
+    else { acc.push({ name: exp.title, value: val }); }
     return acc;
   }, []).filter((d) => d.value > 0);
+  const totalExpensePie = expensePieData.reduce((s, d) => s + d.value, 0);
 
   async function handleExportReport(key: string, label: string) {
     setGeneratingReport(key);
@@ -318,39 +340,51 @@ function SummaryTab() {
         <KpiCard label="إجمالي المصاريف (هذا الشهر)" value={formatCurrency(totalExpenses)} colorClass="text-orange-500" bgClass="bg-orange-50" />
       </div>
 
-      {/* Payment status pie */}
-      <div className="bg-white rounded-xl shadow-md p-6">
-        <h3 className="text-sm font-bold text-[#111111] mb-4">{t("statistics.paymentStatus.title")}</h3>
+      {/* Payment status donut */}
+      <div className="bg-white rounded-xl p-6 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
+        <h3 className="text-sm font-bold text-gray-900 mb-4 text-right">{t("statistics.paymentStatus.title")}</h3>
         {paymentPieData.length === 0 ? (
           <p className="text-sm text-gray-400 text-center py-8">{t("common.noData")}</p>
         ) : (
-          <ResponsiveContainer width="100%" height={280}>
-            <PieChart>
-              <Pie data={paymentPieData} cx="50%" cy="50%" outerRadius={100} dataKey="value" nameKey="name"
-                label={({ name, value }) => `${name}: ${value} (${totalPayment > 0 ? Math.round((value / totalPayment) * 100) : 0}%)`}>
-                {paymentPieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-              </Pie>
-              <Tooltip formatter={(value, name) => [`${Number(value)} طالب (${totalPayment > 0 ? Math.round((Number(value) / totalPayment) * 100) : 0}%)`, name]} />
-              <Legend />
-            </PieChart>
-          </ResponsiveContainer>
+          <div className="flex items-center justify-center">
+            <ResponsiveContainer width="100%" height={280}>
+              <PieChart>
+                <Pie data={paymentPieData} cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={3} dataKey="value" nameKey="name">
+                  {paymentPieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                  <Label content={({ viewBox }) => {
+                    const { cx, cy } = viewBox as { cx: number; cy: number };
+                    return <DonutCenterLabel cx={cx} cy={cy} value={String(totalPayment)} unit="طالب" />;
+                  }} position="center" />
+                </Pie>
+                <Tooltip formatter={(value, name) => [`${Number(value)} طالب (${totalPayment > 0 ? Math.round((Number(value) / totalPayment) * 100) : 0}%)`, name]}
+                  contentStyle={{ borderRadius: "8px", border: "1px solid #EBEBEB", fontSize: "12px" }} />
+                <Legend iconType="circle" iconSize={8} formatter={(value) => <span style={{ fontSize: "12px", color: "#6B7280" }}>{value}</span>} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
         )}
       </div>
 
-      {/* Expense breakdown pie */}
+      {/* Expense breakdown donut */}
       {expensePieData.length > 0 && (
-        <div className="bg-white rounded-xl shadow-md p-6">
-          <h3 className="text-sm font-bold text-[#111111] mb-4">توزيع المصاريف</h3>
-          <ResponsiveContainer width="100%" height={280}>
-            <PieChart>
-              <Pie data={expensePieData} cx="50%" cy="50%" outerRadius={100} dataKey="value" nameKey="name"
-                label={({ name, value }) => `${name}: ${formatCurrency(value)}`}>
-                {expensePieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-              </Pie>
-              <Tooltip formatter={(value, name) => [formatCurrency(Number(value)), name]} />
-              <Legend />
-            </PieChart>
-          </ResponsiveContainer>
+        <div className="bg-white rounded-xl p-6 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
+          <h3 className="text-sm font-bold text-gray-900 mb-4 text-right">توزيع المصاريف</h3>
+          <div className="flex items-center justify-center">
+            <ResponsiveContainer width="100%" height={280}>
+              <PieChart>
+                <Pie data={expensePieData} cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={3} dataKey="value" nameKey="name">
+                  {expensePieData.map((entry, i) => <Cell key={i} fill={EXPENSE_COLORS[i % EXPENSE_COLORS.length]} />)}
+                  <Label content={({ viewBox }) => {
+                    const { cx, cy } = viewBox as { cx: number; cy: number };
+                    return <DonutCenterLabel cx={cx} cy={cy} value={totalExpensePie.toLocaleString("ar-SA")} unit="ر.س" valueFontSize={16} />;
+                  }} position="center" />
+                </Pie>
+                <Tooltip formatter={(value, name) => [formatCurrency(Number(value)), name]}
+                  contentStyle={{ borderRadius: "8px", border: "1px solid #EBEBEB", fontSize: "12px" }} />
+                <Legend iconType="circle" iconSize={8} formatter={(value) => <span style={{ fontSize: "12px", color: "#6B7280" }}>{value}</span>} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       )}
 

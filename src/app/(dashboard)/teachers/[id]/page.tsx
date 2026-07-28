@@ -156,6 +156,10 @@ export default function TeacherProfilePage() {
     catch { /* silent */ } finally { setActionLoading(null); }
   }
 
+  function handleSendReminder() {
+    alert("تم الإرسال");
+  }
+
   function onInvoiceIssued(inv: { id: string; amount: number; pdfUrl: string | null; createdAt: string }) {
     setInvoices((prev) => [{ ...inv, type: "TEACHER" }, ...prev]);
   }
@@ -354,22 +358,80 @@ export default function TeacherProfilePage() {
 
             {/* Sidebar */}
             <div className="w-72 space-y-4 shrink-0">
-              <div className="bg-white rounded-xl shadow-md p-4 space-y-3">
-                <button type="submit" disabled={saving} className="w-full py-2.5 bg-[#F64651] hover:bg-[#D93A44] text-white rounded-xl font-bold text-sm transition-all disabled:opacity-60">
-                  {saving ? t("common.loading") : t("teachers.profile.actions.save")}
-                </button>
-                <button type="button" onClick={() => setInvoiceModalOpen(true)} className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-medium transition-all">
-                  {t("teachers.profile.actions.issueInvoice")}
-                </button>
-                <button type="button" onClick={() => setShowLateFeeConfirm(true)} disabled={actionLoading === "lateFee"} className="w-full py-2.5 border border-orange-400 text-orange-600 rounded-xl text-sm font-medium hover:bg-orange-50 transition-all disabled:opacity-60">
-                  {actionLoading === "lateFee" ? t("common.loading") : t("teachers.profile.actions.deleteLateFee")}
-                </button>
-                <button type="button" onClick={handleCancel} disabled={actionLoading === "cancel"} className="w-full py-2.5 border border-red-500 text-red-600 rounded-xl text-sm font-medium hover:bg-red-50 transition-all disabled:opacity-60">
-                  {actionLoading === "cancel" ? t("common.loading") : t("teachers.profile.actions.cancel")}
-                </button>
-                <button type="button" onClick={openTrashModal} className="w-full py-2.5 border border-red-500 text-red-600 rounded-xl text-sm font-medium hover:bg-red-50 transition-all">
-                  نقل إلى سلة المحذوفات
-                </button>
+              <div className="bg-white rounded-xl shadow-md p-4">
+                <div className="flex flex-col gap-3 w-full">
+                  {/* 1. حفظ التغييرات */}
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="w-full px-5 py-2.5 rounded-md bg-coral text-white font-medium text-sm
+                               hover:bg-coral-dark active:scale-[0.98] transition-all disabled:opacity-60"
+                  >
+                    {saving ? t("common.loading") : t("teachers.profile.actions.save")}
+                  </button>
+
+                  {/* 2. ارسال تذكير بالدفع */}
+                  <button
+                    type="button"
+                    onClick={handleSendReminder}
+                    className="w-full px-5 py-2.5 rounded-md bg-white font-medium text-sm
+                               border border-[#666666] text-[#666666]
+                               hover:border-[#2F96A6] hover:text-[#2F96A6] hover:bg-[#E0F7FA]
+                               active:scale-[0.98] transition-all"
+                  >
+                    ارسال تذكير بالدفع
+                  </button>
+
+                  {/* 3. إصدار فاتورة */}
+                  <button
+                    type="button"
+                    onClick={() => setInvoiceModalOpen(true)}
+                    className="w-full px-5 py-2.5 rounded-md bg-white font-medium text-sm
+                               border border-[#666666] text-[#666666]
+                               hover:border-[#2F96A6] hover:text-[#2F96A6] hover:bg-[#E0F7FA]
+                               active:scale-[0.98] transition-all"
+                  >
+                    {t("teachers.profile.actions.issueInvoice")}
+                  </button>
+
+                  {/* 4. إلغاء الانضمام */}
+                  <button
+                    type="button"
+                    onClick={handleCancel}
+                    disabled={actionLoading === "cancel"}
+                    className="w-full px-5 py-2.5 rounded-md bg-white font-medium text-sm
+                               border border-[#666666] text-[#666666]
+                               hover:border-[#2F96A6] hover:text-[#2F96A6] hover:bg-[#E0F7FA]
+                               active:scale-[0.98] transition-all disabled:opacity-60"
+                  >
+                    {actionLoading === "cancel" ? t("common.loading") : t("teachers.profile.actions.cancel")}
+                  </button>
+
+                  {/* 5. حذف رسوم التأخير */}
+                  <button
+                    type="button"
+                    onClick={() => setShowLateFeeConfirm(true)}
+                    disabled={actionLoading === "lateFee"}
+                    className="w-full px-5 py-2.5 rounded-md bg-white font-medium text-sm
+                               border border-[#666666] text-[#666666]
+                               hover:border-[#2F96A6] hover:text-[#2F96A6] hover:bg-[#E0F7FA]
+                               active:scale-[0.98] transition-all disabled:opacity-60"
+                  >
+                    {actionLoading === "lateFee" ? t("common.loading") : t("teachers.profile.actions.deleteLateFee")}
+                  </button>
+
+                  {/* 6. نقل إلى سلة المحذوفات */}
+                  <button
+                    type="button"
+                    onClick={openTrashModal}
+                    className="w-full px-5 py-2.5 rounded-md bg-white font-medium text-sm
+                               border border-[#666666] text-[#666666]
+                               hover:border-[#F64651] hover:text-[#F64651] hover:bg-[#FFE8EA]
+                               active:scale-[0.98] transition-all"
+                  >
+                    نقل إلى سلة المحذوفات
+                  </button>
+                </div>
               </div>
 
               <div className="bg-white rounded-xl shadow-md p-4 space-y-3">

@@ -752,59 +752,91 @@ export default function StudentProfilePage({
 
             {/* Right: action sidebar */}
             <div className="w-full lg:w-64 space-y-3 self-start">
-              <div className="bg-white rounded-xl shadow-md p-5 space-y-3">
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="w-full py-2.5 bg-[#F64651] text-white rounded-lg text-sm font-medium hover:bg-[#D93A44] disabled:opacity-60 transition-colors"
-                >
-                  {saving ? t("common.loading") : t("students.profile.actions.save")}
-                </button>
-                <button
-                  type="button"
-                  onClick={sendReminder}
-                  className="w-full py-2.5 border border-blue-500 text-blue-600 rounded-lg text-sm font-medium hover:bg-blue-50 transition-colors"
-                >
-                  {t("students.profile.actions.sendPaymentReminder")}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowLateFeeConfirm(true)}
-                  className="w-full py-2.5 border border-orange-400 text-orange-600 rounded-lg text-sm font-medium hover:bg-orange-50 transition-colors"
-                >
-                  {t("students.profile.actions.deleteLateFee")}
-                </button>
-                <button
-                  type="button"
-                  onClick={issueInvoice}
-                  className="w-full py-2.5 border border-purple-500 text-purple-600 rounded-lg text-sm font-medium hover:bg-purple-50 transition-colors"
-                >
-                  {t("students.profile.actions.issueInvoice")}
-                </button>
-                {student?.isActive ? (
+              <div className="bg-white rounded-xl shadow-md p-5">
+                <div className="flex flex-col gap-3 w-full">
+                  {/* 1. حفظ التغييرات */}
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="w-full px-5 py-2.5 rounded-md bg-coral text-white font-medium text-sm
+                               hover:bg-coral-dark active:scale-[0.98] transition-all disabled:opacity-60"
+                  >
+                    {saving ? t("common.loading") : t("students.profile.actions.save")}
+                  </button>
+
+                  {/* 2. ارسال تذكير بالدفع */}
                   <button
                     type="button"
-                    onClick={cancelStudent}
-                    className="w-full py-2.5 border border-red-500 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 transition-colors"
+                    onClick={sendReminder}
+                    className="w-full px-5 py-2.5 rounded-md bg-white font-medium text-sm
+                               border border-[#666666] text-[#666666]
+                               hover:border-[#2F96A6] hover:text-[#2F96A6] hover:bg-[#E0F7FA]
+                               active:scale-[0.98] transition-all"
                   >
-                    {t("students.profile.actions.cancel")}
+                    {t("students.profile.actions.sendPaymentReminder")}
                   </button>
-                ) : (
+
+                  {/* 3. إصدار فاتورة */}
                   <button
                     type="button"
-                    onClick={reactivate}
-                    className="w-full py-2.5 border border-success-text text-success-text rounded-lg text-sm font-medium hover:bg-success-bg transition-colors"
+                    onClick={issueInvoice}
+                    className="w-full px-5 py-2.5 rounded-md bg-white font-medium text-sm
+                               border border-[#666666] text-[#666666]
+                               hover:border-[#2F96A6] hover:text-[#2F96A6] hover:bg-[#E0F7FA]
+                               active:scale-[0.98] transition-all"
                   >
-                    {t("students.profile.actions.reactivate")}
+                    {t("students.profile.actions.issueInvoice")}
                   </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setShowTrashModal(true)}
-                  className="w-full py-2.5 border border-red-500 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 transition-colors"
-                >
-                  نقل إلى سلة المحذوفات
-                </button>
+
+                  {/* 4. إلغاء الاشتراك / إعادة التفعيل */}
+                  {student?.isActive ? (
+                    <button
+                      type="button"
+                      onClick={cancelStudent}
+                      className="w-full px-5 py-2.5 rounded-md bg-white font-medium text-sm
+                                 border border-[#666666] text-[#666666]
+                                 hover:border-[#2F96A6] hover:text-[#2F96A6] hover:bg-[#E0F7FA]
+                                 active:scale-[0.98] transition-all"
+                    >
+                      {t("students.profile.actions.cancel")}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={reactivate}
+                      className="w-full px-5 py-2.5 rounded-md bg-white font-medium text-sm
+                                 border border-[#666666] text-[#666666]
+                                 hover:border-[#2F96A6] hover:text-[#2F96A6] hover:bg-[#E0F7FA]
+                                 active:scale-[0.98] transition-all"
+                    >
+                      {t("students.profile.actions.reactivate")}
+                    </button>
+                  )}
+
+                  {/* 5. حذف رسوم التأخير */}
+                  <button
+                    type="button"
+                    onClick={() => setShowLateFeeConfirm(true)}
+                    className="w-full px-5 py-2.5 rounded-md bg-white font-medium text-sm
+                               border border-[#666666] text-[#666666]
+                               hover:border-[#2F96A6] hover:text-[#2F96A6] hover:bg-[#E0F7FA]
+                               active:scale-[0.98] transition-all"
+                  >
+                    {t("students.profile.actions.deleteLateFee")}
+                  </button>
+
+                  {/* 6. نقل إلى سلة المحذوفات */}
+                  <button
+                    type="button"
+                    onClick={() => setShowTrashModal(true)}
+                    className="w-full px-5 py-2.5 rounded-md bg-white font-medium text-sm
+                               border border-[#666666] text-[#666666]
+                               hover:border-[#F64651] hover:text-[#F64651] hover:bg-[#FFE8EA]
+                               active:scale-[0.98] transition-all"
+                  >
+                    نقل إلى سلة المحذوفات
+                  </button>
+                </div>
               </div>
             </div>
           </div>

@@ -138,6 +138,25 @@ model School {
   twoFaEnabled           Boolean  @default(false)
   twoFaPhone             String?
 
+  // Business identity (registration wizard — Step 1)
+  legalName              String?
+  nationalUnifiedNumber  String?
+  entityType             String?
+  businessActivities     String?
+
+  // School information (registration wizard — Step 2)
+  schoolType             String?
+  educationStages        String[] @default([])
+  licenseNumber          String?
+  branch                 String?
+
+  // Tax & Zakat (registration wizard — Step 3)
+  vatRegistered          Boolean?
+  zatcaUnifiedNumber     String?
+  zakatStatus            String?  // "yes" | "no" | "needs_review"
+  financialYear          String?
+  taxPeriod              String?
+
   // Admin panel fields
   plan_id             String?
   subscription_status String    @default("active")

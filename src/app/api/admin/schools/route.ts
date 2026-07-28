@@ -38,6 +38,28 @@ const createSchema = z.object({
   email: z.string().email("البريد الإلكتروني غير صالح"),
   contactNumber: z.string().optional(),
   planId: z.string().optional(),
+
+  // Step 1 — Business identity
+  legalName: z.string().optional(),
+  commercialRegistration: z.string().optional(),
+  nationalUnifiedNumber: z.string().optional(),
+  entityType: z.string().optional(),
+  businessActivities: z.string().optional(),
+
+  // Step 2 — School information
+  schoolType: z.string().optional(),
+  educationStages: z.array(z.string()).optional(),
+  licenseNumber: z.string().optional(),
+  branch: z.string().optional(),
+  address: z.string().optional(),
+
+  // Step 3 — Tax & Zakat
+  vatRegistered: z.boolean().optional(),
+  vatNumber: z.string().optional(),
+  zatcaUnifiedNumber: z.string().optional(),
+  zakatStatus: z.enum(["yes", "no", "needs_review"]).optional(),
+  financialYear: z.string().optional(),
+  taxPeriod: z.string().optional(),
 });
 
 function generateTempPassword(length = 10): string {
@@ -58,7 +80,12 @@ export async function POST(request: Request) {
   if (!parsed.success)
     return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 422 });
 
-  const { schoolName, email: rawEmail, contactNumber, planId } = parsed.data;
+  const {
+    schoolName, email: rawEmail, contactNumber, planId,
+    legalName, commercialRegistration, nationalUnifiedNumber, entityType, businessActivities,
+    schoolType, educationStages, licenseNumber, branch, address,
+    vatRegistered, vatNumber, zatcaUnifiedNumber, zakatStatus, financialYear, taxPeriod,
+  } = parsed.data;
   const email = rawEmail.toLowerCase().trim();
 
   const existing = await prisma.user.findUnique({ where: { email } });
@@ -74,6 +101,9 @@ export async function POST(request: Request) {
       email,
       contactNumber: contactNumber ?? null,
       ...(planId ? { plan_id: planId } : {}),
+      legalName, commercialRegistration, nationalUnifiedNumber, entityType, businessActivities,
+      schoolType, educationStages, licenseNumber, branch, address,
+      vatRegistered, vatNumber, zatcaUnifiedNumber, zakatStatus, financialYear, taxPeriod,
     },
   });
 

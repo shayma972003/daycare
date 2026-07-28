@@ -19,6 +19,23 @@ interface SchoolDetail {
     suspension_reason: string | null;
     last_login_at: string | null;
     createdAt: string;
+    contactNumber: string | null;
+    legalName: string | null;
+    commercialRegistration: string | null;
+    nationalUnifiedNumber: string | null;
+    entityType: string | null;
+    businessActivities: string | null;
+    schoolType: string | null;
+    educationStages: string[];
+    licenseNumber: string | null;
+    branch: string | null;
+    address: string | null;
+    vatRegistered: boolean | null;
+    vatNumber: string | null;
+    zatcaUnifiedNumber: string | null;
+    zakatStatus: string | null;
+    financialYear: string | null;
+    taxPeriod: string | null;
   };
   stats: { students: number; teachers: number; classes: number; invoices: number; notifications: number };
   activityLogs: { id: string; action: string; metadata: unknown; performed_by: string; performed_at: string }[];
@@ -41,6 +58,11 @@ const STATUS_LABELS: Record<string, string> = {
   active: "نشط", suspended: "موقوف", expired: "منتهٍ", trial: "تجريبي",
 };
 
+const EDUCATION_STAGE_OPTIONS = ["حضانة", "تمهيدي", "رياض أطفال", "ابتدائي"];
+const ENTITY_TYPE_OPTIONS = ["مؤسسة فردية", "شركة ذات مسؤولية محدودة", "شركة مساهمة", "شركة تضامن", "أخرى"];
+const SCHOOL_TYPE_OPTIONS = ["حضانة", "روضة أطفال", "مركز رعاية نهارية", "أخرى"];
+const ZAKAT_STATUS_LABELS: Record<string, string> = { yes: "نعم", no: "لا", needs_review: "يحتاج مراجعة" };
+
 export default function SchoolDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -55,6 +77,27 @@ export default function SchoolDetailPage() {
   const [editPlanId, setEditPlanId] = useState("");
   const [editRenewal, setEditRenewal] = useState("");
   const [editStatus, setEditStatus] = useState("");
+  const [editContactNumber, setEditContactNumber] = useState("");
+  const [editLegalName, setEditLegalName] = useState("");
+  const [editCommercialRegistration, setEditCommercialRegistration] = useState("");
+  const [editNationalUnifiedNumber, setEditNationalUnifiedNumber] = useState("");
+  const [editEntityType, setEditEntityType] = useState("");
+  const [editBusinessActivities, setEditBusinessActivities] = useState("");
+  const [editSchoolType, setEditSchoolType] = useState("");
+  const [editEducationStages, setEditEducationStages] = useState<string[]>([]);
+  const [editLicenseNumber, setEditLicenseNumber] = useState("");
+  const [editBranch, setEditBranch] = useState("");
+  const [editAddress, setEditAddress] = useState("");
+  const [editVatRegistered, setEditVatRegistered] = useState<"" | "yes" | "no">("");
+  const [editVatNumber, setEditVatNumber] = useState("");
+  const [editZatcaUnifiedNumber, setEditZatcaUnifiedNumber] = useState("");
+  const [editZakatStatus, setEditZakatStatus] = useState<"" | "yes" | "no" | "needs_review">("");
+  const [editFinancialYear, setEditFinancialYear] = useState("");
+  const [editTaxPeriod, setEditTaxPeriod] = useState("");
+
+  function toggleEditStage(stage: string) {
+    setEditEducationStages((prev) => (prev.includes(stage) ? prev.filter((s) => s !== stage) : [...prev, stage]));
+  }
 
   // Suspend dialog
   const [suspendOpen, setSuspendOpen] = useState(false);
@@ -106,6 +149,23 @@ export default function SchoolDetailPage() {
       setEditPlanId(s.plan_id ?? "");
       setEditRenewal(s.renewal_date ? s.renewal_date.substring(0, 10) : "");
       setEditStatus(s.subscription_status);
+      setEditContactNumber(s.contactNumber ?? "");
+      setEditLegalName(s.legalName ?? "");
+      setEditCommercialRegistration(s.commercialRegistration ?? "");
+      setEditNationalUnifiedNumber(s.nationalUnifiedNumber ?? "");
+      setEditEntityType(s.entityType ?? "");
+      setEditBusinessActivities(s.businessActivities ?? "");
+      setEditSchoolType(s.schoolType ?? "");
+      setEditEducationStages(s.educationStages ?? []);
+      setEditLicenseNumber(s.licenseNumber ?? "");
+      setEditBranch(s.branch ?? "");
+      setEditAddress(s.address ?? "");
+      setEditVatRegistered(s.vatRegistered === true ? "yes" : s.vatRegistered === false ? "no" : "");
+      setEditVatNumber(s.vatNumber ?? "");
+      setEditZatcaUnifiedNumber(s.zatcaUnifiedNumber ?? "");
+      setEditZakatStatus((s.zakatStatus as "" | "yes" | "no" | "needs_review") ?? "");
+      setEditFinancialYear(s.financialYear ?? "");
+      setEditTaxPeriod(s.taxPeriod ?? "");
     }).finally(() => setLoading(false));
   }, [id]);
 
@@ -116,6 +176,23 @@ export default function SchoolDetailPage() {
       plan_id: editPlanId || null,
       renewal_date: editRenewal || null,
       subscription_status: editStatus,
+      contactNumber: editContactNumber || null,
+      legalName: editLegalName || null,
+      commercialRegistration: editCommercialRegistration || null,
+      nationalUnifiedNumber: editNationalUnifiedNumber || null,
+      entityType: editEntityType || null,
+      businessActivities: editBusinessActivities || null,
+      schoolType: editSchoolType || null,
+      educationStages: editEducationStages,
+      licenseNumber: editLicenseNumber || null,
+      branch: editBranch || null,
+      address: editAddress || null,
+      vatRegistered: editVatRegistered ? editVatRegistered === "yes" : null,
+      vatNumber: editVatNumber || null,
+      zatcaUnifiedNumber: editZatcaUnifiedNumber || null,
+      zakatStatus: editZakatStatus || null,
+      financialYear: editFinancialYear || null,
+      taxPeriod: editTaxPeriod || null,
     });
     const res = await axios.get<SchoolDetail>(`/api/admin/schools/${id}`);
     setData(res.data);
@@ -190,6 +267,7 @@ export default function SchoolDetailPage() {
               <>
                 <Field label="اسم المدرسة"><input value={editName} onChange={(e) => setEditName(e.target.value)} className="input-admin" /></Field>
                 <Field label="البريد الإلكتروني"><input value={editEmail} onChange={(e) => setEditEmail(e.target.value)} className="input-admin" /></Field>
+                <Field label="رقم الجوال"><input value={editContactNumber} onChange={(e) => setEditContactNumber(e.target.value)} dir="ltr" className="input-admin" /></Field>
                 <Field label="الخطة">
                   <select value={editPlanId} onChange={(e) => setEditPlanId(e.target.value)} className="input-admin">
                     <option value="">بدون خطة</option>
@@ -202,6 +280,74 @@ export default function SchoolDetailPage() {
                     {["active", "trial", "suspended", "expired"].map((s) => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
                   </select>
                 </Field>
+
+                <h3 className="text-white font-bold text-sm pt-4 border-t border-white/5">الهوية التجارية</h3>
+                <Field label="الاسم القانوني"><input value={editLegalName} onChange={(e) => setEditLegalName(e.target.value)} className="input-admin" /></Field>
+                <Field label="رقم السجل التجاري"><input value={editCommercialRegistration} onChange={(e) => setEditCommercialRegistration(e.target.value)} dir="ltr" className="input-admin" /></Field>
+                <Field label="الرقم الوطني الموحد"><input value={editNationalUnifiedNumber} onChange={(e) => setEditNationalUnifiedNumber(e.target.value)} dir="ltr" className="input-admin" /></Field>
+                <Field label="نوع الكيان">
+                  <select value={editEntityType} onChange={(e) => setEditEntityType(e.target.value)} className="input-admin">
+                    <option value="">— اختر —</option>
+                    {ENTITY_TYPE_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                </Field>
+                <Field label="الأنشطة"><input value={editBusinessActivities} onChange={(e) => setEditBusinessActivities(e.target.value)} className="input-admin" /></Field>
+
+                <h3 className="text-white font-bold text-sm pt-4 border-t border-white/5">معلومات المدرسة</h3>
+                <Field label="نوع المدرسة">
+                  <select value={editSchoolType} onChange={(e) => setEditSchoolType(e.target.value)} className="input-admin">
+                    <option value="">— اختر —</option>
+                    {SCHOOL_TYPE_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                </Field>
+                <Field label="المراحل التعليمية">
+                  <div className="flex flex-wrap gap-2">
+                    {EDUCATION_STAGE_OPTIONS.map((stage) => (
+                      <button
+                        key={stage}
+                        type="button"
+                        onClick={() => toggleEditStage(stage)}
+                        className={`px-3 py-1.5 rounded-lg text-xs border transition-colors ${
+                          editEducationStages.includes(stage)
+                            ? "bg-indigo-600 border-indigo-500 text-white"
+                            : "bg-[#0f0f1a] border-white/10 text-gray-400 hover:border-white/20"
+                        }`}
+                      >
+                        {stage}
+                      </button>
+                    ))}
+                  </div>
+                </Field>
+                <Field label="رقم الترخيص"><input value={editLicenseNumber} onChange={(e) => setEditLicenseNumber(e.target.value)} dir="ltr" className="input-admin" /></Field>
+                <Field label="الفرع"><input value={editBranch} onChange={(e) => setEditBranch(e.target.value)} className="input-admin" /></Field>
+                <Field label="العنوان"><input value={editAddress} onChange={(e) => setEditAddress(e.target.value)} className="input-admin" /></Field>
+
+                <h3 className="text-white font-bold text-sm pt-4 border-t border-white/5">الضريبة والزكاة</h3>
+                <Field label="مسجلة في ضريبة القيمة المضافة (VAT)؟">
+                  <div className="flex gap-2">
+                    {(["yes", "no"] as const).map((v) => (
+                      <button key={v} type="button" onClick={() => setEditVatRegistered(v)}
+                        className={`px-4 py-1.5 rounded-lg text-xs border transition-colors ${editVatRegistered === v ? "bg-indigo-600 border-indigo-500 text-white" : "bg-[#0f0f1a] border-white/10 text-gray-400 hover:border-white/20"}`}>
+                        {v === "yes" ? "نعم" : "لا"}
+                      </button>
+                    ))}
+                  </div>
+                </Field>
+                <Field label="رقم ضريبة القيمة المضافة (VAT Number)"><input value={editVatNumber} onChange={(e) => setEditVatNumber(e.target.value)} dir="ltr" className="input-admin" /></Field>
+                <Field label="الرقم الموحد لهيئة الزكاة والضريبة (ZATCA)"><input value={editZatcaUnifiedNumber} onChange={(e) => setEditZatcaUnifiedNumber(e.target.value)} dir="ltr" className="input-admin" /></Field>
+                <Field label="خاضعة للزكاة؟">
+                  <div className="flex gap-2">
+                    {(["yes", "no", "needs_review"] as const).map((v) => (
+                      <button key={v} type="button" onClick={() => setEditZakatStatus(v)}
+                        className={`px-3 py-1.5 rounded-lg text-xs border transition-colors ${editZakatStatus === v ? "bg-indigo-600 border-indigo-500 text-white" : "bg-[#0f0f1a] border-white/10 text-gray-400 hover:border-white/20"}`}>
+                        {ZAKAT_STATUS_LABELS[v]}
+                      </button>
+                    ))}
+                  </div>
+                </Field>
+                <Field label="السنة المالية"><input value={editFinancialYear} onChange={(e) => setEditFinancialYear(e.target.value)} className="input-admin" /></Field>
+                <Field label="الفترة الضريبية"><input value={editTaxPeriod} onChange={(e) => setEditTaxPeriod(e.target.value)} className="input-admin" /></Field>
+
                 <div className="flex gap-3 pt-2">
                   <button onClick={handleSave} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-xl">حفظ</button>
                   <button onClick={() => setEditing(false)} className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white text-sm rounded-xl">إلغاء</button>
@@ -211,12 +357,35 @@ export default function SchoolDetailPage() {
               <>
                 <InfoRow label="الاسم" value={school.name} />
                 <InfoRow label="البريد" value={school.email ?? "—"} />
+                <InfoRow label="رقم الجوال" value={school.contactNumber ?? "—"} />
                 <InfoRow label="الخطة" value={school.plan?.name ?? "—"} />
                 <InfoRow label="الحالة" value={STATUS_LABELS[school.subscription_status] ?? school.subscription_status} />
                 <InfoRow label="التجديد" value={school.renewal_date ? new Date(school.renewal_date).toLocaleDateString("ar-SA") : "—"} />
                 <InfoRow label="آخر دخول" value={school.last_login_at ? new Date(school.last_login_at).toLocaleDateString("ar-SA") : "—"} />
                 <InfoRow label="تاريخ التسجيل" value={new Date(school.createdAt).toLocaleDateString("ar-SA")} />
                 {school.suspension_reason && <InfoRow label="سبب الإيقاف" value={school.suspension_reason} />}
+
+                <h3 className="text-white font-bold text-sm pt-4 border-t border-white/5">الهوية التجارية</h3>
+                <InfoRow label="الاسم القانوني" value={school.legalName ?? "—"} />
+                <InfoRow label="رقم السجل التجاري" value={school.commercialRegistration ?? "—"} />
+                <InfoRow label="الرقم الوطني الموحد" value={school.nationalUnifiedNumber ?? "—"} />
+                <InfoRow label="نوع الكيان" value={school.entityType ?? "—"} />
+                <InfoRow label="الأنشطة" value={school.businessActivities ?? "—"} />
+
+                <h3 className="text-white font-bold text-sm pt-4 border-t border-white/5">معلومات المدرسة</h3>
+                <InfoRow label="نوع المدرسة" value={school.schoolType ?? "—"} />
+                <InfoRow label="المراحل التعليمية" value={school.educationStages?.length ? school.educationStages.join("، ") : "—"} />
+                <InfoRow label="رقم الترخيص" value={school.licenseNumber ?? "—"} />
+                <InfoRow label="الفرع" value={school.branch ?? "—"} />
+                <InfoRow label="العنوان" value={school.address ?? "—"} />
+
+                <h3 className="text-white font-bold text-sm pt-4 border-t border-white/5">الضريبة والزكاة</h3>
+                <InfoRow label="مسجلة في VAT؟" value={school.vatRegistered === true ? "نعم" : school.vatRegistered === false ? "لا" : "—"} />
+                <InfoRow label="رقم VAT" value={school.vatNumber ?? "—"} />
+                <InfoRow label="الرقم الموحد (ZATCA)" value={school.zatcaUnifiedNumber ?? "—"} />
+                <InfoRow label="خاضعة للزكاة؟" value={school.zakatStatus ? ZAKAT_STATUS_LABELS[school.zakatStatus] ?? school.zakatStatus : "—"} />
+                <InfoRow label="السنة المالية" value={school.financialYear ?? "—"} />
+                <InfoRow label="الفترة الضريبية" value={school.taxPeriod ?? "—"} />
               </>
             )}
           </div>

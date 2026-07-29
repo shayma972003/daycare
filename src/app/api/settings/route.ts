@@ -1,5 +1,6 @@
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { logAction } from "@/lib/activity-logger";
 import { z } from "zod";
 
 const updateSettingsSchema = z.object({
@@ -130,6 +131,14 @@ export async function PUT(request: Request) {
       ? prisma.school.update({ where: { id: schoolId }, data: schoolData })
       : Promise.resolve(null),
   ]);
+
+  await logAction({
+    school_id: schoolId,
+    action: "تم تعديل إعدادات المنشأة",
+    entity_type: "settings",
+    performed_by: session.user.name ?? "المدير",
+    request,
+  });
 
   return Response.json(settings, { status: 200 });
 }

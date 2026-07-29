@@ -2,6 +2,7 @@ export const runtime = "nodejs";
 
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { logAction } from "@/lib/activity-logger";
 
 const ALLOWED_TYPES = ["image/png", "image/svg+xml"];
 const MAX_BYTES = 2 * 1024 * 1024; // 2 MB
@@ -37,6 +38,14 @@ export async function PUT(request: Request) {
   const logoUrl = `data:${file.type};base64,${base64}`;
 
   await prisma.school.update({ where: { id: schoolId }, data: { logoUrl } });
+
+  await logAction({
+    school_id: schoolId,
+    action: "تم تحديث شعار المنشأة",
+    entity_type: "settings",
+    performed_by: session.user.name ?? "المدير",
+    request,
+  });
 
   return Response.json({ logoUrl }, { status: 200 });
 }

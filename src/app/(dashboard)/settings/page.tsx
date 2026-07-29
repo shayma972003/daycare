@@ -1035,6 +1035,14 @@ export default function SettingsPage() {
                     {twoFaSuccessMsg}
                   </div>
                 )}
+
+                <button
+                  type="button"
+                  onClick={() => router.push("/settings/logs")}
+                  className="w-full px-5 py-2.5 rounded-md bg-white border border-[#666666] text-[#666666] text-sm font-medium hover:border-[#2F96A6] hover:text-[#2F96A6] hover:bg-[#E0F7FA] transition-all text-right"
+                >
+                  عرض سجل التغييرات ←
+                </button>
               </SettingsSection>
             )}
 

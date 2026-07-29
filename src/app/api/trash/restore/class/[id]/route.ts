@@ -1,8 +1,9 @@
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { logAction } from "@/lib/activity-logger";
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   let session;
@@ -22,6 +23,16 @@ export async function POST(
   }
 
   await prisma.class.update({ where: { id }, data: { deletedAt: null } });
+
+  await logAction({
+    school_id: schoolId,
+    action: `تم استعادة الفصل "${cls.name}" من سلة المحذوفات`,
+    entity_type: "class",
+    entity_id: cls.id,
+    entity_name: cls.name,
+    performed_by: session.user.name ?? "المدير",
+    request,
+  });
 
   return Response.json({ success: true }, { status: 200 });
 }

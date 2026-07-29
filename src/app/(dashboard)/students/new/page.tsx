@@ -67,9 +67,14 @@ export default function NewStudentPage() {
     },
   });
 
+  const period = watch("period");
+
   useEffect(() => {
-    axios.get<Class[]>("/api/classes").then((r) => setClasses(r.data)).catch(() => {});
-  }, []);
+    axios
+      .get<Class[]>("/api/classes", { params: period ? { period } : {} })
+      .then((r) => setClasses(r.data))
+      .catch(() => {});
+  }, [period]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -209,7 +214,14 @@ export default function NewStudentPage() {
                 <input {...register("academicStage")} type="text" className={inputCls} />
               </Field>
               <Field label={t("students.profile.period")}>
-                <select {...register("period")} className={inputCls}>
+                <select
+                  {...register("period")}
+                  className={inputCls}
+                  onChange={(e) => {
+                    register("period").onChange(e);
+                    setValue("classId", "");
+                  }}
+                >
                   <option value="MORNING">{t("periods.MORNING")}</option>
                   <option value="EVENING">{t("periods.EVENING")}</option>
                 </select>

@@ -453,7 +453,17 @@ export default function ClassProfilePage({
                       </div>
                     )}
                   </div>
-                  <p className="text-center text-sm font-medium mt-1 truncate">{student.name}</p>
+                  <p className="text-center text-sm font-medium mt-1 truncate flex items-center justify-center gap-1">
+                    {student.name}
+                    {cls.period && student.period !== cls.period && (
+                      <span
+                        title={`الطالب مسجل كـ ${student.period === "MORNING" ? t("periods.MORNING") : t("periods.EVENING")} لكن الفصل ${cls.period === "MORNING" ? t("periods.MORNING") : t("periods.EVENING")}`}
+                        className="text-yellow text-xs shrink-0"
+                      >
+                        ⚠
+                      </span>
+                    )}
+                  </p>
 
                   <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 bg-white border border-gray-200 rounded-xl shadow-lg p-3 hidden group-hover:block z-10 text-right">
                     <div className="flex items-center gap-3">

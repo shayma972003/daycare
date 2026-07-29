@@ -186,6 +186,24 @@ model School {
   enrollment_submissions  EnrollmentSubmission[]
   twoFaSessions           TwoFASession[]
   admin_invoices          AdminInvoice[]
+  activity_log_entries    ActivityLog[]
+}
+
+model ActivityLog {
+  id           String   @id @default(cuid())
+  school_id    String
+  action       String   // نص وصفي للإجراء
+  entity_type  String?  // "student" | "teacher" | "class" | "settings" | "invoice" | "auth" | etc
+  entity_id    String?  // id العنصر المتأثر
+  entity_name  String?  // اسم العنصر للعرض
+  performed_by String   // اسم المستخدم أو "النظام"
+  ip_address   String?
+  device_info  String?  // User-Agent parsed: "Chrome على Windows"
+  created_at   DateTime @default(now())
+
+  school School @relation(fields: [school_id], references: [id])
+
+  @@index([school_id, created_at])
 }
 
 model AdminInvoice {

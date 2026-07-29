@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { logAction } from "@/lib/activity-logger";
 import { z } from "zod";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { createElement } from "react";
@@ -97,6 +98,10 @@ const fullInvoiceSchema = z.object({
     activityItems: z.array(lineItemSchema),
     baseTotal: z.number(),
     activitiesTotal: z.number(),
+    hasDiscount: z.boolean().nullish(),
+    discountLabel: z.string().nullish(),
+    discountPercent: z.number().nullish(),
+    discountAmount: z.number().nullish(),
     grandTotal: z.number(),
   }),
 });
@@ -274,6 +279,18 @@ export async function POST(request: Request) {
                 createElement(Text, { style: { ...styles.tableBodyCell, ...styles.col4 } }, `${item.total.toFixed(2)} ر.س`),
               )
             ),
+            ...(inv.hasDiscount
+              ? [
+                  createElement(
+                    View,
+                    { key: "discount", style: styles.tableRow },
+                    createElement(Text, { style: { ...styles.tableBodyCell, ...styles.col1 } }, inv.discountLabel || "التخفيض"),
+                    createElement(Text, { style: { ...styles.tableBodyCell, ...styles.col2 } }, "—"),
+                    createElement(Text, { style: { ...styles.tableBodyCell, ...styles.col3 } }, `%${inv.discountPercent ?? 0}`),
+                    createElement(Text, { style: { ...styles.tableBodyCell, ...styles.col4, color: "#F64651" } }, `-${(inv.discountAmount ?? 0).toFixed(2)} ر.س`),
+                  ),
+                ]
+              : []),
           ),
           createElement(
             View,
@@ -288,10 +305,19 @@ export async function POST(request: Request) {
         createElement(
           View,
           { style: { ...styles.section, backgroundColor: "#1a2340" } },
+          ...(inv.hasDiscount
+            ? [
+                createElement(
+                  Text,
+                  { key: "discount-line", style: { fontSize: 10, color: "#d1d5db", textAlign: "right", marginBottom: 2 } },
+                  `الخصم (-${inv.discountPercent ?? 0}%): -${(inv.discountAmount ?? 0).toFixed(2)} ر.س`,
+                ),
+              ]
+            : []),
           createElement(
             View,
             { style: styles.total },
-            createElement(Text, { style: { ...styles.totalLabel, color: "#fff" } }, "الإجمالي الكلي"),
+            createElement(Text, { style: { ...styles.totalLabel, color: "#fff" } }, inv.hasDiscount ? "الإجمالي بعد الخصم" : "الإجمالي الكلي"),
             createElement(Text, { style: { ...styles.totalValue, fontSize: 14 } }, `${inv.grandTotal.toFixed(2)} ر.س`),
           ),
           createElement(
@@ -319,6 +345,16 @@ export async function POST(request: Request) {
           pdfUrl: fileUrl,
           data: inv as object,
         },
+      });
+
+      await logAction({
+        school_id: schoolId,
+        action: `تم إصدار فاتورة للطالب ${student.name}`,
+        entity_type: "invoice",
+        entity_id: invoice.id,
+        entity_name: student.name,
+        performed_by: session.user.name ?? "المدير",
+        request,
       });
 
       return Response.json({ id: invoice.id, amount: invoice.amount, pdfUrl: fileUrl, createdAt: invoice.createdAt }, { status: 201 });
@@ -560,6 +596,17 @@ export async function POST(request: Request) {
         pdfUrl: fileUrl,
         data: invoiceData,
       },
+    });
+
+    const entityName = invoiceData.studentName ?? invoiceData.teacherName ?? "";
+    await logAction({
+      school_id: schoolId,
+      action: invoiceType === "STUDENT" ? `تم إصدار فاتورة للطالب ${entityName}` : `تم إصدار فاتورة راتب للمعلم ${entityName}`,
+      entity_type: "invoice",
+      entity_id: invoice.id,
+      entity_name: entityName,
+      performed_by: session.user.name ?? "المدير",
+      request,
     });
 
     return Response.json({ ...invoice, pdfUrl: fileUrl });

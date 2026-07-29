@@ -1,8 +1,9 @@
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { logAction } from "@/lib/activity-logger";
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   let session;
@@ -27,6 +28,16 @@ export async function DELETE(
     prisma.student.updateMany({ where: { classId: id }, data: { classId: null } }),
     prisma.class.delete({ where: { id } }),
   ]);
+
+  await logAction({
+    school_id: schoolId,
+    action: `تم حذف الفصل "${cls.name}" نهائياً`,
+    entity_type: "class",
+    entity_id: cls.id,
+    entity_name: cls.name,
+    performed_by: session.user.name ?? "المدير",
+    request,
+  });
 
   return Response.json({ success: true }, { status: 200 });
 }

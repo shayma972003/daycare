@@ -110,18 +110,16 @@ export default function StudentProfilePage({
   const suggestionsRef = useRef<HTMLDivElement>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const { register, handleSubmit, reset, watch } = useForm<FormData>();
+  const { register, handleSubmit, reset, watch, setValue } = useForm<FormData>();
 
   useEffect(() => {
     Promise.all([
       axios.get<StudentData>(`/api/students/${id}`),
-      axios.get<Class[]>("/api/classes"),
       axios.get<Invoice[]>(`/api/invoices?studentId=${id}`),
     ])
-      .then(([studentRes, classRes, invRes]) => {
+      .then(([studentRes, invRes]) => {
         const s = studentRes.data;
         setStudent(s);
-        setClasses(classRes.data);
         setInvoices(invRes.data);
         if (s.guardianId) {
           setGuardianId(s.guardianId);
@@ -159,6 +157,16 @@ export default function StudentProfilePage({
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [id, reset]);
+
+  const periodVal = watch("period");
+
+  useEffect(() => {
+    if (loading) return;
+    axios
+      .get<Class[]>("/api/classes", { params: periodVal ? { period: periodVal } : {} })
+      .then((r) => setClasses(r.data))
+      .catch(() => {});
+  }, [periodVal, loading]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -496,7 +504,14 @@ export default function StudentProfilePage({
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">{t("students.profile.period")}</label>
-                    <select {...register("period")} className={inputCls}>
+                    <select
+                      {...register("period")}
+                      className={inputCls}
+                      onChange={(e) => {
+                        register("period").onChange(e);
+                        setValue("classId", "");
+                      }}
+                    >
                       <option value="MORNING">{t("periods.MORNING")}</option>
                       <option value="EVENING">{t("periods.EVENING")}</option>
                     </select>

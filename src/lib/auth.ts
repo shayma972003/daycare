@@ -5,6 +5,7 @@ import { randomInt } from "crypto";
 import { createHash } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { sendWhatsApp } from "@/lib/notifications";
+import { logAction } from "@/lib/activity-logger";
 
 function generateOTP(): string {
   return String(randomInt(100000, 999999));
@@ -49,6 +50,13 @@ export const authOptions: NextAuthOptions = {
             prisma.school.update({
               where: { id: user.schoolId },
               data: { last_login_at: new Date() },
+            }).catch(() => {});
+
+            logAction({
+              school_id: user.schoolId,
+              action: "تم تسجيل الدخول إلى الحساب",
+              entity_type: "auth",
+              performed_by: user.name ?? "المدير",
             }).catch(() => {});
 
             return {
@@ -106,6 +114,13 @@ export const authOptions: NextAuthOptions = {
           prisma.school.update({
             where: { id: user.schoolId },
             data: { last_login_at: new Date() },
+          }).catch(() => {});
+
+          logAction({
+            school_id: user.schoolId,
+            action: "تم تسجيل الدخول إلى الحساب",
+            entity_type: "auth",
+            performed_by: user.name ?? "المدير",
           }).catch(() => {});
 
           return {

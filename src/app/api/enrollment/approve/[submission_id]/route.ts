@@ -1,5 +1,6 @@
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { logAction } from "@/lib/activity-logger";
 import { z } from "zod";
 
 const schema = z.object({
@@ -133,6 +134,16 @@ export async function POST(
   await prisma.enrollmentSubmission.update({
     where: { id: submission_id },
     data: { status: "approved", student_id: student.id, reviewed_at: new Date() },
+  });
+
+  await logAction({
+    school_id: schoolId,
+    action: `تم قبول طلب تسجيل والموافقة على الطالب ${student.name}`,
+    entity_type: "student",
+    entity_id: student.id,
+    entity_name: student.name,
+    performed_by: session.user.name ?? "المدير",
+    request,
   });
 
   return Response.json({ success: true, student_id: student.id });

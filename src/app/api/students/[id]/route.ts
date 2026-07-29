@@ -1,5 +1,6 @@
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { logAction } from "@/lib/activity-logger";
 import { z } from "zod";
 
 const updateStudentSchema = z.object({
@@ -213,11 +214,21 @@ export async function PUT(
     include: { class: true, guardian: true },
   });
 
+  await logAction({
+    school_id: schoolId,
+    action: "تم تعديل بيانات الطالب",
+    entity_type: "student",
+    entity_id: student.id,
+    entity_name: student.name,
+    performed_by: session.user.name ?? "المدير",
+    request,
+  });
+
   return Response.json(student, { status: 200 });
 }
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   let session;
@@ -235,6 +246,16 @@ export async function DELETE(
   }
 
   await prisma.student.update({ where: { id }, data: { deletedAt: new Date() } });
+
+  await logAction({
+    school_id: schoolId,
+    action: `تم نقل الطالب "${existing.name}" إلى سلة المحذوفات`,
+    entity_type: "student",
+    entity_id: existing.id,
+    entity_name: existing.name,
+    performed_by: session.user.name ?? "المدير",
+    request,
+  });
 
   return Response.json({ success: true });
 }

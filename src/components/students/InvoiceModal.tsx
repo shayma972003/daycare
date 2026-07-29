@@ -91,6 +91,10 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
   const [activityItems, setActivityItems] = useState<ActivityItem[]>([]);
   const [noActivities, setNoActivities] = useState(false);
 
+  const [hasDiscount, setHasDiscount] = useState(false);
+  const [discountLabel, setDiscountLabel] = useState("التخفيض");
+  const [discountPercent, setDiscountPercent] = useState(15);
+
   useEffect(() => {
     if (!open) return;
     setLoading(true);
@@ -98,6 +102,9 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
     setIncludeActivities(false);
     setActivityItems([]);
     setLineItems([{ id: "1", description: "", qty: 1, price: 0 }]);
+    setHasDiscount(false);
+    setDiscountLabel("التخفيض");
+    setDiscountPercent(15);
     axios
       .get<PrefillData>(`/api/invoices/prefill/${studentId}`)
       .then((res) => {
@@ -172,7 +179,8 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
       const baseTotal = calcTotal(lineItems);
       const activitiesTotal =
         includeActivities && !noActivities ? calcTotal(activityItems) : 0;
-      const grandTotal = baseTotal + activitiesTotal;
+      const discountAmount = hasDiscount ? (baseTotal * discountPercent) / 100 : 0;
+      const grandTotal = baseTotal - discountAmount + activitiesTotal;
 
       const res = await axios.post<IssuedInvoice & { type: string }>("/api/invoices/generate", {
         studentId,
@@ -213,6 +221,10 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
               : [],
           baseTotal,
           activitiesTotal,
+          hasDiscount,
+          discountLabel: hasDiscount ? discountLabel : null,
+          discountPercent: hasDiscount ? discountPercent : null,
+          discountAmount,
           grandTotal,
         },
       });
@@ -233,8 +245,10 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
     }
   }
 
-  const grandTotal =
-    calcTotal(lineItems) + (includeActivities && !noActivities ? calcTotal(activityItems) : 0);
+  const baseTotalView = calcTotal(lineItems);
+  const activitiesTotalView = includeActivities && !noActivities ? calcTotal(activityItems) : 0;
+  const discountAmountView = hasDiscount ? (baseTotalView * discountPercent) / 100 : 0;
+  const grandTotal = baseTotalView - discountAmountView + activitiesTotalView;
 
   return (
     <Dialog.Root open={open} onOpenChange={(v) => !v && onClose()}>
@@ -433,6 +447,39 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
                           </td>
                         </tr>
                       ))}
+                      {hasDiscount && (
+                        <tr className="border-t border-dashed border-gray-200">
+                          <td className="px-2 py-1.5">
+                            <input
+                              type="text"
+                              value={discountLabel}
+                              onChange={(e) => setDiscountLabel(e.target.value)}
+                              className={tdInput}
+                              placeholder="التخفيض"
+                            />
+                          </td>
+                          <td className="px-2 py-1.5 text-center text-gray-300 text-sm">—</td>
+                          <td className="px-2 py-1.5">
+                            <div className="flex items-center gap-1 justify-center">
+                              <span className="text-sm text-gray-400">%</span>
+                              <input
+                                type="number"
+                                value={discountPercent}
+                                onChange={(e) => setDiscountPercent(Number(e.target.value))}
+                                min={0}
+                                max={100}
+                                className="w-16 text-center text-sm px-2 py-1 border border-gray-200 rounded-md focus:border-teal focus:outline-none"
+                              />
+                            </div>
+                          </td>
+                          <td className="px-3 py-1.5 text-center">
+                            <span className="text-sm font-medium" style={{ color: "#F64651" }}>
+                              -{((calcTotal(lineItems) * discountPercent) / 100).toFixed(2)} ر.س
+                            </span>
+                          </td>
+                          <td />
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                   <div className="px-3 py-2 flex items-center justify-between bg-gray-50">
@@ -447,6 +494,26 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
                       الإجمالي: {calcTotal(lineItems).toFixed(2)} ر.س
                     </span>
                   </div>
+                </div>
+
+                {/* Discount checkbox */}
+                <div className="flex items-center gap-3 justify-end mt-3">
+                  <label className="text-sm text-gray-700 font-medium cursor-pointer" htmlFor="discount-checkbox">
+                    إضافة خصم
+                  </label>
+                  <input
+                    id="discount-checkbox"
+                    type="checkbox"
+                    checked={hasDiscount}
+                    onChange={(e) => {
+                      setHasDiscount(e.target.checked);
+                      if (!e.target.checked) {
+                        setDiscountLabel("التخفيض");
+                        setDiscountPercent(15);
+                      }
+                    }}
+                    className="w-4 h-4 accent-teal cursor-pointer"
+                  />
                 </div>
               </div>
 
@@ -535,9 +602,21 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
 
               {/* Grand total */}
               <div className="flex justify-end">
-                <div className="bg-gray-50 border border-gray-100 rounded-xl px-6 py-3">
-                  <span className="text-sm text-gray-500">الإجمالي الكلي: </span>
-                  <span className="text-lg font-bold text-coral">{grandTotal.toFixed(2)} ر.س</span>
+                <div className="bg-gray-50 border border-gray-100 rounded-xl px-6 py-3 text-left space-y-1">
+                  {hasDiscount && (
+                    <>
+                      <p className="text-xs text-gray-500">
+                        المجموع قبل الخصم: <span className="font-medium text-gray-700">{baseTotalView.toFixed(2)} ر.س</span>
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        الخصم (-{discountPercent}%): <span className="font-medium text-coral">-{discountAmountView.toFixed(2)} ر.س</span>
+                      </p>
+                    </>
+                  )}
+                  <p>
+                    <span className="text-sm text-gray-500">{hasDiscount ? "الإجمالي بعد الخصم: " : "الإجمالي الكلي: "}</span>
+                    <span className="text-lg font-bold text-coral">{grandTotal.toFixed(2)} ر.س</span>
+                  </p>
                 </div>
               </div>
 

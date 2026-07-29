@@ -250,7 +250,7 @@ export default function HomePage() {
               {pastActivities.length === 0 ? (
                 <p className="text-sm text-gray-400 py-6 text-center">{t("common.noData")}</p>
               ) : (
-                <ActivityGrid activities={pastActivities} onAdd={openAddModal} onSelect={openEditModal} />
+                <ActivityGrid activities={pastActivities} onSelect={openEditModal} />
               )}
             </section>
 

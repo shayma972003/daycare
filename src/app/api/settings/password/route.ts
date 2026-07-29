@@ -1,5 +1,6 @@
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { logAction } from "@/lib/activity-logger";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 
@@ -49,6 +50,14 @@ export async function PUT(request: Request) {
   await prisma.user.update({
     where: { id: user.id },
     data: { password: hashed },
+  });
+
+  await logAction({
+    school_id: session.user.schoolId,
+    action: "تم تغيير كلمة المرور",
+    entity_type: "settings",
+    performed_by: session.user.name ?? "المدير",
+    request,
   });
 
   return Response.json({ success: true });

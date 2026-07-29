@@ -29,12 +29,12 @@ interface DetailRow {
 }
 
 interface DashboardSummary {
-  revenue: { total: number; monthlyFees: number; registrationFeesCollected: number; activities: number };
+  revenue: { total: number; monthlyFees: number; registrationFeesCollected: number; activities: number; lateFees: number; vatCollected: number };
   expenses: { total: number; salaries: number; salaryItems: { name: string; amount: number }[]; manual: { title: string; amount: number }[]; manualTotal: number };
   netIncome: number;
   amountDue: number;
   comparison: { revenuePct: number | null; expensesPct: number | null };
-  collection: { paid: number; late: number; pending: number; paidCount: number; lateCount: number; pendingCount: number };
+  collection: { paid: number; paidWithVat: number; late: number; pending: number; paidCount: number; lateCount: number; pendingCount: number };
   salaries: { totalBudgeted: number; paid: number; remaining: number };
   cashFlow: { openingBalance: number; inflows: number; outflows: number; closingBalance: number };
   details: { revenue: DetailRow[]; salaries: DetailRow[]; manualExpenses: DetailRow[] };
@@ -332,14 +332,23 @@ function SummaryTab() {
     finally { setGeneratingReport(false); }
   }
 
-  function handleExportExcel() {
-    if (!summary) return;
-    const rows = [
-      ...summary.details.revenue.map((r) => ({ label: r.label, date: r.date, amount: r.amount })),
-      ...summary.details.salaries.map((r) => ({ label: r.label, date: r.date, amount: -r.amount })),
-      ...summary.details.manualExpenses.map((r) => ({ label: r.label, date: r.date, amount: -r.amount })),
-    ];
-    downloadCsv(`التقرير-المالي-${periodType}.csv`, rows);
+  const [exportingExcel, setExportingExcel] = useState(false);
+
+  async function handleExportExcel() {
+    setExportingExcel(true);
+    try {
+      const res = await axios.post<{ file: string }>("/api/statistics/export/excel", { type: periodType });
+      const link = document.createElement("a");
+      link.href = res.data.file;
+      link.download = `التقرير-المالي-${periodType}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch {
+      alert("فشل تصدير Excel");
+    } finally {
+      setExportingExcel(false);
+    }
   }
 
   if (loading || !summary) return <div className="py-20 text-center text-sm text-gray-400">{t("common.loading")}</div>;
@@ -370,39 +379,60 @@ function SummaryTab() {
         <KpiCard label="المبالغ المستحقة" value={formatCurrency(summary.amountDue)} colorClass="text-purple-600" bgClass="bg-purple-50" />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* الأداء المالي */}
-        <SectionCard title="الأداء المالي">
-          <SummaryRow label="الإيرادات" value={formatCurrency(summary.revenue.total)} valueClass="text-emerald-600" />
-          <SummaryRow label="المصروفات" value={formatCurrency(summary.expenses.total)} valueClass="text-orange-500" />
-          <SummaryRow label="صافي الدخل" value={formatCurrency(summary.netIncome)} valueClass={summary.netIncome >= 0 ? "text-emerald-600" : "text-red-500"} />
-          <div className="pt-3 border-t border-gray-100 space-y-2">
-            <p className="text-xs text-gray-400">مقارنة بالفترة السابقة</p>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-500">الإيرادات</span>
-              {pctBadge(summary.comparison.revenuePct)}
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-500">المصروفات</span>
-              {pctBadge(summary.comparison.expensesPct)}
-            </div>
+      {/* الأداء المالي */}
+      <SectionCard title="الأداء المالي">
+        <SummaryRow label="الإيرادات" value={formatCurrency(summary.revenue.total)} valueClass="text-emerald-600" />
+        <SummaryRow label="المصروفات" value={formatCurrency(summary.expenses.total)} valueClass="text-orange-500" />
+        <SummaryRow label="صافي الدخل" value={formatCurrency(summary.netIncome)} valueClass={summary.netIncome >= 0 ? "text-emerald-600" : "text-red-500"} />
+        <div className="pt-3 border-t border-gray-100 space-y-2">
+          <p className="text-xs text-gray-400">مقارنة بالفترة السابقة</p>
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-gray-500">الإيرادات</span>
+            {pctBadge(summary.comparison.revenuePct)}
           </div>
-        </SectionCard>
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-gray-500">المصروفات</span>
+            {pctBadge(summary.comparison.expensesPct)}
+          </div>
+        </div>
+      </SectionCard>
 
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* الإيرادات breakdown */}
         <SectionCard title="الإيرادات">
-          <SummaryRow label="الرسوم الشهرية وغرامات التأخير" value={formatCurrency(summary.revenue.monthlyFees)} />
+          <SummaryRow label="الرسوم الشهرية" value={formatCurrency(summary.revenue.monthlyFees)} />
+          <SummaryRow label="غرامات التأخير" value={formatCurrency(summary.revenue.lateFees)} />
           <SummaryRow label="رسوم التسجيل المحصّلة" value={formatCurrency(summary.revenue.registrationFeesCollected)} />
-          <SummaryRow label="الأنشطة" value={formatCurrency(summary.revenue.activities)} />
+          <SummaryRow label="رسوم الفعاليات" value={formatCurrency(summary.revenue.activities)} />
+          <SummaryRow label="ضريبة القيمة المضافة المحصَّلة" value={formatCurrency(summary.revenue.vatCollected)} />
+          <div className="pt-2 border-t border-gray-100">
+            <SummaryRow label="إجمالي الإيرادات" value={formatCurrency(summary.revenue.total)} valueClass="text-emerald-600" />
+          </div>
         </SectionCard>
 
         {/* التحصيل */}
         <SectionCard title="التحصيل (حسب حالة دفع الطلاب النشطين)">
-          <SummaryRow label={`مدفوع (${summary.collection.paidCount} طالب)`} value={formatCurrency(summary.collection.paid)} valueClass="text-emerald-600" />
+          <div className="flex items-start justify-between py-1">
+            <div className="text-left">
+              <div className="flex flex-col gap-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-emerald-600">{formatCurrency(summary.collection.paid)}</span>
+                  <span className="text-xs text-gray-400">الإجمالي الصافي</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-emerald-600">{formatCurrency(summary.collection.paidWithVat)}</span>
+                  <span className="text-xs text-gray-400">شامل الضريبة</span>
+                </div>
+              </div>
+            </div>
+            <span className="text-sm text-gray-500">مدفوع ({summary.collection.paidCount} طالب)</span>
+          </div>
           <SummaryRow label={`متأخر (${summary.collection.lateCount} طالب)`} value={formatCurrency(summary.collection.late)} valueClass="text-red-500" />
           <SummaryRow label={`بانتظار الدفع (${summary.collection.pendingCount} طالب)`} value={formatCurrency(summary.collection.pending)} valueClass="text-amber-500" />
         </SectionCard>
+      </div>
 
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* المصروفات breakdown */}
         <SectionCard title="المصروفات">
           <SummaryRow label="الرواتب" value={formatCurrency(summary.expenses.salaries)} />
@@ -411,6 +441,9 @@ function SummaryTab() {
           ) : (
             summary.expenses.manual.map((e, i) => <SummaryRow key={i} label={e.title} value={formatCurrency(e.amount)} />)
           )}
+          <div className="pt-2 border-t border-gray-100">
+            <SummaryRow label="إجمالي المصروفات" value={formatCurrency(summary.expenses.total)} valueClass="text-orange-500" />
+          </div>
         </SectionCard>
 
         {/* الرواتب */}
@@ -419,7 +452,9 @@ function SummaryTab() {
           <SummaryRow label="مصروف" value={formatCurrency(summary.salaries.paid)} valueClass="text-emerald-600" />
           <SummaryRow label="متبقي" value={formatCurrency(summary.salaries.remaining)} valueClass="text-amber-500" />
         </SectionCard>
+      </div>
 
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* التدفق النقدي */}
         <SectionCard title="التدفق النقدي">
           <SummaryRow label="الرصيد الافتتاحي" value={formatCurrency(summary.cashFlow.openingBalance)} />
@@ -450,9 +485,9 @@ function SummaryTab() {
             className="px-4 py-2 text-sm bg-[#111111] text-white rounded-xl hover:bg-gray-800 transition-colors disabled:opacity-60">
             {generatingReport ? "⏳ جارٍ التصدير…" : "⬇ تصدير PDF"}
           </button>
-          <button onClick={handleExportExcel}
-            className="px-4 py-2 text-sm border-2 border-[#111111] text-[#111111] rounded-xl hover:bg-[#111111] hover:text-white transition-colors">
-            ⬇ تصدير Excel
+          <button onClick={handleExportExcel} disabled={exportingExcel}
+            className="px-4 py-2 text-sm border-2 border-[#111111] text-[#111111] rounded-xl hover:bg-[#111111] hover:text-white transition-colors disabled:opacity-60">
+            {exportingExcel ? "⏳ جارٍ التصدير…" : "⬇ تصدير Excel"}
           </button>
         </div>
 

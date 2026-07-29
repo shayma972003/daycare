@@ -187,6 +187,25 @@ model School {
   twoFaSessions           TwoFASession[]
   admin_invoices          AdminInvoice[]
   activity_log_entries    ActivityLog[]
+  payment_cycles          PaymentCycle[]
+}
+
+model PaymentCycle {
+  id           String    @id @default(cuid())
+  school_id    String
+  student_id   String
+  due_date     DateTime
+  amount       Float
+  status       String    @default("بانتظار الدفع") // مدفوع | بانتظار الدفع | متأخر | موقف
+  cycle_number Int // 1 = first payment, 2 = second, etc.
+  notified_at  DateTime?
+  created_at   DateTime  @default(now())
+
+  school  School  @relation(fields: [school_id], references: [id])
+  student Student @relation(fields: [student_id], references: [id])
+
+  @@index([school_id, due_date])
+  @@index([student_id])
 }
 
 model ActivityLog {
@@ -406,8 +425,14 @@ model Student {
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 
-  attendances Attendance[]
-  invoices    Invoice[]
+  enrollment_date        DateTime?
+  payment_notified_at    DateTime? // last time expiry popup was shown
+  suspension_notified_at DateTime? // last time suspension popup was shown
+  auto_status_updated_at DateTime? // last automatic status update
+
+  attendances     Attendance[]
+  invoices        Invoice[]
+  payment_cycles  PaymentCycle[]
 }
 
 model Activity {
@@ -460,16 +485,18 @@ model Attendance {
 }
 
 model TeacherAttendance {
-  id          String    @id @default(cuid())
-  teacherId   String
-  teacher     Teacher   @relation(fields: [teacherId], references: [id])
-  schoolId    String
-  checkinAt   DateTime?
-  checkoutAt  DateTime?
-  lateMinutes Int       @default(0)
-  date        DateTime  @default(dbgenerated("CURRENT_DATE")) @db.Date
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id            String    @id @default(cuid())
+  teacherId     String
+  teacher       Teacher   @relation(fields: [teacherId], references: [id])
+  schoolId      String
+  checkinAt     DateTime?
+  checkoutAt    DateTime?
+  lateMinutes   Int       @default(0)
+  requiredHours Float?
+  compensated   Boolean   @default(false)
+  date          DateTime  @default(dbgenerated("CURRENT_DATE")) @db.Date
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 }
 
 model Invoice {
@@ -482,6 +509,7 @@ model Invoice {
   teacherId String?
   teacher   Teacher?    @relation(fields: [teacherId], references: [id])
   amount    Float
+  vat_amount Float      @default(0)
   pdfUrl    String?
   data      Json
   createdAt DateTime    @default(now())

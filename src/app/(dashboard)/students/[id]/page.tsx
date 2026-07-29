@@ -37,6 +37,7 @@ type StudentData = {
   registration_fee: number;
   attendanceType: string;
   paymentMethod: string;
+  enrollmentDate: string | null;
   enrollmentEndDate: string | null;
   paymentStatus: string;
   attendanceHours: number;
@@ -70,6 +71,7 @@ type FormData = {
   registrationFee: string;
   attendanceType: string;
   paymentMethod: string;
+  enrollmentDate: string;
   enrollmentEndDate: string;
   paymentStatus: string;
 };
@@ -150,6 +152,7 @@ export default function StudentProfilePage({
           registrationFee: String(s.registration_fee ?? 0),
           attendanceType: s.attendanceType ?? "دوام منتظم",
           paymentMethod: s.paymentMethod,
+          enrollmentDate: s.enrollmentDate ? s.enrollmentDate.slice(0, 10) : "",
           enrollmentEndDate: s.enrollmentEndDate ? s.enrollmentEndDate.slice(0, 10) : "",
           paymentStatus: s.paymentStatus,
         });
@@ -242,6 +245,7 @@ export default function StudentProfilePage({
         allergies: data.allergies || null,
         attendanceType: data.attendanceType || "دوام منتظم",
         paymentMethod: data.paymentMethod,
+        enrollmentDate: data.enrollmentDate || null,
         enrollmentEndDate: data.enrollmentEndDate || null,
         paymentStatus: data.paymentStatus,
         guardianId: guardianId || null,
@@ -749,6 +753,10 @@ export default function StudentProfilePage({
                       <option value="SUSPENDED">{t("paymentStatus.SUSPENDED")}</option>
                       <option value="بانتظار الدفع">بانتظار الدفع</option>
                     </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">تاريخ الانضمام</label>
+                    <input {...register("enrollmentDate")} type="date" dir="ltr" className={inputCls} />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">{t("students.profile.enrollmentEndDate")}</label>

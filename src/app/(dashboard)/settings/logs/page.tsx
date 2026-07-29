@@ -36,6 +36,24 @@ export default function ActivityLogsPage() {
   const [search, setSearch] = useState("");
   const [entityType, setEntityType] = useState("");
   const [page, setPage] = useState(0);
+  const [exporting, setExporting] = useState(false);
+
+  async function handleExportLogs() {
+    setExporting(true);
+    try {
+      const res = await axios.post<{ file_url: string }>("/api/settings/logs/export");
+      const link = document.createElement("a");
+      link.href = res.data.file_url;
+      link.download = "سجل-التغييرات.pdf";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch {
+      alert("فشل تصدير السجل");
+    } finally {
+      setExporting(false);
+    }
+  }
 
   const fetchLogs = useCallback(() => {
     setLoading(true);
@@ -98,6 +116,13 @@ export default function ActivityLogsPage() {
               <option value="settings">الإعدادات</option>
               <option value="auth">تسجيل الدخول</option>
             </select>
+            <button
+              onClick={handleExportLogs}
+              disabled={exporting}
+              className="px-4 py-2 rounded-md bg-white border border-[#666666] text-[#666666] text-sm hover:border-[#2F96A6] hover:text-[#2F96A6] hover:bg-[#E0F7FA] transition-all disabled:opacity-60 whitespace-nowrap"
+            >
+              {exporting ? "جاري التصدير..." : "تنزيل السجل PDF"}
+            </button>
           </div>
 
           {/* Log entries */}

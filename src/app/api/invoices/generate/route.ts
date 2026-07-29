@@ -102,6 +102,8 @@ const fullInvoiceSchema = z.object({
     discountLabel: z.string().nullish(),
     discountPercent: z.number().nullish(),
     discountAmount: z.number().nullish(),
+    hasVat: z.boolean().nullish(),
+    vatAmount: z.number().nullish(),
     grandTotal: z.number(),
   }),
 });
@@ -279,6 +281,18 @@ export async function POST(request: Request) {
                 createElement(Text, { style: { ...styles.tableBodyCell, ...styles.col4 } }, `${item.total.toFixed(2)} ر.س`),
               )
             ),
+            ...(inv.hasVat
+              ? [
+                  createElement(
+                    View,
+                    { key: "vat", style: styles.tableRow },
+                    createElement(Text, { style: { ...styles.tableBodyCell, ...styles.col1 } }, "ضريبة القيمة المضافة"),
+                    createElement(Text, { style: { ...styles.tableBodyCell, ...styles.col2 } }, "—"),
+                    createElement(Text, { style: { ...styles.tableBodyCell, ...styles.col3 } }, "15%"),
+                    createElement(Text, { style: { ...styles.tableBodyCell, ...styles.col4 } }, `+${(inv.vatAmount ?? 0).toFixed(2)} ر.س`),
+                  ),
+                ]
+              : []),
             ...(inv.hasDiscount
               ? [
                   createElement(
@@ -305,6 +319,15 @@ export async function POST(request: Request) {
         createElement(
           View,
           { style: { ...styles.section, backgroundColor: "#1a2340" } },
+          ...(inv.hasVat
+            ? [
+                createElement(
+                  Text,
+                  { key: "vat-line", style: { fontSize: 10, color: "#d1d5db", textAlign: "right", marginBottom: 2 } },
+                  `ضريبة القيمة المضافة (15%): +${(inv.vatAmount ?? 0).toFixed(2)} ر.س`,
+                ),
+              ]
+            : []),
           ...(inv.hasDiscount
             ? [
                 createElement(
@@ -317,7 +340,7 @@ export async function POST(request: Request) {
           createElement(
             View,
             { style: styles.total },
-            createElement(Text, { style: { ...styles.totalLabel, color: "#fff" } }, inv.hasDiscount ? "الإجمالي بعد الخصم" : "الإجمالي الكلي"),
+            createElement(Text, { style: { ...styles.totalLabel, color: "#fff" } }, "الإجمالي الكلي"),
             createElement(Text, { style: { ...styles.totalValue, fontSize: 14 } }, `${inv.grandTotal.toFixed(2)} ر.س`),
           ),
           createElement(
@@ -342,6 +365,7 @@ export async function POST(request: Request) {
           type: "STUDENT",
           studentId,
           amount: inv.grandTotal,
+          vat_amount: inv.vatAmount ?? 0,
           pdfUrl: fileUrl,
           data: inv as object,
         },

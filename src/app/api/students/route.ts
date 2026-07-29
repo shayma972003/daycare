@@ -1,5 +1,7 @@
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { generatePaymentCycles } from "@/lib/payment-cycles";
+import { updatePaymentStatuses } from "@/lib/payment-status-updater";
 import { z } from "zod";
 
 const createStudentSchema = z.object({
@@ -14,6 +16,7 @@ const createStudentSchema = z.object({
   gender: z.enum(["MALE", "FEMALE"]).optional(),
   allergies: z.string().optional(),
   paymentMethod: z.enum(["CASH", "TRANSFER", "CARD"]).optional(),
+  enrollmentDate: z.string().optional(),
   enrollmentEndDate: z.string().optional(),
   paymentStatus: z.enum(["PAID", "LATE", "CANCELLED", "SUSPENDED"]).optional(),
   // Guardian fields
@@ -37,6 +40,8 @@ export async function GET(request: Request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
+
+  updatePaymentStatuses(schoolId).catch((err) => console.error("updatePaymentStatuses failed:", err));
 
   const { searchParams } = new URL(request.url);
   const search = searchParams.get("search");
@@ -101,6 +106,7 @@ export async function POST(request: Request) {
     gender,
     allergies,
     paymentMethod,
+    enrollmentDate,
     enrollmentEndDate,
     paymentStatus,
     guardianId: clientGuardianId,
@@ -166,6 +172,9 @@ export async function POST(request: Request) {
       ...(gender !== undefined && { gender }),
       ...(allergies !== undefined && { allergies }),
       ...(paymentMethod !== undefined && { paymentMethod }),
+      ...(enrollmentDate !== undefined && {
+        enrollment_date: new Date(enrollmentDate),
+      }),
       ...(enrollmentEndDate !== undefined && {
         enrollmentEndDate: new Date(enrollmentEndDate),
       }),
@@ -174,6 +183,8 @@ export async function POST(request: Request) {
     },
     include: { class: true, guardian: true },
   });
+
+  await generatePaymentCycles(student.id);
 
   return Response.json(student, { status: 201 });
 }

@@ -41,27 +41,34 @@ export async function POST(
   }
 
   const school = await prisma.school.findUnique({ where: { id: schoolId } });
-  const [h, m] = (school?.teacherCheckoutTime ?? "17:00").split(":").map(Number);
+  const [inH, inM] = (school?.teacherCheckinTime ?? "08:00").split(":").map(Number);
+  const [outH, outM] = (school?.teacherCheckoutTime ?? "17:00").split(":").map(Number);
+  const requiredHours = (outH * 60 + outM - (inH * 60 + inM)) / 60;
 
-  // Build cutoff in UTC (subtract 3h offset)
-  const cutoffUtc = new Date(nowUtc);
-  cutoffUtc.setUTCHours(h - 3, m, 0, 0);
+  const actualHours = (nowUtc.getTime() - new Date(existing.checkinAt!).getTime()) / 3600000;
+  const compensated = requiredHours <= 0 || actualHours >= requiredHours;
 
-  const lateMinutes = nowUtc > cutoffUtc
-    ? Math.floor((nowUtc.getTime() - cutoffUtc.getTime()) / 60000)
-    : 0;
-  const totalHours = (nowUtc.getTime() - new Date(existing.checkinAt!).getTime()) / 3600000;
-  const lateHours = lateMinutes / 60;
+  let lateHours = 0;
+  let lateMinutes = 0;
+  if (!compensated) {
+    lateHours = requiredHours - actualHours;
+    lateMinutes = Math.round(lateHours * 60);
+  }
 
   const attendance = await prisma.teacherAttendance.update({
     where: { id: existing.id },
-    data: { checkoutAt: nowUtc, lateMinutes },
+    data: {
+      checkoutAt: nowUtc,
+      lateMinutes,
+      requiredHours,
+      compensated,
+    },
   });
 
   await prisma.teacher.update({
     where: { id },
     data: {
-      attendanceHours: { increment: totalHours },
+      attendanceHours: { increment: actualHours },
       lateHours: { increment: lateHours },
     },
   });

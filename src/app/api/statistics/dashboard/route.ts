@@ -1,5 +1,6 @@
 import { requireSession } from "@/lib/session";
 import { getFinancialSummary, type ReportPeriodType } from "@/lib/finance";
+import { updatePaymentStatuses } from "@/lib/payment-status-updater";
 
 const VALID_TYPES: ReportPeriodType[] = ["monthly", "semi_annual", "annual"];
 
@@ -11,6 +12,8 @@ export async function GET(request: Request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
+
+  updatePaymentStatuses(schoolId).catch((err) => console.error("updatePaymentStatuses failed:", err));
 
   const { searchParams } = new URL(request.url);
   const typeParam = searchParams.get("type");

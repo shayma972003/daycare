@@ -32,6 +32,7 @@ type StudentFormData = {
   registrationFee: string;
   paymentMethod: "CASH" | "TRANSFER" | "CARD";
   paymentStatus: "PAID" | "LATE" | "CANCELLED" | "SUSPENDED";
+  enrollmentDate: string;
   enrollmentEndDate: string;
 };
 
@@ -148,6 +149,7 @@ export default function NewStudentPage() {
         allergies: data.allergies || undefined,
         paymentMethod: data.paymentMethod,
         paymentStatus: data.paymentStatus,
+        enrollmentDate: data.enrollmentDate || undefined,
         enrollmentEndDate: data.enrollmentEndDate || undefined,
         guardianId: guardianId || undefined,
         guardianName: data.guardianName || undefined,
@@ -355,6 +357,9 @@ export default function NewStudentPage() {
                   <option value="CANCELLED">{t("paymentStatus.CANCELLED")}</option>
                   <option value="SUSPENDED">{t("paymentStatus.SUSPENDED")}</option>
                 </select>
+              </Field>
+              <Field label="تاريخ الانضمام">
+                <input {...register("enrollmentDate")} type="date" dir="ltr" className={inputCls} />
               </Field>
               <Field label={t("students.profile.enrollmentEndDate")}>
                 <input {...register("enrollmentEndDate")} type="date" dir="ltr" className={inputCls} />

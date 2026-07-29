@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { SessionProvider } from "@/components/layout/SessionProvider";
+import { AlertsProvider } from "@/components/layout/AlertsProvider";
 
 export default async function DashboardLayout({
   children,
@@ -22,10 +23,12 @@ export default async function DashboardLayout({
 
   return (
     <SessionProvider>
-      <div className="min-h-screen flex">
-        <Sidebar schoolName={school?.name} schoolLogo={school?.logoUrl} />
-        <main className="flex-1 mr-[220px] min-h-screen bg-brand-bg">{children}</main>
-      </div>
+      <AlertsProvider>
+        <div className="min-h-screen flex">
+          <Sidebar schoolName={school?.name} schoolLogo={school?.logoUrl} />
+          <main className="flex-1 mr-[220px] min-h-screen bg-brand-bg">{children}</main>
+        </div>
+      </AlertsProvider>
     </SessionProvider>
   );
 }

@@ -106,15 +106,18 @@ export async function POST(request: Request) {
       // الإيرادات
       createElement(View, { style: styles.section },
         createElement(Text, { style: styles.sectionTitle }, "الإيرادات"),
-        row("الرسوم الشهرية وغرامات التأخير", fmt(summary.revenue.monthlyFees)),
+        row("الرسوم الشهرية", fmt(summary.revenue.monthlyFees)),
+        row("غرامات التأخير", fmt(summary.revenue.lateFees)),
         row("رسوم التسجيل المحصّلة", fmt(summary.revenue.registrationFeesCollected)),
-        row("الأنشطة", fmt(summary.revenue.activities)),
+        row("رسوم الفعاليات", fmt(summary.revenue.activities)),
+        row("ضريبة القيمة المضافة المحصَّلة", fmt(summary.revenue.vatCollected)),
       ),
 
       // التحصيل
       createElement(View, { style: styles.section },
         createElement(Text, { style: styles.sectionTitle }, "التحصيل (حسب حالة دفع الطلاب النشطين)"),
-        row(`مدفوع (${summary.collection.paidCount} طالب)`, fmt(summary.collection.paid)),
+        row(`مدفوع — الإجمالي الصافي (${summary.collection.paidCount} طالب)`, fmt(summary.collection.paid)),
+        row(`مدفوع — شامل الضريبة (${summary.collection.paidCount} طالب)`, fmt(summary.collection.paidWithVat)),
         row(`متأخر (${summary.collection.lateCount} طالب)`, fmt(summary.collection.late)),
         row(`بانتظار الدفع (${summary.collection.pendingCount} طالب)`, fmt(summary.collection.pending)),
       ),

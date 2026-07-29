@@ -53,7 +53,20 @@ export async function GET(
       return Response.json({ error: "Not found" }, { status: 404 });
     }
 
-    return Response.json(teacher, { status: 200 });
+    const now = new Date();
+    const lateCountThisMonth = await prisma.teacherAttendance.count({
+      where: {
+        teacherId: id,
+        lateMinutes: { gt: 0 },
+        compensated: false,
+        date: {
+          gte: new Date(now.getFullYear(), now.getMonth(), 1),
+          lte: now,
+        },
+      },
+    });
+
+    return Response.json({ ...teacher, lateCountThisMonth }, { status: 200 });
   } catch (error) {
     console.error("Teacher [id] GET error:", error);
     return Response.json({ error: String(error) }, { status: 500 });

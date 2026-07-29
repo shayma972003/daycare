@@ -24,6 +24,7 @@ interface Teacher {
   qualification7?: string | null; qualification8?: string | null; qualification9?: string | null;
   qualification10?: string | null;
   attendanceHours?: number | null; lateHours?: number | null; isActive?: boolean;
+  lateCountThisMonth?: number;
 }
 
 interface FormValues {
@@ -271,7 +272,17 @@ export default function TeacherProfilePage() {
 
               {/* ── بطاقة بيانات التوظيف ──────────────────────────── */}
               <div className="bg-white rounded-xl shadow-md p-6 space-y-4">
-                <h2 className="font-bold text-[#111111] text-base border-b border-gray-100 pb-3">بيانات التوظيف</h2>
+                <h2 className="font-bold text-[#111111] text-base border-b border-gray-100 pb-3 flex items-center gap-2">
+                  بيانات التوظيف
+                  {(teacher?.lateCountThisMonth ?? 0) >= 5 && (
+                    <div className="relative inline-block group">
+                      <span className="text-yellow text-lg cursor-default">⚠</span>
+                      <div className="absolute bottom-full right-0 mb-1 px-2 py-1 bg-gray-800 text-white text-xs rounded whitespace-nowrap hidden group-hover:block z-10">
+                        تأخير متكرر
+                      </div>
+                    </div>
+                  )}
+                </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className={labelCls}>تاريخ الانضمام</label>

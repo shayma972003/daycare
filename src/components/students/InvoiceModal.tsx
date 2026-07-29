@@ -95,6 +95,8 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
   const [discountLabel, setDiscountLabel] = useState("التخفيض");
   const [discountPercent, setDiscountPercent] = useState(15);
 
+  const [hasVat, setHasVat] = useState(false);
+
   useEffect(() => {
     if (!open) return;
     setLoading(true);
@@ -105,6 +107,7 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
     setHasDiscount(false);
     setDiscountLabel("التخفيض");
     setDiscountPercent(15);
+    setHasVat(false);
     axios
       .get<PrefillData>(`/api/invoices/prefill/${studentId}`)
       .then((res) => {
@@ -180,7 +183,8 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
       const activitiesTotal =
         includeActivities && !noActivities ? calcTotal(activityItems) : 0;
       const discountAmount = hasDiscount ? (baseTotal * discountPercent) / 100 : 0;
-      const grandTotal = baseTotal - discountAmount + activitiesTotal;
+      const vatAmount = hasVat ? baseTotal * 0.15 : 0;
+      const grandTotal = baseTotal + vatAmount + activitiesTotal - discountAmount;
 
       const res = await axios.post<IssuedInvoice & { type: string }>("/api/invoices/generate", {
         studentId,
@@ -225,6 +229,8 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
           discountLabel: hasDiscount ? discountLabel : null,
           discountPercent: hasDiscount ? discountPercent : null,
           discountAmount,
+          hasVat,
+          vatAmount,
           grandTotal,
         },
       });
@@ -248,7 +254,8 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
   const baseTotalView = calcTotal(lineItems);
   const activitiesTotalView = includeActivities && !noActivities ? calcTotal(activityItems) : 0;
   const discountAmountView = hasDiscount ? (baseTotalView * discountPercent) / 100 : 0;
-  const grandTotal = baseTotalView - discountAmountView + activitiesTotalView;
+  const vatAmountView = hasVat ? baseTotalView * 0.15 : 0;
+  const grandTotal = baseTotalView + vatAmountView + activitiesTotalView - discountAmountView;
 
   return (
     <Dialog.Root open={open} onOpenChange={(v) => !v && onClose()}>
@@ -480,6 +487,19 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
                           <td />
                         </tr>
                       )}
+                      {hasVat && (
+                        <tr className="border-t border-dashed border-gray-200">
+                          <td className="px-3 py-2 text-right text-sm">ضريبة القيمة المضافة</td>
+                          <td className="px-3 py-2 text-center text-gray-300 text-sm">—</td>
+                          <td className="px-3 py-2 text-center text-sm text-gray-500">15%</td>
+                          <td className="px-3 py-2 text-center">
+                            <span className="text-sm font-medium text-gray-700">
+                              +{((calcTotal(lineItems) * 15) / 100).toFixed(2)} ر.س
+                            </span>
+                          </td>
+                          <td />
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                   <div className="px-3 py-2 flex items-center justify-between bg-gray-50">
@@ -512,6 +532,20 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
                         setDiscountPercent(15);
                       }
                     }}
+                    className="w-4 h-4 accent-teal cursor-pointer"
+                  />
+                </div>
+
+                {/* VAT checkbox */}
+                <div className="flex items-center gap-3 justify-end mt-2">
+                  <label className="text-sm text-gray-700 font-medium cursor-pointer" htmlFor="vat-checkbox">
+                    القيمة المضافة (15%)
+                  </label>
+                  <input
+                    id="vat-checkbox"
+                    type="checkbox"
+                    checked={hasVat}
+                    onChange={(e) => setHasVat(e.target.checked)}
                     className="w-4 h-4 accent-teal cursor-pointer"
                   />
                 </div>
@@ -601,22 +635,32 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
               </div>
 
               {/* Grand total */}
-              <div className="flex justify-end">
-                <div className="bg-gray-50 border border-gray-100 rounded-xl px-6 py-3 text-left space-y-1">
-                  {hasDiscount && (
-                    <>
-                      <p className="text-xs text-gray-500">
-                        المجموع قبل الخصم: <span className="font-medium text-gray-700">{baseTotalView.toFixed(2)} ر.س</span>
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        الخصم (-{discountPercent}%): <span className="font-medium text-coral">-{discountAmountView.toFixed(2)} ر.س</span>
-                      </p>
-                    </>
-                  )}
-                  <p>
-                    <span className="text-sm text-gray-500">{hasDiscount ? "الإجمالي بعد الخصم: " : "الإجمالي الكلي: "}</span>
-                    <span className="text-lg font-bold text-coral">{grandTotal.toFixed(2)} ر.س</span>
-                  </p>
+              <div className="text-right space-y-1 mt-3 pt-3 border-t border-gray-100">
+                <div className="flex justify-between text-sm text-gray-500">
+                  <span>{baseTotalView.toFixed(2)} ر.س</span>
+                  <span>المجموع قبل الضريبة</span>
+                </div>
+                {hasVat && (
+                  <div className="flex justify-between text-sm text-gray-500">
+                    <span>+{vatAmountView.toFixed(2)} ر.س</span>
+                    <span>ضريبة القيمة المضافة (15%)</span>
+                  </div>
+                )}
+                {includeActivities && !noActivities && (
+                  <div className="flex justify-between text-sm text-gray-500">
+                    <span>+{activitiesTotalView.toFixed(2)} ر.س</span>
+                    <span>رسوم الفعاليات</span>
+                  </div>
+                )}
+                {hasDiscount && (
+                  <div className="flex justify-between text-sm text-coral">
+                    <span>-{discountAmountView.toFixed(2)} ر.س</span>
+                    <span>خصم ({discountPercent}%)</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-base font-bold text-gray-900 pt-1 border-t border-gray-200">
+                  <span>{grandTotal.toFixed(2)} ر.س</span>
+                  <span>الإجمالي الكلي</span>
                 </div>
               </div>
 

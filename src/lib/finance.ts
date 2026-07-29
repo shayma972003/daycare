@@ -76,6 +76,8 @@ export interface FinancialSummary {
     monthlyFees: number; // مبالغ فواتير الطلاب (رسوم شهرية + غرامات تأخير)
     registrationFeesCollected: number; // رسوم تسجيل لطلاب مسجّلين خلال الفترة وحالتهم "مدفوع"
     activities: number; // إجمالي فواتير الأنشطة ضمن فواتير الطلاب
+    lateFees: number; // غرامات تأخير الطلاب (Attendance.lateFee) خلال الفترة
+    vatCollected: number; // ضريبة القيمة المضافة المحصَّلة من فواتير الطلاب خلال الفترة
   };
   expenses: {
     total: number;
@@ -94,6 +96,7 @@ export interface FinancialSummary {
 
   collection: {
     paid: number; // ر.س — طلاب بحالة "مدفوع"
+    paidWithVat: number; // الإجمالي شامل الضريبة (15%)
     late: number; // ر.س — طلاب بحالة "متأخر"
     pending: number; // ر.س — طلاب بحالة "بانتظار الدفع"
     paidCount: number;
@@ -163,7 +166,7 @@ export async function getFinancialSummary(schoolId: string, type: ReportPeriodTy
   const range = getPeriodRange(type);
   const prevRange = getPreviousPeriodRange(type, range);
 
-  const [settings, studentInvoices, teacherInvoices, expenses, paidRegFeesResult] = await Promise.all([
+  const [settings, studentInvoices, teacherInvoices, expenses, paidRegFeesResult, lateFeesResult] = await Promise.all([
     prisma.settings.findUnique({ where: { schoolId } }),
     prisma.invoice.findMany({
       where: { schoolId, type: "STUDENT", createdAt: { gte: range.from, lte: range.to } },
@@ -180,16 +183,24 @@ export async function getFinancialSummary(schoolId: string, type: ReportPeriodTy
       where: { schoolId, isActive: true, paymentStatus: "PAID", registrationDate: { gte: range.from, lte: range.to } },
       _sum: { registration_fee: true },
     }),
+    prisma.attendance.aggregate({
+      where: { schoolId, date: { gte: range.from, lte: range.to } },
+      _sum: { lateFee: true },
+    }),
   ]);
+
+  const lateFeeRevenue = lateFeesResult._sum.lateFee ?? 0;
+  const vatCollected = studentInvoices.reduce((s, inv) => s + (inv.vat_amount ?? 0), 0);
 
   const activitiesTotal = studentInvoices.reduce((s, inv) => {
     const data = inv.data as { activitiesTotal?: number } | null;
     return s + (data?.activitiesTotal ?? 0);
   }, 0);
   const studentInvoicesTotal = studentInvoices.reduce((s, inv) => s + inv.amount, 0);
-  const monthlyFeesRevenue = studentInvoicesTotal - activitiesTotal;
+  // Base monthly-fee revenue excludes activities and VAT, which are reported as their own lines
+  const monthlyFeesRevenue = studentInvoicesTotal - activitiesTotal - vatCollected;
   const registrationFeesCollected = paidRegFeesResult._sum.registration_fee ?? 0;
-  const revenueTotal = monthlyFeesRevenue + activitiesTotal + registrationFeesCollected;
+  const revenueTotal = monthlyFeesRevenue + activitiesTotal + registrationFeesCollected + vatCollected + lateFeeRevenue;
 
   const salaryItems = teacherInvoices.map((inv) => ({ name: inv.teacher?.name ?? "معلم", amount: inv.amount }));
   const salariesPaid = teacherInvoices.reduce((s, inv) => s + inv.amount, 0);
@@ -247,6 +258,8 @@ export async function getFinancialSummary(schoolId: string, type: ReportPeriodTy
       monthlyFees: monthlyFeesRevenue,
       registrationFeesCollected,
       activities: activitiesTotal,
+      lateFees: lateFeeRevenue,
+      vatCollected,
     },
     expenses: {
       total: expensesTotal,
@@ -263,6 +276,7 @@ export async function getFinancialSummary(schoolId: string, type: ReportPeriodTy
     },
     collection: {
       paid: billableByStatus.PAID.amount,
+      paidWithVat: billableByStatus.PAID.amount * 1.15,
       late: billableByStatus.LATE.amount,
       pending: billableByStatus["بانتظار الدفع"].amount,
       paidCount: billableByStatus.PAID.count,

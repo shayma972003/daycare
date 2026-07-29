@@ -1,6 +1,7 @@
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
+import { generatePaymentCycles } from "@/lib/payment-cycles";
 import { z } from "zod";
 
 const updateStudentSchema = z.object({
@@ -16,6 +17,7 @@ const updateStudentSchema = z.object({
   allergies: z.string().nullish(),
   attendanceType: z.string().nullish(),
   paymentMethod: z.enum(["CASH", "TRANSFER", "CARD"]).nullish(),
+  enrollmentDate: z.string().nullish(),
   enrollmentEndDate: z.string().nullish(),
   paymentStatus: z.string().nullish(),
   isActive: z.boolean().optional(),
@@ -73,6 +75,7 @@ export async function GET(
       {
         ...student,
         registration_fee: (student as unknown as Record<string, unknown>).registration_fee ?? 0,
+        enrollmentDate: student.enrollment_date,
         siblings,
       },
       { status: 200 }
@@ -133,6 +136,9 @@ export async function PUT(
   if ("allergies" in data) updateData.allergies = data.allergies ?? null;
   if ("attendanceType" in data) updateData.attendanceType = data.attendanceType ?? "دوام منتظم";
   if ("paymentMethod" in data) updateData.paymentMethod = data.paymentMethod ?? null;
+  if ("enrollmentDate" in data) {
+    updateData.enrollment_date = data.enrollmentDate ? new Date(data.enrollmentDate) : null;
+  }
   if ("enrollmentEndDate" in data) {
     updateData.enrollmentEndDate = data.enrollmentEndDate
       ? new Date(data.enrollmentEndDate)
@@ -213,6 +219,10 @@ export async function PUT(
     data: updateData,
     include: { class: true, guardian: true },
   });
+
+  if ("enrollmentDate" in data || "enrollmentEndDate" in data || data.registration_fee !== undefined) {
+    await generatePaymentCycles(student.id);
+  }
 
   await logAction({
     school_id: schoolId,

@@ -180,9 +180,21 @@ function EnrollmentForm({
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [evaluationFile, setEvaluationFile] = useState<File | null>(null);
+  const [evaluationError, setEvaluationError] = useState("");
+  const enrollmentDate = useState(() => new Date().toLocaleDateString("ar-SA"))[0];
 
   function set(key: string, val: string) {
     setForm((prev) => ({ ...prev, [key]: val }));
+  }
+
+  function fileToBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
   }
 
   async function handleSubmit(e: React.SyntheticEvent) {
@@ -194,9 +206,14 @@ function EnrollmentForm({
     setSubmitting(true);
     setError(null);
     try {
+      const evaluationPayload = evaluationFile
+        ? { evaluation_file_url: await fileToBase64(evaluationFile), evaluation_file_name: evaluationFile.name }
+        : {};
       const res = await axios.post<{ success: boolean; submissions_count: number }>("/api/enrollment/submit", {
         token,
         ...form,
+        enrollment_date: new Date().toISOString(),
+        ...evaluationPayload,
       });
       const guardian: GuardianPrefill = {
         guardian_name: form.guardian_name,
@@ -257,6 +274,30 @@ function EnrollmentForm({
         <Field label="تاريخ الميلاد">
           <input type="date" className={inputCls} value={form.date_of_birth} onChange={(e) => set("date_of_birth", e.target.value)} />
         </Field>
+        <div className="flex flex-col gap-1">
+          <label className="text-sm font-medium text-gray-700 mb-1.5 block">
+            إضافة تقييم الطفل <span className="text-gray-400 text-xs">(اختياري)</span>
+          </label>
+          <input
+            type="file"
+            accept=".pdf,.png,.jpg,.jpeg"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              if (file.size > 100 * 1024 * 1024) {
+                setEvaluationError("حجم الملف كبير جدا، الحجم المسموح للملف هو 100 MB أو أقل");
+                e.target.value = "";
+                return;
+              }
+              setEvaluationError("");
+              setEvaluationFile(file);
+            }}
+            className={inputCls}
+          />
+          {evaluationError && (
+            <p className="text-xs text-red-600 text-right">{evaluationError}</p>
+          )}
+        </div>
       </Card>
 
       <Card title="المعلومات الصحية">
@@ -296,6 +337,9 @@ function EnrollmentForm({
       </Card>
 
       <Card title="معلومات التسجيل">
+        <Field label="تاريخ الانضمام">
+          <input type="text" value={enrollmentDate} readOnly className={`${inputCls} bg-gray-50 text-gray-500 cursor-not-allowed`} />
+        </Field>
         <Field label="طبيعة الدوام">
           <select className={selectCls} value={form.attendance_type} onChange={(e) => set("attendance_type", e.target.value)}>
             <option value="">اختر</option>

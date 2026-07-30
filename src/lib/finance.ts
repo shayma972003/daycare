@@ -73,16 +73,16 @@ export interface FinancialSummary {
 
   revenue: {
     total: number;
-    monthlyFees: number; // مبالغ فواتير الطلاب (رسوم شهرية + غرامات تأخير)
+    monthlyFees: number; // دورات دفع (PaymentCycle) بحالة "مدفوع" ضمن الفترة
     registrationFeesCollected: number; // رسوم تسجيل لطلاب مسجّلين خلال الفترة وحالتهم "مدفوع"
-    activities: number; // إجمالي فواتير الأنشطة ضمن فواتير الطلاب
+    activities: number; // رسوم الفعاليات المقامة خلال الفترة
     lateFees: number; // غرامات تأخير الطلاب (Attendance.lateFee) خلال الفترة
-    vatCollected: number; // ضريبة القيمة المضافة المحصَّلة من فواتير الطلاب خلال الفترة
+    vatCollected: number; // ضريبة القيمة المضافة (15% تقديري من الرسوم الشهرية المحصَّلة)
   };
   expenses: {
     total: number;
-    salaries: number; // رواتب مدفوعة فعلياً خلال الفترة
-    salaryItems: { name: string; amount: number }[]; // كل عملية دفع راتب لمعلم خلال الفترة
+    salaries: number; // رواتب المعلمين النشطين (حسب العقود) خلال الفترة
+    salaryItems: { name: string; amount: number }[];
     manual: { title: string; amount: number }[]; // مصاريف مضافة يدويًا من قسم المصاريف
     manualTotal: number;
   };
@@ -105,8 +105,8 @@ export interface FinancialSummary {
   };
 
   salaries: {
-    totalBudgeted: number; // إجمالي رواتب المعلمين النشطين المتعاقد عليها
-    paid: number; // المصروف فعليًا خلال الفترة
+    totalBudgeted: number; // رواتب المعلمين النشطين خلال الفترة (حسب العقود)
+    paid: number; // نفس القيمة — لا يوجد مصدر منفصل "مدفوع فعليًا" بدون الفواتير
     remaining: number;
   };
 
@@ -143,10 +143,22 @@ async function getStudentBillableByStatus(schoolId: string, monthlyStudentFee: n
   return buckets;
 }
 
+/** Sum of active-teacher monthly salaries prorated across each teacher's join date, up to `before`. */
+async function getCumulativeSalaryExpense(schoolId: string, before: Date): Promise<number> {
+  const teachers = await prisma.teacher.findMany({
+    where: { schoolId, isActive: true },
+    select: { joinDate: true, monthlySalary: true },
+  });
+  const dayBefore = new Date(before.getTime() - 1);
+  return teachers.reduce((s, t) => s + countOverlappingMonths(new Date(t.joinDate), dayBefore) * t.monthlySalary, 0);
+}
+
 async function getCumulativeCashPosition(schoolId: string, before: Date): Promise<number> {
-  const [studentInvoices, teacherInvoices, paidRegFees, expenses] = await Promise.all([
-    prisma.invoice.aggregate({ where: { schoolId, type: "STUDENT", createdAt: { lt: before } }, _sum: { amount: true } }),
-    prisma.invoice.aggregate({ where: { schoolId, type: "TEACHER", createdAt: { lt: before } }, _sum: { amount: true } }),
+  const [paidCycles, paidRegFees, expenses] = await Promise.all([
+    prisma.paymentCycle.aggregate({
+      where: { school_id: schoolId, status: "مدفوع", due_date: { lt: before } },
+      _sum: { amount: true },
+    }),
     prisma.student.aggregate({
       where: { schoolId, isActive: true, paymentStatus: "PAID", registrationDate: { lt: before } },
       _sum: { registration_fee: true },
@@ -156,27 +168,32 @@ async function getCumulativeCashPosition(schoolId: string, before: Date): Promis
 
   const veryEarly = new Date(0);
   const manualExpensesTotal = expenses.reduce((s, e) => s + expenseAmountInPeriod(e, veryEarly, new Date(before.getTime() - 1)), 0);
+  const salariesExpense = await getCumulativeSalaryExpense(schoolId, before);
 
-  const inflows = (studentInvoices._sum.amount ?? 0) + (paidRegFees._sum.registration_fee ?? 0);
-  const outflows = (teacherInvoices._sum.amount ?? 0) + manualExpensesTotal;
+  const inflows = (paidCycles._sum.amount ?? 0) + (paidRegFees._sum.registration_fee ?? 0);
+  const outflows = salariesExpense + manualExpensesTotal;
   return inflows - outflows;
 }
 
 export async function getFinancialSummary(schoolId: string, type: ReportPeriodType): Promise<FinancialSummary> {
   const range = getPeriodRange(type);
   const prevRange = getPreviousPeriodRange(type, range);
+  const monthsInPeriod = countOverlappingMonths(range.from, range.to);
 
-  const [settings, studentInvoices, teacherInvoices, expenses, paidRegFeesResult, lateFeesResult] = await Promise.all([
+  const [settings, paidCycles, activeTeachers, activitiesInPeriod, expenses, paidRegFeesResult, lateFeesResult] = await Promise.all([
     prisma.settings.findUnique({ where: { schoolId } }),
-    prisma.invoice.findMany({
-      where: { schoolId, type: "STUDENT", createdAt: { gte: range.from, lte: range.to } },
+    prisma.paymentCycle.findMany({
+      where: { school_id: schoolId, status: "مدفوع", due_date: { gte: range.from, lte: range.to } },
       include: { student: { select: { name: true } } },
-      orderBy: { createdAt: "desc" },
+      orderBy: { due_date: "desc" },
     }),
-    prisma.invoice.findMany({
-      where: { schoolId, type: "TEACHER", createdAt: { gte: range.from, lte: range.to } },
-      include: { teacher: { select: { name: true } } },
-      orderBy: { createdAt: "desc" },
+    prisma.teacher.findMany({
+      where: { schoolId, isActive: true },
+      select: { id: true, name: true, monthlySalary: true },
+    }),
+    prisma.activity.findMany({
+      where: { schoolId, startDate: { gte: range.from, lte: range.to } },
+      select: { name: true, activityFee: true, childrenCount: true },
     }),
     prisma.expense.findMany({ where: { school_id: schoolId } }),
     prisma.student.aggregate({
@@ -190,25 +207,19 @@ export async function getFinancialSummary(schoolId: string, type: ReportPeriodTy
   ]);
 
   const lateFeeRevenue = lateFeesResult._sum.lateFee ?? 0;
-  const vatCollected = studentInvoices.reduce((s, inv) => s + (inv.vat_amount ?? 0), 0);
-
-  const activitiesTotal = studentInvoices.reduce((s, inv) => {
-    const data = inv.data as { activitiesTotal?: number } | null;
-    return s + (data?.activitiesTotal ?? 0);
-  }, 0);
-  const studentInvoicesTotal = studentInvoices.reduce((s, inv) => s + inv.amount, 0);
-  // Base monthly-fee revenue excludes activities and VAT, which are reported as their own lines
-  const monthlyFeesRevenue = studentInvoicesTotal - activitiesTotal - vatCollected;
+  const monthlyFeesRevenue = paidCycles.reduce((s, c) => s + c.amount, 0);
+  const vatCollected = monthlyFeesRevenue * 0.15;
+  const activitiesTotal = activitiesInPeriod.reduce((s, a) => s + a.activityFee * a.childrenCount, 0);
   const registrationFeesCollected = paidRegFeesResult._sum.registration_fee ?? 0;
   const revenueTotal = monthlyFeesRevenue + activitiesTotal + registrationFeesCollected + vatCollected + lateFeeRevenue;
 
-  const salaryItems = teacherInvoices.map((inv) => ({ name: inv.teacher?.name ?? "معلم", amount: inv.amount }));
-  const salariesPaid = teacherInvoices.reduce((s, inv) => s + inv.amount, 0);
+  const salaryItems = activeTeachers.map((t) => ({ name: t.name, amount: t.monthlySalary * monthsInPeriod }));
+  const salariesExpense = salaryItems.reduce((s, item) => s + item.amount, 0);
   const manualExpenseItems = expenses
     .map((e) => ({ title: e.title, amount: expenseAmountInPeriod(e, range.from, range.to) }))
     .filter((e) => e.amount > 0);
   const manualExpensesTotal = manualExpenseItems.reduce((s, e) => s + e.amount, 0);
-  const expensesTotal = salariesPaid + manualExpensesTotal;
+  const expensesTotal = salariesExpense + manualExpensesTotal;
 
   const netIncome = revenueTotal - expensesTotal;
 
@@ -216,36 +227,44 @@ export async function getFinancialSummary(schoolId: string, type: ReportPeriodTy
   const billableByStatus = await getStudentBillableByStatus(schoolId, monthlyStudentFee);
   const amountDue = billableByStatus.LATE.amount + billableByStatus["بانتظار الدفع"].amount;
 
-  // Previous period (for % comparison only — same shape, computed inline to avoid recursion cost)
-  const [prevStudentInvoices, prevTeacherInvoices, prevRegFees] = await Promise.all([
-    prisma.invoice.aggregate({ where: { schoolId, type: "STUDENT", createdAt: { gte: prevRange.from, lte: prevRange.to } }, _sum: { amount: true } }),
-    prisma.invoice.aggregate({ where: { schoolId, type: "TEACHER", createdAt: { gte: prevRange.from, lte: prevRange.to } }, _sum: { amount: true } }),
+  // Previous period (for % comparison only)
+  const [prevPaidCycles, prevActivities, prevRegFees] = await Promise.all([
+    prisma.paymentCycle.aggregate({
+      where: { school_id: schoolId, status: "مدفوع", due_date: { gte: prevRange.from, lte: prevRange.to } },
+      _sum: { amount: true },
+    }),
+    prisma.activity.findMany({
+      where: { schoolId, startDate: { gte: prevRange.from, lte: prevRange.to } },
+      select: { activityFee: true, childrenCount: true },
+    }),
     prisma.student.aggregate({
       where: { schoolId, isActive: true, paymentStatus: "PAID", registrationDate: { gte: prevRange.from, lte: prevRange.to } },
       _sum: { registration_fee: true },
     }),
   ]);
+  const prevActivitiesTotal = prevActivities.reduce((s, a) => s + a.activityFee * a.childrenCount, 0);
+  const prevMonthsInPeriod = countOverlappingMonths(prevRange.from, prevRange.to);
+  const prevSalariesExpense = activeTeachers.reduce((s, t) => s + t.monthlySalary * prevMonthsInPeriod, 0);
   const prevManualExpensesTotal = expenses.reduce((s, e) => s + expenseAmountInPeriod(e, prevRange.from, prevRange.to), 0);
-  const prevRevenue = (prevStudentInvoices._sum.amount ?? 0) + (prevRegFees._sum.registration_fee ?? 0);
-  const prevExpenses = (prevTeacherInvoices._sum.amount ?? 0) + prevManualExpensesTotal;
+  const prevRevenue = (prevPaidCycles._sum.amount ?? 0) + prevActivitiesTotal + (prevRegFees._sum.registration_fee ?? 0);
+  const prevExpenses = prevSalariesExpense + prevManualExpensesTotal;
 
-  const teacherSalaryTotals = await prisma.teacher.aggregate({ where: { schoolId, isActive: true }, _sum: { monthlySalary: true } });
-  const totalBudgetedSalaries = teacherSalaryTotals._sum.monthlySalary ?? 0;
+  const totalBudgetedSalaries = salariesExpense;
 
   const openingBalance = await getCumulativeCashPosition(schoolId, range.from);
   const closingBalance = openingBalance + revenueTotal - expensesTotal;
 
-  const revenueDetails = studentInvoices.map((inv) => ({
-    id: inv.id,
-    date: inv.createdAt.toISOString(),
-    amount: inv.amount,
-    label: inv.student?.name ? `فاتورة رسوم — ${inv.student.name}` : "فاتورة رسوم",
+  const revenueDetails = paidCycles.map((c) => ({
+    id: c.id,
+    date: c.due_date.toISOString(),
+    amount: c.amount,
+    label: c.student?.name ? `دفعة شهرية — ${c.student.name} (دورة ${c.cycle_number})` : `دفعة شهرية (دورة ${c.cycle_number})`,
   }));
-  const salaryDetails = teacherInvoices.map((inv) => ({
-    id: inv.id,
-    date: inv.createdAt.toISOString(),
-    amount: inv.amount,
-    label: inv.teacher?.name ? `راتب — ${inv.teacher.name}` : "راتب معلم",
+  const salaryDetails = salaryItems.map((s, i) => ({
+    id: `salary-${i}`,
+    date: range.to.toISOString(),
+    amount: s.amount,
+    label: `راتب — ${s.name}`,
   }));
   const manualExpenseDetails = expenses
     .map((e) => ({ id: e.id, date: e.start_date.toISOString(), amount: expenseAmountInPeriod(e, range.from, range.to), label: e.title }))
@@ -263,7 +282,7 @@ export async function getFinancialSummary(schoolId: string, type: ReportPeriodTy
     },
     expenses: {
       total: expensesTotal,
-      salaries: salariesPaid,
+      salaries: salariesExpense,
       salaryItems,
       manual: manualExpenseItems,
       manualTotal: manualExpensesTotal,
@@ -285,8 +304,8 @@ export async function getFinancialSummary(schoolId: string, type: ReportPeriodTy
     },
     salaries: {
       totalBudgeted: totalBudgetedSalaries,
-      paid: salariesPaid,
-      remaining: Math.max(0, totalBudgetedSalaries - salariesPaid),
+      paid: totalBudgetedSalaries,
+      remaining: 0,
     },
     cashFlow: {
       openingBalance,

@@ -30,8 +30,9 @@ type StudentFormData = {
   guardianPhone4: string;
   guardianEmail2: string;
   registrationFee: string;
+  attendanceType: string;
   paymentMethod: "CASH" | "TRANSFER" | "CARD";
-  paymentStatus: "PAID" | "LATE" | "CANCELLED" | "SUSPENDED";
+  paymentStatus: string;
   enrollmentDate: string;
   enrollmentEndDate: string;
 };
@@ -63,8 +64,9 @@ export default function NewStudentPage() {
     defaultValues: {
       gender: "MALE",
       period: "MORNING",
+      attendanceType: "دوام منتظم",
       paymentMethod: "CASH",
-      paymentStatus: "PAID",
+      paymentStatus: "بانتظار الدفع",
     },
   });
 
@@ -147,6 +149,7 @@ export default function NewStudentPage() {
         nationality: data.nationality || undefined,
         gender: data.gender,
         allergies: data.allergies || undefined,
+        attendanceType: data.attendanceType || undefined,
         paymentMethod: data.paymentMethod,
         paymentStatus: data.paymentStatus,
         enrollmentDate: data.enrollmentDate || undefined,
@@ -350,8 +353,16 @@ export default function NewStudentPage() {
                   <option value="CARD">{t("paymentMethod.CARD")}</option>
                 </select>
               </Field>
+              <Field label="طبيعة الدوام">
+                <select {...register("attendanceType")} className={inputCls}>
+                  <option value="دوام منتظم">دوام منتظم</option>
+                  <option value="شفتات">شفتات</option>
+                  <option value="غيره">غيره</option>
+                </select>
+              </Field>
               <Field label="حالة الدفع">
                 <select {...register("paymentStatus")} className={inputCls}>
+                  <option value="بانتظار الدفع">بانتظار الدفع</option>
                   <option value="PAID">{t("paymentStatus.PAID")}</option>
                   <option value="LATE">{t("paymentStatus.LATE")}</option>
                   <option value="CANCELLED">{t("paymentStatus.CANCELLED")}</option>

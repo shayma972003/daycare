@@ -15,10 +15,11 @@ const createStudentSchema = z.object({
   nationality: z.string().optional(),
   gender: z.enum(["MALE", "FEMALE"]).optional(),
   allergies: z.string().optional(),
+  attendanceType: z.string().optional(),
   paymentMethod: z.enum(["CASH", "TRANSFER", "CARD"]).optional(),
   enrollmentDate: z.string().optional(),
   enrollmentEndDate: z.string().optional(),
-  paymentStatus: z.enum(["PAID", "LATE", "CANCELLED", "SUSPENDED"]).optional(),
+  paymentStatus: z.string().optional(),
   // Guardian fields
   registration_fee: z.number().min(0).optional(),
   guardianId: z.string().optional(),
@@ -105,6 +106,7 @@ export async function POST(request: Request) {
     nationality,
     gender,
     allergies,
+    attendanceType,
     paymentMethod,
     enrollmentDate,
     enrollmentEndDate,
@@ -171,6 +173,7 @@ export async function POST(request: Request) {
       ...(nationality !== undefined && { nationality }),
       ...(gender !== undefined && { gender }),
       ...(allergies !== undefined && { allergies }),
+      ...(attendanceType !== undefined && { attendanceType }),
       ...(paymentMethod !== undefined && { paymentMethod }),
       ...(enrollmentDate !== undefined && {
         enrollment_date: new Date(enrollmentDate),

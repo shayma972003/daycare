@@ -128,6 +128,9 @@ export async function POST(
       paymentMethod: mapPaymentMethod(ov.payment_method ?? sub.payment_method),
       paymentStatus: "بانتظار الدفع",
       registrationDate: new Date(),
+      enrollment_date: sub.enrollment_date ?? new Date(),
+      evaluationFileUrl: sub.evaluation_file_url,
+      evaluationFileName: sub.evaluation_file_name,
     },
   });
 

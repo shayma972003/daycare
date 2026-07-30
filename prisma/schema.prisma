@@ -652,6 +652,10 @@ model EnrollmentSubmission {
   guardian_phone_4 String?
   guardian_email_2 String?
 
+  enrollment_date       DateTime?
+  evaluation_file_url   String?
+  evaluation_file_name  String?
+
   submitted_at DateTime  @default(now())
   reviewed_at  DateTime?
   student_id   String?

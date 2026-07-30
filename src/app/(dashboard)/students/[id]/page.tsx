@@ -105,6 +105,7 @@ export default function StudentProfilePage({
   const [pendingEvalFile, setPendingEvalFile] = useState<File | null>(null);
   const [showReplaceEvalConfirm, setShowReplaceEvalConfirm] = useState(false);
   const [showDeleteEvalConfirm, setShowDeleteEvalConfirm] = useState(false);
+  const [evaluationError, setEvaluationError] = useState("");
   const evalFileInputRef = useRef<HTMLInputElement>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
@@ -331,6 +332,12 @@ export default function StudentProfilePage({
   function handleEvalFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.size > 100 * 1024 * 1024) {
+      setEvaluationError("حجم الملف كبير جدا، الحجم المسموح للملف هو 100 MB أو أقل");
+      e.target.value = "";
+      return;
+    }
+    setEvaluationError("");
     if (evalFileUrl) {
       setPendingEvalFile(file);
       setShowReplaceEvalConfirm(true);
@@ -551,6 +558,11 @@ export default function StudentProfilePage({
                     className="hidden"
                     onChange={handleEvalFileChange}
                   />
+                  {evaluationError && (
+                    <p className="text-xs mt-1 mb-2 text-right" style={{ color: "#F64651" }}>
+                      {evaluationError}
+                    </p>
+                  )}
                   {evalFileUrl ? (
                     <div className="flex items-center gap-2 flex-wrap text-sm">
                       <span className="text-gray-700">📄 {evalFileName}</span>

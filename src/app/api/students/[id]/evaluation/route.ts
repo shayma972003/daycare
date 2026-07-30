@@ -2,7 +2,7 @@ import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 
 const ALLOWED_MIME_TYPES = ["application/pdf", "image/png", "image/jpeg"];
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
 
 export async function POST(
   request: Request,
@@ -33,7 +33,7 @@ export async function POST(
   }
 
   if (file.size > MAX_FILE_SIZE) {
-    return Response.json({ error: "حجم الملف يتجاوز 5 ميجابايت" }, { status: 400 });
+    return Response.json({ error: "حجم الملف كبير جدا، الحجم المسموح للملف هو 100 MB أو أقل" }, { status: 400 });
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());

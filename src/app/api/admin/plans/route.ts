@@ -29,5 +29,10 @@ export async function POST(request: Request) {
   if (!parsed.success) return Response.json({ error: "Invalid data" }, { status: 400 });
 
   const plan = await prisma.subscriptionPlan.create({ data: parsed.data });
+
+  await prisma.adminActivityLog.create({
+    data: { action: "plan_created", metadata: { name: plan.name, price: plan.price }, performed_by: "super_admin" },
+  });
+
   return Response.json(plan, { status: 201 });
 }

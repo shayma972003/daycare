@@ -61,7 +61,7 @@ export default function TeacherProfilePage() {
   // Extra qualifications (4–10) stored as array of strings
   const [extraQuals, setExtraQuals] = useState<string[]>([]);
 
-  const { register, handleSubmit, reset } = useForm<FormValues>({
+  const { register, handleSubmit, reset, watch, setValue } = useForm<FormValues>({
     defaultValues: {
       name: "", period: "", classId: "", idNumber: "", dateOfBirth: "",
       nationality: "", email: "", phone1: "", phone2: "",
@@ -74,14 +74,12 @@ export default function TeacherProfilePage() {
   async function loadTeacher() {
     setLoading(true); setError(null);
     try {
-      const [teacherRes, classesRes, invoicesRes] = await Promise.all([
+      const [teacherRes, invoicesRes] = await Promise.all([
         axios.get<Teacher>(`/api/teachers/${id}`),
-        axios.get<ClassItem[]>("/api/classes"),
         axios.get<Invoice[]>(`/api/invoices?teacherId=${id}`),
       ]);
       const data = teacherRes.data;
       setTeacher(data);
-      setClasses(classesRes.data);
       setInvoices(invoicesRes.data);
       reset({
         name: data.name ?? "", period: (data.period as "MORNING" | "EVENING") ?? "",
@@ -112,6 +110,16 @@ export default function TeacherProfilePage() {
   }
 
   useEffect(() => { if (id) loadTeacher(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [id]);
+
+  const watchedPeriod = watch("period");
+
+  useEffect(() => {
+    if (loading) return;
+    axios
+      .get<ClassItem[]>("/api/classes", { params: watchedPeriod ? { period: watchedPeriod } : {} })
+      .then((r) => setClasses(r.data))
+      .catch(() => {});
+  }, [watchedPeriod, loading]);
 
   async function onSubmit(values: FormValues) {
     setSaving(true); setSaveError(null); setSaveSuccess(false);
@@ -254,7 +262,14 @@ export default function TeacherProfilePage() {
                   </div>
                   <div>
                     <label className={labelCls}>الفترة</label>
-                    <select {...register("period")} className={selectCls}>
+                    <select
+                      {...register("period")}
+                      className={selectCls}
+                      onChange={(e) => {
+                        register("period").onChange(e);
+                        setValue("classId", "");
+                      }}
+                    >
                       <option value="">{t("common.select")}</option>
                       <option value="MORNING">صباحي</option>
                       <option value="EVENING">مسائي</option>

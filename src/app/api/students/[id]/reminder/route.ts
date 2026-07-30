@@ -2,9 +2,10 @@ import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { sendNotification } from "@/lib/notifications";
 import { buildMessageVars } from "@/lib/message-variables";
+import { logAction } from "@/lib/activity-logger";
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   let session;
@@ -67,6 +68,16 @@ export async function POST(
     schoolName,
     "reminder"
   );
+
+  await logAction({
+    school_id: schoolId,
+    action: `إرسال تذكير دفع للطالب: ${student.name}`,
+    entity_type: "student",
+    entity_id: student.id,
+    entity_name: student.name,
+    performed_by: session.user.name ?? "المدير",
+    request,
+  });
 
   return Response.json({ success: true });
 }

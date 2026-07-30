@@ -1,5 +1,6 @@
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { logAction } from "@/lib/activity-logger";
 import { z } from "zod";
 
 const createClassSchema = z.object({
@@ -36,9 +37,20 @@ export async function GET(request: Request) {
 
   const classes = await prisma.class.findMany({
     where,
-    include: {
-      teacher: true,
-      students: { where: { deletedAt: null } },
+    select: {
+      id: true,
+      name: true,
+      group: true,
+      period: true,
+      registrationDate: true,
+      notes: true,
+      teacherId: true,
+      teacher: { select: { id: true, name: true } },
+      imageUrl: true,
+      needsTeacherWarning: true,
+      // Only ids are needed for the list's student count — full student rows
+      // (with base64 avatar/evaluation blobs) are never needed here.
+      students: { where: { deletedAt: null }, select: { id: true } },
     },
     orderBy: { name: "asc" },
   });
@@ -84,6 +96,16 @@ export async function POST(request: Request) {
       teacher: { select: { id: true, name: true } },
       students: true,
     },
+  });
+
+  await logAction({
+    school_id: schoolId,
+    action: `إضافة فصل جديد: ${cls.name}`,
+    entity_type: "class",
+    entity_id: cls.id,
+    entity_name: cls.name,
+    performed_by: session.user.name ?? "المدير",
+    request,
   });
 
   return Response.json(cls, { status: 201 });

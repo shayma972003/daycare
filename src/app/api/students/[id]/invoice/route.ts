@@ -1,8 +1,9 @@
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { logAction } from "@/lib/activity-logger";
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   let session;
@@ -47,6 +48,16 @@ export async function POST(
       data: invoiceData,
     },
     include: { student: true },
+  });
+
+  await logAction({
+    school_id: schoolId,
+    action: `إصدار فاتورة للطالب: ${student.name} — رقم ${invoice.id}`,
+    entity_type: "invoice",
+    entity_id: invoice.id,
+    entity_name: student.name,
+    performed_by: session.user.name ?? "المدير",
+    request,
   });
 
   return Response.json(invoice, { status: 201 });

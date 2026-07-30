@@ -1,8 +1,9 @@
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { logAction } from "@/lib/activity-logger";
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   let session;
@@ -22,6 +23,16 @@ export async function POST(
   const updated = await prisma.teacher.update({
     where: { id },
     data: { isActive: false },
+  });
+
+  await logAction({
+    school_id: schoolId,
+    action: `إلغاء انضمام المعلم: ${teacher.name}`,
+    entity_type: "teacher",
+    entity_id: teacher.id,
+    entity_name: teacher.name,
+    performed_by: session.user.name ?? "المدير",
+    request,
   });
 
   return Response.json(updated);

@@ -2,9 +2,10 @@ import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { sendNotification } from "@/lib/notifications";
 import { buildMessageVars } from "@/lib/message-variables";
+import { logAction } from "@/lib/activity-logger";
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   let session;
@@ -83,6 +84,16 @@ export async function POST(
       notificationsSent.push(student.name);
     }
   }
+
+  await logAction({
+    school_id: schoolId,
+    action: `إرسال إشعار فعالية: ${activity.name} — ${notificationsSent.length} مستلم`,
+    entity_type: "activity",
+    entity_id: activity.id,
+    entity_name: activity.name,
+    performed_by: session.user.name ?? "المدير",
+    request,
+  });
 
   return Response.json({ success: true, notified: notificationsSent.length });
 }

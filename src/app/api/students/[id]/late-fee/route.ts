@@ -1,8 +1,9 @@
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { logAction } from "@/lib/activity-logger";
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   let session;
@@ -38,6 +39,16 @@ export async function DELETE(
       date: { gte: today, lt: tomorrow },
     },
     data: { lateFee: 0 },
+  });
+
+  await logAction({
+    school_id: schoolId,
+    action: `حذف رسوم التأخير للطالب: ${student.name}`,
+    entity_type: "student",
+    entity_id: student.id,
+    entity_name: student.name,
+    performed_by: session.user.name ?? "المدير",
+    request,
   });
 
   return Response.json({ success: true });

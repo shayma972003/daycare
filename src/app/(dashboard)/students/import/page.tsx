@@ -10,21 +10,24 @@ import { STUDENT_FIELD_ALIASES } from "@/lib/import-mapper";
 const ALL_STUDENT_FIELDS = Object.keys(STUDENT_FIELD_ALIASES);
 
 const FIELD_LABELS: Record<string, string> = {
-  full_name: "اسم الطالب الكامل",
+  full_name: "اسم الطالب",
   date_of_birth: "تاريخ الميلاد",
   gender: "الجنس",
   nationality: "الجنسية",
-  id_number: "رقم الهوية",
+  id_number: "رقم الهوية/الإقامة",
   health_condition: "الحالة الصحية",
-  allergies: "الحساسية",
+  allergies: "الحساسية والتنبيهات",
   academic_stage: "المرحلة الدراسية",
   period: "الفترة",
   registration_date: "تاريخ التسجيل",
+  enrollment_date: "تاريخ الإنضمام",
   enrollment_end_date: "تاريخ انتهاء الاشتراك",
   payment_method: "طريقة الدفع",
+  attendance_type: "طبيعة الدوام",
+  payment_status: "حالة الدفع",
   guardian_name: "اسم ولي الأمر",
-  guardian_phone_1: "جوال ولي الأمر 1",
-  guardian_phone_2: "جوال ولي الأمر 2",
+  guardian_phone_1: "رقم الجوال 1",
+  guardian_phone_2: "رقم الجوال 2",
   guardian_email: "البريد الإلكتروني",
 };
 

@@ -1,5 +1,6 @@
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { logAction } from "@/lib/activity-logger";
 import { z } from "zod";
 
 const createTeacherSchema = z.object({
@@ -32,17 +33,27 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const search = searchParams.get("search");
+  const period = searchParams.get("period");
 
   const where: Record<string, unknown> = { schoolId, deletedAt: null };
 
   if (search) {
     where.name = { contains: search, mode: "insensitive" };
   }
+  if (period) {
+    where.period = period;
+  }
 
   try {
     const teachers = await prisma.teacher.findMany({
       where,
-      include: { classes: true },
+      select: {
+        id: true,
+        name: true,
+        period: true,
+        isActive: true,
+        classes: { select: { id: true, name: true } },
+      },
       orderBy: { name: "asc" },
     });
     return Response.json(teachers, { status: 200 });
@@ -115,6 +126,16 @@ export async function POST(request: Request) {
       }),
     },
     include: { classes: true },
+  });
+
+  await logAction({
+    school_id: schoolId,
+    action: `إضافة معلم جديد: ${teacher.name}`,
+    entity_type: "teacher",
+    entity_id: teacher.id,
+    entity_name: teacher.name,
+    performed_by: session.user.name ?? "المدير",
+    request,
   });
 
   return Response.json(teacher, { status: 201 });

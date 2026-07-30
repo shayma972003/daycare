@@ -1,8 +1,9 @@
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { logAction } from "@/lib/activity-logger";
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ submission_id: string }> }
 ) {
   let session;
@@ -22,6 +23,16 @@ export async function POST(
   await prisma.enrollmentSubmission.update({
     where: { id: submission_id },
     data: { status: "rejected", reviewed_at: new Date() },
+  });
+
+  await logAction({
+    school_id: schoolId,
+    action: `رفض طلب تسجيل الطالب: ${sub.full_name}`,
+    entity_type: "enrollment",
+    entity_id: submission_id,
+    entity_name: sub.full_name,
+    performed_by: session.user.name ?? "المدير",
+    request,
   });
 
   return Response.json({ success: true });

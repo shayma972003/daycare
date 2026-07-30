@@ -25,5 +25,10 @@ export async function PUT(
   if (!parsed.success) return Response.json({ error: "Invalid data" }, { status: 400 });
 
   const rule = await prisma.automatedAlertRule.update({ where: { id }, data: parsed.data });
+
+  await prisma.adminActivityLog.create({
+    data: { action: "alert_rule_updated", metadata: { id: rule.id, changes: parsed.data }, performed_by: "super_admin" },
+  });
+
   return Response.json(rule);
 }

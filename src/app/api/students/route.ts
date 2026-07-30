@@ -2,6 +2,7 @@ import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { generatePaymentCycles } from "@/lib/payment-cycles";
 import { updatePaymentStatuses } from "@/lib/payment-status-updater";
+import { logAction } from "@/lib/activity-logger";
 import { z } from "zod";
 
 const createStudentSchema = z.object({
@@ -67,7 +68,19 @@ export async function GET(request: Request) {
 
   const students = await prisma.student.findMany({
     where,
-    include: { class: true, guardian: true },
+    select: {
+      id: true,
+      name: true,
+      period: true,
+      paymentStatus: true,
+      classId: true,
+      class: { select: { id: true, name: true } },
+      guardian: { select: { id: true, name: true, phone1: true, phone2: true, email: true } },
+      isActive: true,
+      needsClassWarning: true,
+      // avatarUrl / evaluationFileUrl are large base64 blobs (up to 100MB) — only
+      // loaded on the individual student profile, never in this list query.
+    },
     orderBy: { name: "asc" },
   });
 
@@ -188,6 +201,16 @@ export async function POST(request: Request) {
   });
 
   await generatePaymentCycles(student.id);
+
+  await logAction({
+    school_id: schoolId,
+    action: `إضافة طالب جديد: ${student.name}`,
+    entity_type: "student",
+    entity_id: student.id,
+    entity_name: student.name,
+    performed_by: session.user.name ?? "المدير",
+    request,
+  });
 
   return Response.json(student, { status: 201 });
 }

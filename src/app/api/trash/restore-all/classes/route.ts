@@ -1,7 +1,8 @@
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { logAction } from "@/lib/activity-logger";
 
-export async function POST() {
+export async function POST(request: Request) {
   let session;
   try {
     session = await requireSession();
@@ -13,6 +14,14 @@ export async function POST() {
   const result = await prisma.class.updateMany({
     where: { schoolId, deletedAt: { not: null } },
     data: { deletedAt: null },
+  });
+
+  await logAction({
+    school_id: schoolId,
+    action: "استعادة جميع الفصول من سلة المحذوفات",
+    entity_type: "class",
+    performed_by: session.user.name ?? "المدير",
+    request,
   });
 
   return Response.json({ restored: result.count }, { status: 200 });

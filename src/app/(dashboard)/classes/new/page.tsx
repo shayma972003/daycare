@@ -16,6 +16,7 @@ export default function NewClassPage() {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [imageError, setImageError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState({
@@ -28,12 +29,21 @@ export default function NewClassPage() {
   });
 
   useEffect(() => {
-    axios.get<Teacher[]>("/api/teachers").then((res) => setTeachers(res.data)).catch(() => setTeachers([]));
-  }, []);
+    axios
+      .get<Teacher[]>("/api/teachers", { params: form.period ? { period: form.period } : {} })
+      .then((res) => setTeachers(res.data))
+      .catch(() => setTeachers([]));
+  }, [form.period]);
 
   async function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.size > 100 * 1024 * 1024) {
+      setImageError("حجم الملف كبير جدا، الحجم المسموح للملف هو 100 MB أو أقل");
+      e.target.value = "";
+      return;
+    }
+    setImageError("");
     const reader = new FileReader();
     reader.onload = (ev) => setImagePreview(ev.target?.result as string);
     reader.readAsDataURL(file);
@@ -106,6 +116,9 @@ export default function NewClassPage() {
               )}
             </div>
             <input ref={fileInputRef} type="file" accept=".jpg,.jpeg,.png" className="hidden" onChange={handleImageChange} />
+            {imageError && (
+              <p className="text-xs mt-1 text-right" style={{ color: "#F64651" }}>{imageError}</p>
+            )}
             {uploadingImage && <p className="text-xs text-gray-400 mt-1">جاري الرفع...</p>}
             {imagePreview && (
               <button type="button" onClick={() => { setImageUrl(null); setImagePreview(null); }} className="text-xs text-red-500 hover:underline mt-1">
@@ -157,7 +170,7 @@ export default function NewClassPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1.5">{t("classes.form.period")}</label>
             <select
               value={form.period}
-              onChange={(e) => setForm((f) => ({ ...f, period: e.target.value as "" | "MORNING" | "EVENING" }))}
+              onChange={(e) => setForm((f) => ({ ...f, period: e.target.value as "" | "MORNING" | "EVENING", teacherId: "" }))}
               className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#F64651] text-sm bg-white"
             >
               <option value="">{t("common.select")}</option>

@@ -27,5 +27,10 @@ export async function PUT(
   if (!parsed.success) return Response.json({ error: "Invalid data" }, { status: 400 });
 
   const plan = await prisma.subscriptionPlan.update({ where: { id }, data: parsed.data });
+
+  await prisma.adminActivityLog.create({
+    data: { action: "plan_updated", metadata: { name: plan.name, changes: parsed.data }, performed_by: "super_admin" },
+  });
+
   return Response.json(plan);
 }

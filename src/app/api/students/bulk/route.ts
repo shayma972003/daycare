@@ -1,5 +1,6 @@
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { logAction } from "@/lib/activity-logger";
 import { z } from "zod";
 import * as XLSX from "xlsx";
 
@@ -130,6 +131,14 @@ export async function POST(request: Request) {
     });
     added++;
   }
+
+  await logAction({
+    school_id: schoolId,
+    action: `تأكيد استيراد الطلاب: ${added} طالب مستورد`,
+    entity_type: "import",
+    performed_by: session.user.name ?? "المدير",
+    request,
+  });
 
   return Response.json({ added, failed: errors.length, errors });
 }

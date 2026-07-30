@@ -1,5 +1,6 @@
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { logAction } from "@/lib/activity-logger";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 
@@ -65,6 +66,14 @@ export async function POST(request: Request) {
       data: { twoFaEnabled: true, twoFaPhone: `+966${school.phoneNumber}` },
     }),
   ]);
+
+  await logAction({
+    school_id: schoolId,
+    action: "تفعيل التحقق بخطوتين",
+    entity_type: "settings",
+    performed_by: session.user.name ?? "المدير",
+    request,
+  });
 
   return Response.json({ success: true });
 }

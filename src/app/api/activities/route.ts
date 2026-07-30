@@ -1,5 +1,6 @@
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { logAction } from "@/lib/activity-logger";
 import { z } from "zod";
 
 const createActivitySchema = z.object({
@@ -106,6 +107,16 @@ export async function POST(request: Request) {
       }),
     },
     include: { teacher: true, activityInvites: { include: { class: true } } },
+  });
+
+  await logAction({
+    school_id: schoolId,
+    action: `إضافة فعالية جديدة: ${activity.name}`,
+    entity_type: "activity",
+    entity_id: activity.id,
+    entity_name: activity.name,
+    performed_by: session.user.name ?? "المدير",
+    request,
   });
 
   return Response.json(activity, { status: 201 });

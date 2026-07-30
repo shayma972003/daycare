@@ -1,6 +1,7 @@
 import { requireSession } from '@/lib/session';
 import { prisma } from '@/lib/prisma';
 import { deleteExpiredImportSessions } from '@/lib/import-cleanup';
+import { logAction } from '@/lib/activity-logger';
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
 import { z } from 'zod';
@@ -100,6 +101,17 @@ export async function POST(request: Request) {
   });
 
   const previewRows = rows.slice(0, 10);
+
+  await logAction({
+    school_id: schoolId,
+    action: type === 'students'
+      ? `رفع ملف استيراد طلاب: ${rows.length} صف`
+      : `رفع ملف استيراد معلمين: ${rows.length} صف`,
+    entity_type: 'import',
+    entity_id: importSession.id,
+    performed_by: session.user.name ?? 'المدير',
+    request,
+  });
 
   return Response.json({
     session_id: importSession.id,

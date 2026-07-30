@@ -52,6 +52,7 @@ export default function ClassProfilePage({
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [imageError, setImageError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState({
@@ -97,16 +98,26 @@ export default function ClassProfilePage({
 
   useEffect(() => {
     fetchClass();
-    axios
-      .get<Teacher[]>("/api/teachers")
-      .then((res) => setTeachers(res.data))
-      .catch(() => setTeachers([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  useEffect(() => {
+    if (loading) return;
+    axios
+      .get<Teacher[]>("/api/teachers", { params: form.period ? { period: form.period } : {} })
+      .then((res) => setTeachers(res.data))
+      .catch(() => setTeachers([]));
+  }, [form.period, loading]);
 
   async function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.size > 100 * 1024 * 1024) {
+      setImageError("حجم الملف كبير جدا، الحجم المسموح للملف هو 100 MB أو أقل");
+      e.target.value = "";
+      return;
+    }
+    setImageError("");
     const reader = new FileReader();
     reader.onload = (ev) => setImagePreview(ev.target?.result as string);
     reader.readAsDataURL(file);
@@ -282,6 +293,9 @@ export default function ClassProfilePage({
                 )}
               </div>
               <input ref={fileInputRef} type="file" accept=".jpg,.jpeg,.png" className="hidden" onChange={handleImageChange} />
+              {imageError && (
+                <p className="text-xs mt-1 text-right" style={{ color: "#F64651" }}>{imageError}</p>
+              )}
               {uploadingImage && <p className="text-xs text-gray-400 mt-1">جاري الرفع...</p>}
               {imagePreview && (
                 <button
@@ -368,7 +382,7 @@ export default function ClassProfilePage({
               {editing ? (
                 <select
                   value={form.period}
-                  onChange={(e) => setForm((f) => ({ ...f, period: e.target.value as "" | "MORNING" | "EVENING" }))}
+                  onChange={(e) => setForm((f) => ({ ...f, period: e.target.value as "" | "MORNING" | "EVENING", teacherId: "" }))}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#111111]"
                 >
                   <option value="">{t("common.select")}</option>

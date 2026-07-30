@@ -1,5 +1,6 @@
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { logAction } from "@/lib/activity-logger";
 
 export async function GET() {
   let session;
@@ -48,15 +49,34 @@ export async function PATCH(request: Request) {
 
   const { recipientId } = body as { recipientId?: string };
   if (recipientId) {
+    const recipient = await prisma.adminMessageRecipient.findFirst({
+      where: { id: recipientId, school_id: schoolId },
+      include: { message: { select: { subject: true } } },
+    });
     await prisma.adminMessageRecipient.updateMany({
       where: { id: recipientId, school_id: schoolId },
       data: { read_at: new Date() },
+    });
+    await logAction({
+      school_id: schoolId,
+      action: `فتح إشعار إداري: ${recipient?.message.subject ?? ""}`,
+      entity_type: "notification",
+      entity_id: recipientId,
+      performed_by: session.user.name ?? "المدير",
+      request,
     });
   } else {
     // Mark all as read
     await prisma.adminMessageRecipient.updateMany({
       where: { school_id: schoolId, read_at: null },
       data: { read_at: new Date() },
+    });
+    await logAction({
+      school_id: schoolId,
+      action: "تحديد جميع الإشعارات الإدارية كمقروءة",
+      entity_type: "notification",
+      performed_by: session.user.name ?? "المدير",
+      request,
     });
   }
 

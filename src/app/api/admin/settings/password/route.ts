@@ -27,5 +27,9 @@ export async function POST(request: Request) {
   const hash = await bcrypt.hash(parsed.data.newPassword, 12);
   await prisma.superAdmin.update({ where: { id: admin.id }, data: { password_hash: hash } });
 
+  await prisma.adminActivityLog.create({
+    data: { action: "admin_password_changed", performed_by: "super_admin" },
+  });
+
   return Response.json({ success: true });
 }

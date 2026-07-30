@@ -1,6 +1,7 @@
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { sendWhatsApp, sendEmail } from "@/lib/notifications";
+import { logAction } from "@/lib/activity-logger";
 import { z } from "zod";
 
 const schema = z.object({
@@ -84,6 +85,15 @@ export async function POST(request: Request) {
   if (normalizedEmail) {
     sendEmail(normalizedEmail, `نموذج تسجيل — ${school.name}`, message, school.name).catch(() => {});
   }
+
+  await logAction({
+    school_id: schoolId,
+    action: `إرسال نموذج تسجيل إلى: ${normalizedPhone}`,
+    entity_type: "enrollment",
+    entity_id: enrollmentToken.id,
+    performed_by: session.user.name ?? "المدير",
+    request,
+  });
 
   return Response.json({ success: true, phone: normalizedPhone });
 }

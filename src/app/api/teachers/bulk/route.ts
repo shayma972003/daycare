@@ -1,5 +1,6 @@
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { logAction } from "@/lib/activity-logger";
 import { z } from "zod";
 import * as XLSX from "xlsx";
 
@@ -97,6 +98,14 @@ export async function POST(request: Request) {
       skipDuplicates: true,
     });
   }
+
+  await logAction({
+    school_id: schoolId,
+    action: `تأكيد استيراد المعلمين: ${valid.length} معلم مستورد`,
+    entity_type: "import",
+    performed_by: session.user.name ?? "المدير",
+    request,
+  });
 
   return Response.json({ added: valid.length, failed: errors.length, errors });
 }

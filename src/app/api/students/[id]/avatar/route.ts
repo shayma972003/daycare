@@ -1,8 +1,9 @@
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { logAction } from "@/lib/activity-logger";
 
 const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png"];
-const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
+const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
 
 export async function POST(
   request: Request,
@@ -33,7 +34,7 @@ export async function POST(
   }
 
   if (file.size > MAX_FILE_SIZE) {
-    return Response.json({ error: "حجم الصورة يتجاوز 2MB" }, { status: 400 });
+    return Response.json({ error: "حجم الملف كبير جدا، الحجم المسموح للملف هو 100 MB أو أقل" }, { status: 400 });
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
@@ -44,11 +45,21 @@ export async function POST(
     data: { avatarUrl: dataUrl },
   });
 
+  await logAction({
+    school_id: schoolId,
+    action: `رفع صورة للطالب: ${student.name}`,
+    entity_type: "student",
+    entity_id: student.id,
+    entity_name: student.name,
+    performed_by: session.user.name ?? "المدير",
+    request,
+  });
+
   return Response.json({ success: true, avatar_url: updated.avatarUrl });
 }
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   let session;
@@ -68,6 +79,16 @@ export async function DELETE(
   await prisma.student.update({
     where: { id },
     data: { avatarUrl: null },
+  });
+
+  await logAction({
+    school_id: schoolId,
+    action: `حذف صورة الطالب: ${student.name}`,
+    entity_type: "student",
+    entity_id: student.id,
+    entity_name: student.name,
+    performed_by: session.user.name ?? "المدير",
+    request,
   });
 
   return Response.json({ success: true });

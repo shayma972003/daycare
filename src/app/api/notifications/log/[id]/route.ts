@@ -1,8 +1,9 @@
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { logAction } from "@/lib/activity-logger";
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   let session;
@@ -18,5 +19,16 @@ export async function DELETE(
   if (!log) return Response.json({ error: "Not found" }, { status: 404 });
 
   await prisma.notificationLog.delete({ where: { id } });
+
+  await logAction({
+    school_id: schoolId,
+    action: `حذف سجل إشعار: ${log.recipientName}`,
+    entity_type: "notification",
+    entity_id: id,
+    entity_name: log.recipientName,
+    performed_by: session.user.name ?? "المدير",
+    request,
+  });
+
   return Response.json({ success: true });
 }

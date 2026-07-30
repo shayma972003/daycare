@@ -1,5 +1,6 @@
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { logAction } from "@/lib/activity-logger";
 
 export async function DELETE(request: Request) {
   let session;
@@ -22,6 +23,14 @@ export async function DELETE(request: Request) {
 
   const { count } = await prisma.notificationLog.deleteMany({
     where: { schoolId, ...sourceFilter },
+  });
+
+  await logAction({
+    school_id: schoolId,
+    action: `مسح جميع سجلات الإشعارات (${count})`,
+    entity_type: "notification",
+    performed_by: session.user.name ?? "المدير",
+    request,
   });
 
   return Response.json({ deleted: count });

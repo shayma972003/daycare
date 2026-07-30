@@ -109,6 +109,7 @@ export default function StudentProfilePage({
   const evalFileInputRef = useRef<HTMLInputElement>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarError, setAvatarError] = useState("");
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -287,6 +288,12 @@ export default function StudentProfilePage({
   async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.size > 100 * 1024 * 1024) {
+      setAvatarError("حجم الملف كبير جدا، الحجم المسموح للملف هو 100 MB أو أقل");
+      e.target.value = "";
+      return;
+    }
+    setAvatarError("");
     setAvatarUploading(true);
     try {
       const fd = new FormData();
@@ -482,6 +489,11 @@ export default function StudentProfilePage({
                     className="hidden"
                     onChange={handleAvatarUpload}
                   />
+                  {avatarError && (
+                    <p className="text-xs mt-1 text-right" style={{ color: "#F64651" }}>
+                      {avatarError}
+                    </p>
+                  )}
 
                   {avatarUrl && (
                     <button

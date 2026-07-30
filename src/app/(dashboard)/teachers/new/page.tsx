@@ -46,7 +46,7 @@ export default function NewTeacherPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { register, handleSubmit, formState: { errors } } = useForm<TeacherFormData>({
+  const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<TeacherFormData>({
     defaultValues: {
       period: "MORNING",
       paymentMethod: "CASH",
@@ -56,9 +56,14 @@ export default function NewTeacherPage() {
     },
   });
 
+  const period = watch("period");
+
   useEffect(() => {
-    axios.get<Class[]>("/api/classes").then((r) => setClasses(r.data)).catch(() => {});
-  }, []);
+    axios
+      .get<Class[]>("/api/classes", { params: period ? { period } : {} })
+      .then((r) => setClasses(r.data))
+      .catch(() => {});
+  }, [period]);
 
   async function onSubmit(data: TeacherFormData) {
     setSaving(true);
@@ -105,7 +110,14 @@ export default function NewTeacherPage() {
               </Field>
 
               <Field label={t("teachers.columns.period")}>
-                <select {...register("period")} className={inputCls}>
+                <select
+                  {...register("period")}
+                  className={inputCls}
+                  onChange={(e) => {
+                    register("period").onChange(e);
+                    setValue("classId", "");
+                  }}
+                >
                   <option value="MORNING">{t("periods.MORNING")}</option>
                   <option value="EVENING">{t("periods.EVENING")}</option>
                 </select>

@@ -1,5 +1,6 @@
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { logAction } from "@/lib/activity-logger";
 import { z } from "zod";
 
 const schema = z.object({
@@ -33,6 +34,14 @@ export async function PUT(request: Request) {
   await prisma.student.updateMany({
     where: { id: { in: ids }, schoolId },
     data: { paymentStatus },
+  });
+
+  await logAction({
+    school_id: schoolId,
+    action: `تغيير حالة دفع ${ids.length} طالب إلى ${paymentStatus}`,
+    entity_type: "student",
+    performed_by: session.user.name ?? "المدير",
+    request,
   });
 
   return Response.json({ updated: ids.length });

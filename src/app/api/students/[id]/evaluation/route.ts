@@ -1,5 +1,6 @@
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { logAction } from "@/lib/activity-logger";
 
 const ALLOWED_MIME_TYPES = ["application/pdf", "image/png", "image/jpeg"];
 const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
@@ -44,6 +45,16 @@ export async function POST(
     data: { evaluationFileUrl: dataUrl, evaluationFileName: file.name },
   });
 
+  await logAction({
+    school_id: schoolId,
+    action: `رفع ملف تقييم للطالب: ${student.name}`,
+    entity_type: "student",
+    entity_id: student.id,
+    entity_name: student.name,
+    performed_by: session.user.name ?? "المدير",
+    request,
+  });
+
   return Response.json({
     evaluationFileUrl: updated.evaluationFileUrl,
     evaluationFileName: updated.evaluationFileName,
@@ -51,7 +62,7 @@ export async function POST(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   let session;
@@ -71,6 +82,16 @@ export async function DELETE(
   await prisma.student.update({
     where: { id },
     data: { evaluationFileUrl: null, evaluationFileName: null },
+  });
+
+  await logAction({
+    school_id: schoolId,
+    action: `حذف ملف تقييم الطالب: ${student.name}`,
+    entity_type: "student",
+    entity_id: student.id,
+    entity_name: student.name,
+    performed_by: session.user.name ?? "المدير",
+    request,
   });
 
   return Response.json({ success: true });

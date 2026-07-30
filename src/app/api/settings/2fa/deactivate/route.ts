@@ -1,5 +1,6 @@
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { logAction } from "@/lib/activity-logger";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 
@@ -46,6 +47,14 @@ export async function POST(request: Request) {
   await prisma.school.update({
     where: { id: schoolId },
     data: { twoFaEnabled: false, twoFaPhone: null },
+  });
+
+  await logAction({
+    school_id: schoolId,
+    action: "إيقاف التحقق بخطوتين",
+    entity_type: "settings",
+    performed_by: session.user.name ?? "المدير",
+    request,
   });
 
   return Response.json({ success: true });

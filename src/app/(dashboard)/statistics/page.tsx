@@ -16,6 +16,7 @@ interface Expense {
   amount: number;
   type: "one_time" | "monthly";
   start_date: string;
+  end_date: string | null;
   is_active: boolean;
   stopped_at: string | null;
   created_at: string;
@@ -95,6 +96,7 @@ function AddExpenseForm({ onSaved, onCancel }: { onSaved: (e: Expense) => void; 
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -106,6 +108,7 @@ function AddExpenseForm({ onSaved, onCancel }: { onSaved: (e: Expense) => void; 
       const res = await axios.post<Expense>("/api/expenses", {
         type, title, description: description || null,
         amount: parseFloat(amount), start_date: startDate,
+        end_date: type === "monthly" ? (endDate || null) : null,
       });
       onSaved(res.data);
     } catch (err) {
@@ -148,6 +151,16 @@ function AddExpenseForm({ onSaved, onCancel }: { onSaved: (e: Expense) => void; 
           <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} required dir="ltr"
             className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651]" />
         </div>
+        {type === "monthly" && (
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              تاريخ الانتهاء <span className="text-gray-400">(اختياري)</span>
+            </label>
+            <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} dir="ltr"
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651]" />
+            <p className="text-xs text-gray-400 mt-1">في حال تركه فارغاً يستمر المصروف حتى الإيقاف اليدوي</p>
+          </div>
+        )}
       </div>
       <div className="flex gap-2 pt-1">
         <button type="submit" disabled={saving}
@@ -170,6 +183,7 @@ function EditExpenseRow({ expense, onSaved, onCancel }: { expense: Expense; onSa
   const [description, setDescription] = useState(expense.description ?? "");
   const [amount, setAmount] = useState(String(expense.amount));
   const [startDate, setStartDate] = useState(expense.start_date.split("T")[0]);
+  const [endDate, setEndDate] = useState(expense.end_date ? expense.end_date.split("T")[0] : "");
   const [saving, setSaving] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [confirmStop, setConfirmStop] = useState(false);
@@ -179,6 +193,7 @@ function EditExpenseRow({ expense, onSaved, onCancel }: { expense: Expense; onSa
     try {
       const res = await axios.put<Expense>(`/api/expenses/${expense.id}`, {
         title, description: description || null, amount: parseFloat(amount), start_date: startDate,
+        end_date: expense.type === "monthly" ? (endDate || null) : undefined,
       });
       onSaved(res.data);
     } catch { /* silent */ }
@@ -209,7 +224,13 @@ function EditExpenseRow({ expense, onSaved, onCancel }: { expense: Expense; onSa
         <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} dir="ltr"
           className="px-2 py-1 text-sm rounded border border-gray-200 focus:outline-none" />
       </td>
-      <td className="px-4 py-2"></td>
+      <td className="px-4 py-2">
+        {expense.type === "monthly" && (
+          <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} dir="ltr"
+            placeholder="تاريخ الانتهاء"
+            className="px-2 py-1 text-sm rounded border border-gray-200 focus:outline-none" />
+        )}
+      </td>
       <td className="px-4 py-2">
         <div className="flex gap-1.5 flex-wrap">
           <button onClick={handleSave} disabled={saving}
@@ -700,9 +721,17 @@ function ExpensesTab() {
                       </td>
                       <td className="px-4 py-3">
                         {exp.type === "monthly" ? (
-                          exp.is_active
-                            ? <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-success-bg text-success-text">نشط</span>
-                            : <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">موقوف</span>
+                          <div className="flex flex-col gap-1 items-start">
+                            {exp.is_active
+                              ? <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-success-bg text-success-text">نشط</span>
+                              : <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">موقوف</span>
+                            }
+                            {exp.end_date && (
+                              <span className="text-xs text-gray-400">
+                                ينتهي: {new Date(exp.end_date).toLocaleDateString("ar-SA")}
+                              </span>
+                            )}
+                          </div>
                         ) : (
                           <span className="text-gray-300 text-xs">—</span>
                         )}

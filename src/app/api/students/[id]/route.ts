@@ -71,10 +71,19 @@ export async function GET(
         })
       : [];
 
+    const rawRegistrationFee = (student as unknown as Record<string, unknown>).registration_fee as number ?? 0;
+    const registrationFeeIsDefault = !(rawRegistrationFee > 0);
+    let registrationFee = rawRegistrationFee;
+    if (registrationFeeIsDefault) {
+      const settings = await prisma.settings.findUnique({ where: { schoolId }, select: { monthlyStudentFee: true } });
+      registrationFee = settings?.monthlyStudentFee ?? 0;
+    }
+
     return Response.json(
       {
         ...student,
-        registration_fee: (student as unknown as Record<string, unknown>).registration_fee ?? 0,
+        registration_fee: registrationFee,
+        registration_fee_is_default: registrationFeeIsDefault,
         enrollmentDate: student.enrollment_date,
         siblings,
       },

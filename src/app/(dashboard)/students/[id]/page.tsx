@@ -35,6 +35,7 @@ type StudentData = {
   guardianId: string | null;
   guardian: { id: string; name: string; phone1?: string | null; phone2?: string | null; email?: string | null; name_2?: string | null; phone_3?: string | null; phone_4?: string | null; email_2?: string | null } | null;
   registration_fee: number;
+  registration_fee_is_default?: boolean;
   attendanceType: string;
   paymentMethod: string;
   enrollmentDate: string | null;
@@ -110,6 +111,7 @@ export default function StudentProfilePage({
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarError, setAvatarError] = useState("");
+  const [registrationFeeIsDefault, setRegistrationFeeIsDefault] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -132,6 +134,7 @@ export default function StudentProfilePage({
         setEvalFileUrl(s.evaluationFileUrl ?? null);
         setEvalFileName(s.evaluationFileName ?? null);
         setAvatarUrl(s.avatarUrl ?? null);
+        setRegistrationFeeIsDefault(!!s.registration_fee_is_default);
         reset({
           name: s.name,
           healthCondition: s.healthCondition ?? "",
@@ -259,7 +262,7 @@ export default function StudentProfilePage({
         guardianPhone3: data.guardianPhone3 || null,
         guardianPhone4: data.guardianPhone4 || null,
         guardianEmail2: data.guardianEmail2 || null,
-        registration_fee: parseFloat(data.registrationFee) || 0,
+        registration_fee: registrationFeeIsDefault ? 0 : parseFloat(data.registrationFee) || 0,
       });
       alert("تم حفظ التغييرات");
     } catch {
@@ -787,9 +790,25 @@ export default function StudentProfilePage({
                     <input {...register("enrollmentEndDate")} type="date" dir="ltr" className={inputCls} />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">رسوم التسجيل</label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-medium text-gray-500">رسوم التسجيل</label>
+                      <span className="text-xs text-gray-400">
+                        {registrationFeeIsDefault ? "(مأخوذة من الإعدادات)" : "(مخصصة)"}
+                      </span>
+                    </div>
                     <div className="relative">
-                      <input {...register("registrationFee")} type="number" min="0" step="0.01" dir="ltr" className={`${inputCls} pl-14`} />
+                      <input
+                        {...register("registrationFee")}
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        dir="ltr"
+                        className={`${inputCls} pl-14`}
+                        onChange={(e) => {
+                          register("registrationFee").onChange(e);
+                          setRegistrationFeeIsDefault(false);
+                        }}
+                      />
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">ر.س</span>
                     </div>
                   </div>

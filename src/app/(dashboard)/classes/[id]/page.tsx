@@ -18,6 +18,13 @@ type ClassStudent = {
   guardian: { name: string; phone1: string | null } | null;
 };
 
+type AvailableStudent = {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+  period: "MORNING" | "EVENING";
+};
+
 type ClassData = {
   id: string;
   name: string;
@@ -69,6 +76,12 @@ export default function ClassProfilePage({
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [checkingDelete, setCheckingDelete] = useState(false);
 
+  const [showAddStudentsModal, setShowAddStudentsModal] = useState(false);
+  const [availableStudents, setAvailableStudents] = useState<AvailableStudent[]>([]);
+  const [loadingAvailable, setLoadingAvailable] = useState(false);
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+  const [isAdding, setIsAdding] = useState(false);
+
   function fillForm(c: ClassData) {
     setForm({
       name: c.name,
@@ -108,6 +121,37 @@ export default function ClassProfilePage({
       .then((res) => setTeachers(res.data))
       .catch(() => setTeachers([]));
   }, [form.period, loading]);
+
+  useEffect(() => {
+    if (!showAddStudentsModal) return;
+    setLoadingAvailable(true);
+    axios
+      .get<AvailableStudent[]>(`/api/classes/${id}/available-students`)
+      .then((res) => setAvailableStudents(res.data))
+      .catch(() => setAvailableStudents([]))
+      .finally(() => setLoadingAvailable(false));
+  }, [showAddStudentsModal, id]);
+
+  function toggleSelectStudent(studentId: string) {
+    setSelectedStudentIds((prev) =>
+      prev.includes(studentId) ? prev.filter((sid) => sid !== studentId) : [...prev, studentId]
+    );
+  }
+
+  async function handleAddStudents() {
+    if (selectedStudentIds.length === 0) return;
+    setIsAdding(true);
+    try {
+      await axios.post(`/api/classes/${id}/add-students`, { studentIds: selectedStudentIds });
+      setShowAddStudentsModal(false);
+      setSelectedStudentIds([]);
+      fetchClass();
+    } catch {
+      setError(t("common.error"));
+    } finally {
+      setIsAdding(false);
+    }
+  }
 
   async function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -435,7 +479,16 @@ export default function ClassProfilePage({
         {/* Enrolled children card */}
         <div className="bg-white rounded-xl shadow-md p-6">
           <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
-            <h2 className="text-base font-bold text-[#111111]">الأطفال المسجلين في هذا الفصل</h2>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowAddStudentsModal(true)}
+                title="إضافة طلاب للفصل"
+                className="w-8 h-8 rounded-full bg-[#F64651] text-white flex items-center justify-center text-lg font-bold hover:bg-[#D93A44] transition-colors"
+              >
+                +
+              </button>
+              <h2 className="text-base font-bold text-[#111111]">الأطفال المسجلين في هذا الفصل</h2>
+            </div>
             <div className="flex items-center gap-3">
               <span className="text-xs text-gray-400">{cls.students.length} طالب</span>
               <input
@@ -503,6 +556,81 @@ export default function ClassProfilePage({
           )}
         </div>
       </div>
+
+      {showAddStudentsModal && (
+        <div
+          className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowAddStudentsModal(false); }}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+              <button
+                onClick={() => setShowAddStudentsModal(false)}
+                className="text-gray-400 hover:text-gray-600 text-xl"
+              >
+                ×
+              </button>
+              <h3 className="font-bold text-[#111111]">إضافة طلاب للفصل</h3>
+            </div>
+
+            <p className="text-xs text-gray-400 text-right px-5 pt-3">
+              يعرض فقط الطلاب بدون فصل محدد الذين يطابقون فترة هذا الفصل
+              {cls.period && ` (${t(`periods.${cls.period}`)})`}
+            </p>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+              {loadingAvailable ? (
+                <div className="flex justify-center items-center h-32">
+                  <div className="w-6 h-6 border-2 border-gray-200 border-t-[#F64651] rounded-full animate-spin" />
+                </div>
+              ) : availableStudents.length === 0 ? (
+                <p className="text-center text-gray-400 py-8 text-sm">لا يوجد طلاب متاحون للإضافة</p>
+              ) : (
+                availableStudents.map((s) => (
+                  <label
+                    key={s.id}
+                    className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 cursor-pointer transition-colors"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedStudentIds.includes(s.id)}
+                      onChange={() => toggleSelectStudent(s.id)}
+                      className="w-4 h-4"
+                    />
+                    <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-100 flex-shrink-0">
+                      {s.avatarUrl ? (
+                        <img src={s.avatarUrl} alt={s.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">
+                          [صورة]
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 text-right">
+                      <p className="text-sm font-medium text-[#111111]">{s.name}</p>
+                      <p className="text-xs text-gray-400">{t(`periods.${s.period}`)}</p>
+                    </div>
+                  </label>
+                ))
+              )}
+            </div>
+
+            <div className="p-4 border-t border-gray-100 flex items-center justify-between">
+              <button
+                onClick={handleAddStudents}
+                disabled={selectedStudentIds.length === 0 || isAdding}
+                className="px-5 py-2.5 rounded-md bg-[#F64651] text-white text-sm font-medium hover:bg-[#D93A44] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {isAdding ? "جاري الإضافة..." : `إضافة${selectedStudentIds.length > 0 ? ` (${selectedStudentIds.length})` : ""}`}
+              </button>
+              <p className="text-xs text-gray-400">{selectedStudentIds.length} طالب محدد</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <ClassDeleteConfirmModal
         isOpen={deleteTarget !== null}

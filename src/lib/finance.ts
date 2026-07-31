@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { deactivateExpiredExpenses } from "@/lib/expense-updater";
 
 export type ReportPeriodType = "monthly" | "semi_annual" | "annual";
 
@@ -42,6 +43,7 @@ interface ExpenseLike {
   type: string;
   start_date: Date;
   stopped_at: Date | null;
+  end_date?: Date | null;
 }
 
 function countOverlappingMonths(from: Date, to: Date): number {
@@ -55,7 +57,9 @@ export function expenseAmountInPeriod(exp: ExpenseLike, from: Date, to: Date): n
   if (exp.type === "one_time") {
     return startDate >= from && startDate <= to ? exp.amount : 0;
   }
-  const effectiveEnd = exp.stopped_at ? new Date(Math.min(new Date(exp.stopped_at).getTime(), to.getTime())) : to;
+  let effectiveEnd = to;
+  if (exp.stopped_at) effectiveEnd = new Date(Math.min(new Date(exp.stopped_at).getTime(), effectiveEnd.getTime()));
+  if (exp.end_date) effectiveEnd = new Date(Math.min(new Date(exp.end_date).getTime(), effectiveEnd.getTime()));
   if (startDate <= effectiveEnd) {
     const months = countOverlappingMonths(new Date(Math.max(startDate.getTime(), from.getTime())), effectiveEnd);
     return exp.amount * months;
@@ -176,6 +180,8 @@ async function getCumulativeCashPosition(schoolId: string, before: Date): Promis
 }
 
 export async function getFinancialSummary(schoolId: string, type: ReportPeriodType): Promise<FinancialSummary> {
+  await deactivateExpiredExpenses(schoolId);
+
   const range = getPeriodRange(type);
   const prevRange = getPreviousPeriodRange(type, range);
   const monthsInPeriod = countOverlappingMonths(range.from, range.to);

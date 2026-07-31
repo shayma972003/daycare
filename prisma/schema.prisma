@@ -551,6 +551,7 @@ model Expense {
   amount       Float
   type         String    // "one_time" | "monthly"
   start_date   DateTime
+  end_date     DateTime? // تاريخ انتهاء الاشتراك الشهري (اختياري)
   is_active    Boolean   @default(true)
   stopped_at   DateTime?
   created_at   DateTime  @default(now())

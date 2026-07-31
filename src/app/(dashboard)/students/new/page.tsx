@@ -79,6 +79,19 @@ export default function NewStudentPage() {
       .catch(() => {});
   }, [period]);
 
+  const [registrationFeeIsDefault, setRegistrationFeeIsDefault] = useState(true);
+
+  useEffect(() => {
+    axios
+      .get<{ settings: { monthlyStudentFee: number } }>("/api/settings")
+      .then((r) => {
+        setValue("registrationFee", String(r.data.settings.monthlyStudentFee ?? 0));
+        setRegistrationFeeIsDefault(true);
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (suggestionsRef.current && !suggestionsRef.current.contains(e.target as Node)) {
@@ -163,7 +176,7 @@ export default function NewStudentPage() {
         guardianPhone3: data.guardianPhone3 || undefined,
         guardianPhone4: data.guardianPhone4 || undefined,
         guardianEmail2: data.guardianEmail2 || undefined,
-        registration_fee: parseFloat(data.registrationFee) || 0,
+        registration_fee: registrationFeeIsDefault ? 0 : parseFloat(data.registrationFee) || 0,
       });
       router.push("/students");
     } catch (err) {
@@ -375,12 +388,29 @@ export default function NewStudentPage() {
               <Field label={t("students.profile.enrollmentEndDate")}>
                 <input {...register("enrollmentEndDate")} type="date" dir="ltr" className={inputCls} />
               </Field>
-              <Field label="رسوم التسجيل">
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-medium text-gray-500">رسوم التسجيل</label>
+                  <span className="text-xs text-gray-400">
+                    {registrationFeeIsDefault ? "(مأخوذة من الإعدادات)" : "(مخصصة)"}
+                  </span>
+                </div>
                 <div className="relative">
-                  <input {...register("registrationFee")} type="number" min="0" step="0.01" dir="ltr" className={`${inputCls} pl-14`} />
+                  <input
+                    {...register("registrationFee")}
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    dir="ltr"
+                    className={`${inputCls} pl-14`}
+                    onChange={(e) => {
+                      register("registrationFee").onChange(e);
+                      setRegistrationFeeIsDefault(false);
+                    }}
+                  />
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">ر.س</span>
                 </div>
-              </Field>
+              </div>
             </div>
           </div>
 

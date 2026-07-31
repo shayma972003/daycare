@@ -8,6 +8,7 @@ const updateSchema = z.object({
   amount: z.number().min(0).optional(),
   type: z.enum(["one_time", "monthly"]).optional(),
   start_date: z.string().optional(),
+  end_date: z.string().nullish(),
 });
 
 export async function PUT(
@@ -38,7 +39,7 @@ export async function PUT(
     return Response.json({ error: "بيانات غير صحيحة" }, { status: 422 });
   }
 
-  const { title, description, amount, type, start_date } = parsed.data;
+  const { title, description, amount, type, start_date, end_date } = parsed.data;
 
   const updated = await prisma.expense.update({
     where: { id },
@@ -48,6 +49,7 @@ export async function PUT(
       ...(amount !== undefined && { amount }),
       ...(type !== undefined && { type }),
       ...(start_date !== undefined && { start_date: new Date(start_date) }),
+      ...(end_date !== undefined && { end_date: end_date ? new Date(end_date) : null }),
     },
   });
 

@@ -1,5 +1,6 @@
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { deactivateExpiredExpenses } from "@/lib/expense-updater";
 import { z } from "zod";
 
 const createSchema = z.object({
@@ -8,6 +9,7 @@ const createSchema = z.object({
   amount: z.number().min(0),
   type: z.enum(["one_time", "monthly"]),
   start_date: z.string(),
+  end_date: z.string().nullish(),
 });
 
 export async function GET(request: Request) {
@@ -18,6 +20,8 @@ export async function GET(request: Request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
+
+  deactivateExpiredExpenses(schoolId).catch((err) => console.error("deactivateExpiredExpenses failed:", err));
 
   const { searchParams } = new URL(request.url);
   const typeFilter = searchParams.get("type"); // "one_time" | "monthly" | null
@@ -55,7 +59,7 @@ export async function POST(request: Request) {
     return Response.json({ error: firstErr ?? "بيانات غير صحيحة" }, { status: 422 });
   }
 
-  const { title, description, amount, type, start_date } = parsed.data;
+  const { title, description, amount, type, start_date, end_date } = parsed.data;
 
   const expense = await prisma.expense.create({
     data: {
@@ -65,6 +69,7 @@ export async function POST(request: Request) {
       amount,
       type,
       start_date: new Date(start_date),
+      end_date: end_date ? new Date(end_date) : null,
     },
   });
 

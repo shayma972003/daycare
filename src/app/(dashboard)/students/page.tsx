@@ -81,6 +81,9 @@ export default function StudentsPage() {
   const [genderFilter, setGenderFilter] = useState("");
   const [bulkAction, setBulkAction] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [showExtendModal, setShowExtendModal] = useState(false);
+  const [newEndDate, setNewEndDate] = useState("");
+  const [isExtending, setIsExtending] = useState(false);
   const [xlsxUploading, setXlsxUploading] = useState(false);
   const [xlsxResult, setXlsxResult] = useState<{ added: number; failed: number; errors: string[] } | null>(null);
   const xlsxInputRef = useRef<HTMLInputElement>(null);
@@ -275,6 +278,11 @@ export default function StudentsPage() {
     const ids = Array.from(selected);
     if (!bulkAction || ids.length === 0) return;
 
+    if (bulkAction === "extend_subscription") {
+      setShowExtendModal(true);
+      return;
+    }
+
     if (["checkin", "checkout", "reminder"].includes(bulkAction)) {
       for (const id of ids) {
         if (bulkAction === "checkin") await axios.post("/api/attendance/students/checkin", { student_id: id }).catch(() => {});
@@ -289,6 +297,24 @@ export default function StudentsPage() {
     fetchTodayAttendance();
     setSelected(new Set());
     setBulkAction("");
+  }
+
+  async function handleExtendSubscription() {
+    const ids = Array.from(selected);
+    if (!newEndDate || ids.length === 0) return;
+    setIsExtending(true);
+    try {
+      await axios.post("/api/students/bulk-extend", { ids, enrollmentEndDate: newEndDate });
+      setShowExtendModal(false);
+      setNewEndDate("");
+      setSelected(new Set());
+      setBulkAction("");
+      fetchStudents();
+    } catch (err) {
+      alert(axios.isAxiosError(err) ? err.response?.data?.error ?? "حدث خطأ" : "حدث خطأ");
+    } finally {
+      setIsExtending(false);
+    }
   }
 
   async function handleXlsxUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -436,6 +462,7 @@ export default function StudentsPage() {
               <option value="CANCELLED">تغيير الحالة: ملغي</option>
               <option value="SUSPENDED">تغيير الحالة: موقف</option>
               <option value="بانتظار الدفع">تغيير الحالة: بانتظار الدفع</option>
+              <option value="extend_subscription">تمديد تاريخ الاشتراك</option>
             </select>
             <button
               onClick={applyBulk}
@@ -646,6 +673,46 @@ export default function StudentsPage() {
           )}
         </div>
       </div>
+
+      {/* ── Extend Subscription Modal ── */}
+      {showExtendModal && (
+        <div
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowExtendModal(false); }}
+        >
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-bold text-[#111111] text-right mb-4">تمديد تاريخ الاشتراك</h3>
+            <p className="text-sm text-gray-500 text-right mb-4">
+              أدخل تاريخ انتهاء الاشتراك الجديد
+              <span className="text-gray-400 text-xs block mt-0.5">
+                سيتم تطبيقه على {selected.size} طالب محدد
+              </span>
+            </p>
+            <input
+              type="date"
+              dir="ltr"
+              value={newEndDate}
+              onChange={(e) => setNewEndDate(e.target.value)}
+              className="w-full px-4 py-2.5 rounded-lg border border-gray-200 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-[#F64651]"
+            />
+            <div className="flex gap-3 justify-start">
+              <button
+                onClick={() => { setShowExtendModal(false); setNewEndDate(""); }}
+                className="px-4 py-2.5 rounded-lg border border-gray-200 text-gray-600 text-sm hover:bg-gray-50 transition-colors"
+              >
+                إلغاء
+              </button>
+              <button
+                onClick={handleExtendSubscription}
+                disabled={!newEndDate || isExtending}
+                className="px-4 py-2.5 rounded-lg bg-[#F64651] text-white text-sm hover:bg-[#D93A44] disabled:opacity-50 transition-colors"
+              >
+                {isExtending ? "جاري التحديث..." : "موافق"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Enrollment Send Modal ── */}
       {enrollmentModalOpen && (

@@ -1,9 +1,13 @@
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
-
-const ALLOWED_MIME_TYPES = ["application/pdf", "image/png", "image/jpeg"];
-const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+import {
+  validateUpload,
+  isFailure,
+  DOCUMENT_TYPES,
+  DOCUMENT_LABEL,
+  MAX_DOCUMENT_BYTES,
+} from "@/lib/file-upload";
 
 export async function POST(
   request: Request,
@@ -29,20 +33,19 @@ export async function POST(
     return Response.json({ error: "No file provided" }, { status: 400 });
   }
 
-  if (!ALLOWED_MIME_TYPES.includes(file.type)) {
-    return Response.json({ error: "نوع الملف غير مدعوم" }, { status: 400 });
+  const validated = await validateUpload(
+    file,
+    DOCUMENT_TYPES,
+    MAX_DOCUMENT_BYTES,
+    DOCUMENT_LABEL
+  );
+  if (isFailure(validated)) {
+    return Response.json({ error: validated.error }, { status: validated.status });
   }
-
-  if (file.size > MAX_FILE_SIZE) {
-    return Response.json({ error: "حجم الملف كبير جدا، الحجم المسموح للملف هو 100 MB أو أقل" }, { status: 400 });
-  }
-
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const dataUrl = `data:${file.type};base64,${buffer.toString("base64")}`;
 
   const updated = await prisma.student.update({
     where: { id },
-    data: { evaluationFileUrl: dataUrl, evaluationFileName: file.name },
+    data: { evaluationFileUrl: validated.dataUrl, evaluationFileName: file.name },
   });
 
   await logAction({

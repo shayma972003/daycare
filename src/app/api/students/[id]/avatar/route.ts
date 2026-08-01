@@ -1,9 +1,13 @@
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
-
-const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png"];
-const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+import {
+  validateUpload,
+  isFailure,
+  IMAGE_TYPES,
+  IMAGE_LABEL,
+  MAX_IMAGE_BYTES,
+} from "@/lib/file-upload";
 
 export async function POST(
   request: Request,
@@ -29,20 +33,14 @@ export async function POST(
     return Response.json({ error: "No file" }, { status: 400 });
   }
 
-  if (!ALLOWED_MIME_TYPES.includes(file.type)) {
-    return Response.json({ error: "يُقبل فقط JPG و PNG" }, { status: 400 });
+  const validated = await validateUpload(file, IMAGE_TYPES, MAX_IMAGE_BYTES, IMAGE_LABEL);
+  if (isFailure(validated)) {
+    return Response.json({ error: validated.error }, { status: validated.status });
   }
-
-  if (file.size > MAX_FILE_SIZE) {
-    return Response.json({ error: "حجم الملف كبير جدا، الحجم المسموح للملف هو 100 MB أو أقل" }, { status: 400 });
-  }
-
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const dataUrl = `data:${file.type};base64,${buffer.toString("base64")}`;
 
   const updated = await prisma.student.update({
     where: { id },
-    data: { avatarUrl: dataUrl },
+    data: { avatarUrl: validated.dataUrl },
   });
 
   await logAction({

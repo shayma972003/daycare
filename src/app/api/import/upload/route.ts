@@ -1,6 +1,10 @@
 import { requireSession } from '@/lib/session';
 import { prisma } from '@/lib/prisma';
 import { logAction } from '@/lib/activity-logger';
+import { MAX_SPREADSHEET_BYTES } from '@/lib/file-upload';
+
+/** Upper bound on rows accepted from one uploaded file. */
+const MAX_IMPORT_ROWS = 2000;
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
 import { z } from 'zod';
@@ -49,6 +53,16 @@ export async function POST(request: Request) {
     return Response.json({ error: 'صيغة الملف غير مدعومة. يُرجى رفع ملف .xlsx أو .csv فقط.' }, { status: 400 });
   }
 
+  // There was no size cap at all, and the parser runs on attacker-controlled
+  // bytes. A large workbook was an easy way to exhaust memory or hang the
+  // function.
+  if (file.size > MAX_SPREADSHEET_BYTES) {
+    return Response.json(
+      { error: `حجم الملف كبير. الحد الأقصى ${MAX_SPREADSHEET_BYTES / (1024 * 1024)} ميجابايت.` },
+      { status: 413 }
+    );
+  }
+
   const buffer = Buffer.from(await file.arrayBuffer());
   let rows: Record<string, unknown>[] = [];
   let headers: string[] = [];
@@ -64,6 +78,15 @@ export async function POST(request: Request) {
     const result = Papa.parse<Record<string, unknown>>(content, { header: true, skipEmptyLines: true });
     headers = result.meta.fields ?? [];
     rows = result.data.filter((r) => !isEmptyRow(r));
+  }
+
+  // Bounded so one import cannot fan out into tens of thousands of sequential
+  // inserts during the confirm step.
+  if (rows.length > MAX_IMPORT_ROWS) {
+    return Response.json(
+      { error: `الملف يحتوي ${rows.length} صفاً. الحد الأقصى ${MAX_IMPORT_ROWS} صف في المرة الواحدة.` },
+      { status: 413 }
+    );
   }
 
   // Remove blank columns

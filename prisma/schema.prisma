@@ -362,6 +362,9 @@ model Class {
   students        Student[]
   activityInvites ActivityInvite[]
   attendances     Attendance[]
+
+  @@index([schoolId, deletedAt])
+  @@index([teacherId])
 }
 
 model Teacher {
@@ -402,6 +405,8 @@ model Teacher {
   activities         Activity[]
   teacherAttendances TeacherAttendance[]
   invoices           Invoice[]
+
+  @@index([schoolId, deletedAt])
 }
 
 model Guardian {
@@ -421,6 +426,9 @@ model Guardian {
   updatedAt DateTime  @updatedAt
 
   students Student[]
+
+  @@index([schoolId, deletedAt])
+  @@index([schoolId, phone1])
 }
 
 model Student {
@@ -466,6 +474,11 @@ model Student {
   attendances     Attendance[]
   invoices        Invoice[]
   payment_cycles  PaymentCycle[]
+
+  @@index([schoolId, deletedAt])
+  @@index([schoolId, isActive])
+  @@index([classId])
+  @@index([guardianId])
 }
 
 model Activity {
@@ -488,6 +501,8 @@ model Activity {
   updatedAt     DateTime @updatedAt
 
   activityInvites ActivityInvite[]
+
+  @@index([schoolId])
 }
 
 model ActivityInvite {
@@ -556,6 +571,10 @@ model Invoice {
   pdfUrl    String?
   data      Json
   createdAt DateTime    @default(now())
+
+  @@index([schoolId, createdAt])
+  @@index([studentId])
+  @@index([teacherId])
 }
 
 model NotificationLog {
@@ -568,6 +587,8 @@ model NotificationLog {
   status        DeliveryStatus   @default(SENT)
   source        String           @default("other")
   sentAt        DateTime         @default(now())
+
+  @@index([schoolId, sentAt])
 }
 
 model MonthlyExpense {
@@ -601,6 +622,8 @@ model Expense {
   updated_at   DateTime  @updatedAt
 
   school School @relation(fields: [school_id], references: [id])
+
+  @@index([school_id, is_active])
 }
 
 model FinancialReport {
@@ -722,4 +745,6 @@ model EnrollmentSubmission {
 
   token  EnrollmentToken @relation(fields: [token_id], references: [id])
   school School          @relation(fields: [school_id], references: [id])
+
+  @@index([school_id, status])
 }

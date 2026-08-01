@@ -1,11 +1,24 @@
 import { requireSession } from "@/lib/session";
-import { writeFile } from "fs/promises";
-import { join } from "path";
-import { randomUUID } from "crypto";
+import {
+  validateUpload,
+  isFailure,
+  IMAGE_TYPES,
+  IMAGE_LABEL,
+  MAX_IMAGE_BYTES,
+} from "@/lib/file-upload";
 
-const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
-const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png"];
-
+/**
+ * Generic image upload used by the class forms.
+ *
+ * This route previously wrote to `public/uploads` — a directory that does not
+ * exist in the repository and is read-only on Vercel, so every call 500'd. It
+ * also stored files outside any tenant namespace and served them from a public
+ * path with no access control.
+ *
+ * It now returns a validated data URI, matching how every other upload path in
+ * the codebase already works. Object storage replaces this wholesale in a later
+ * phase; until then, correctness beats a broken filesystem write.
+ */
 export async function POST(request: Request) {
   try {
     await requireSession();
@@ -15,30 +28,14 @@ export async function POST(request: Request) {
 
   const formData = await request.formData();
   const file = formData.get("file") as File | null;
-
   if (!file) {
     return Response.json({ error: "No file provided" }, { status: 400 });
   }
 
-  const ext = file.name.split(".").pop()?.toLowerCase();
-  if (!["jpg", "jpeg", "png"].includes(ext ?? "") || !ALLOWED_MIME_TYPES.includes(file.type)) {
-    return Response.json(
-      { error: "Only .jpg, .jpeg, .png files are allowed" },
-      { status: 400 }
-    );
+  const validated = await validateUpload(file, IMAGE_TYPES, MAX_IMAGE_BYTES, IMAGE_LABEL);
+  if (isFailure(validated)) {
+    return Response.json({ error: validated.error }, { status: validated.status });
   }
 
-  if (file.size > MAX_FILE_SIZE) {
-    return Response.json(
-      { error: "حجم الملف كبير جدا، الحجم المسموح للملف هو 100 MB أو أقل" },
-      { status: 400 }
-    );
-  }
-
-  const filename = `${randomUUID()}.${ext}`;
-  const uploadDir = join(process.cwd(), "public", "uploads");
-  const buffer = Buffer.from(await file.arrayBuffer());
-  await writeFile(join(uploadDir, filename), buffer);
-
-  return Response.json({ url: `/uploads/${filename}` });
+  return Response.json({ url: validated.dataUrl });
 }

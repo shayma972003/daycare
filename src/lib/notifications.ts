@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { replaceVariables } from "@/lib/utils";
 import { type MessageContext } from "@/lib/message-variables";
-import { env, emailEnabled, whatsappEnabled } from "@/lib/env";
+import { env, emailEnabled, emailProvider, whatsappEnabled } from "@/lib/env";
 
 export type NotificationVars = Record<string, string>;
 export type { MessageContext };
@@ -71,11 +71,10 @@ export async function sendEmail(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     if (!emailEnabled) {
-      console.warn("Resend not configured, skipping email");
-      return { success: false, error: "Resend not configured" };
+      console.warn("No email backend configured, skipping email");
+      return { success: false, error: "Email not configured" };
     }
 
-    const apiKey = env.RESEND_API_KEY!;
     const from = env.FROM_EMAIL!;
 
     const html = `
@@ -98,10 +97,24 @@ body{font-family:'Tajawal',Arial,sans-serif;background:#f4f6fb;margin:0;padding:
 </body>
 </html>`;
 
+    if (emailProvider === "smtp") {
+      // Dynamic import keeps nodemailer out of the bundle when Resend is used.
+      const { createTransport } = await import("nodemailer");
+      const transport = createTransport({
+        host: env.SMTP_HOST!,
+        port: env.SMTP_PORT ?? 587,
+        secure: (env.SMTP_PORT ?? 587) === 465,
+        auth: { user: env.SMTP_USER!, pass: env.SMTP_PASSWORD! },
+      });
+
+      await transport.sendMail({ from, to, subject, html });
+      return { success: true };
+    }
+
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Bearer ${env.RESEND_API_KEY!}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ from, to, subject, html }),

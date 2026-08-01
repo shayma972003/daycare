@@ -31,9 +31,19 @@ const envSchema = z.object({
   /** Scheduled jobs reject every request while unset (fail-closed). */
   CRON_SECRET: z.string().optional(),
 
-  /** Email delivery: OTP, password reset, reminders. Both must be set. */
-  RESEND_API_KEY: z.string().optional(),
+  /**
+   * Email delivery: OTP, password reset, reminders.
+   *
+   * Two interchangeable backends — whichever is configured wins, Resend first.
+   * SMTP needs no domain and no company registration, so a plain Gmail app
+   * password is enough to start; swapping to Resend later is config-only.
+   */
   FROM_EMAIL: z.string().email().optional(),
+  RESEND_API_KEY: z.string().optional(),
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().int().positive().optional(),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASSWORD: z.string().optional(),
 
   /** Public links in outbound messages. Falls back to NEXTAUTH_URL. */
   NEXT_PUBLIC_APP_URL: z.string().url().optional(),
@@ -86,10 +96,14 @@ function loadEnv(): Env {
     }
   }
 
-  if (!value.RESEND_API_KEY || !value.FROM_EMAIL) {
+  const hasResend = Boolean(value.RESEND_API_KEY);
+  const hasSmtp = Boolean(value.SMTP_HOST && value.SMTP_USER && value.SMTP_PASSWORD);
+
+  if (!value.FROM_EMAIL || (!hasResend && !hasSmtp)) {
     console.warn(
-      "⚠️  RESEND_API_KEY / FROM_EMAIL not set — email is the only notification " +
-        "channel, so OTP, password reset and reminders will not be delivered."
+      "⚠️  No email backend configured — email is the only notification channel, " +
+        "so OTP, password reset and reminders will not be delivered. Set FROM_EMAIL " +
+        "plus either RESEND_API_KEY or SMTP_HOST/SMTP_USER/SMTP_PASSWORD."
     );
   }
 
@@ -102,8 +116,17 @@ function loadEnv(): Env {
 
 export const env = loadEnv();
 
+/** Which backend `sendEmail` will use — the first one fully configured. */
+export const emailProvider: "resend" | "smtp" | "none" = !env.FROM_EMAIL
+  ? "none"
+  : env.RESEND_API_KEY
+    ? "resend"
+    : env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASSWORD
+      ? "smtp"
+      : "none";
+
 /** Email delivery is configured and usable. */
-export const emailEnabled = Boolean(env.RESEND_API_KEY && env.FROM_EMAIL);
+export const emailEnabled = emailProvider !== "none";
 
 /** WhatsApp is explicitly enabled *and* fully configured. */
 export const whatsappEnabled = Boolean(

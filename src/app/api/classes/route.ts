@@ -2,6 +2,7 @@ import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
 import { assertTeacherOwned, crossTenantResponse } from "@/lib/tenant-guard";
+import { parseClassGroup } from "@/lib/enum-labels";
 import { z } from "zod";
 
 const createClassSchema = z.object({
@@ -98,7 +99,7 @@ export async function POST(request: Request) {
       schoolId,
       name,
       ...(ownedTeacherId !== null && { teacherId: ownedTeacherId }),
-      ...(group !== undefined && { group }),
+      ...(group !== undefined && { group: parseClassGroup(group) ?? "KG1" }),
       ...(period !== undefined && { period }),
       ...(registrationDate !== undefined && { registrationDate: new Date(registrationDate) }),
       ...(notes !== undefined && { notes }),

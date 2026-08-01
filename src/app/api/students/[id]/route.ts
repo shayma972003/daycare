@@ -7,6 +7,8 @@ import {
   assertGuardianOwned,
   crossTenantResponse,
 } from "@/lib/tenant-guard";
+import { parseAcademicStage, parseAttendanceType, parsePaymentStatus } from "@/lib/enum-labels";
+import { protectIdNumber } from "@/lib/pii-crypto";
 import { z } from "zod";
 
 const updateStudentSchema = z.object({
@@ -148,16 +150,20 @@ export async function PUT(
     if (updateData.classId) updateData.needsClassWarning = false;
   }
   if ("healthCondition" in data) updateData.healthCondition = data.healthCondition ?? null;
-  if ("academicStage" in data) updateData.academicStage = data.academicStage ?? null;
+  if ("academicStage" in data) updateData.academicStage = parseAcademicStage(data.academicStage);
   if ("period" in data) updateData.period = data.period ?? null;
-  if ("idNumber" in data) updateData.idNumber = data.idNumber ?? null;
+  if ("idNumber" in data) {
+    updateData.idNumber = data.idNumber ?? null;
+    Object.assign(updateData, protectIdNumber(data.idNumber));
+  }
   if ("dateOfBirth" in data) {
     updateData.dateOfBirth = data.dateOfBirth ? new Date(data.dateOfBirth) : null;
   }
   if ("nationality" in data) updateData.nationality = data.nationality ?? null;
   if ("gender" in data) updateData.gender = data.gender ?? null;
   if ("allergies" in data) updateData.allergies = data.allergies ?? null;
-  if ("attendanceType" in data) updateData.attendanceType = data.attendanceType ?? "دوام منتظم";
+  if ("attendanceType" in data)
+    updateData.attendanceType = parseAttendanceType(data.attendanceType) ?? "REGULAR";
   if ("paymentMethod" in data) updateData.paymentMethod = data.paymentMethod ?? null;
   if ("enrollmentDate" in data) {
     updateData.enrollment_date = data.enrollmentDate ? new Date(data.enrollmentDate) : null;
@@ -167,7 +173,8 @@ export async function PUT(
       ? new Date(data.enrollmentEndDate)
       : null;
   }
-  if ("paymentStatus" in data) updateData.paymentStatus = data.paymentStatus ?? null;
+  if ("paymentStatus" in data)
+    updateData.paymentStatus = parsePaymentStatus(data.paymentStatus) ?? "PENDING";
   if (data.isActive !== undefined) updateData.isActive = data.isActive;
   if (data.registration_fee !== undefined) updateData.registration_fee = data.registration_fee;
 

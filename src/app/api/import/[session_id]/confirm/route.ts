@@ -1,5 +1,6 @@
 import { requireSession } from '@/lib/session';
 import { prisma } from '@/lib/prisma';
+import { parseAcademicStage, parseAttendanceType, parsePaymentStatus } from '@/lib/enum-labels';
 import { normalizePhone } from '@/lib/phone-normalizer';
 import { logAction } from '@/lib/activity-logger';
 
@@ -109,14 +110,21 @@ export async function POST(req: Request, { params }: { params: Promise<{ session
             nationality: data.nationality ? String(data.nationality).trim() : null,
             healthCondition: data.health_condition ? String(data.health_condition).trim() : null,
             allergies: data.allergies ? String(data.allergies).trim() : null,
-            academicStage: data.academic_stage ? String(data.academic_stage).trim() : null,
+            academicStage: parseAcademicStage(
+              data.academic_stage ? String(data.academic_stage) : null
+            ),
             period: period as 'MORNING' | 'EVENING',
             registrationDate: parseDate(data.registration_date) ?? new Date(),
             enrollment_date: parseDate(data.enrollment_date),
             enrollmentEndDate: parseDate(data.enrollment_end_date),
             paymentMethod: paymentMethod as 'CASH' | 'TRANSFER' | 'CARD',
-            attendanceType: data.attendance_type ? String(data.attendance_type).trim() : 'دوام منتظم',
-            paymentStatus: data.payment_status ? String(data.payment_status).trim() : 'بانتظار الدفع',
+            // Imported sheets carry Arabic wording; mapped rather than rejected.
+            attendanceType:
+              parseAttendanceType(data.attendance_type ? String(data.attendance_type) : null) ??
+              'REGULAR',
+            paymentStatus:
+              parsePaymentStatus(data.payment_status ? String(data.payment_status) : null) ??
+              'PENDING',
             registration_fee: 0,
           },
         });

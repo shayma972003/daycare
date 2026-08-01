@@ -1,6 +1,7 @@
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
+import { parseClassGroup } from "@/lib/enum-labels";
 import { z } from "zod";
 
 const updateActivitySchema = z.object({
@@ -99,8 +100,8 @@ export async function PUT(
       ...(name !== undefined && { name }),
       ...(startDate !== undefined && { startDate: new Date(startDate) }),
       ...(endDate !== undefined && { endDate: new Date(endDate) }),
-      ...(teacherId !== undefined && { teacherId }),
-      ...(group !== undefined && { group }),
+      ...(teacherId !== undefined && { teacherId: teacherId ?? null }),
+      ...(group !== undefined && { group: parseClassGroup(group) ?? "KG1" }),
       ...(period !== undefined && { period }),
       ...(childrenCount !== undefined && { childrenCount }),
       ...(activityFee !== undefined && { activityFee }),

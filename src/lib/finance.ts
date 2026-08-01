@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import type { PaymentStatus } from "@/generated/prisma/enums";
 import { deactivateExpiredExpenses } from "@/lib/expense-updater";
 import { calculateRecurringAmount } from "@/lib/finance-calculator";
 
@@ -105,9 +106,11 @@ export interface FinancialSummary {
     paidWithVat: number; // الإجمالي شامل الضريبة (15%)
     late: number; // ر.س — طلاب بحالة "متأخر"
     pending: number; // ر.س — طلاب بحالة "بانتظار الدفع"
+    suspended: number; // ر.س — طلاب موقوفين، كانوا مستبعدين تماماً من التقرير
     paidCount: number;
     lateCount: number;
     pendingCount: number;
+    suspendedCount: number;
   };
 
   salaries: {
@@ -136,16 +139,22 @@ async function getStudentBillableByStatus(schoolId: string, monthlyStudentFee: n
     where: { schoolId, isActive: true },
     select: { paymentStatus: true, registration_fee: true },
   });
-  const buckets: Record<string, { amount: number; count: number }> = {
+  // Every status gets a bucket. The old version knew only three and skipped the
+  // rest, so SUSPENDED students — the ones who owe the most — were silently
+  // dropped from both the collection breakdown and the amount-due total.
+  const buckets: Record<PaymentStatus, { amount: number; count: number }> = {
+    PENDING: { amount: 0, count: 0 },
     PAID: { amount: 0, count: 0 },
     LATE: { amount: 0, count: 0 },
-    "بانتظار الدفع": { amount: 0, count: 0 },
+    SUSPENDED: { amount: 0, count: 0 },
+    CANCELLED: { amount: 0, count: 0 },
   };
+
   for (const s of students) {
-    if (!(s.paymentStatus in buckets)) continue;
     buckets[s.paymentStatus].amount += monthlyStudentFee + s.registration_fee;
     buckets[s.paymentStatus].count += 1;
   }
+
   return buckets;
 }
 
@@ -166,7 +175,7 @@ async function getCumulativeSalaryExpense(schoolId: string, before: Date): Promi
 async function getCumulativeCashPosition(schoolId: string, before: Date): Promise<number> {
   const [paidCycles, paidRegFees, expenses] = await Promise.all([
     prisma.paymentCycle.aggregate({
-      where: { school_id: schoolId, status: "مدفوع", due_date: { lt: before } },
+      where: { school_id: schoolId, status: "PAID", due_date: { lt: before } },
       _sum: { amount: true },
     }),
     prisma.student.aggregate({
@@ -256,7 +265,11 @@ export async function getFinancialSummary(schoolId: string, type: ReportPeriodTy
   const netIncome = revenueTotal - expensesTotal;
 
   const billableByStatus = await getStudentBillableByStatus(schoolId, monthlyStudentFee);
-  const amountDue = billableByStatus.LATE.amount + billableByStatus["بانتظار الدفع"].amount;
+  const amountDue =
+    billableByStatus.LATE.amount +
+    billableByStatus.PENDING.amount +
+    // Suspended students still owe — excluding them understated receivables.
+    billableByStatus.SUSPENDED.amount;
 
   // Previous period (for % comparison only)
   const [prevActivities, prevRegFees] = await Promise.all([
@@ -331,10 +344,12 @@ export async function getFinancialSummary(schoolId: string, type: ReportPeriodTy
       paid: billableByStatus.PAID.amount,
       paidWithVat: billableByStatus.PAID.amount * 1.15,
       late: billableByStatus.LATE.amount,
-      pending: billableByStatus["بانتظار الدفع"].amount,
+      pending: billableByStatus.PENDING.amount,
+      suspended: billableByStatus.SUSPENDED.amount,
       paidCount: billableByStatus.PAID.count,
       lateCount: billableByStatus.LATE.count,
-      pendingCount: billableByStatus["بانتظار الدفع"].count,
+      pendingCount: billableByStatus.PENDING.count,
+      suspendedCount: billableByStatus.SUSPENDED.count,
     },
     salaries: {
       totalBudgeted: totalBudgetedSalaries,

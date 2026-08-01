@@ -17,11 +17,64 @@ enum Gender {
   FEMALE
 }
 
+/// Payment state of a student's subscription.
+///
+/// This was a free-text String that received English values from the status
+/// updater and the Arabic literal "بانتظار الدفع" from the enrolment flow — one
+/// logical state machine written in two alphabets. The finance layer only knew
+/// three of the values, so SUSPENDED students (who owe the most) were silently
+/// dropped from every collection total. Arabic labels now live in the UI.
 enum PaymentStatus {
+  PENDING
   PAID
   LATE
-  CANCELLED
   SUSPENDED
+  CANCELLED
+}
+
+/// How a child attends. Was a free-text String defaulting to "دوام منتظم".
+/// SHIFTS exists because live rows already held "شفتات" — folding it into
+/// PART_TIME would have quietly changed what those records mean.
+enum AttendanceType {
+  REGULAR
+  PART_TIME
+  SHIFTS
+  TEMPORARY
+}
+
+/// Age band of the child. Was a free-text String.
+enum AcademicStage {
+  NURSERY
+  KG1
+  KG2
+  KG3
+}
+
+/// Class grouping. Was a free-text String defaulting to "kg1".
+enum ClassGroup {
+  NURSERY
+  KG1
+  KG2
+  KG3
+}
+
+/// State of a single billing cycle. Was free-text Arabic
+/// ("بانتظار الدفع" | "مدفوع" | "متأخر" | "موقف").
+enum PaymentCycleStatus {
+  PENDING
+  PAID
+  OVERDUE
+  SUSPENDED
+  CANCELLED
+}
+
+/// State of a platform invoice issued to a school. Was free-text Arabic
+/// defaulting to "متأخر".
+enum AdminInvoiceStatus {
+  PENDING
+  PAID
+  OVERDUE
+  CANCELLED
 }
 
 enum PaymentMethod {
@@ -43,6 +96,42 @@ enum DeliveryStatus {
 enum InvoiceType {
   STUDENT
   TEACHER
+}
+
+/// Records every bulk export of tenant data.
+///
+/// Exports are the widest data-egress path in the product: one click can pull a
+/// full roster of children into a spreadsheet that then lives outside every
+/// control this system has. Nothing recorded who did that, over what filter, or
+/// how many records left. This table is the answer to "what was taken, by whom,
+/// when" — required to investigate a leak, and expected under PDPL.
+///
+/// Deliberately append-only: no API updates or deletes it.
+model ExportAuditLog {
+  id String @id @default(cuid())
+
+  /// Operational — tenant scope.
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id])
+
+  /// PII — the acting user, retained for accountability.
+  userId   String?
+  userName String?
+
+  /// Operational — what was exported and how it was narrowed.
+  exportedEntity String
+  exportFormat   String @default("excel")
+  filters        Json?
+  recordCount    Int    @default(0)
+
+  /// PII — request provenance.
+  ipAddress String?
+  userAgent String?
+
+  exportedAt DateTime @default(now())
+
+  @@index([schoolId, exportedAt])
+  @@index([exportedEntity])
 }
 
 /// Fixed-window counter used for rate limiting and account lockout. Backed by
@@ -128,8 +217,17 @@ model AdminActivityLog {
 }
 
 model School {
-  id        String   @id @default(cuid())
+  id String @id @default(cuid())
+
+  /// Analytics — pseudonymous handle. The analytics layer may join on this and
+  /// never on `id`, so a reporting query cannot reach back into operational
+  /// rows. NOTE: because it lives beside the real id in the same database this
+  /// is pseudonymisation, not anonymisation — the data is still personal data.
+  analyticsId String @unique @default(uuid())
+
+  /// Operational
   name      String
+  /// PII — contact address for the account.
   email     String?
   logoUrl   String?
   plan      String   @default("basic")
@@ -207,6 +305,7 @@ model School {
   admin_invoices          AdminInvoice[]
   activity_log_entries    ActivityLog[]
   payment_cycles          PaymentCycle[]
+  export_logs             ExportAuditLog[]
 }
 
 model PaymentCycle {
@@ -215,7 +314,7 @@ model PaymentCycle {
   student_id   String
   due_date     DateTime
   amount       Float
-  status       String    @default("بانتظار الدفع") // مدفوع | بانتظار الدفع | متأخر | موقف
+  status       PaymentCycleStatus @default(PENDING)
   cycle_number Int // 1 = first payment, 2 = second, etc.
   notified_at  DateTime?
   created_at   DateTime  @default(now())
@@ -251,7 +350,7 @@ model AdminInvoice {
   subscription_type  String?
   issue_date         DateTime  @default(now())
   due_date           DateTime?
-  status             String    @default("متأخر") // مدفوع | متأخر | ملغي | بانتظار الدفع
+  status             AdminInvoiceStatus @default(PENDING)
   payment_method     String?
 
   // معلومات شركتنا (SaaS provider) — قابلة للتعديل
@@ -349,7 +448,7 @@ model Class {
   school           School   @relation(fields: [schoolId], references: [id])
   teacherId        String?
   teacher          Teacher? @relation(fields: [teacherId], references: [id])
-  group            String   @default("kg1")
+  group            ClassGroup @default(KG1)
   period           Period   @default(MORNING)
   registrationDate DateTime @default(now())
   notes            String?
@@ -368,17 +467,33 @@ model Class {
 }
 
 model Teacher {
-  id                String        @id @default(cuid())
-  name              String
-  schoolId          String
-  school            School        @relation(fields: [schoolId], references: [id])
-  period            Period        @default(MORNING)
+  id String @id @default(cuid())
+
+  /// Analytics — pseudonymous handle; see the note on School.analyticsId.
+  analyticsId String @unique @default(uuid())
+
+  /// PII
+  name     String
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id])
+  period   Period @default(MORNING)
+
+  /// Sensitive — national ID, retained only in encrypted form.
+  /// `idNumber` is the legacy plaintext column, kept nullable during the
+  /// transition and cleared once every row is migrated.
   idNumber          String?
-  dateOfBirth       DateTime?
-  nationality       String?
-  email             String?
-  phone1            String?
-  phone2            String?
+  encryptedIdNumber String?
+  /// HMAC-SHA256 with a server-side pepper — NOT a plain hash. A Saudi national
+  /// ID is 10 digits with known structure (<10^9 values), so a bare SHA-256 is
+  /// reversible by exhaustive search in minutes and would not be anonymous.
+  idNumberHash      String?
+
+  /// PII
+  dateOfBirth DateTime?
+  nationality String?
+  email       String?
+  phone1      String?
+  phone2      String?
   paymentMethod     PaymentMethod @default(CASH)
   joinDate          DateTime      @default(now())
   enrollmentEndDate DateTime?
@@ -406,6 +521,7 @@ model Teacher {
   teacherAttendances TeacherAttendance[]
   invoices           Invoice[]
 
+  @@index([schoolId, idNumberHash])
   @@index([schoolId, deletedAt])
 }
 
@@ -432,30 +548,48 @@ model Guardian {
 }
 
 model Student {
-  id                String        @id @default(cuid())
-  name              String
-  schoolId          String
-  school            School        @relation(fields: [schoolId], references: [id])
-  classId           String?
-  class             Class?        @relation(fields: [classId], references: [id])
-  guardianId        String?
-  guardian          Guardian?     @relation(fields: [guardianId], references: [id])
-  healthCondition   String?
-  academicStage     String?
-  period            Period        @default(MORNING)
+  id String @id @default(cuid())
+
+  /// Analytics — pseudonymous handle; see the note on School.analyticsId.
+  analyticsId String @unique @default(uuid())
+
+  /// PII
+  name       String
+  schoolId   String
+  school     School    @relation(fields: [schoolId], references: [id])
+  classId    String?
+  class      Class?    @relation(fields: [classId], references: [id])
+  guardianId String?
+  guardian   Guardian? @relation(fields: [guardianId], references: [id])
+
+  /// Sensitive — health notes about a child.
+  healthCondition String?
+  /// Sensitive
+  allergies       String?
+
+  /// Operational
+  academicStage AcademicStage?
+  period        Period         @default(MORNING)
+
+  /// Sensitive — national ID. See Teacher.idNumberHash for why this is an HMAC.
   idNumber          String?
-  dateOfBirth       DateTime?
-  nationality       String?
-  gender            Gender        @default(MALE)
-  registrationDate  DateTime      @default(now())
-  allergies         String?
-  paymentMethod     PaymentMethod @default(CASH)
+  encryptedIdNumber String?
+  idNumberHash      String?
+
+  /// PII
+  dateOfBirth      DateTime?
+  nationality      String?
+  gender           Gender    @default(MALE)
+  registrationDate DateTime  @default(now())
+
+  /// Operational
+  paymentMethod     PaymentMethod  @default(CASH)
   enrollmentEndDate DateTime?
-  paymentStatus     String        @default("PAID")
-  attendanceHours   Float         @default(0)
-  lateHours         Float         @default(0)
-  attendanceType    String        @default("دوام منتظم")
-  registration_fee  Float         @default(0)
+  paymentStatus     PaymentStatus  @default(PENDING)
+  attendanceHours   Float          @default(0)
+  lateHours         Float          @default(0)
+  attendanceType    AttendanceType @default(REGULAR)
+  registration_fee  Float          @default(0)
   additionalFile    String?
   evaluationFileUrl  String?
   evaluationFileName String?
@@ -471,14 +605,23 @@ model Student {
   suspension_notified_at DateTime? // last time suspension popup was shown
   auto_status_updated_at DateTime? // last automatic status update
 
+  /// Operational — data lifecycle. `retentionUntil` is when the personal fields
+  /// must be destroyed; `anonymizedAt` records when that happened. The
+  /// anonymisation service itself is deferred (see D3 in the plan) — the columns
+  /// exist now so the decision is not lost and no backfill is needed later.
+  retentionUntil DateTime?
+  anonymizedAt   DateTime?
+
   attendances     Attendance[]
   invoices        Invoice[]
   payment_cycles  PaymentCycle[]
 
+  @@index([schoolId, idNumberHash])
   @@index([schoolId, deletedAt])
   @@index([schoolId, isActive])
   @@index([classId])
   @@index([guardianId])
+  @@index([retentionUntil])
 }
 
 model Activity {
@@ -488,7 +631,7 @@ model Activity {
   school        School   @relation(fields: [schoolId], references: [id])
   teacherId     String?
   teacher       Teacher? @relation(fields: [teacherId], references: [id])
-  group         String   @default("kg1")
+  group         ClassGroup @default(KG1)
   period        Period   @default(MORNING)
   childrenCount Int      @default(0)
   startDate     DateTime

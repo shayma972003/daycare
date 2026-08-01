@@ -1,6 +1,7 @@
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
+import { parseAcademicStage } from "@/lib/enum-labels";
 import { z } from "zod";
 import * as XLSX from "xlsx";
 
@@ -117,7 +118,7 @@ export async function POST(request: Request) {
         schoolId,
         name: v.name,
         healthCondition: v.healthCondition ?? null,
-        academicStage: v.academicStage ?? null,
+        academicStage: parseAcademicStage(v.academicStage),
         period: v.period as "MORNING" | "EVENING",
         idNumber: v.idNumber ?? null,
         dateOfBirth: v.dateOfBirth ? new Date(v.dateOfBirth) : null,

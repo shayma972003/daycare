@@ -3,7 +3,20 @@ export const dynamic = "force-dynamic";
 
 import { verifyAdminSessionFromRequest } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
+import type { AdminInvoiceStatus } from "@/generated/prisma/enums";
 import { z } from "zod";
+
+/** The invoice modal sends Arabic wording; the column is an enum now. */
+const ADMIN_INVOICE_STATUS_MAP: Record<string, AdminInvoiceStatus> = {
+  "بانتظار الدفع": "PENDING",
+  "مدفوع": "PAID",
+  "متأخر": "OVERDUE",
+  "ملغي": "CANCELLED",
+  PENDING: "PENDING",
+  PAID: "PAID",
+  OVERDUE: "OVERDUE",
+  CANCELLED: "CANCELLED",
+};
 import { renderToBuffer } from "@react-pdf/renderer";
 import { createElement } from "react";
 import {
@@ -257,7 +270,7 @@ export async function POST(request: Request) {
         subscription_type: d.subscription_type ?? null,
         issue_date: new Date(d.issue_date),
         due_date: d.due_date ? new Date(d.due_date) : null,
-        status: d.status,
+        status: ADMIN_INVOICE_STATUS_MAP[d.status.trim()] ?? "PENDING",
         payment_method: d.payment_method ?? null,
         our_company_name: d.our_company_name ?? null,
         our_commercial_reg: d.our_commercial_reg ?? null,

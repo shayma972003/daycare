@@ -8,6 +8,12 @@ import {
   assertGuardianOwned,
   crossTenantResponse,
 } from "@/lib/tenant-guard";
+import {
+  parseAcademicStage,
+  parseAttendanceType,
+  parsePaymentStatus,
+} from "@/lib/enum-labels";
+import { protectIdNumber } from "@/lib/pii-crypto";
 import { z } from "zod";
 
 const createStudentSchema = z.object({
@@ -194,14 +200,18 @@ export async function POST(request: Request) {
       ...(ownedClassId !== null && { classId: ownedClassId }),
       ...(guardianId !== null && { guardianId }),
       ...(healthCondition !== undefined && { healthCondition }),
-      ...(academicStage !== undefined && { academicStage }),
+      // Free-text values from older clients and imports are mapped onto the
+      // enum rather than rejected.
+      ...(academicStage !== undefined && { academicStage: parseAcademicStage(academicStage) }),
       ...(period !== undefined && { period }),
-      ...(idNumber !== undefined && { idNumber }),
+      ...(idNumber !== undefined && { idNumber, ...protectIdNumber(idNumber) }),
       ...(dateOfBirth !== undefined && { dateOfBirth: new Date(dateOfBirth) }),
       ...(nationality !== undefined && { nationality }),
       ...(gender !== undefined && { gender }),
       ...(allergies !== undefined && { allergies }),
-      ...(attendanceType !== undefined && { attendanceType }),
+      ...(attendanceType !== undefined && {
+        attendanceType: parseAttendanceType(attendanceType) ?? "REGULAR",
+      }),
       ...(paymentMethod !== undefined && { paymentMethod }),
       ...(enrollmentDate !== undefined && {
         enrollment_date: new Date(enrollmentDate),
@@ -209,7 +219,9 @@ export async function POST(request: Request) {
       ...(enrollmentEndDate !== undefined && {
         enrollmentEndDate: new Date(enrollmentEndDate),
       }),
-      ...(paymentStatus !== undefined && { paymentStatus }),
+      ...(paymentStatus !== undefined && {
+        paymentStatus: parsePaymentStatus(paymentStatus) ?? "PENDING",
+      }),
       ...(registration_fee !== undefined && { registration_fee }),
     },
     include: { class: true, guardian: true },

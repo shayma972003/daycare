@@ -1,8 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { astDateOnly } from "@/lib/datetime";
+import type { PaymentCycleStatus } from "@/generated/prisma/enums";
 
 /** Statuses that represent money already accounted for — never regenerated. */
-const SETTLED_STATUSES = ["مدفوع", "ملغي"];
+const SETTLED_STATUSES: PaymentCycleStatus[] = ["PAID", "CANCELLED"];
 
 /** Guards against a mistyped end date generating thousands of rows. */
 const MAX_CYCLES = 120;
@@ -97,7 +98,7 @@ export async function generatePaymentCycles(studentId: string) {
       due_date: c.due_date,
       amount: monthlyAmount,
       cycle_number: c.cycle_number,
-      status: "بانتظار الدفع",
+      status: "PENDING" as const,
     }));
 
   // One transaction: a crash between the delete and the create used to leave the

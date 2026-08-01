@@ -2,6 +2,7 @@ import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
 import { assertClassOwned, crossTenantResponse } from "@/lib/tenant-guard";
+import { parseAcademicStage, parseAttendanceType } from "@/lib/enum-labels";
 import { z } from "zod";
 
 const schema = z.object({
@@ -130,15 +131,15 @@ export async function POST(
       guardianId,
       idNumber: ov.id_number ?? sub.id_number ?? null,
       nationality: ov.nationality ?? sub.nationality ?? null,
-      academicStage: ov.academic_stage ?? sub.academic_stage ?? null,
+      academicStage: parseAcademicStage(ov.academic_stage ?? sub.academic_stage),
       gender: mapGender(ov.gender ?? sub.gender),
       period: mapPeriod(ov.period ?? sub.period),
       dateOfBirth: dobRaw ? new Date(dobRaw) : null,
       healthCondition: ov.health_condition ?? sub.health_condition ?? null,
       allergies: ov.allergies ?? sub.allergies ?? null,
-      attendanceType: ov.attendance_type ?? sub.attendance_type ?? "دوام منتظم",
+      attendanceType: parseAttendanceType(ov.attendance_type ?? sub.attendance_type) ?? "REGULAR",
       paymentMethod: mapPaymentMethod(ov.payment_method ?? sub.payment_method),
-      paymentStatus: "بانتظار الدفع",
+      paymentStatus: "PENDING",
       registrationDate: new Date(),
       enrollment_date: sub.enrollment_date ?? new Date(),
       evaluationFileUrl: sub.evaluation_file_url,

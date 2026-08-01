@@ -1,22 +1,16 @@
+import { PaymentStatus } from "@/generated/prisma/enums";
+
 /**
- * The single vocabulary for `Student.paymentStatus`.
- *
- * The column is a free-text String and receives English values from
- * payment-status-updater and an Arabic one for "awaiting payment", so every
- * consumer has to handle both alphabets for one logical state. Until the column
- * is migrated to an enum, this is the allow-list every write path validates
- * against — it at least stops arbitrary strings landing in the column.
+ * The column is a real enum now, so the allow-list this file used to carry is
+ * gone — Prisma generates it. Kept as a thin re-export so existing imports keep
+ * working and there is still one place to reach for the list of values.
  */
-export const PAYMENT_STATUSES = [
-  "PAID",
-  "LATE",
-  "SUSPENDED",
-  "CANCELLED",
-  "بانتظار الدفع",
-] as const;
+export { PaymentStatus };
 
-export type PaymentStatusValue = (typeof PAYMENT_STATUSES)[number];
+export const PAYMENT_STATUSES = Object.values(PaymentStatus);
 
-export function isPaymentStatus(value: string): value is PaymentStatusValue {
-  return (PAYMENT_STATUSES as readonly string[]).includes(value);
+export type PaymentStatusValue = PaymentStatus;
+
+export function isPaymentStatus(value: string): value is PaymentStatus {
+  return (PAYMENT_STATUSES as string[]).includes(value);
 }

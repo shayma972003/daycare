@@ -1,47 +1,51 @@
 import { prisma } from "@/lib/prisma";
+import { PaymentCycleStatus, PaymentStatus } from "@/generated/prisma/enums";
+import { astDayStart } from "@/lib/datetime";
 
-const CYCLE_TO_STUDENT_STATUS: Record<string, string> = {
-  "مدفوع": "PAID",
-  "متأخر": "LATE",
-  "موقف": "SUSPENDED",
-  "بانتظار الدفع": "بانتظار الدفع",
+/** Days past due at which a cycle moves to the next state. */
+const LATE_AFTER_DAYS = 4;
+const SUSPENDED_AFTER_DAYS = 8;
+
+/** How a cycle's state rolls up onto the student. */
+const CYCLE_TO_STUDENT: Record<PaymentCycleStatus, PaymentStatus> = {
+  PAID: "PAID",
+  PENDING: "PENDING",
+  OVERDUE: "LATE",
+  SUSPENDED: "SUSPENDED",
+  CANCELLED: "CANCELLED",
 };
 
-// Priority order — the worst status among a student's cycles wins.
-const STATUS_PRIORITY = ["موقف", "متأخر", "بانتظار الدفع", "مدفوع"];
+/** Worst status among a student's cycles wins. */
+const STATUS_PRIORITY: PaymentCycleStatus[] = ["SUSPENDED", "OVERDUE", "PENDING", "PAID"];
 
 export async function updatePaymentStatuses(school_id: string) {
   const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  // Business day in AST. Was host-local, so on a UTC server the day boundary
+  // moved and students were suspended a day early or late.
+  const today = astDayStart(now);
 
   const cycles = await prisma.paymentCycle.findMany({
-    where: {
-      school_id,
-      status: { in: ["بانتظار الدفع", "متأخر"] },
-    },
-    include: { student: true },
+    where: { school_id, status: { in: ["PENDING", "OVERDUE"] } },
+    include: { student: { select: { id: true, suspension_notified_at: true } } },
   });
 
   const suspendedStudents: string[] = [];
   const touchedStudentIds = new Set<string>();
 
   for (const cycle of cycles) {
-    const dueDate = new Date(cycle.due_date);
-    const daysPastDue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+    const daysPastDue = Math.floor(
+      (today.getTime() - cycle.due_date.getTime()) / (1000 * 60 * 60 * 24)
+    );
+    if (daysPastDue < 1) continue;
 
-    if (daysPastDue < 0) continue;
-
-    let newStatus = cycle.status;
-
-    if (daysPastDue >= 1 && daysPastDue <= 3) {
-      newStatus = "بانتظار الدفع";
-    } else if (daysPastDue >= 4 && daysPastDue <= 7) {
-      newStatus = "متأخر";
-    } else if (daysPastDue >= 8) {
-      newStatus = "موقف";
-      if (!cycle.student.suspension_notified_at) {
-        suspendedStudents.push(cycle.student_id);
-      }
+    let newStatus: PaymentCycleStatus = cycle.status;
+    if (daysPastDue >= SUSPENDED_AFTER_DAYS) {
+      newStatus = "SUSPENDED";
+      if (!cycle.student.suspension_notified_at) suspendedStudents.push(cycle.student_id);
+    } else if (daysPastDue >= LATE_AFTER_DAYS) {
+      newStatus = "OVERDUE";
+    } else {
+      newStatus = "PENDING";
     }
 
     if (newStatus !== cycle.status) {
@@ -60,10 +64,7 @@ export async function updatePaymentStatuses(school_id: string) {
   if (suspendedStudents.length > 0) {
     await prisma.student.updateMany({
       where: { id: { in: suspendedStudents } },
-      data: {
-        paymentStatus: "SUSPENDED",
-        suspension_notified_at: now,
-      },
+      data: { paymentStatus: "SUSPENDED", suspension_notified_at: now },
     });
   }
 
@@ -73,14 +74,14 @@ export async function updatePaymentStatuses(school_id: string) {
 async function updateStudentPaymentStatus(studentId: string) {
   const cycles = await prisma.paymentCycle.findMany({
     where: { student_id: studentId },
-    orderBy: { due_date: "desc" },
+    select: { status: true },
   });
 
   for (const status of STATUS_PRIORITY) {
     if (cycles.some((c) => c.status === status)) {
       await prisma.student.update({
         where: { id: studentId },
-        data: { paymentStatus: CYCLE_TO_STUDENT_STATUS[status] ?? status },
+        data: { paymentStatus: CYCLE_TO_STUDENT[status] },
       });
       return;
     }

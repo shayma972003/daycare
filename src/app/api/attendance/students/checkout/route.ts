@@ -70,7 +70,7 @@ export async function POST(request: Request) {
   const totalHours = (now.getTime() - new Date(existing.checkinAt!).getTime()) / 3600000;
 
   // Only calculate late hours for regular attendance
-  const isRegular = (student?.attendanceType ?? "دوام منتظم") === "دوام منتظم";
+  const isRegular = (student?.attendanceType ?? "REGULAR") === "REGULAR";
   let lateMinutes = 0;
   let lateHours = 0;
   let lateFee = 0;

@@ -110,8 +110,8 @@ async function main() {
   console.log(`teachers: ${teachers.length}`);
 
   const classSeeds = [
-    { name: "كي جي 1 - أ", teacherId: teachers[0].id, group: "kg1", period: "MORNING" as const },
-    { name: "كي جي 2 - أ", teacherId: teachers[1].id, group: "kg2", period: "EVENING" as const },
+    { name: "كي جي 1 - أ", teacherId: teachers[0].id, group: "KG1" as const, period: "MORNING" as const },
+    { name: "كي جي 2 - أ", teacherId: teachers[1].id, group: "KG2" as const, period: "EVENING" as const },
   ];
 
   const classes = [];
@@ -172,7 +172,7 @@ async function main() {
         guardianId: guardian.id,
         period: "MORNING",
         paymentMethod: "CASH",
-        paymentStatus: "بانتظار الدفع",
+        paymentStatus: "PENDING",
         registrationDate: enrollmentStart,
         enrollment_date: enrollmentStart,
         enrollmentEndDate: enrollmentEnd,
@@ -192,7 +192,7 @@ async function main() {
         name: activityName,
         schoolId: school.id,
         teacherId: teachers[0].id,
-        group: "kg1",
+        group: "KG1",
         period: "MORNING",
         childrenCount: 20,
         startDate: new Date("2026-05-15"),

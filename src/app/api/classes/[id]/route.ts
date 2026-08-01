@@ -2,6 +2,7 @@ import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
 import { assertTeacherOwned, crossTenantResponse } from "@/lib/tenant-guard";
+import { parseClassGroup } from "@/lib/enum-labels";
 import { z } from "zod";
 
 const updateClassSchema = z.object({
@@ -96,7 +97,7 @@ export async function PUT(
     }
     if (updateData.teacherId) updateData.needsTeacherWarning = false;
   }
-  if ("group" in data) updateData.group = data.group ?? null;
+  if ("group" in data) updateData.group = parseClassGroup(data.group) ?? "KG1";
   if ("period" in data) updateData.period = data.period ?? null;
   if ("registrationDate" in data) {
     updateData.registrationDate = data.registrationDate ? new Date(data.registrationDate) : null;

@@ -19,7 +19,7 @@ function LoginForm() {
   // 2FA state
   const [step, setStep] = useState<"credentials" | "otp">("credentials");
   const [twoFaSessionId, setTwoFaSessionId] = useState("");
-  const [phoneLast4, setPhoneLast4] = useState("");
+  const [maskedTarget, setMaskedTarget] = useState("");
   const [otpCode, setOtpCode] = useState("");
   const [otpError, setOtpError] = useState("");
   const [otpLoading, setOtpLoading] = useState(false);
@@ -53,12 +53,12 @@ function LoginForm() {
     if (result?.error) {
       if (result.error.startsWith("2FA_REQUIRED:")) {
         const parts = result.error.split(":");
-        const sessionId = parts[1];
-        const last4 = parts[2];
-        setTwoFaSessionId(sessionId);
-        setPhoneLast4(last4);
+        setTwoFaSessionId(parts[1]);
+        setMaskedTarget(parts.slice(2).join(":"));
         setStep("otp");
         setResendCooldown(60);
+      } else if (result.error === "2FA_DELIVERY_FAILED") {
+        setError("تعذر إرسال رمز التحقق إلى بريدك. تواصل مع الدعم.");
       } else {
         setError("البريد الإلكتروني أو كلمة المرور غير صحيحة");
       }
@@ -139,7 +139,7 @@ function LoginForm() {
           <div className="bg-white rounded-2xl shadow-2xl p-8">
             <h2 className="text-lg font-bold text-[#1a2340] mb-2 text-center">تم إرسال رمز التحقق إلى</h2>
             <p className="text-sm text-gray-500 mb-6 text-center" dir="ltr">
-              +966•••••{phoneLast4}
+              {maskedTarget}
             </p>
 
             <form onSubmit={handleVerifyOtp} className="space-y-4" noValidate>

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { sendWhatsApp } from "@/lib/notifications";
+import { sendEmail } from "@/lib/notifications";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { randomInt } from "crypto";
@@ -8,8 +8,12 @@ const schema = z.object({
   twoFaSessionId: z.string().min(1),
 });
 
+const RESEND_COOLDOWN_MS = 60 * 1000;
+const MAX_RESENDS = 3;
+const OTP_TTL_MS = 10 * 60 * 1000;
+
 function generateOTP(): string {
-  return String(randomInt(100000, 999999));
+  return String(randomInt(100000, 1000000));
 }
 
 export async function POST(request: Request) {
@@ -25,37 +29,71 @@ export async function POST(request: Request) {
     return Response.json({ error: "بيانات غير صحيحة" }, { status: 400 });
   }
 
-  const session = await prisma.twoFASession.findUnique({ where: { id: parsed.data.twoFaSessionId } });
-  if (!session) {
-    return Response.json({ error: "الجلسة غير موجودة" }, { status: 404 });
+  const session = await prisma.twoFASession.findUnique({
+    where: { id: parsed.data.twoFaSessionId },
+    include: { school: { select: { name: true } } },
+  });
+
+  if (!session || session.verified || session.expiresAt < new Date()) {
+    return Response.json({ error: "الجلسة غير صالحة" }, { status: 404 });
   }
 
-  if (Date.now() - session.createdAt.getTime() < 60 * 1000) {
+  // Throttle is measured on this row's own last send. Previously it compared
+  // against the *old* session while creating a *new* one, so replaying the
+  // original id passed the check forever.
+  if (Date.now() - session.lastSentAt.getTime() < RESEND_COOLDOWN_MS) {
     return Response.json({ error: "الرجاء الانتظار قبل إعادة الإرسال" }, { status: 429 });
   }
 
-  const school = await prisma.school.findUnique({ where: { id: session.schoolId } });
-  const phone = session.purpose === "ACTIVATE"
-    ? (school?.phoneNumber ? `+966${school.phoneNumber}` : null)
-    : school?.twoFaPhone;
-  if (!school || !phone) {
+  if (session.resendCount >= MAX_RESENDS) {
+    return Response.json(
+      { error: "تم تجاوز عدد مرات إعادة الإرسال. سجّل الدخول من جديد." },
+      { status: 429 }
+    );
+  }
+
+  // Resolve the destination from the session's own owner, never from the request.
+  let recipient: string | null = null;
+
+  if (session.userId) {
+    const user = await prisma.user.findUnique({
+      where: { id: session.userId },
+      select: { email: true },
+    });
+    recipient = user?.email ?? null;
+  } else {
+    const owner = await prisma.user.findFirst({
+      where: { schoolId: session.schoolId },
+      orderBy: { createdAt: "asc" },
+      select: { email: true },
+    });
+    recipient = owner?.email ?? null;
+  }
+
+  if (!recipient) {
     return Response.json({ error: "تعذر إرسال الرمز" }, { status: 400 });
   }
 
   const otp = generateOTP();
   const otpCodeHash = await bcrypt.hash(otp, 10);
 
-  const newSession = await prisma.twoFASession.create({
+  // Rotate in place: `attempts` carries over, so the 5-attempt lockout holds.
+  await prisma.twoFASession.update({
+    where: { id: session.id },
     data: {
-      schoolId: session.schoolId,
-      userId: session.userId,
-      purpose: session.purpose,
       otpCodeHash,
-      expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+      expiresAt: new Date(Date.now() + OTP_TTL_MS),
+      lastSentAt: new Date(),
+      resendCount: { increment: 1 },
     },
   });
 
-  await sendWhatsApp(phone, `رمز التحقق بخطوتين: ${otp}\nصالح لمدة 10 دقائق. لا تشاركه مع أحد.`);
+  await sendEmail(
+    recipient,
+    "رمز التحقق بخطوتين",
+    `رمز التحقق بخطوتين: ${otp}\nصالح لمدة 10 دقائق. لا تشاركه مع أحد.`,
+    session.school.name
+  );
 
-  return Response.json({ success: true, twoFaSessionId: newSession.id });
+  return Response.json({ success: true, twoFaSessionId: session.id });
 }

@@ -272,6 +272,14 @@ model TwoFASession {
   bypassTokenHash    String?  // sha256 hex of a random bypass token, set only after successful verify (LOGIN purpose)
   bypassExpires      DateTime?
   createdAt          DateTime @default(now())
+
+  // Resend rotates the code on this same row rather than creating a new session,
+  // so `attempts` is never reset and the lockout cannot be bypassed.
+  lastSentAt  DateTime @default(now())
+  resendCount Int      @default(0)
+
+  @@index([bypassTokenHash])
+  @@index([expiresAt])
 }
 
 model User {
@@ -289,12 +297,18 @@ model User {
 }
 
 model PasswordResetToken {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  token     String   @unique
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // sha256 of the OTP — never store the code itself. Lookup is by userId, so a
+  // bare 6-digit code is useless without knowing whose account it belongs to.
+  tokenHash String
+  attempts  Int      @default(0)
   expiresAt DateTime
   createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 model Settings {

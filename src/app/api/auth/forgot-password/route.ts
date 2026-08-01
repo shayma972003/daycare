@@ -1,19 +1,28 @@
 import { prisma } from "@/lib/prisma";
-import { sendEmail, sendWhatsApp } from "@/lib/notifications";
+import { sendEmail } from "@/lib/notifications";
 import { z } from "zod";
-import { randomInt } from "crypto";
+import { randomInt, createHash } from "crypto";
 
 const schema = z.object({
   identifier: z.string().min(1, "أدخل البريد الإلكتروني أو رقم الجوال"),
 });
 
+/** OTP is valid for 15 minutes — long enough to fetch an email, short enough to limit exposure. */
+const OTP_TTL_MS = 15 * 60 * 1000;
+
 function generateOTP(): string {
-  return String(randomInt(100000, 999999));
+  return String(randomInt(100000, 1000000));
+}
+
+function hashOTP(otp: string): string {
+  return createHash("sha256").update(otp).digest("hex");
 }
 
 export async function POST(request: Request) {
   let body: unknown;
-  try { body = await request.json(); } catch {
+  try {
+    body = await request.json();
+  } catch {
     return Response.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
@@ -21,53 +30,56 @@ export async function POST(request: Request) {
   if (!parsed.success)
     return Response.json({ error: "أدخل البريد الإلكتروني أو رقم الجوال" }, { status: 422 });
 
-  const { identifier } = parsed.data;
+  const identifier = parsed.data.identifier.trim();
   const isEmail = identifier.includes("@");
 
-  let user: { id: string; email: string; schoolId: string } | null = null;
-  let sendTo: { email?: string; phone?: string } = {};
+  let user: { id: string; email: string } | null = null;
 
   if (isEmail) {
-    const email = identifier.toLowerCase().trim();
-    user = await prisma.user.findUnique({ where: { email }, select: { id: true, email: true, schoolId: true } });
-    if (user) sendTo = { email };
-  } else {
-    // Look up by school contact number
-    const phone = identifier.trim();
-    const school = await prisma.school.findFirst({
-      where: { contactNumber: phone },
-      include: { users: { take: 1, select: { id: true, email: true, schoolId: true } } },
+    user = await prisma.user.findUnique({
+      where: { email: identifier.toLowerCase() },
+      select: { id: true, email: true },
     });
-    if (school?.users[0]) {
-      user = school.users[0];
-      sendTo = { phone };
-    }
+  } else {
+    // Phone lookup resolves through the school's contact number.
+    const school = await prisma.school.findFirst({
+      where: { contactNumber: identifier },
+      include: {
+        users: {
+          take: 1,
+          orderBy: { createdAt: "asc" },
+          select: { id: true, email: true },
+        },
+      },
+    });
+    user = school?.users[0] ?? null;
   }
 
-  // Always return success to prevent enumeration attacks
+  // Always report success — revealing whether an account exists is an enumeration oracle.
   if (!user) {
     return Response.json({ success: true });
   }
 
   const otp = generateOTP();
-  const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
-  // Delete any existing tokens for this user
-  await prisma.passwordResetToken.deleteMany({ where: { userId: user.id } });
+  // One live token per user: issuing a new code invalidates the previous one.
+  await prisma.$transaction([
+    prisma.passwordResetToken.deleteMany({ where: { userId: user.id } }),
+    prisma.passwordResetToken.create({
+      data: {
+        userId: user.id,
+        tokenHash: hashOTP(otp),
+        expiresAt: new Date(Date.now() + OTP_TTL_MS),
+      },
+    }),
+  ]);
 
-  await prisma.passwordResetToken.create({
-    data: { userId: user.id, token: otp, expiresAt },
-  });
-
-  const message = `رمز إعادة تعيين كلمة المرور: ${otp}\nصالح لمدة ساعة واحدة. لا تشاركه مع أحد.`;
-
-  if (sendTo.email) {
-    await sendEmail(sendTo.email, "رمز إعادة تعيين كلمة المرور", message, "نظام إدارة الروضة");
-  }
-
-  if (sendTo.phone) {
-    await sendWhatsApp(sendTo.phone, message);
-  }
+  await sendEmail(
+    user.email,
+    "رمز إعادة تعيين كلمة المرور",
+    `رمز إعادة تعيين كلمة المرور: ${otp}\nصالح لمدة 15 دقيقة. لا تشاركه مع أحد.`,
+    "نظام إدارة الروضة"
+  );
 
   return Response.json({ success: true });
 }

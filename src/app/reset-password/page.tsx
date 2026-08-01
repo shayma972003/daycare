@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import axios from "axios";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
+  const [identifier, setIdentifier] = useState("");
   const [otp, setOtp] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -14,10 +15,22 @@ export default function ResetPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // Prefilled from the request step so the user does not retype it. sessionStorage
+  // is client-only, so this has to happen after mount rather than during render.
+  useEffect(() => {
+    const saved = sessionStorage.getItem("reset_identifier");
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (saved) setIdentifier(saved);
+  }, []);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
 
+    if (!identifier.trim()) {
+      setError("أدخل البريد الإلكتروني أو رقم الجوال");
+      return;
+    }
     if (newPassword !== confirmPassword) {
       setError("كلمة المرور وتأكيدها غير متطابقتين");
       return;
@@ -29,7 +42,12 @@ export default function ResetPasswordPage() {
 
     setLoading(true);
     try {
-      await axios.post("/api/auth/reset-password", { otp: otp.trim(), newPassword });
+      await axios.post("/api/auth/reset-password", {
+        identifier: identifier.trim(),
+        otp: otp.trim(),
+        newPassword,
+      });
+      sessionStorage.removeItem("reset_identifier");
       router.push("/login?reset=1");
     } catch (err) {
       setError(
@@ -57,6 +75,21 @@ export default function ResetPasswordPage() {
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                البريد الإلكتروني أو رقم الجوال
+              </label>
+              <input
+                type="text"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+                required
+                placeholder="name@example.com"
+                dir="ltr"
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] text-sm transition-all"
+              />
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">رمز التحقق</label>
               <input

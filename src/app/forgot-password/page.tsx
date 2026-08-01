@@ -16,7 +16,11 @@ export default function ForgotPasswordPage() {
     setError("");
     setLoading(true);
     try {
-      await axios.post("/api/auth/forgot-password", { identifier: identifier.trim() });
+      const trimmed = identifier.trim();
+      await axios.post("/api/auth/forgot-password", { identifier: trimmed });
+      // Carried over so the reset page can prefill it — kept out of the URL,
+      // which would expose the account identifier in history and logs.
+      sessionStorage.setItem("reset_identifier", trimmed);
       setSent(true);
     } catch {
       setError("حدث خطأ، يرجى المحاولة مجدداً");
@@ -41,7 +45,7 @@ export default function ForgotPasswordPage() {
               </div>
               <h2 className="text-lg font-bold text-[#1a2340]">تم الإرسال</h2>
               <p className="text-sm text-gray-600 leading-relaxed">
-                إذا كان الحساب موجوداً، سيصلك رمز التحقق عبر البريد الإلكتروني أو واتساب خلال دقائق.
+                إذا كان الحساب موجوداً، سيصلك رمز التحقق عبر البريد الإلكتروني خلال دقائق. الرمز صالح لمدة 15 دقيقة.
               </p>
               <Link
                 href="/reset-password"

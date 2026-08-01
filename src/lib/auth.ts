@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 import { randomInt } from "crypto";
 import { createHash } from "crypto";
 import { prisma } from "@/lib/prisma";
-import { sendWhatsApp } from "@/lib/notifications";
+import { sendEmail } from "@/lib/notifications";
 import { logAction } from "@/lib/activity-logger";
 
 function generateOTP(): string {
@@ -84,11 +84,6 @@ export const authOptions: NextAuthOptions = {
           if (!isValid) return null;
 
           if (user.school?.twoFaEnabled) {
-            if (!user.school.twoFaPhone) {
-              console.error("[auth] 2FA enabled but no twoFaPhone configured for school", user.schoolId);
-              return null;
-            }
-
             const otp = generateOTP();
             const otpCodeHash = await bcrypt.hash(otp, 10);
             const twoFaSession = await prisma.twoFASession.create({
@@ -101,13 +96,24 @@ export const authOptions: NextAuthOptions = {
               },
             });
 
-            await sendWhatsApp(
-              user.school.twoFaPhone,
-              `رمز التحقق بخطوتين: ${otp}\nصالح لمدة 10 دقائق. لا تشاركه مع أحد.`
+            // Delivered by email: the account's own address, so 2FA is per-user
+            // rather than shared across everyone at the school.
+            const sent = await sendEmail(
+              user.email,
+              "رمز التحقق بخطوتين",
+              `رمز التحقق بخطوتين: ${otp}\nصالح لمدة 10 دقائق. لا تشاركه مع أحد.`,
+              user.school.name
             );
 
-            const last4 = user.school.twoFaPhone.slice(-4);
-            throw new Error(`2FA_REQUIRED:${twoFaSession.id}:${last4}`);
+            if (!sent.success) {
+              console.error("[auth] failed to deliver 2FA code", user.schoolId);
+              throw new Error("2FA_DELIVERY_FAILED");
+            }
+
+            // Masked hint shown on the OTP screen, e.g. "sa***@example.com".
+            const [local, domain] = user.email.split("@");
+            const hint = `${local.slice(0, 2)}***@${domain ?? ""}`;
+            throw new Error(`2FA_REQUIRED:${twoFaSession.id}:${hint}`);
           }
 
           // Track last login time (fire-and-forget)

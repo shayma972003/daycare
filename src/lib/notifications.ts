@@ -1,23 +1,44 @@
 import { prisma } from "@/lib/prisma";
 import { replaceVariables } from "@/lib/utils";
 import { type MessageContext } from "@/lib/message-variables";
+import { env, emailEnabled, whatsappEnabled } from "@/lib/env";
 
 export type NotificationVars = Record<string, string>;
 export type { MessageContext };
 
+const HTML_ESCAPES: Record<string, string> = {
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;",
+  "'": "&#39;",
+};
+
+/**
+ * Message bodies and school names are user-controlled and land inside an HTML
+ * email. Without escaping, a crafted name or template injects markup into every
+ * recipient's inbox.
+ */
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (c) => HTML_ESCAPES[c]);
+}
+
+/**
+ * WhatsApp is disabled for now (cost) — kept intact behind ENABLE_WHATSAPP so a
+ * future release can turn it back on without rewriting call sites.
+ */
 export async function sendWhatsApp(
   to: string,
   body: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const accountSid = process.env.TWILIO_ACCOUNT_SID;
-    const authToken = process.env.TWILIO_AUTH_TOKEN;
-    const from = process.env.TWILIO_WHATSAPP_FROM;
-
-    if (!accountSid || !authToken || !from) {
-      console.warn("Twilio not configured, skipping WhatsApp");
-      return { success: false, error: "Twilio not configured" };
+    if (!whatsappEnabled) {
+      return { success: false, error: "WhatsApp disabled" };
     }
+
+    const accountSid = env.TWILIO_ACCOUNT_SID!;
+    const authToken = env.TWILIO_AUTH_TOKEN!;
+    const from = env.TWILIO_WHATSAPP_FROM!;
 
     const response = await fetch(
       `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
@@ -49,13 +70,13 @@ export async function sendEmail(
   schoolName: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const apiKey = process.env.RESEND_API_KEY;
-    const from = process.env.FROM_EMAIL;
-
-    if (!apiKey || !from) {
+    if (!emailEnabled) {
       console.warn("Resend not configured, skipping email");
       return { success: false, error: "Resend not configured" };
     }
+
+    const apiKey = env.RESEND_API_KEY!;
+    const from = env.FROM_EMAIL!;
 
     const html = `
 <!DOCTYPE html>
@@ -70,8 +91,8 @@ body{font-family:'Tajawal',Arial,sans-serif;background:#f4f6fb;margin:0;padding:
 </style></head>
 <body>
 <div class="container">
-  <div class="header"><h1>${schoolName}</h1></div>
-  <div class="body"><p>${body.replace(/\n/g, "<br>")}</p></div>
+  <div class="header"><h1>${escapeHtml(schoolName)}</h1></div>
+  <div class="body"><p>${escapeHtml(body).replace(/\n/g, "<br>")}</p></div>
   <div class="footer">تم الإرسال بواسطة نظام إدارة الروضة</div>
 </div>
 </body>

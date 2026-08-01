@@ -1,7 +1,14 @@
 import { prisma } from "@/lib/prisma";
-import { signAdminToken, ADMIN_COOKIE_NAME } from "@/lib/admin-auth";
+import { signAdminToken, buildAdminCookieHeader } from "@/lib/admin-auth";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
+
+/**
+ * Constant-time-ish guard against user enumeration: when no admin matches we
+ * still run a bcrypt comparison against a dummy hash so the response time does
+ * not reveal whether the email exists.
+ */
+const DUMMY_HASH = "$2b$12$C6UzMDM.H6dfI/f/IKcEe.iVMhrpZ9zXBcVBrEXvXJZgFqbrJmZ7q";
 
 const schema = z.object({
   email: z.string().email(),
@@ -21,15 +28,17 @@ export async function POST(request: Request) {
     return Response.json({ error: "بيانات غير صحيحة" }, { status: 400 });
   }
 
-  const { email, password } = parsed.data;
-  const admin = await prisma.superAdmin.findUnique({ where: { email } });
-  if (!admin) {
-    return Response.json({ error: "البريد الإلكتروني أو كلمة المرور غير صحيحة" }, { status: 401 });
-  }
+  const email = parsed.data.email.toLowerCase().trim();
+  const { password } = parsed.data;
 
-  const valid = await bcrypt.compare(password, admin.password_hash);
-  if (!valid) {
-    return Response.json({ error: "البريد الإلكتروني أو كلمة المرور غير صحيحة" }, { status: 401 });
+  const admin = await prisma.superAdmin.findUnique({ where: { email } });
+  const valid = await bcrypt.compare(password, admin?.password_hash ?? DUMMY_HASH);
+
+  if (!admin || !valid) {
+    return Response.json(
+      { error: "البريد الإلكتروني أو كلمة المرور غير صحيحة" },
+      { status: 401 }
+    );
   }
 
   const token = await signAdminToken(admin.id);
@@ -38,7 +47,7 @@ export async function POST(request: Request) {
     status: 200,
     headers: {
       "Content-Type": "application/json",
-      "Set-Cookie": `${ADMIN_COOKIE_NAME}=${token}; HttpOnly; Path=/; Max-Age=${8 * 3600}; SameSite=Lax`,
+      "Set-Cookie": buildAdminCookieHeader(token),
     },
   });
 }

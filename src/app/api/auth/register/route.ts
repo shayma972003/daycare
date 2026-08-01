@@ -34,7 +34,8 @@ export async function POST(request: Request) {
     const { schoolName, password } = parsed.data;
     const email = parsed.data.email.toLowerCase().trim();
 
-    const existing = await prisma.school.findFirst({ where: { email } });
+    // The unique constraint lives on User.email — that is the login credential.
+    const existing = await prisma.user.findUnique({ where: { email }, select: { id: true } });
     if (existing) {
       return Response.json(
         { error: "البريد الإلكتروني مستخدم بالفعل" },
@@ -44,26 +45,40 @@ export async function POST(request: Request) {
 
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    const school = await prisma.school.create({
-      data: { name: schoolName, email },
-    });
+    // School and user are created together: a failure must not leave an orphan school.
+    await prisma.$transaction(async (tx) => {
+      const school = await tx.school.create({
+        data: { name: schoolName, email },
+      });
 
-    await prisma.user.create({
-      data: {
-        name: schoolName,
-        email,
-        password: hashedPassword,
-        role: "admin",
-        schoolId: school.id,
-      },
+      await tx.user.create({
+        data: {
+          name: schoolName,
+          email,
+          password: hashedPassword,
+          role: "admin",
+          schoolId: school.id,
+        },
+      });
     });
 
     return Response.json({ success: true }, { status: 201 });
   } catch (error) {
+    // Two concurrent registrations can both pass the check above; the DB
+    // constraint is the real guard and surfaces as P2002.
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      (error as { code: string }).code === "P2002"
+    ) {
+      return Response.json(
+        { error: "البريد الإلكتروني مستخدم بالفعل" },
+        { status: 409 }
+      );
+    }
+
     console.error("Register error:", error);
-    return Response.json(
-      { error: "Internal server error", details: String(error) },
-      { status: 500 }
-    );
+    return Response.json({ error: "حدث خطأ، يرجى المحاولة مجدداً" }, { status: 500 });
   }
 }

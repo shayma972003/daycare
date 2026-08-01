@@ -2,6 +2,7 @@ export const runtime = "nodejs";
 
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { logExport } from "@/lib/export-audit";
 import { getFinancialSummary, type ReportPeriodType } from "@/lib/finance";
 import { renderToBuffer, Document, Page, Text, View, StyleSheet, Font } from "@react-pdf/renderer";
 import { createElement } from "react";
@@ -120,6 +121,9 @@ export async function POST(request: Request) {
         row(`مدفوع — شامل الضريبة (${summary.collection.paidCount} طالب)`, fmt(summary.collection.paidWithVat)),
         row(`متأخر (${summary.collection.lateCount} طالب)`, fmt(summary.collection.late)),
         row(`بانتظار الدفع (${summary.collection.pendingCount} طالب)`, fmt(summary.collection.pending)),
+        // Suspended students were absent from this report entirely, so the
+        // rows never added up to the receivables figure above.
+        row(`موقوف (${summary.collection.suspendedCount} طالب)`, fmt(summary.collection.suspended)),
       ),
 
       // المصروفات
@@ -160,6 +164,16 @@ export async function POST(request: Request) {
 
   const report = await prisma.financialReport.create({
     data: { school_id: schoolId, name: reportName, type, period_label, file_url: fileUrl },
+  });
+
+  await logExport({
+    schoolId,
+    exportedEntity: "financial_report",
+    exportFormat: "pdf",
+    filters: { type, period_label, from: summary.period.from, to: summary.period.to },
+    userId: session.user.id,
+    userName: session.user.name,
+    request,
   });
 
   return Response.json({ ...report, file_url: fileUrl }, { status: 201 });

@@ -2,9 +2,13 @@ export const runtime = "nodejs";
 
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { logExport } from "@/lib/export-audit";
 import { renderToBuffer, Document, Page, Text, View, StyleSheet, Font } from "@react-pdf/renderer";
 import { createElement } from "react";
 import { join } from "path";
+
+/** Newest-first cap on a single PDF export. */
+const MAX_EXPORT_ROWS = 2000;
 
 Font.register({
   family: "Arabic",
@@ -41,7 +45,13 @@ export async function POST(request: Request) {
 
   const [school, logs] = await Promise.all([
     prisma.school.findUnique({ where: { id: schoolId } }),
-    prisma.activityLog.findMany({ where: { school_id: schoolId }, orderBy: { created_at: "desc" } }),
+    prisma.activityLog.findMany({
+      where: { school_id: schoolId },
+      orderBy: { created_at: "desc" },
+      // Was unbounded: an established tenant's full history rendered into one
+      // PDF is a straight route to an out-of-memory function.
+      take: MAX_EXPORT_ROWS,
+    }),
   ]);
 
   const now = new Date();
@@ -84,6 +94,17 @@ export async function POST(request: Request) {
 
   const buffer = await renderToBuffer(doc as Parameters<typeof renderToBuffer>[0]);
   const fileUrl = `data:application/pdf;base64,${buffer.toString("base64")}`;
+
+  await logExport({
+    schoolId,
+    exportedEntity: "activity_logs",
+    exportFormat: "pdf",
+    filters: { limit: MAX_EXPORT_ROWS },
+    recordCount: logs.length,
+    userId: session.user.id,
+    userName: session.user.name,
+    request,
+  });
 
   return Response.json({ file_url: fileUrl }, { status: 200 });
 }

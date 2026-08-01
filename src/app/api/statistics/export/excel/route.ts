@@ -1,5 +1,6 @@
 import { requireSession } from "@/lib/session";
 import { getFinancialSummary, type ReportPeriodType } from "@/lib/finance";
+import { logExport } from "@/lib/export-audit";
 import * as XLSX from "xlsx";
 import { z } from "zod";
 
@@ -62,6 +63,20 @@ export async function POST(request: Request) {
 
   const buffer = XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
   const base64 = buffer.toString("base64");
+
+  await logExport({
+    schoolId,
+    exportedEntity: "financial_report",
+    exportFormat: "excel",
+    filters: { period: type, from: summary.period.from, to: summary.period.to },
+    recordCount:
+      summary.details.revenue.length +
+      summary.details.salaries.length +
+      summary.details.manualExpenses.length,
+    userId: session.user.id,
+    userName: session.user.name,
+    request,
+  });
 
   return Response.json({
     file: `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${base64}`,

@@ -354,8 +354,9 @@ export async function POST(request: Request) {
     );
 
     try {
-      console.log("=== invoiceData sent to PDF ===");
-      console.log(JSON.stringify({ school: inv.school, student: inv.student, lineItemsCount: inv.lineItems.length, grandTotal: inv.grandTotal }, null, 2));
+      // Was dumping the full school and student blocks — names, ID numbers,
+      // contact details — into the log on every invoice.
+      console.log(`[invoice] rendering ${inv.lineItems.length} line item(s)`);
       const pdfBuffer = await renderToBuffer(pdfDoc as Parameters<typeof renderToBuffer>[0]);
       const fileUrl = savePdf(pdfBuffer);
 
@@ -385,7 +386,7 @@ export async function POST(request: Request) {
     } catch (error) {
       console.error("Invoice generation error:", error);
       console.error("Error details:", JSON.stringify(error, Object.getOwnPropertyNames(error as object)));
-      return Response.json({ error: String(error) }, { status: 500 });
+      return Response.json({ error: "تعذر إنشاء الفاتورة" }, { status: 500 });
     }
   }
 
@@ -637,6 +638,6 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Auto-generate invoice error:", error);
     console.error("Error details:", JSON.stringify(error, Object.getOwnPropertyNames(error as object)));
-    return Response.json({ error: String(error) }, { status: 500 });
+    return Response.json({ error: "تعذر إنشاء الفاتورة" }, { status: 500 });
   }
 }

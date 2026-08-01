@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { randomBytes } from "crypto";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import bcrypt from "bcryptjs";
@@ -8,37 +9,63 @@ const adapter = new PrismaPg({
 });
 const prisma = new PrismaClient({ adapter });
 
+/**
+ * Development seed.
+ *
+ * Two things were wrong with the previous version. It crashed: the student
+ * records carried `guardianName1` and `phone1`, which do not exist on Student —
+ * guardian data lives on its own model. And only the school, user and settings
+ * used upsert, so a second run duplicated every teacher, class, student and
+ * activity.
+ *
+ * Credentials come from the environment. Hardcoding a known password into a
+ * script that can be pointed at any database is how test credentials end up
+ * live.
+ */
+
+const SCHOOL_EMAIL = process.env.SEED_SCHOOL_EMAIL ?? "admin@nour.edu.sa";
+const SCHOOL_PASSWORD = process.env.SEED_SCHOOL_PASSWORD;
+
 async function main() {
-  console.log("🌱 Seeding database...");
+  if (!SCHOOL_PASSWORD || SCHOOL_PASSWORD.length < 8) {
+    throw new Error(
+      "SEED_SCHOOL_PASSWORD is required (min 8 characters). Set it in .env before seeding."
+    );
+  }
 
-  // Create a school
-  const school = await prisma.school.upsert({
-    where: { id: "school-1" },
-    update: {},
-    create: {
-      id: "school-1",
-      name: "روضة النور",
-      email: "admin@nour.edu.sa",
-      plan: "premium",
-    },
-  });
-  console.log("✅ School created:", school.name);
+  console.log("seeding…");
 
-  // Create admin user
-  const hashedPassword = await bcrypt.hash("admin123", 12);
+  // School.email is not unique, so this cannot be an upsert.
+  const school =
+    (await prisma.school.findFirst({ where: { email: SCHOOL_EMAIL } })) ??
+    (await prisma.school.create({
+      data: {
+        name: "روضة النور",
+        email: SCHOOL_EMAIL,
+        plan: "premium",
+        // Without this the kiosk page 404s until someone opens the attendance screen.
+        attendanceToken: randomBytes(24).toString("base64url"),
+        attendanceTokenCreatedAt: new Date(),
+        studentCheckinTime: "07:30",
+        studentCheckoutTime: "16:00",
+        teacherCheckinTime: "07:00",
+        teacherCheckoutTime: "16:30",
+      },
+    }));
+  console.log(`school: ${school.name}`);
+
   const user = await prisma.user.upsert({
-    where: { email: "admin@nour.edu.sa" },
+    where: { email: SCHOOL_EMAIL },
     update: {},
     create: {
       name: "مدير الروضة",
-      email: "admin@nour.edu.sa",
-      password: hashedPassword,
+      email: SCHOOL_EMAIL,
+      password: await bcrypt.hash(SCHOOL_PASSWORD, 12),
       schoolId: school.id,
     },
   });
-  console.log("✅ Admin user created:", user.email);
+  console.log(`admin user: ${user.email}`);
 
-  // Create settings
   await prisma.settings.upsert({
     where: { schoolId: school.id },
     update: {},
@@ -47,133 +74,143 @@ async function main() {
       hourlyLateFee: 10,
       dailyStudentFee: 50,
       monthlyStudentFee: 1200,
-      reminderTemplate:
-        "مرحباً، <guardian_name>، نود إعلامكم بأن الرسوم المستحقة على <child_name> بمبلغ <amount_due> ريال تستحق بتاريخ <due_date>. مع تحيات <school_name>",
     },
   });
-  console.log("✅ Settings created");
 
-  // Create teachers
-  const teacher1 = await prisma.teacher.create({
-    data: {
+  // Teachers — keyed on name within the school so re-running does not duplicate.
+  const teacherSeeds = [
+    {
       name: "سارة محمد",
-      schoolId: school.id,
-      period: "MORNING",
+      period: "MORNING" as const,
       email: "sara@nour.edu.sa",
-      phone1: "0501234567",
+      phone1: "+966501234567",
       monthlySalary: 5000,
       lateDeductionRate: 25,
       qualification1: "بكالوريوس تربية",
     },
-  });
-
-  const teacher2 = await prisma.teacher.create({
-    data: {
+    {
       name: "نورة علي",
-      schoolId: school.id,
-      period: "EVENING",
+      period: "EVENING" as const,
       email: "noura@nour.edu.sa",
-      phone1: "0507654321",
+      phone1: "+966507654321",
       monthlySalary: 4500,
       lateDeductionRate: 20,
     },
-  });
-  console.log("✅ Teachers created");
+  ];
 
-  // Create classes
-  const class1 = await prisma.class.create({
-    data: {
-      name: "كي جي 1 - أ",
-      schoolId: school.id,
-      teacherId: teacher1.id,
-      group: "kg1",
-      period: "MORNING",
-    },
-  });
+  const teachers = [];
+  for (const seed of teacherSeeds) {
+    const existing = await prisma.teacher.findFirst({
+      where: { schoolId: school.id, name: seed.name },
+    });
+    teachers.push(
+      existing ?? (await prisma.teacher.create({ data: { ...seed, schoolId: school.id } }))
+    );
+  }
+  console.log(`teachers: ${teachers.length}`);
 
-  const class2 = await prisma.class.create({
-    data: {
-      name: "كي جي 2 - أ",
-      schoolId: school.id,
-      teacherId: teacher2.id,
-      group: "kg2",
-      period: "EVENING",
-    },
-  });
-  console.log("✅ Classes created");
+  const classSeeds = [
+    { name: "كي جي 1 - أ", teacherId: teachers[0].id, group: "kg1", period: "MORNING" as const },
+    { name: "كي جي 2 - أ", teacherId: teachers[1].id, group: "kg2", period: "EVENING" as const },
+  ];
 
-  // Create students
-  const students = [
+  const classes = [];
+  for (const seed of classSeeds) {
+    const existing = await prisma.class.findFirst({
+      where: { schoolId: school.id, name: seed.name },
+    });
+    classes.push(
+      existing ?? (await prisma.class.create({ data: { ...seed, schoolId: school.id } }))
+    );
+  }
+  console.log(`classes: ${classes.length}`);
+
+  // Guardians are their own model — this is what the old seed got wrong.
+  const familySeeds = [
     {
-      name: "أحمد عبدالله",
-      classId: class1.id,
-      gender: "MALE" as const,
-      paymentStatus: "PAID" as const,
-      guardianName1: "عبدالله أحمد",
-      phone1: "0551234567",
+      guardian: { name: "عبدالله أحمد", phone1: "+966551234567" },
+      child: { name: "أحمد عبدالله", gender: "MALE" as const, classId: classes[0].id },
     },
     {
-      name: "فاطمة سعد",
-      classId: class1.id,
-      gender: "FEMALE" as const,
-      paymentStatus: "LATE" as const,
-      guardianName1: "سعد فاطمة",
-      phone1: "0559876543",
+      guardian: { name: "سعد الفهد", phone1: "+966559876543" },
+      child: { name: "فاطمة سعد", gender: "FEMALE" as const, classId: classes[0].id },
     },
     {
-      name: "محمد خالد",
-      classId: class2.id,
-      gender: "MALE" as const,
-      paymentStatus: "PAID" as const,
-      guardianName1: "خالد محمد",
-      phone1: "0562345678",
+      guardian: { name: "خالد المطيري", phone1: "+966562345678" },
+      child: { name: "محمد خالد", gender: "MALE" as const, classId: classes[1].id },
     },
     {
-      name: "نورة إبراهيم",
-      classId: class2.id,
-      gender: "FEMALE" as const,
-      paymentStatus: "SUSPENDED" as const,
-      guardianName1: "إبراهيم نورة",
-      phone1: "0568765432",
+      guardian: { name: "إبراهيم العتيبي", phone1: "+966568765432" },
+      child: { name: "نورة إبراهيم", gender: "FEMALE" as const, classId: classes[1].id },
     },
   ];
 
-  for (const s of students) {
+  // Enrolment dates make the student billable — without them the finance
+  // dashboard reports zero revenue and the cause is not obvious.
+  const enrollmentStart = new Date(Date.UTC(new Date().getUTCFullYear(), 0, 1));
+  const enrollmentEnd = new Date(Date.UTC(new Date().getUTCFullYear(), 11, 31));
+
+  let created = 0;
+  for (const family of familySeeds) {
+    const existingChild = await prisma.student.findFirst({
+      where: { schoolId: school.id, name: family.child.name },
+    });
+    if (existingChild) continue;
+
+    const guardian =
+      (await prisma.guardian.findFirst({
+        where: { schoolId: school.id, phone1: family.guardian.phone1 },
+      })) ??
+      (await prisma.guardian.create({
+        data: { ...family.guardian, schoolId: school.id },
+      }));
+
     await prisma.student.create({
-      data: { ...s, schoolId: school.id, period: "MORNING", paymentMethod: "CASH" },
+      data: {
+        ...family.child,
+        schoolId: school.id,
+        guardianId: guardian.id,
+        period: "MORNING",
+        paymentMethod: "CASH",
+        paymentStatus: "بانتظار الدفع",
+        registrationDate: enrollmentStart,
+        enrollment_date: enrollmentStart,
+        enrollmentEndDate: enrollmentEnd,
+      },
+    });
+    created++;
+  }
+  console.log(`students: ${created} created, ${familySeeds.length - created} already present`);
+
+  const activityName = "رحلة الربيع";
+  const existingActivity = await prisma.activity.findFirst({
+    where: { schoolId: school.id, name: activityName },
+  });
+  if (!existingActivity) {
+    await prisma.activity.create({
+      data: {
+        name: activityName,
+        schoolId: school.id,
+        teacherId: teachers[0].id,
+        group: "kg1",
+        period: "MORNING",
+        childrenCount: 20,
+        startDate: new Date("2026-05-15"),
+        endDate: new Date("2026-05-15"),
+        activityFee: 50,
+        message:
+          "مرحباً <guardian_name>، نود دعوة <child_name> لحضور فعالية <activity_name>. مع تحيات <school_name>",
+        isActive: true,
+      },
     });
   }
-  console.log("✅ Students created");
 
-  // Create an activity
-  await prisma.activity.create({
-    data: {
-      name: "رحلة الربيع",
-      schoolId: school.id,
-      teacherId: teacher1.id,
-      group: "kg1",
-      period: "MORNING",
-      childrenCount: 20,
-      startDate: new Date("2026-05-15"),
-      endDate: new Date("2026-05-15"),
-      activityFee: 50,
-      message:
-        "مرحباً <guardian_name>، نود دعوة <child_name> لحضور فعالية <activity_name> في تاريخ 15 مايو. مع تحيات <school_name>",
-      isActive: true,
-    },
-  });
-  console.log("✅ Activity created");
-
-  console.log("\n🎉 Seed complete!");
-  console.log("📧 Login: admin@nour.edu.sa");
-  console.log("🔑 Password: admin123");
+  console.log(`\ndone. sign in as ${SCHOOL_EMAIL}`);
 }
 
 main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
+  .catch((error) => {
+    console.error("seed failed:", error instanceof Error ? error.message : error);
+    process.exitCode = 1;
   })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+  .finally(() => prisma.$disconnect());

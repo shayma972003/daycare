@@ -59,7 +59,7 @@ export async function GET(request: Request) {
     return Response.json(teachers, { status: 200 });
   } catch (error) {
     console.error("Teachers API error:", error);
-    return Response.json({ error: String(error) }, { status: 500 });
+    return Response.json({ error: "حدث خطأ، يرجى المحاولة مجدداً" }, { status: 500 });
   }
 }
 

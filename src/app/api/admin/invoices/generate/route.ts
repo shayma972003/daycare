@@ -284,6 +284,6 @@ export async function POST(request: Request) {
     return Response.json({ invoice_id: invoice.id, file_url: fileUrl }, { status: 201 });
   } catch (error) {
     console.error("Admin invoice generation error:", error);
-    return Response.json({ error: String(error) }, { status: 500 });
+    return Response.json({ error: "تعذر إنشاء الفاتورة" }, { status: 500 });
   }
 }

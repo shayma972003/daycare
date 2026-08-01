@@ -96,7 +96,7 @@ export async function GET(
     );
   } catch (err) {
     console.error("[GET /api/students/[id]] error:", err);
-    return Response.json({ error: "Internal server error", detail: String(err) }, { status: 500 });
+    return Response.json({ error: "حدث خطأ، يرجى المحاولة مجدداً" }, { status: 500 });
   }
 }
 

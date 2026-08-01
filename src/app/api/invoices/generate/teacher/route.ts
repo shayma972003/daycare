@@ -243,8 +243,8 @@ export async function POST(request: Request) {
       )
     );
 
-    console.log("=== invoiceData sent to PDF ===");
-    console.log(JSON.stringify({ school: inv.school, teacher: inv.teacher, lineItemsCount: inv.lineItems.length, netSalary: inv.netSalary }, null, 2));
+    // Salary figures and teacher identity no longer go to the log.
+    console.log(`[salary-invoice] rendering ${inv.lineItems.length} line item(s)`);
     const pdfBuffer = await renderToBuffer(pdfDoc as Parameters<typeof renderToBuffer>[0]);
     const fileUrl = savePdf(pdfBuffer);
 
@@ -268,7 +268,7 @@ export async function POST(request: Request) {
     console.error("=== TEACHER INVOICE GENERATE ERROR ===");
     console.error(error);
     return Response.json(
-      { error: String(error), stack: error instanceof Error ? error.stack : undefined },
+      { error: "تعذر إنشاء الفاتورة" },
       { status: 500 }
     );
   }

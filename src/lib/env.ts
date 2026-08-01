@@ -18,6 +18,14 @@ const MIN_SECRET_LENGTH = 32;
 const requiredSecret = (name: string) =>
   z.string({ error: `${name} is required — the app will not start without it` }).min(1);
 
+/**
+ * An unset variable and one set to "" mean the same thing here.
+ * `.env` files and hosting dashboards both hand back empty strings, and without
+ * this an empty FROM_EMAIL fails `.email()` and takes the whole app down.
+ */
+const optional = <T extends z.ZodType>(schema: T) =>
+  z.preprocess((v) => (v === "" ? undefined : v), schema.optional());
+
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 
@@ -29,7 +37,7 @@ const envSchema = z.object({
 
   // ─── Optional — each gates exactly one feature ─────────────────────────────
   /** Scheduled jobs reject every request while unset (fail-closed). */
-  CRON_SECRET: z.string().optional(),
+  CRON_SECRET: optional(z.string()),
 
   /**
    * Email delivery: OTP, password reset, reminders.
@@ -38,24 +46,24 @@ const envSchema = z.object({
    * SMTP needs no domain and no company registration, so a plain Gmail app
    * password is enough to start; swapping to Resend later is config-only.
    */
-  FROM_EMAIL: z.string().email().optional(),
-  RESEND_API_KEY: z.string().optional(),
-  SMTP_HOST: z.string().optional(),
-  SMTP_PORT: z.coerce.number().int().positive().optional(),
-  SMTP_USER: z.string().optional(),
-  SMTP_PASSWORD: z.string().optional(),
+  FROM_EMAIL: optional(z.string().email()),
+  RESEND_API_KEY: optional(z.string()),
+  SMTP_HOST: optional(z.string()),
+  SMTP_PORT: optional(z.coerce.number().int().positive()),
+  SMTP_USER: optional(z.string()),
+  SMTP_PASSWORD: optional(z.string()),
 
   /** Public links in outbound messages. Falls back to NEXTAUTH_URL. */
-  NEXT_PUBLIC_APP_URL: z.string().url().optional(),
+  NEXT_PUBLIC_APP_URL: optional(z.string().url()),
 
   // ─── WhatsApp (Twilio) — off unless explicitly enabled ─────────────────────
   ENABLE_WHATSAPP: z
     .string()
     .optional()
     .transform((v) => v === "true"),
-  TWILIO_ACCOUNT_SID: z.string().optional(),
-  TWILIO_AUTH_TOKEN: z.string().optional(),
-  TWILIO_WHATSAPP_FROM: z.string().optional(),
+  TWILIO_ACCOUNT_SID: optional(z.string()),
+  TWILIO_AUTH_TOKEN: optional(z.string()),
+  TWILIO_WHATSAPP_FROM: optional(z.string()),
 });
 
 type ParsedEnv = z.infer<typeof envSchema>;

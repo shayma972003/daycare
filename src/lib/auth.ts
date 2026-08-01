@@ -23,6 +23,9 @@ const LOGIN_LOCKOUT_MS = 15 * 60 * 1000;
  */
 const DUMMY_HASH = "$2b$12$C6UzMDM.H6dfI/f/IKcEe.iVMhrpZ9zXBcVBrEXvXJZgFqbrJmZ7q";
 
+/** Errors that carry meaning to the sign-in UI and must reach it unaltered. */
+const SIGNAL_ERRORS = ["2FA_REQUIRED:", "2FA_DELIVERY_FAILED", "ACCOUNT_LOCKED"];
+
 export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
@@ -170,7 +173,10 @@ export const authOptions: NextAuthOptions = {
             role: user.role,
           };
         } catch (err) {
-          if (err instanceof Error && err.message.startsWith("2FA_REQUIRED:")) {
+          // These are signals to the sign-in page, not failures. Swallowing them
+          // would collapse "your account is locked" into a generic "wrong
+          // password" and leave the user retrying against a closed door.
+          if (err instanceof Error && SIGNAL_ERRORS.some((p) => err.message.startsWith(p))) {
             throw err;
           }
           console.error("[auth] authorize error:", err);

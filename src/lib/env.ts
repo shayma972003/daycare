@@ -3,32 +3,42 @@ import { z } from "zod";
 /**
  * Central environment validation.
  *
- * Secrets have no fallbacks — a missing or weak secret must fail loudly at boot
- * rather than silently degrade to a guessable default. Feature-flag vars
- * (email, WhatsApp) are optional: the app runs without them, the feature no-ops.
+ * Two tiers, deliberately:
+ *
+ *  - Required — the app cannot serve a single request without them, so a missing
+ *    value fails loudly at boot. Critically, secrets have *no fallbacks*: a
+ *    guessable default is worse than a crash, because it looks like it works.
+ *
+ *  - Optional — gate one feature each. Missing values degrade that feature to a
+ *    no-op and log a warning; they never take the whole app down.
  */
 
-const secret = (name: string) =>
-  z
-    .string({ error: `${name} is required` })
-    .min(32, `${name} must be at least 32 characters (openssl rand -base64 32)`);
+const MIN_SECRET_LENGTH = 32;
+
+const requiredSecret = (name: string) =>
+  z.string({ error: `${name} is required — the app will not start without it` }).min(1);
 
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 
   // ─── Required ──────────────────────────────────────────────────────────────
-  DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
-  NEXTAUTH_SECRET: secret("NEXTAUTH_SECRET"),
-  NEXTAUTH_URL: z.string().url("NEXTAUTH_URL must be a valid URL"),
-  ADMIN_JWT_SECRET: secret("ADMIN_JWT_SECRET"),
-  CRON_SECRET: secret("CRON_SECRET"),
-  NEXT_PUBLIC_APP_URL: z.string().url("NEXT_PUBLIC_APP_URL must be a valid URL"),
+  DATABASE_URL: z.string({ error: "DATABASE_URL is required" }).min(1),
+  NEXTAUTH_SECRET: requiredSecret("NEXTAUTH_SECRET"),
+  NEXTAUTH_URL: z.string({ error: "NEXTAUTH_URL is required" }).url(),
+  ADMIN_JWT_SECRET: requiredSecret("ADMIN_JWT_SECRET"),
 
-  // ─── Email (Resend) ────────────────────────────────────────────────────────
+  // ─── Optional — each gates exactly one feature ─────────────────────────────
+  /** Scheduled jobs reject every request while unset (fail-closed). */
+  CRON_SECRET: z.string().optional(),
+
+  /** Email delivery: OTP, password reset, reminders. Both must be set. */
   RESEND_API_KEY: z.string().optional(),
   FROM_EMAIL: z.string().email().optional(),
 
-  // ─── WhatsApp (Twilio) — disabled by default, kept for a future release ────
+  /** Public links in outbound messages. Falls back to NEXTAUTH_URL. */
+  NEXT_PUBLIC_APP_URL: z.string().url().optional(),
+
+  // ─── WhatsApp (Twilio) — off unless explicitly enabled ─────────────────────
   ENABLE_WHATSAPP: z
     .string()
     .optional()
@@ -38,12 +48,10 @@ const envSchema = z.object({
   TWILIO_WHATSAPP_FROM: z.string().optional(),
 });
 
-export type Env = z.infer<typeof envSchema>;
+type ParsedEnv = z.infer<typeof envSchema>;
+export type Env = ParsedEnv & { APP_URL: string };
 
-/**
- * `next build` collects pages without real secrets in some setups. Validation is
- * skipped only for that phase — never at runtime.
- */
+/** `next build` may collect pages without runtime secrets — skip only that phase. */
 const isBuildPhase = process.env.NEXT_PHASE === "phase-production-build";
 
 function loadEnv(): Env {
@@ -56,7 +64,7 @@ function loadEnv(): Env {
 
     if (isBuildPhase) {
       console.warn(`⚠️  Environment validation skipped during build:\n${issues}`);
-      return process.env as unknown as Env;
+      return { ...(process.env as unknown as ParsedEnv), APP_URL: "" };
     }
 
     throw new Error(
@@ -65,7 +73,31 @@ function loadEnv(): Env {
     );
   }
 
-  return parsed.data;
+  const value = parsed.data;
+
+  // Warn rather than crash: an existing deployment may hold a shorter secret,
+  // and taking the site down is a worse outcome than flagging it for rotation.
+  for (const name of ["NEXTAUTH_SECRET", "ADMIN_JWT_SECRET"] as const) {
+    if (value[name].length < MIN_SECRET_LENGTH) {
+      console.warn(
+        `⚠️  ${name} is only ${value[name].length} characters. Rotate it to at least ` +
+          `${MIN_SECRET_LENGTH}: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`
+      );
+    }
+  }
+
+  if (!value.RESEND_API_KEY || !value.FROM_EMAIL) {
+    console.warn(
+      "⚠️  RESEND_API_KEY / FROM_EMAIL not set — email is the only notification " +
+        "channel, so OTP, password reset and reminders will not be delivered."
+    );
+  }
+
+  if (!value.CRON_SECRET) {
+    console.warn("⚠️  CRON_SECRET not set — scheduled jobs will reject every request.");
+  }
+
+  return { ...value, APP_URL: value.NEXT_PUBLIC_APP_URL ?? value.NEXTAUTH_URL };
 }
 
 export const env = loadEnv();
@@ -73,7 +105,7 @@ export const env = loadEnv();
 /** Email delivery is configured and usable. */
 export const emailEnabled = Boolean(env.RESEND_API_KEY && env.FROM_EMAIL);
 
-/** WhatsApp delivery is explicitly enabled *and* fully configured. */
+/** WhatsApp is explicitly enabled *and* fully configured. */
 export const whatsappEnabled = Boolean(
   env.ENABLE_WHATSAPP &&
     env.TWILIO_ACCOUNT_SID &&

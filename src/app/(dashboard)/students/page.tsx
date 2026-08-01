@@ -751,7 +751,7 @@ export default function StudentsPage() {
                   </div>
                 </div>
                 <div className="mb-5">
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">البريد الإلكتروني <span className="text-gray-400 text-xs">(اختياري)</span></label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">البريد الإلكتروني <span className="text-red-500">*</span></label>
                   <input
                     type="email"
                     dir="ltr"
@@ -760,6 +760,9 @@ export default function StudentsPage() {
                     placeholder="example@email.com"
                     className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651]"
                   />
+                  <p className="mt-1.5 text-xs text-gray-500">
+                    يُرسل رابط النموذج ورمز التحقق إلى هذا البريد.
+                  </p>
                 </div>
                 {enrollError && (
                   <p className="mb-3 text-sm text-red-600 bg-red-50 p-2.5 rounded-lg">{enrollError}</p>
@@ -767,7 +770,7 @@ export default function StudentsPage() {
                 <div className="flex gap-2">
                   <button
                     onClick={sendEnrollmentForm}
-                    disabled={enrollSending || !enrollPhone.trim()}
+                    disabled={enrollSending || !enrollPhone.trim() || !enrollEmail.trim()}
                     className="flex-1 py-2.5 bg-[#F64651] text-white rounded-xl text-sm font-medium hover:bg-[#D93A44] disabled:opacity-50 transition-colors"
                   >
                     {enrollSending ? "جاري الإرسال..." : "إرسال الرابط"}

@@ -650,23 +650,39 @@ model ImportRow {
 }
 
 model EnrollmentToken {
-  id                 String   @id @default(cuid())
-  school_id          String
-  token              String   @unique @default(cuid())
-  sent_to_phone      String
-  sent_to_email      String?
-  status             String   @default("pending") // "pending" | "active" | "completed" | "expired"
-  otp_code           String?
-  otp_verified       Boolean  @default(false)
-  otp_expires_at     DateTime?
+  id        String @id @default(cuid())
+  school_id String
+
+  // Generated with crypto.randomBytes, not cuid(): a cuid embeds a timestamp and
+  // a monotonic counter, so tokens issued around the same time are guessable
+  // from one another — and this token is the only thing standing in front of a
+  // child's enrolment form.
+  token String @unique
+
+  sent_to_phone String
+  sent_to_email String?
+  status        String @default("pending") // "pending" | "active" | "completed" | "expired"
+
+  // sha256 of the OTP. It used to be stored in plaintext and compared with !==,
+  // with no attempt counter, against a token that stayed valid for 24 hours.
+  otp_code_hash    String?
+  otp_attempts     Int       @default(0)
+  otp_resend_count Int       @default(0)
+  otp_last_sent_at DateTime?
+  otp_verified     Boolean   @default(false)
+  otp_expires_at   DateTime?
+
   device_fingerprint String?
   submissions_count  Int      @default(0)
   max_submissions    Int      @default(4)
   created_at         DateTime @default(now())
   expires_at         DateTime
 
-  school      School                @relation(fields: [school_id], references: [id])
+  school      School                 @relation(fields: [school_id], references: [id])
   submissions EnrollmentSubmission[]
+
+  @@index([school_id, status])
+  @@index([expires_at])
 }
 
 model EnrollmentSubmission {

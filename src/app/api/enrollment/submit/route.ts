@@ -1,14 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
-
-function normalizePhone(raw: string | undefined | null): string | null {
-  if (!raw) return null;
-  const digits = raw.replace(/\D/g, "");
-  if (!digits) return null;
-  if (digits.startsWith("966")) return `+${digits}`;
-  if (digits.startsWith("0")) return `+966${digits.slice(1)}`;
-  return `+966${digits}`;
-}
+// Was a second, laxer copy of this that turned "12" into "+96612". One
+// implementation, one set of rules.
+import { normalizePhone } from "@/lib/phone-normalizer";
 
 const schema = z.object({
   token: z.string().min(1),

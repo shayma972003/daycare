@@ -23,12 +23,18 @@ export async function GET(
     return Response.json({ error: "limit_reached", max: rec.max_submissions }, { status: 429 });
   }
 
+  // The code is delivered by email, so show a masked address — pointing at a
+  // phone number would send the parent looking in the wrong place.
   const maskedPhone = rec.sent_to_phone.slice(0, -4).replace(/\d/g, "X") + rec.sent_to_phone.slice(-4);
+  const maskedEmail = rec.sent_to_email
+    ? `${rec.sent_to_email.slice(0, 2)}***@${rec.sent_to_email.split("@")[1] ?? ""}`
+    : null;
 
   return Response.json({
     valid: true,
     otpVerified: rec.otp_verified,
     maskedPhone,
+    maskedEmail,
     submissionsCount: rec.submissions_count,
     maxSubmissions: rec.max_submissions,
     school: {

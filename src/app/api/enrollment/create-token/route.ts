@@ -1,24 +1,26 @@
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { sendWhatsApp, sendEmail } from "@/lib/notifications";
+import { sendEmail } from "@/lib/notifications";
 import { logAction } from "@/lib/activity-logger";
+import { normalizePhone } from "@/lib/phone-normalizer";
+import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
+import { env } from "@/lib/env";
+import {
+  generateEnrollmentToken,
+  generateOtp,
+  hashOtp,
+  buildOtpMessage,
+  OTP_TTL_MS,
+  TOKEN_TTL_MS,
+} from "@/lib/enrollment-otp";
 import { z } from "zod";
 
 const schema = z.object({
   phone: z.string().min(9),
-  email: z.string().email().optional().or(z.literal("")),
+  // Required: email is the only delivery channel, so a token with no address
+  // would be created and then never reach anyone.
+  email: z.string().email("البريد الإلكتروني غير صالح"),
 });
-
-function normalizePhone(raw: string): string {
-  const digits = raw.replace(/\D/g, "");
-  if (digits.startsWith("966")) return `+${digits}`;
-  if (digits.startsWith("0")) return `+966${digits.slice(1)}`;
-  return `+966${digits}`;
-}
-
-function generateOtp(): string {
-  return String(Math.floor(100000 + Math.random() * 900000));
-}
 
 async function markExpiredTokens(schoolId: string) {
   await prisma.enrollmentToken.updateMany({
@@ -49,51 +51,79 @@ export async function POST(request: Request) {
 
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
-    return Response.json({ error: "بيانات غير صحيحة" }, { status: 422 });
+    return Response.json(
+      { error: parsed.error.issues[0]?.message ?? "بيانات غير صحيحة" },
+      { status: 422 }
+    );
   }
 
+  // Each invite sends mail on the platform's account, so a compromised staff
+  // login cannot be turned into a bulk mailer.
+  const limited = await rateLimit({
+    key: `enroll:create:${schoolId}`,
+    limit: 30,
+    windowMs: 60 * 60 * 1000,
+  });
+  if (!limited.ok) return tooManyRequests(limited.retryAfter);
+
   const { phone, email } = parsed.data;
+
+  // Uses the shared normaliser rather than a second local copy that blindly
+  // prefixed +966 onto whatever digits it was given.
   const normalizedPhone = normalizePhone(phone);
-  const normalizedEmail = email && email.length > 0 ? email : null;
+  if (!normalizedPhone) {
+    return Response.json({ error: "رقم الجوال غير صالح" }, { status: 422 });
+  }
 
   await markExpiredTokens(schoolId);
 
-  const school = await prisma.school.findUnique({ where: { id: schoolId } });
+  const school = await prisma.school.findUnique({
+    where: { id: schoolId },
+    select: { name: true },
+  });
   if (!school) return Response.json({ error: "School not found" }, { status: 404 });
 
   const otp = generateOtp();
-  const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
-  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  const now = new Date();
 
   const enrollmentToken = await prisma.enrollmentToken.create({
     data: {
       school_id: schoolId,
+      token: generateEnrollmentToken(),
       sent_to_phone: normalizedPhone,
-      sent_to_email: normalizedEmail,
-      otp_code: otp,
-      otp_expires_at: otpExpiresAt,
-      expires_at: expiresAt,
+      sent_to_email: email,
+      otp_code_hash: hashOtp(otp),
+      otp_expires_at: new Date(now.getTime() + OTP_TTL_MS),
+      otp_last_sent_at: now,
+      expires_at: new Date(now.getTime() + TOKEN_TTL_MS),
     },
   });
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
-  const enrollUrl = `${appUrl}/enroll/${enrollmentToken.token}`;
-  const message = `مرحباً، تم إرسال نموذج تسجيل الطالب من ${school.name}\nرمز التحقق: ${otp}\nرابط النموذج: ${enrollUrl}\nصالح لمدة 24 ساعة`;
+  const enrollUrl = `${env.APP_URL}/enroll/${enrollmentToken.token}`;
+  const sent = await sendEmail(
+    email,
+    `نموذج تسجيل — ${school.name}`,
+    buildOtpMessage(school.name, otp, enrollUrl),
+    school.name
+  );
 
-  sendWhatsApp(normalizedPhone, message).catch(() => {});
-
-  if (normalizedEmail) {
-    sendEmail(normalizedEmail, `نموذج تسجيل — ${school.name}`, message, school.name).catch(() => {});
+  if (!sent.success) {
+    // Leaving a token behind that no one can reach only creates confusion later.
+    await prisma.enrollmentToken.delete({ where: { id: enrollmentToken.id } });
+    return Response.json(
+      { error: "تعذر إرسال البريد. تحقق من إعدادات البريد وحاول مجدداً." },
+      { status: 502 }
+    );
   }
 
   await logAction({
     school_id: schoolId,
-    action: `إرسال نموذج تسجيل إلى: ${normalizedPhone}`,
+    action: `إرسال نموذج تسجيل إلى: ${email}`,
     entity_type: "enrollment",
     entity_id: enrollmentToken.id,
     performed_by: session.user.name ?? "المدير",
     request,
   });
 
-  return Response.json({ success: true, phone: normalizedPhone });
+  return Response.json({ success: true, phone: normalizedPhone, email });
 }

@@ -419,6 +419,7 @@ export default function EnrollPage() {
           valid: boolean;
           otpVerified: boolean;
           maskedPhone: string;
+          maskedEmail: string | null;
           submissionsCount: number;
           maxSubmissions: number;
           school: SchoolInfo;
@@ -439,7 +440,9 @@ export default function EnrollPage() {
 
         setPage({
           state: "otp",
-          maskedPhone: res.data.maskedPhone,
+          // Falls back to the phone only for links created before delivery
+          // moved to email.
+          maskedPhone: res.data.maskedEmail ?? res.data.maskedPhone,
           school: res.data.school,
           otpVerified: res.data.otpVerified,
         });

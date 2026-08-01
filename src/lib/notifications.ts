@@ -141,7 +141,9 @@ export async function sendNotification(
 
   const results: Array<Promise<void>> = [];
 
-  if (phone) {
+  // Skipped entirely while WhatsApp is disabled, so the log does not fill with
+  // FAILED rows for a channel nobody is paying for.
+  if (phone && whatsappEnabled) {
     results.push(
       sendWhatsApp(phone, message).then(async (res) => {
         await prisma.notificationLog.create({

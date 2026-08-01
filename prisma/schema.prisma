@@ -45,6 +45,19 @@ enum InvoiceType {
   TEACHER
 }
 
+/// Fixed-window counter used for rate limiting and account lockout. Backed by
+/// the database because the deployment is serverless — there is no shared
+/// in-process memory between invocations.
+model RateLimit {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  count     Int      @default(0)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+}
+
 model SuperAdmin {
   id            String   @id @default(cuid())
   email         String   @unique
@@ -137,6 +150,12 @@ model School {
   phoneNumber            String?
   twoFaEnabled           Boolean  @default(false)
   twoFaPhone             String?
+
+  // Opaque, rotatable credential for the walk-up attendance kiosk. The school id
+  // used to serve that role, which made a printed QR an unrevocable permanent key
+  // to the full child roster.
+  attendanceToken          String?   @unique
+  attendanceTokenCreatedAt DateTime?
 
   // Business identity (registration wizard — Step 1)
   legalName              String?
@@ -496,6 +515,13 @@ model Attendance {
   date        DateTime  @default(dbgenerated("CURRENT_DATE")) @db.Date
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+
+  // One row per child per day. Every check-in path did findFirst-then-create,
+  // so a double tap or a retried request silently produced two rows for the
+  // same day and the board showed whichever came back first.
+  @@unique([studentId, date])
+  @@index([schoolId, date])
+  @@index([classId, date])
 }
 
 model TeacherAttendance {
@@ -511,6 +537,9 @@ model TeacherAttendance {
   date          DateTime  @default(dbgenerated("CURRENT_DATE")) @db.Date
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+
+  @@unique([teacherId, date])
+  @@index([schoolId, date])
 }
 
 model Invoice {

@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { createHash, timingSafeEqual } from "crypto";
+import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
 
 const schema = z.object({
   identifier: z.string().min(1, "أدخل البريد الإلكتروني أو رقم الجوال"),
@@ -39,6 +40,15 @@ export async function POST(request: Request) {
 
   const { otp, newPassword } = parsed.data;
   const identifier = parsed.data.identifier.trim();
+
+  // The per-token attempt counter below already caps guesses for one code; this
+  // stops a host cycling through many accounts' codes in parallel.
+  const limited = await rateLimit({
+    key: `reset:ip:${clientIp(request)}`,
+    limit: 20,
+    windowMs: 15 * 60 * 1000,
+  });
+  if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
   // Resolve the account first — the OTP is only ever checked against one user's
   // token, so a 6-digit code alone can never unlock an arbitrary account.

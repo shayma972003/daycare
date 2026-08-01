@@ -59,6 +59,8 @@ function LoginForm() {
         setResendCooldown(60);
       } else if (result.error === "2FA_DELIVERY_FAILED") {
         setError("تعذر إرسال رمز التحقق إلى بريدك. تواصل مع الدعم.");
+      } else if (result.error === "ACCOUNT_LOCKED") {
+        setError("تم قفل الحساب مؤقتاً بعد عدة محاولات فاشلة. حاول بعد 15 دقيقة.");
       } else {
         setError("البريد الإلكتروني أو كلمة المرور غير صحيحة");
       }

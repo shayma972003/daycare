@@ -8,12 +8,13 @@ import { AttendanceCard } from "./AttendanceCard";
 import type { AttendancePerson, AttendanceClass } from "@/lib/attendance-data";
 
 interface AttendanceBoardProps {
-  schoolId: string;
+  /** Kiosk token. Present on the public board; fetched on demand in the dashboard. */
+  token?: string;
   isPublic: boolean;
   schoolName?: string | null;
 }
 
-export function AttendanceBoard({ schoolId, isPublic, schoolName }: AttendanceBoardProps) {
+export function AttendanceBoard({ token, isPublic, schoolName }: AttendanceBoardProps) {
   const [activeTab, setActiveTab] = useState<"students" | "teachers">("students");
   const [selectedClass, setSelectedClass] = useState<string>("all");
   const [students, setStudents] = useState<AttendancePerson[]>([]);
@@ -22,17 +23,24 @@ export function AttendanceBoard({ schoolId, isPublic, schoolName }: AttendanceBo
   const [loading, setLoading] = useState(true);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
+  const [error, setError] = useState<string | null>(null);
+
   const fetchData = useCallback(async () => {
-    const url = isPublic ? `/api/attendance/public/${schoolId}` : "/api/attendance/page-data";
+    const url = isPublic ? `/api/attendance/public/${token}` : "/api/attendance/page-data";
     const res = await axios.get<{ students: AttendancePerson[]; teachers: AttendancePerson[]; classes: AttendanceClass[] }>(url);
     setStudents(res.data.students);
     setTeachers(res.data.teachers);
     setClasses(res.data.classes);
-  }, [isPublic, schoolId]);
+  }, [isPublic, token]);
 
   useEffect(() => {
-    setLoading(true);
-    fetchData().finally(() => setLoading(false));
+    // Without a catch a failed load left an empty board with no explanation.
+    // `loading` starts true, so it is only ever cleared from a callback.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchData()
+      .then(() => setError(null))
+      .catch(() => setError("تعذر تحميل البيانات. تحقق من الاتصال وحاول مجدداً."))
+      .finally(() => setLoading(false));
   }, [fetchData]);
 
   const filteredPeople = useMemo(() => {
@@ -41,44 +49,58 @@ export function AttendanceBoard({ schoolId, isPublic, schoolName }: AttendanceBo
     return people.filter((p) => p.class_id === selectedClass);
   }, [activeTab, selectedClass, students, teachers]);
 
-  async function handleCheckin(personId: string) {
+  /**
+   * The dashboard used to post to the *public* endpoints, bypassing its own
+   * session-checked routes entirely. Signed-in staff now go through the
+   * authenticated ones; only the kiosk uses the token path.
+   */
+  async function submitAttendance(personId: string, action: "checkin" | "checkout") {
+    const isStudent = activeTab === "students";
+
+    if (isPublic) {
+      await axios.post(`/api/attendance/public/${action}`, {
+        token,
+        person_id: personId,
+        type: isStudent ? "student" : "teacher",
+      });
+      return;
+    }
+
+    const scope = isStudent ? "students" : "teachers";
+    const payload = isStudent ? { student_id: personId } : { teacher_id: personId };
+    await axios.post(`/api/attendance/${scope}/${action}`, payload);
+  }
+
+  async function handleAction(personId: string, action: "checkin" | "checkout") {
     setActionLoadingId(personId);
     try {
-      await axios.post("/api/attendance/public/checkin", {
-        person_id: personId,
-        type: activeTab === "students" ? "student" : "teacher",
-        school_id: schoolId,
-      });
+      await submitAttendance(personId, action);
       await fetchData();
-    } catch {
-      alert("حدث خطأ أثناء تسجيل الدخول");
+      setError(null);
+    } catch (err) {
+      const fallback =
+        action === "checkin" ? "حدث خطأ أثناء تسجيل الحضور" : "حدث خطأ أثناء تسجيل الانصراف";
+      setError(
+        axios.isAxiosError(err) ? (err.response?.data?.error ?? fallback) : fallback
+      );
     } finally {
       setActionLoadingId(null);
     }
   }
 
-  async function handleCheckout(personId: string) {
-    setActionLoadingId(personId);
-    try {
-      await axios.post("/api/attendance/public/checkout", {
-        person_id: personId,
-        type: activeTab === "students" ? "student" : "teacher",
-        school_id: schoolId,
-      });
-      await fetchData();
-    } catch {
-      alert("حدث خطأ أثناء تسجيل الخروج");
-    } finally {
-      setActionLoadingId(null);
-    }
-  }
+  const handleCheckin = (personId: string) => handleAction(personId, "checkin");
+  const handleCheckout = (personId: string) => handleAction(personId, "checkout");
 
   async function handleDownloadQR() {
-    const publicUrl = `${window.location.origin}/attendance/public/${schoolId}`;
+    // The dashboard does not hold the token — fetch it only when a QR is wanted.
+    const kioskToken =
+      token ?? (await axios.get<{ token: string }>("/api/attendance/token")).data.token;
+
+    const publicUrl = `${window.location.origin}/attendance/public/${kioskToken}`;
     const qrDataUrl = await generateQRCode(publicUrl);
     const link = document.createElement("a");
     link.href = qrDataUrl;
-    link.download = `qr-attendance-${schoolId}.png`;
+    link.download = "qr-attendance.png";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -155,6 +177,14 @@ export function AttendanceBoard({ schoolId, isPublic, schoolName }: AttendanceBo
         </div>
 
         <div className="flex-1 overflow-y-auto p-6">
+          {error && (
+            <div
+              role="alert"
+              className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 text-center"
+            >
+              {error}
+            </div>
+          )}
           {loading ? (
             <div className="flex justify-center py-20">
               <div className="w-7 h-7 border-2 border-gray-200 border-t-coral rounded-full animate-spin" />

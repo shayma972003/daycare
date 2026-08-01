@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/notifications";
 import { z } from "zod";
 import { randomInt, createHash } from "crypto";
+import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
 
 const schema = z.object({
   identifier: z.string().min(1, "أدخل البريد الإلكتروني أو رقم الجوال"),
@@ -31,6 +32,17 @@ export async function POST(request: Request) {
     return Response.json({ error: "أدخل البريد الإلكتروني أو رقم الجوال" }, { status: 422 });
 
   const identifier = parsed.data.identifier.trim();
+
+  // Two limits: one stops a single address being spammed with reset mails, the
+  // other stops one host from cycling through many addresses.
+  for (const key of [
+    `forgot:id:${identifier.toLowerCase()}`,
+    `forgot:ip:${clientIp(request)}`,
+  ]) {
+    const limited = await rateLimit({ key, limit: 5, windowMs: 15 * 60 * 1000 });
+    if (!limited.ok) return tooManyRequests(limited.retryAfter);
+  }
+
   const isEmail = identifier.includes("@");
 
   let user: { id: string; email: string } | null = null;

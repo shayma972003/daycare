@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { randomBytes, createHash } from "crypto";
+import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
 
 const schema = z.object({
   twoFaSessionId: z.string().min(1),
@@ -22,6 +23,15 @@ export async function POST(request: Request) {
   }
 
   const { twoFaSessionId, otp_code } = parsed.data;
+
+  // Backs up the per-session attempt counter: without it a host could open many
+  // sessions and get 5 fresh guesses on each.
+  const limited = await rateLimit({
+    key: `verify2fa:ip:${clientIp(request)}`,
+    limit: 20,
+    windowMs: 15 * 60 * 1000,
+  });
+  if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
   const session = await prisma.twoFASession.findUnique({ where: { id: twoFaSessionId } });
 

@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { signAdminToken, buildAdminCookieHeader } from "@/lib/admin-auth";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
+import { rateLimit, resetRateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
 
 /**
  * Constant-time-ish guard against user enumeration: when no admin matches we
@@ -31,6 +32,17 @@ export async function POST(request: Request) {
   const email = parsed.data.email.toLowerCase().trim();
   const { password } = parsed.data;
 
+  // The most privileged credential in the system had no throttling at all.
+  // Limited by account and by source so neither axis is left open.
+  const lockKey = `admin-login:${email}`;
+  for (const { key, limit } of [
+    { key: lockKey, limit: 5 },
+    { key: `admin-login:ip:${clientIp(request)}`, limit: 10 },
+  ]) {
+    const limited = await rateLimit({ key, limit, windowMs: 15 * 60 * 1000 });
+    if (!limited.ok) return tooManyRequests(limited.retryAfter);
+  }
+
   const admin = await prisma.superAdmin.findUnique({ where: { email } });
   const valid = await bcrypt.compare(password, admin?.password_hash ?? DUMMY_HASH);
 
@@ -40,6 +52,8 @@ export async function POST(request: Request) {
       { status: 401 }
     );
   }
+
+  await resetRateLimit(lockKey);
 
   const token = await signAdminToken(admin.id);
 

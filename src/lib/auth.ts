@@ -6,10 +6,22 @@ import { createHash } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/notifications";
 import { logAction } from "@/lib/activity-logger";
+import { rateLimit, resetRateLimit } from "@/lib/rate-limit";
 
 function generateOTP(): string {
-  return String(randomInt(100000, 999999));
+  return String(randomInt(100000, 1000000));
 }
+
+/** Failed sign-ins allowed per account before it is locked for the window. */
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOGIN_LOCKOUT_MS = 15 * 60 * 1000;
+
+/**
+ * Compared against when no user matches, so a wrong email and a wrong password
+ * take the same time. Returning early on an unknown address turned response
+ * latency into an account-existence oracle.
+ */
+const DUMMY_HASH = "$2b$12$C6UzMDM.H6dfI/f/IKcEe.iVMhrpZ9zXBcVBrEXvXJZgFqbrJmZ7q";
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -72,16 +84,36 @@ export const authOptions: NextAuthOptions = {
           if (!credentials?.email || !credentials?.password) return null;
 
           const email = credentials.email.toLowerCase().trim();
+          const lockKey = `login:${email}`;
+
+          // Lock the account after repeated failures. Checked before the
+          // password comparison so a locked account costs an attacker nothing
+          // to probe and gains them nothing.
+          const attempt = await rateLimit({
+            key: lockKey,
+            limit: MAX_LOGIN_ATTEMPTS,
+            windowMs: LOGIN_LOCKOUT_MS,
+          });
+          if (!attempt.ok) {
+            throw new Error("ACCOUNT_LOCKED");
+          }
 
           const user = await prisma.user.findUnique({
             where: { email },
             include: { school: true },
           });
 
-          if (!user) return null;
+          // Always run a comparison, even with no user, to keep timing flat.
+          const isValid = await bcrypt.compare(
+            credentials.password,
+            user?.password ?? DUMMY_HASH
+          );
 
-          const isValid = await bcrypt.compare(credentials.password, user.password);
-          if (!isValid) return null;
+          if (!user || !isValid) return null;
+
+          // Credentials are correct — clear the counter so an earlier typo does
+          // not carry over into the next sign-in.
+          await resetRateLimit(lockKey);
 
           if (user.school?.twoFaEnabled) {
             const otp = generateOTP();

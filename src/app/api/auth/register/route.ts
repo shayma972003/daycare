@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
+import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
 
 const registerSchema = z
   .object({
@@ -30,6 +31,14 @@ export async function POST(request: Request) {
         { status: 422 }
       );
     }
+
+    // Self-service signup creates a tenant, so it is worth throttling hard.
+    const limited = await rateLimit({
+      key: `register:ip:${clientIp(request)}`,
+      limit: 5,
+      windowMs: 60 * 60 * 1000,
+    });
+    if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
     const { schoolName, password } = parsed.data;
     const email = parsed.data.email.toLowerCase().trim();

@@ -1,11 +1,13 @@
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
+import { PAYMENT_STATUSES } from "@/lib/payment-status";
 import { z } from "zod";
 
 const schema = z.object({
-  ids: z.array(z.string()).min(1),
-  paymentStatus: z.string().min(1),
+  ids: z.array(z.string()).min(1).max(500),
+  // Was z.string().min(1), so any text at all could be written into the column.
+  paymentStatus: z.enum(PAYMENT_STATUSES),
 });
 
 export async function PUT(request: Request) {
@@ -15,7 +17,7 @@ export async function PUT(request: Request) {
   } catch {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const schoolId = (session.user as { schoolId: string }).schoolId;
+  const schoolId = session.user.schoolId;
 
   let body: unknown;
   try {
@@ -26,23 +28,26 @@ export async function PUT(request: Request) {
 
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
-    return Response.json({ error: parsed.error.flatten() }, { status: 400 });
+    return Response.json({ error: parsed.error.flatten() }, { status: 422 });
   }
 
   const { ids, paymentStatus } = parsed.data;
 
-  await prisma.student.updateMany({
-    where: { id: { in: ids }, schoolId },
+  const { count } = await prisma.student.updateMany({
+    // `deletedAt: null` was missing, so students sitting in the trash were
+    // silently mutated along with the live ones.
+    where: { id: { in: ids }, schoolId, deletedAt: null },
     data: { paymentStatus },
   });
 
   await logAction({
     school_id: schoolId,
-    action: `تغيير حالة دفع ${ids.length} طالب إلى ${paymentStatus}`,
+    action: `تغيير حالة دفع ${count} طفل إلى ${paymentStatus}`,
     entity_type: "student",
     performed_by: session.user.name ?? "المدير",
     request,
   });
 
-  return Response.json({ updated: ids.length });
+  // Reports how many rows actually changed, not how many were requested.
+  return Response.json({ updated: count });
 }

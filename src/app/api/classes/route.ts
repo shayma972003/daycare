@@ -1,6 +1,7 @@
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
+import { assertTeacherOwned, crossTenantResponse } from "@/lib/tenant-guard";
 import { z } from "zod";
 
 const createClassSchema = z.object({
@@ -81,11 +82,22 @@ export async function POST(request: Request) {
 
   const { name, teacherId, group, period, registrationDate, notes, imageUrl } = parsed.data;
 
+  // Unchecked, this let a class be assigned another school's teacher — and the
+  // list query includes `teacher: { name }`, leaking it straight back out.
+  let ownedTeacherId: string | null;
+  try {
+    ownedTeacherId = await assertTeacherOwned(teacherId, schoolId);
+  } catch (error) {
+    const denied = crossTenantResponse(error);
+    if (denied) return denied;
+    throw error;
+  }
+
   const cls = await prisma.class.create({
     data: {
       schoolId,
       name,
-      ...(teacherId !== undefined && { teacherId }),
+      ...(ownedTeacherId !== null && { teacherId: ownedTeacherId }),
       ...(group !== undefined && { group }),
       ...(period !== undefined && { period }),
       ...(registrationDate !== undefined && { registrationDate: new Date(registrationDate) }),

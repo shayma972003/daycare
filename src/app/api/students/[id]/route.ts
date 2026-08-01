@@ -2,6 +2,11 @@ import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
 import { generatePaymentCycles } from "@/lib/payment-cycles";
+import {
+  assertClassOwned,
+  assertGuardianOwned,
+  crossTenantResponse,
+} from "@/lib/tenant-guard";
 import { z } from "zod";
 
 const updateStudentSchema = z.object({
@@ -130,8 +135,17 @@ export async function PUT(
 
   if (data.name !== undefined) updateData.name = data.name;
   if ("classId" in data) {
-    updateData.classId = data.classId ?? null;
-    if (data.classId) updateData.needsClassWarning = false;
+    // Verified against this school before writing: the id arrives from the
+    // client and used to be trusted, which allowed pointing a student at
+    // another tenant's class.
+    try {
+      updateData.classId = await assertClassOwned(data.classId, schoolId);
+    } catch (error) {
+      const denied = crossTenantResponse(error);
+      if (denied) return denied;
+      throw error;
+    }
+    if (updateData.classId) updateData.needsClassWarning = false;
   }
   if ("healthCondition" in data) updateData.healthCondition = data.healthCondition ?? null;
   if ("academicStage" in data) updateData.academicStage = data.academicStage ?? null;
@@ -159,8 +173,14 @@ export async function PUT(
 
   // Guardian update logic
   if ("guardianId" in data && data.guardianId) {
-    // Client is linking an existing guardian
-    updateData.guardianId = data.guardianId;
+    // Client is linking an existing guardian — prove it is one of ours first.
+    try {
+      updateData.guardianId = await assertGuardianOwned(data.guardianId, schoolId);
+    } catch (error) {
+      const denied = crossTenantResponse(error);
+      if (denied) return denied;
+      throw error;
+    }
   } else if (data.guardianName) {
     // Find or create guardian
     const phone1 = data.guardianPhone1 ?? undefined;

@@ -1,6 +1,7 @@
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
+import { assertClassOwned, crossTenantResponse } from "@/lib/tenant-guard";
 import { z } from "zod";
 
 const schema = z.object({
@@ -109,12 +110,23 @@ export async function POST(
     }
   }
 
+  // The class id comes from the reviewer's form and was written straight
+  // through, so a student could be attached to another school's class.
+  let ownedClassId: string | null;
+  try {
+    ownedClassId = await assertClassOwned(ov.class_id || null, schoolId);
+  } catch (error) {
+    const denied = crossTenantResponse(error);
+    if (denied) return denied;
+    throw error;
+  }
+
   const dobRaw = ov.date_of_birth ?? (sub.date_of_birth ? sub.date_of_birth.toString() : null);
   const student = await prisma.student.create({
     data: {
       schoolId,
       name: (ov.full_name ?? sub.full_name) || "—",
-      classId: ov.class_id || null,
+      classId: ownedClassId,
       guardianId,
       idNumber: ov.id_number ?? sub.id_number ?? null,
       nationality: ov.nationality ?? sub.nationality ?? null,

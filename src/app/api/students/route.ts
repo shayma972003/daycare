@@ -3,6 +3,11 @@ import { prisma } from "@/lib/prisma";
 import { generatePaymentCycles } from "@/lib/payment-cycles";
 import { updatePaymentStatuses } from "@/lib/payment-status-updater";
 import { logAction } from "@/lib/activity-logger";
+import {
+  assertClassOwned,
+  assertGuardianOwned,
+  crossTenantResponse,
+} from "@/lib/tenant-guard";
 import { z } from "zod";
 
 const createStudentSchema = z.object({
@@ -136,8 +141,18 @@ export async function POST(request: Request) {
     registration_fee,
   } = parsed.data;
 
-  // Resolve guardian: link existing or create new
-  let guardianId: string | undefined = clientGuardianId;
+  // Both ids come from the client and were previously written through unchecked,
+  // which let a student be attached to another school's class or guardian.
+  let guardianId: string | null;
+  let ownedClassId: string | null;
+  try {
+    guardianId = await assertGuardianOwned(clientGuardianId, schoolId);
+    ownedClassId = await assertClassOwned(classId, schoolId);
+  } catch (error) {
+    const denied = crossTenantResponse(error);
+    if (denied) return denied;
+    throw error;
+  }
 
   if (!guardianId && guardianName) {
     // Try to find existing guardian by phone1 or email within school
@@ -176,8 +191,8 @@ export async function POST(request: Request) {
     data: {
       schoolId,
       name,
-      ...(classId !== undefined && { classId }),
-      ...(guardianId !== undefined && { guardianId }),
+      ...(ownedClassId !== null && { classId: ownedClassId }),
+      ...(guardianId !== null && { guardianId }),
       ...(healthCondition !== undefined && { healthCondition }),
       ...(academicStage !== undefined && { academicStage }),
       ...(period !== undefined && { period }),

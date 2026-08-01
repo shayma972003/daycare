@@ -1,6 +1,7 @@
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
+import { assertTeacherOwned, crossTenantResponse } from "@/lib/tenant-guard";
 import { z } from "zod";
 
 const updateClassSchema = z.object({
@@ -86,8 +87,14 @@ export async function PUT(
 
   if (data.name !== undefined) updateData.name = data.name;
   if ("teacherId" in data) {
-    updateData.teacherId = data.teacherId ?? null;
-    if (data.teacherId) updateData.needsTeacherWarning = false;
+    try {
+      updateData.teacherId = await assertTeacherOwned(data.teacherId, schoolId);
+    } catch (error) {
+      const denied = crossTenantResponse(error);
+      if (denied) return denied;
+      throw error;
+    }
+    if (updateData.teacherId) updateData.needsTeacherWarning = false;
   }
   if ("group" in data) updateData.group = data.group ?? null;
   if ("period" in data) updateData.period = data.period ?? null;

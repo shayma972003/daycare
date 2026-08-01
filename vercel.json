@@ -3,6 +3,27 @@
     {
       "path": "/api/admin/cron/purge-trash",
       "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/admin/cron/alerts",
+      "schedule": "0 6 * * *"
     }
-  ]
+  ],
+  "functions": {
+    "src/app/api/admin/cron/**": {
+      "maxDuration": 300
+    },
+    "src/app/api/financial-reports/**": {
+      "maxDuration": 120
+    },
+    "src/app/api/statistics/**": {
+      "maxDuration": 120
+    },
+    "src/app/api/import/**": {
+      "maxDuration": 120
+    },
+    "src/app/api/invoices/**": {
+      "maxDuration": 60
+    }
+  }
 }

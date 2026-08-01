@@ -1,6 +1,5 @@
 import { requireSession } from '@/lib/session';
 import { prisma } from '@/lib/prisma';
-import { deleteExpiredImportSessions } from '@/lib/import-cleanup';
 import { logAction } from '@/lib/activity-logger';
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
@@ -28,8 +27,10 @@ export async function POST(request: Request) {
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
 
-  // fire-and-forget cleanup
-  deleteExpiredImportSessions().catch(() => {});
+  // Expired-session cleanup moved to the nightly cron. Running it here was
+  // global, so one school's upload deleted other schools' sessions — and as a
+  // fire-and-forget promise in a serverless function it was often dropped
+  // before it settled anyway.
 
   const formData = await request.formData();
   const file = formData.get('file') as File | null;

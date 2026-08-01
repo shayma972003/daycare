@@ -1,10 +1,8 @@
 import { prisma } from "@/lib/prisma";
+import { isAuthorizedCron, cronUnauthorized } from "@/lib/cron-auth";
 
 export async function GET(request: Request) {
-  const secret = request.headers.get("x-cron-secret");
-  if (!secret || secret !== process.env.CRON_SECRET) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  if (!isAuthorizedCron(request)) return cronUnauthorized();
 
   const now = new Date();
   const sevenDaysAhead = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);

@@ -1,5 +1,6 @@
 import { cleanupExpiredTrash } from "@/lib/trash-cleanup";
 import { deleteExpiredImportSessions } from "@/lib/import-cleanup";
+import { deactivateAllExpiredExpenses } from "@/lib/expense-updater";
 import { purgeExpiredRateLimits } from "@/lib/rate-limit";
 import { isAuthorizedCron, cronUnauthorized } from "@/lib/cron-auth";
 import { prisma } from "@/lib/prisma";
@@ -11,6 +12,9 @@ export async function GET(request: Request) {
   const trash = await cleanupExpiredTrash();
   const importSessions = await deleteExpiredImportSessions();
   const rateLimits = await purgeExpiredRateLimits();
+  // Moved off the financial-report path, where it made a read mutate rows and
+  // let two concurrent reports race each other.
+  const expensesStopped = await deactivateAllExpiredExpenses();
 
   // These two tables grew without bound: nothing ever removed a spent 2FA
   // session or an expired enrolment link.
@@ -28,6 +32,7 @@ export async function GET(request: Request) {
     trash,
     importSessions,
     rateLimits,
+    expensesStopped,
     twoFaSessions,
     enrollmentTokens,
   });

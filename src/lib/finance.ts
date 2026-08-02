@@ -1,9 +1,13 @@
 import { prisma } from "@/lib/prisma";
+import { astParts } from "@/lib/datetime";
 import type { PaymentStatus } from "@/generated/prisma/enums";
 import { deactivateExpiredExpenses } from "@/lib/expense-updater";
 import { calculateRecurringAmount } from "@/lib/finance-calculator";
 
 export type ReportPeriodType = "monthly" | "semi_annual" | "annual";
+
+/** Saudi VAT. Applied only to schools flagged `vatRegistered`. */
+export const VAT_RATE = 0.15;
 
 const AST_OFFSET_MS = 3 * 60 * 60 * 1000;
 
@@ -36,18 +40,38 @@ export function getPeriodRange(type: ReportPeriodType): PeriodRange {
   return { from: astToUtc(y, m, 1), to: astToUtc(y, m + 1, 0, 23, 59, 59, 999) };
 }
 
-/** The equal-length period immediately preceding the given range, for period-over-period comparisons. */
+/**
+ * The equal-length period immediately preceding the given range.
+ *
+ * Read the calendar components in AST. The previous version read them off
+ * `current.from` with `getUTC*`, but that instant is the AST-shifted boundary —
+ * 21:00 on the *previous* day, month or year — so every branch was wrong:
+ *
+ *   - annual:      2026 resolved to y=2025, and then returned 2024 — two years back.
+ *   - monthly:     July gave y=2026 m=5 d=30, returning 30 May → 31 May: a
+ *                  two-day window in the wrong month.
+ *   - semi-annual: H1's month read as 11, so the `m === 0` branch was dead and
+ *                  H1 compared against the previous year's H1 instead of H2.
+ *
+ * Everything downstream of this — the growth percentages on the dashboard —
+ * was therefore meaningless.
+ */
 export function getPreviousPeriodRange(type: ReportPeriodType, current: PeriodRange): PeriodRange {
-  const y = current.from.getUTCFullYear();
-  const m = current.from.getUTCMonth();
-  const d = current.from.getUTCDate();
-  if (type === "annual") return { from: astToUtc(y - 1, 0, 1), to: astToUtc(y - 1, 11, 31, 23, 59, 59, 999) };
+  const { year: y, month: m } = astParts(current.from);
+
+  if (type === "annual") {
+    return { from: astToUtc(y - 1, 0, 1), to: astToUtc(y - 1, 11, 31, 23, 59, 59, 999) };
+  }
+
   if (type === "semi_annual") {
-    // current.from's month is either 0 (H1) or 6 (H2)
+    // current.from is either January (H1) or July (H2).
     if (m === 0) return { from: astToUtc(y - 1, 6, 1), to: astToUtc(y - 1, 12, 0, 23, 59, 59, 999) };
     return { from: astToUtc(y, 0, 1), to: astToUtc(y, 6, 0, 23, 59, 59, 999) };
   }
-  return { from: astToUtc(y, m - 1, d), to: astToUtc(y, m, 0, 23, 59, 59, 999) };
+
+  // Whole previous calendar month. `astToUtc(y, m, 0, …)` is the last instant
+  // of the month before m, which is exactly the end we want.
+  return { from: astToUtc(y, m - 1, 1), to: astToUtc(y, m, 0, 23, 59, 59, 999) };
 }
 
 interface ExpenseLike {
@@ -195,15 +219,24 @@ async function getCumulativeCashPosition(schoolId: string, before: Date): Promis
 }
 
 export async function getFinancialSummary(schoolId: string, type: ReportPeriodType): Promise<FinancialSummary> {
-  await deactivateExpiredExpenses(schoolId);
-
+  // `deactivateExpiredExpenses` used to run here. Generating a report mutated
+  // Expense rows, and two concurrent report requests raced each other writing
+  // the same records. It belongs to the nightly job, not to a read path —
+  // `expenseAmountInPeriod` already respects `end_date` when summing, so the
+  // numbers are the same either way.
   const range = getPeriodRange(type);
   const prevRange = getPreviousPeriodRange(type, range);
 
-  const [settings, subscribedStudents, activeTeachers, activitiesInPeriod, expenses, paidRegFeesResult, lateFeesResult] = await Promise.all([
+  const [school, settings, subscribedStudents, activeTeachers, activitiesInPeriod, expenses, paidRegFeesResult, lateFeesResult] = await Promise.all([
+    prisma.school.findUnique({ where: { id: schoolId }, select: { vatRegistered: true } }),
     prisma.settings.findUnique({ where: { schoolId } }),
     prisma.student.findMany({
-      where: { schoolId, isActive: true, deletedAt: null, enrollment_date: { not: null }, enrollmentEndDate: { not: null } },
+      // `enrollmentEndDate: { not: null }` is deliberately gone. Open-ended
+      // enrolment is the normal case for a daycare, and requiring an end date
+      // silently excluded those children from revenue entirely — the report
+      // simply under-reported with no indication why. They are billed to the
+      // end of the reporting period instead.
+      where: { schoolId, isActive: true, deletedAt: null, enrollment_date: { not: null } },
       select: { name: true, registration_fee: true, enrollment_date: true, enrollmentEndDate: true },
     }),
     prisma.teacher.findMany({
@@ -231,20 +264,41 @@ export async function getFinancialSummary(schoolId: string, type: ReportPeriodTy
   // their enrollment period that overlap the reporting period — not the full contract duration.
   const monthlyFeeItems = subscribedStudents
     .map((st) => {
-      const fee = st.registration_fee > 0 ? st.registration_fee : monthlyStudentFee;
-      const amount = fee > 0
-        ? calculateRecurringAmount(fee, new Date(st.enrollment_date!), new Date(st.enrollmentEndDate!), range.from, range.to)
-        : 0;
+      // `registration_fee` is a one-off joining fee, counted separately below.
+      // Using it as the monthly rate charged it every single month *and* again
+      // as a registration fee — the same money twice. The monthly rate is the
+      // school's configured fee.
+      const amount =
+        monthlyStudentFee > 0
+          ? calculateRecurringAmount(
+              monthlyStudentFee,
+              st.enrollment_date!,
+              // Open-ended enrolment bills through the end of the period.
+              st.enrollmentEndDate ?? range.to,
+              range.from,
+              range.to
+            )
+          : 0;
       return { name: st.name, amount };
     })
     .filter((item) => item.amount > 0);
 
   const lateFeeRevenue = lateFeesResult._sum.lateFee ?? 0;
   const monthlyFeesRevenue = monthlyFeeItems.reduce((s, item) => s + item.amount, 0);
-  const vatCollected = monthlyFeesRevenue * 0.15;
   const activitiesTotal = activitiesInPeriod.reduce((s, a) => s + a.activityFee * a.childrenCount, 0);
   const registrationFeesCollected = paidRegFeesResult._sum.registration_fee ?? 0;
-  const revenueTotal = monthlyFeesRevenue + activitiesTotal + registrationFeesCollected + vatCollected + lateFeeRevenue;
+
+  // VAT is money collected on ZATCA's behalf and owed onward — a liability, not
+  // income. It used to be added into revenueTotal, which flowed through to net
+  // income and the closing cash balance and overstated both by ~15% of
+  // subscription revenue. It is reported separately now.
+  //
+  // The rate is also only applied to schools that are actually VAT-registered;
+  // previously every school had 15% added regardless of `vatRegistered`.
+  const vatCollected = school?.vatRegistered ? monthlyFeesRevenue * VAT_RATE : 0;
+
+  const revenueTotal =
+    monthlyFeesRevenue + activitiesTotal + registrationFeesCollected + lateFeeRevenue;
 
   // Teacher salary expense: only count months where the teacher's contract (joinDate through
   // enrollmentEndDate, or ongoing if no end date) overlaps the reporting period.
@@ -271,8 +325,13 @@ export async function getFinancialSummary(schoolId: string, type: ReportPeriodTy
     // Suspended students still owe — excluding them understated receivables.
     billableByStatus.SUSPENDED.amount;
 
-  // Previous period (for % comparison only)
-  const [prevActivities, prevRegFees] = await Promise.all([
+  // Previous period, for the % comparison only.
+  //
+  // The two sides must be computed the same way or the percentage is noise. The
+  // current period used to include late fees and VAT while the previous one
+  // included neither, so growth was overstated by construction — before even
+  // accounting for the broken range this compared against.
+  const [prevActivities, prevRegFees, prevLateFees] = await Promise.all([
     prisma.activity.findMany({
       where: { schoolId, startDate: { gte: prevRange.from, lte: prevRange.to } },
       select: { activityFee: true, childrenCount: true },
@@ -281,22 +340,51 @@ export async function getFinancialSummary(schoolId: string, type: ReportPeriodTy
       where: { schoolId, isActive: true, paymentStatus: "PAID", registrationDate: { gte: prevRange.from, lte: prevRange.to } },
       _sum: { registration_fee: true },
     }),
+    prisma.attendance.aggregate({
+      where: { schoolId, date: { gte: prevRange.from, lte: prevRange.to } },
+      _sum: { lateFee: true },
+    }),
   ]);
+
   const prevActivitiesTotal = prevActivities.reduce((s, a) => s + a.activityFee * a.childrenCount, 0);
-  const prevMonthlyFeesRevenue = subscribedStudents.reduce((s, st) => {
-    const fee = st.registration_fee > 0 ? st.registration_fee : monthlyStudentFee;
-    if (fee <= 0) return s;
-    return s + calculateRecurringAmount(fee, new Date(st.enrollment_date!), new Date(st.enrollmentEndDate!), prevRange.from, prevRange.to);
-  }, 0);
+  const prevMonthlyFeesRevenue =
+    monthlyStudentFee > 0
+      ? subscribedStudents.reduce(
+          (s, st) =>
+            s +
+            calculateRecurringAmount(
+              monthlyStudentFee,
+              st.enrollment_date!,
+              st.enrollmentEndDate ?? prevRange.to,
+              prevRange.from,
+              prevRange.to
+            ),
+          0
+        )
+      : 0;
   const prevSalariesExpense = activeTeachers.reduce((s, t) => {
     const effectiveEnd = t.enrollmentEndDate ?? prevRange.to;
-    return s + calculateRecurringAmount(t.monthlySalary, new Date(t.joinDate), new Date(effectiveEnd), prevRange.from, prevRange.to);
+    return s + calculateRecurringAmount(t.monthlySalary, t.joinDate, effectiveEnd, prevRange.from, prevRange.to);
   }, 0);
   const prevManualExpensesTotal = expenses.reduce((s, e) => s + expenseAmountInPeriod(e, prevRange.from, prevRange.to), 0);
-  const prevRevenue = prevMonthlyFeesRevenue + prevActivitiesTotal + (prevRegFees._sum.registration_fee ?? 0);
+
+  // Same four components as revenueTotal, VAT excluded from both.
+  const prevRevenue =
+    prevMonthlyFeesRevenue +
+    prevActivitiesTotal +
+    (prevRegFees._sum.registration_fee ?? 0) +
+    (prevLateFees._sum.lateFee ?? 0);
   const prevExpenses = prevSalariesExpense + prevManualExpensesTotal;
 
   const totalBudgetedSalaries = salariesExpense;
+
+  // Salary invoices actually issued in the period — the only evidence the system
+  // holds that a salary was settled.
+  const salaryInvoices = await prisma.invoice.aggregate({
+    where: { schoolId, type: "TEACHER", createdAt: { gte: range.from, lte: range.to } },
+    _sum: { amount: true },
+  });
+  const salariesPaid = salaryInvoices._sum.amount ?? 0;
 
   const openingBalance = await getCumulativeCashPosition(schoolId, range.from);
   const closingBalance = openingBalance + revenueTotal - expensesTotal;
@@ -342,7 +430,8 @@ export async function getFinancialSummary(schoolId: string, type: ReportPeriodTy
     },
     collection: {
       paid: billableByStatus.PAID.amount,
-      paidWithVat: billableByStatus.PAID.amount * 1.15,
+      paidWithVat:
+        billableByStatus.PAID.amount * (school?.vatRegistered ? 1 + VAT_RATE : 1),
       late: billableByStatus.LATE.amount,
       pending: billableByStatus.PENDING.amount,
       suspended: billableByStatus.SUSPENDED.amount,
@@ -353,8 +442,12 @@ export async function getFinancialSummary(schoolId: string, type: ReportPeriodTy
     },
     salaries: {
       totalBudgeted: totalBudgetedSalaries,
-      paid: totalBudgetedSalaries,
-      remaining: 0,
+      // `paid` used to be set to the full budget with `remaining: 0`, so the UI
+      // reported 100% of salaries as paid no matter what. There is no
+      // paid-salary source yet — issued salary invoices are the closest signal,
+      // so that is what is reported rather than a fabricated figure.
+      paid: salariesPaid,
+      remaining: Math.max(0, totalBudgetedSalaries - salariesPaid),
     },
     cashFlow: {
       openingBalance,

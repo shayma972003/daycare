@@ -1,10 +1,19 @@
+import { astParts } from "@/lib/datetime";
+
 /**
  * Counts how many monthly payment occurrences fall inside a reporting period.
  *
- * A monthly payment occurs on the same day-of-month as the start date,
- * every month from start_date through end_date (inclusive).
+ * A monthly payment occurs on the same day-of-month as the start date, every
+ * month from start_date through end_date (inclusive). Only occurrences whose
+ * month falls inside [periodFrom, periodTo] are counted.
  *
- * We only count occurrences where the payment month falls inside [periodFrom, periodTo].
+ * The month components are read in AST, and that is the entire fix here. The
+ * period boundaries come from `getPeriodRange`, which builds AST-anchored
+ * instants: July 2026 starts at 2026-06-30T21:00Z. Reading `getFullYear()` and
+ * `getMonth()` off that instant on a UTC host — which is what Vercel runs —
+ * returned **June**, while the period end returned July. The intersection
+ * spanned two months instead of one, so every student fee and every teacher
+ * salary was multiplied by two. Every monthly report was double.
  */
 export function countMonthsInPeriod(
   startDate: Date,
@@ -12,30 +21,31 @@ export function countMonthsInPeriod(
   periodFrom: Date,
   periodTo: Date
 ): number {
-  // Normalize all dates to first-of-month for comparison
-  const contractStart = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
-  const contractEnd = new Date(endDate.getFullYear(), endDate.getMonth(), 1);
-  const reportStart = new Date(periodFrom.getFullYear(), periodFrom.getMonth(), 1);
-  const reportEnd = new Date(periodTo.getFullYear(), periodTo.getMonth(), 1);
+  const contract = { start: monthIndex(startDate), end: monthIndex(endDate) };
+  const report = { start: monthIndex(periodFrom), end: monthIndex(periodTo) };
 
-  // The overlap is the intersection of [contractStart, contractEnd] and [reportStart, reportEnd]
-  const overlapStart = contractStart > reportStart ? contractStart : reportStart;
-  const overlapEnd = contractEnd < reportEnd ? contractEnd : reportEnd;
+  const overlapStart = Math.max(contract.start, report.start);
+  const overlapEnd = Math.min(contract.end, report.end);
 
-  // No overlap
   if (overlapStart > overlapEnd) return 0;
 
-  // Count months in the overlap (inclusive on both ends)
-  const months =
-    (overlapEnd.getFullYear() - overlapStart.getFullYear()) * 12 +
-    (overlapEnd.getMonth() - overlapStart.getMonth()) +
-    1; // +1 because both start and end months are included
-
-  return Math.max(0, months);
+  // Inclusive on both ends.
+  return overlapEnd - overlapStart + 1;
 }
 
 /**
- * Calculates the amount owed for a recurring monthly item within a reporting period.
+ * Absolute month number (year * 12 + month) in AST.
+ *
+ * Comparing a single integer avoids the class of bug above entirely: there is
+ * no intermediate Date whose components could be read in the wrong zone.
+ */
+function monthIndex(date: Date): number {
+  const { year, month } = astParts(date);
+  return year * 12 + month;
+}
+
+/**
+ * Amount owed for a recurring monthly item within a reporting period.
  */
 export function calculateRecurringAmount(
   monthlyAmount: number,
@@ -44,6 +54,5 @@ export function calculateRecurringAmount(
   periodFrom: Date,
   periodTo: Date
 ): number {
-  const months = countMonthsInPeriod(startDate, endDate, periodFrom, periodTo);
-  return monthlyAmount * months;
+  return monthlyAmount * countMonthsInPeriod(startDate, endDate, periodFrom, periodTo);
 }

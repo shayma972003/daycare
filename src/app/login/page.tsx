@@ -61,6 +61,10 @@ function LoginForm() {
         setError("تعذر إرسال رمز التحقق إلى بريدك. تواصل مع الدعم.");
       } else if (result.error === "ACCOUNT_LOCKED") {
         setError("تم قفل الحساب مؤقتاً بعد عدة محاولات فاشلة. حاول بعد 15 دقيقة.");
+      } else if (result.error === "SUBSCRIPTION_SUSPENDED") {
+        setError("تم تعليق اشتراك المنشأة. يرجى التواصل مع الدعم لإعادة التفعيل.");
+      } else if (result.error === "SUBSCRIPTION_EXPIRED") {
+        setError("انتهى اشتراك المنشأة. يرجى التجديد للمتابعة.");
       } else {
         setError("البريد الإلكتروني أو كلمة المرور غير صحيحة");
       }

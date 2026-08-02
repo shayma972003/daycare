@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/notifications";
 import { logAction } from "@/lib/activity-logger";
 import { rateLimit, resetRateLimit } from "@/lib/rate-limit";
+import { astDayStart } from "@/lib/datetime";
 
 function generateOTP(): string {
   return String(randomInt(100000, 1000000));
@@ -24,7 +25,39 @@ const LOGIN_LOCKOUT_MS = 15 * 60 * 1000;
 const DUMMY_HASH = "$2b$12$C6UzMDM.H6dfI/f/IKcEe.iVMhrpZ9zXBcVBrEXvXJZgFqbrJmZ7q";
 
 /** Errors that carry meaning to the sign-in UI and must reach it unaltered. */
-const SIGNAL_ERRORS = ["2FA_REQUIRED:", "2FA_DELIVERY_FAILED", "ACCOUNT_LOCKED"];
+const SIGNAL_ERRORS = [
+  "2FA_REQUIRED:",
+  "2FA_DELIVERY_FAILED",
+  "ACCOUNT_LOCKED",
+  "SUBSCRIPTION_SUSPENDED",
+  "SUBSCRIPTION_EXPIRED",
+];
+
+/**
+ * Whether a school's subscription bars its users from signing in.
+ *
+ * Returns the signal string for the sign-in page, or null when access is fine.
+ * Expiry is judged against the AST business day so a renewal dated today is
+ * still valid for the whole of today.
+ */
+function subscriptionBlockReason(school: {
+  subscription_status: string;
+  renewal_date: Date | null;
+} | null): string | null {
+  if (!school) return null;
+
+  if (school.subscription_status === "suspended") return "SUBSCRIPTION_SUSPENDED";
+  if (school.subscription_status === "cancelled") return "SUBSCRIPTION_SUSPENDED";
+  if (school.subscription_status === "expired") return "SUBSCRIPTION_EXPIRED";
+
+  // A renewal date in the past means expired even if the status field lags —
+  // the nightly alerts job is what flips that flag, and it may not have run.
+  if (school.renewal_date && school.renewal_date < astDayStart()) {
+    return "SUBSCRIPTION_EXPIRED";
+  }
+
+  return null;
+}
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -117,6 +150,12 @@ export const authOptions: NextAuthOptions = {
           // Credentials are correct — clear the counter so an earlier typo does
           // not carry over into the next sign-in.
           await resetRateLimit(lockKey);
+
+          // The admin panel writes `subscription_status` and `renewal_date` but
+          // nothing ever read them, so a suspended or expired school kept full
+          // access to the product. Suspension was a label, not a control.
+          const blocked = subscriptionBlockReason(user.school);
+          if (blocked) throw new Error(blocked);
 
           if (user.school?.twoFaEnabled) {
             const otp = generateOTP();

@@ -3,6 +3,9 @@ export const dynamic = "force-dynamic";
 
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { allocateInvoiceNumber, seedInvoiceCounter } from "@/lib/invoice-number";
+import { astParts } from "@/lib/datetime";
+import { recomputeInvoiceTotals } from "@/lib/invoice-totals";
 import { logAction } from "@/lib/activity-logger";
 import { z } from "zod";
 import { renderToBuffer } from "@react-pdf/renderer";
@@ -162,10 +165,18 @@ export async function POST(request: Request) {
   // Branch: full invoice data from modal
   const fullParsed = fullInvoiceSchema.safeParse(body);
   if (fullParsed.success) {
-    const { studentId, invoiceData: inv } = fullParsed.data;
+    const { studentId, invoiceData: rawInv } = fullParsed.data;
 
     const student = await prisma.student.findFirst({ where: { id: studentId, schoolId, deletedAt: null } });
     if (!student) return Response.json({ error: "Student not found" }, { status: 404 });
+
+    // Every money figure is recomputed from the line items rather than trusted.
+    // The client used to send baseTotal, vatAmount, discountAmount and
+    // grandTotal, and the server wrote them straight to Invoice.amount without
+    // checking any of it — so anyone able to call this endpoint could issue a
+    // financial document for any figure they liked. The issuing school's own
+    // identity is read from the database for the same reason.
+    const inv = { ...rawInv, ...(await recomputeInvoiceTotals(schoolId, rawInv)) };
 
     const PAYMENT_METHODS: Record<string, string> = { CASH: "نقدي", TRANSFER: "تحويل بنكي", CARD: "بطاقة" };
 
@@ -407,11 +418,21 @@ export async function POST(request: Request) {
   });
   if (!school) return Response.json({ error: "School not found" }, { status: 404 });
 
-  const invoiceCount = await prisma.invoice.count({ where: { schoolId } });
-  const invoiceNumber = String(invoiceCount + 1).padStart(5, "0");
+  // Seeded from the existing count so tenants created before the counter
+  // existed do not re-issue numbers already in use, then allocated atomically.
+  await seedInvoiceCounter(
+    schoolId,
+    studentId ? "student" : "teacher",
+    await prisma.invoice.count({
+      where: { schoolId, type: studentId ? "STUDENT" : "TEACHER" },
+    })
+  );
+  const allocated = await allocateInvoiceNumber(schoolId, studentId ? "student" : "teacher");
+  const invoiceNumber = allocated.formatted;
 
   const today = new Date();
-  const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+  const { year: astYear, month: astMonth } = astParts(today);
+  const lastDayOfMonth = new Date(Date.UTC(astYear, astMonth + 1, 0));
   const monthlyFee = school.settings?.monthlyStudentFee ?? 0;
 
   let pdfDoc: unknown;

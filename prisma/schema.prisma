@@ -134,6 +134,23 @@ model ExportAuditLog {
   @@index([exportedEntity])
 }
 
+/// Monotonic per-tenant counter for invoice numbers.
+///
+/// Numbers used to come from `count() + 1`, which two concurrent requests
+/// resolve to the same value, and which reuses a number after a deletion. A tax
+/// document needs a sequence that never repeats and never goes backwards, so
+/// the number is now allocated by incrementing this row inside a transaction.
+model InvoiceCounter {
+  id        String   @id @default(cuid())
+  schoolId  String
+  /// "student" | "teacher" | "admin" — separate sequences per document type.
+  kind      String
+  lastValue Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@unique([schoolId, kind])
+}
+
 /// Fixed-window counter used for rate limiting and account lockout. Backed by
 /// the database because the deployment is serverless — there is no shared
 /// in-process memory between invocations.

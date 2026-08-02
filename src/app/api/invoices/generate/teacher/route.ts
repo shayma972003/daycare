@@ -138,10 +138,22 @@ export async function POST(request: Request) {
       return Response.json({ error: "Invalid request body", details: parsed.error.flatten() }, { status: 400 });
     }
 
-    const { teacherId, invoiceData: inv } = parsed.data;
+    const { teacherId, invoiceData: rawInv } = parsed.data;
 
-    const teacher = await prisma.teacher.findFirst({ where: { id: teacherId, schoolId, deletedAt: null } });
+    const teacher = await prisma.teacher.findFirst({
+      where: { id: teacherId, schoolId, deletedAt: null },
+      select: { id: true, name: true, monthlySalary: true, lateDeductionRate: true, lateHours: true },
+    });
     if (!teacher) return Response.json({ error: "Teacher not found" }, { status: 404 });
+
+    // Net salary is derived from the teacher's own record, not from whatever the
+    // client sent. It used to be written to Invoice.amount unverified, so a
+    // salary document could be issued for any figure at all.
+    // Base salary minus the late deduction, both from the teacher's record.
+    const lateDeduction = teacher.lateHours * teacher.lateDeductionRate;
+    const netSalary =
+      Math.round((Math.max(0, teacher.monthlySalary - lateDeduction) + Number.EPSILON) * 100) / 100;
+    const inv = { ...rawInv, netSalary };
 
     // Mirror EXACTLY the same structure as the working student invoice route:
     // - Document, null (not {})

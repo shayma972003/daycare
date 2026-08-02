@@ -1,11 +1,14 @@
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
+import { assertClassOwned, crossTenantResponse } from "@/lib/tenant-guard";
 import { z } from "zod";
 
 const updateTeacherSchema = z.object({
   name: z.string().min(1).optional(),
   period: z.enum(["MORNING", "EVENING"]).nullish(),
+  /** Primary class. The profile form sent this but the route never read it. */
+  classId: z.string().nullish(),
   idNumber: z.string().nullish(),
   dateOfBirth: z.string().nullish(),
   nationality: z.string().nullish(),
@@ -133,11 +136,44 @@ export async function PUT(
     return Response.json({ error: "Not found" }, { status: 404 });
   }
 
-  const teacher = await prisma.teacher.update({
-    where: { id },
-    data: updateData,
-    include: { classes: true },
-  });
+  // Class assignment lives on Class.teacherId, not on Teacher, so it is applied
+  // as a separate step: detach whatever this teacher currently owns, then
+  // attach the chosen class. Both sides are verified against the school first.
+  let classReassignment: { detachFrom: string; attachTo: string | null } | null = null;
+  if ("classId" in data) {
+    try {
+      const ownedClassId = await assertClassOwned(data.classId, schoolId);
+      classReassignment = { detachFrom: id, attachTo: ownedClassId };
+    } catch (error) {
+      const denied = crossTenantResponse(error);
+      if (denied) return denied;
+      throw error;
+    }
+  }
+
+  const [teacher] = await prisma.$transaction([
+    prisma.teacher.update({
+      where: { id },
+      data: updateData,
+      include: { classes: true },
+    }),
+    ...(classReassignment
+      ? [
+          prisma.class.updateMany({
+            where: { teacherId: classReassignment.detachFrom, schoolId },
+            data: { teacherId: null, needsTeacherWarning: true },
+          }),
+          ...(classReassignment.attachTo
+            ? [
+                prisma.class.update({
+                  where: { id: classReassignment.attachTo },
+                  data: { teacherId: id, needsTeacherWarning: false },
+                }),
+              ]
+            : []),
+        ]
+      : []),
+  ]);
 
   await logAction({
     school_id: schoolId,

@@ -44,8 +44,13 @@ interface AdminInvoiceModalProps {
 
 const STATUS_OPTIONS = ["مدفوع", "متأخر", "ملغي", "بانتظار الدفع"];
 
-function calcRowTotal(price: number | "", vat: number | "") {
-  return (Number(price) || 0) + (Number(vat) || 0);
+/**
+ * Line total. Quantity was collected, sent to the API and shown in the header,
+ * but never multiplied — a line of five items billed as one.
+ */
+function calcRowTotal(quantity: number | "", price: number | "", vat: number | "") {
+  const qty = Math.max(0, Number(quantity) || 0);
+  return qty * (Number(price) || 0) + (Number(vat) || 0);
 }
 
 function toDateInput(d: Date) {
@@ -145,7 +150,7 @@ export function AdminInvoiceModal({ open, schoolId, onClose, onIssued }: AdminIn
     );
   }
 
-  const grandTotal = lineItems.reduce((sum, r) => sum + calcRowTotal(r.price, r.vat), 0);
+  const grandTotal = lineItems.reduce((sum, r) => sum + calcRowTotal(r.quantity, r.price, r.vat), 0);
 
   async function handleGenerate() {
     setGenerating(true);
@@ -175,7 +180,7 @@ export function AdminInvoiceModal({ open, schoolId, onClose, onIssued }: AdminIn
           quantity: Number(r.quantity) || 0,
           price: Number(r.price) || 0,
           vat: Number(r.vat) || 0,
-          total: calcRowTotal(r.price, r.vat),
+          total: calcRowTotal(r.quantity, r.price, r.vat),
         })),
         total_amount: grandTotal,
       });
@@ -312,7 +317,7 @@ export function AdminInvoiceModal({ open, schoolId, onClose, onIssued }: AdminIn
                           />
                         </td>
                         <td className="px-3 py-1.5 text-sm text-white font-medium">
-                          {calcRowTotal(row.price, row.vat).toFixed(2)}
+                          {calcRowTotal(row.quantity, row.price, row.vat).toFixed(2)}
                         </td>
                         <td className="px-2 py-1.5">
                           <button type="button" onClick={() => removeLineItem(row.id)} className="text-red-400 hover:text-red-300 text-lg font-bold leading-none">

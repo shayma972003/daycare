@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react";
 import axios from "axios";
+import { describeApiError } from "@/lib/api-error";
+import { formatAst } from "@/lib/datetime";
 
 interface LogEntry {
   id: string;
@@ -52,32 +54,76 @@ export default function LogsPage() {
     setTotalPages(res.data.totalPages);
   }, [page, filterSchool, filterAction, filterFrom, filterTo]);
 
+  const [error, setError] = useState<string | null>(null);
+
   useEffect(() => {
-    axios.get<{ id: string; name: string }[]>("/api/admin/schools").then((r) =>
-      setSchools(r.data.map((s) => ({ id: s.id, name: s.name })))
-    );
+    axios
+      .get<{ id: string; name: string }[]>("/api/admin/schools")
+      .then((r) => setSchools(r.data.map((s) => ({ id: s.id, name: s.name }))))
+      // Was an unhandled promise: a failure left the school filter silently empty.
+      .catch(() => setSchools([]));
   }, []);
 
   useEffect(() => {
-    setLoading(true);
-    load().finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    load()
+      .then(() => setError(null))
+      .catch((err) => setError(describeApiError(err, "فشل تحميل السجلات")))
+      .finally(() => setLoading(false));
   }, [load]);
 
+  /**
+   * Wraps every field in quotes and doubles any quote inside it.
+   *
+   * Fields were joined with a bare comma, so a school name or a metadata blob
+   * containing a comma — which the JSON always does — shifted every following
+   * column. The file looked fine and was quietly wrong.
+   */
+  function csvField(value: unknown): string {
+    return `"${String(value ?? "").replace(/"/g, '""')}"`;
+  }
+
   function exportCsv() {
+    const header = ["الإجراء", "المدرسة", "المنفذ", "التاريخ", "التفاصيل"].map(csvField).join(",");
     const rows = logs.map((l) =>
-      [l.action, l.schoolName ?? "", l.performed_by, new Date(l.performed_at).toLocaleString("ar-SA"), JSON.stringify(l.metadata ?? {})].join(",")
+      [
+        l.action,
+        l.schoolName ?? "",
+        l.performed_by,
+        formatAst(new Date(l.performed_at), {
+          dateStyle: "short",
+          timeStyle: "short",
+        }),
+        JSON.stringify(l.metadata ?? {}),
+      ]
+        .map(csvField)
+        .join(",")
     );
-    const csv = ["الإجراء,المدرسة,المنفذ,التاريخ,التفاصيل", ...rows].join("\n");
+
+    // The button says "export"; it only ever exported the page on screen.
+    const note = totalPages > 1 ? ` (صفحة ${page + 1} من ${totalPages})` : "";
+    const csv = [header, ...rows].join("\r\n");
+
+    // BOM so Excel opens the Arabic text in UTF-8 rather than the ANSI codepage.
     const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `logs-${Date.now()}.csv`;
+    a.download = `logs${note ? `-page-${page + 1}` : ""}-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
+    URL.revokeObjectURL(url);
   }
 
   return (
     <div className="p-8 space-y-6">
+      {error && (
+        <div
+          role="alert"
+          className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-sm text-red-300"
+        >
+          {error}
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">السجل</h1>

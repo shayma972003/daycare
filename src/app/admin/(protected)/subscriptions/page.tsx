@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import axios from "axios";
+import { describeApiError } from "@/lib/api-error";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 interface SubscriptionsData {
@@ -42,6 +43,8 @@ export default function SubscriptionsPage() {
   const [newPlan, setNewPlan] = useState({ name: "", price: 0, max_students: 50, max_classes: 5, max_whatsapp_per_month: 200 });
   const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
 
+  const [error, setError] = useState<string | null>(null);
+
   async function load() {
     const [subRes, planRes] = await Promise.all([
       axios.get<SubscriptionsData>("/api/admin/subscriptions"),
@@ -51,38 +54,67 @@ export default function SubscriptionsPage() {
     setPlans(planRes.data);
   }
 
-  useEffect(() => { load().finally(() => setLoading(false)); }, []);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    load()
+      .catch((err) => setError(describeApiError(err, "فشل تحميل الاشتراكات")))
+      .finally(() => setLoading(false));
+  }, []);
 
-  async function extend(schoolId: string) {
-    await axios.put(`/api/admin/subscriptions/${schoolId}`, { action: "extend" });
-    await load();
+  /**
+   * Every mutation below used to `await` with no try/catch, so a failed request
+   * changed nothing on screen and gave no reason.
+   */
+  async function run(action: () => Promise<void>, fallback: string) {
+    setError(null);
+    try {
+      await action();
+    } catch (err) {
+      setError(describeApiError(err, fallback));
+    }
   }
 
-  async function changePlan(schoolId: string, plan_id: string) {
-    await axios.put(`/api/admin/subscriptions/${schoolId}`, { action: "change_plan", plan_id });
-    await load();
-  }
+  const extend = (schoolId: string) =>
+    run(async () => {
+      await axios.put(`/api/admin/subscriptions/${schoolId}`, { action: "extend" });
+      await load();
+    }, "تعذر تمديد الاشتراك");
 
-  async function createPlan() {
-    await axios.post("/api/admin/plans", newPlan);
-    setAddPlanOpen(false);
-    setNewPlan({ name: "", price: 0, max_students: 50, max_classes: 5, max_whatsapp_per_month: 200 });
-    const res = await axios.get<Plan[]>("/api/admin/plans");
-    setPlans(res.data);
-  }
+  const changePlan = (schoolId: string, plan_id: string) =>
+    run(async () => {
+      await axios.put(`/api/admin/subscriptions/${schoolId}`, { action: "change_plan", plan_id });
+      await load();
+    }, "تعذر تغيير الخطة");
 
-  async function savePlan(plan: Plan) {
-    await axios.put(`/api/admin/plans/${plan.id}`, plan);
-    setEditingPlan(null);
-    const res = await axios.get<Plan[]>("/api/admin/plans");
-    setPlans(res.data);
-  }
+  const createPlan = () =>
+    run(async () => {
+      await axios.post("/api/admin/plans", newPlan);
+      setAddPlanOpen(false);
+      setNewPlan({ name: "", price: 0, max_students: 50, max_classes: 5, max_whatsapp_per_month: 200 });
+      setPlans((await axios.get<Plan[]>("/api/admin/plans")).data);
+    }, "تعذر إنشاء الخطة");
+
+  const savePlan = (plan: Plan) =>
+    run(async () => {
+      await axios.put(`/api/admin/plans/${plan.id}`, plan);
+      setEditingPlan(null);
+      setPlans((await axios.get<Plan[]>("/api/admin/plans")).data);
+    }, "تعذر حفظ الخطة");
 
   if (loading) return <div className="p-8 text-gray-400 text-sm">جاري التحميل...</div>;
 
   return (
     <div className="p-8 space-y-8">
       <h1 className="text-2xl font-bold text-white">الاشتراكات</h1>
+
+      {error && (
+        <div
+          role="alert"
+          className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-sm text-red-300"
+        >
+          {error}
+        </div>
+      )}
 
       {/* Section A - Schools Table */}
       <section>

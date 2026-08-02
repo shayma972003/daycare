@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import axios from "axios";
+import { describeApiError } from "@/lib/api-error";
 import * as Tabs from "@radix-ui/react-tabs";
 
 interface School { id: string; name: string }
@@ -68,16 +69,33 @@ export default function CommunicationsPage() {
     setAlertRules(rulesRes.data);
   }
 
-  useEffect(() => { load().finally(() => setLoading(false)); }, []);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    load()
+      .catch((err) => setError(describeApiError(err, "فشل تحميل البيانات")))
+      .finally(() => setLoading(false));
+  }, []);
 
   function fillTemplate(t: typeof TEMPLATES[0]) {
     setSubject(t.subject);
     setBody(t.body);
   }
 
+  /** These all awaited with no catch, so a failure looked like nothing happened. */
+  async function run(action: () => Promise<void>, fallback: string) {
+    setError(null);
+    try {
+      await action();
+    } catch (err) {
+      setError(describeApiError(err, fallback));
+    }
+  }
+
   async function sendMessage() {
     setSending(true);
-    try {
+    await run(async () => {
       await axios.post("/api/admin/messages", {
         subject,
         body,
@@ -89,31 +107,40 @@ export default function CommunicationsPage() {
       setSubject("");
       setBody("");
       setScheduledAt("");
-      const res = await axios.get<SentMessage[]>("/api/admin/messages");
-      setSentMessages(res.data);
-    } finally {
-      setSending(false);
-    }
+      setSentMessages((await axios.get<SentMessage[]>("/api/admin/messages")).data);
+    }, "تعذر إرسال الرسالة");
+    setSending(false);
   }
 
-  async function saveRule(rule: AlertRule) {
-    await axios.put(`/api/admin/alert-rules/${rule.id}`, rule);
-    setEditingRule(null);
-    const res = await axios.get<AlertRule[]>("/api/admin/alert-rules");
-    setAlertRules(res.data);
-  }
+  const saveRule = (rule: AlertRule) =>
+    run(async () => {
+      await axios.put(`/api/admin/alert-rules/${rule.id}`, rule);
+      setEditingRule(null);
+      setAlertRules((await axios.get<AlertRule[]>("/api/admin/alert-rules")).data);
+    }, "تعذر حفظ القاعدة");
 
-  async function toggleRule(rule: AlertRule) {
-    await axios.put(`/api/admin/alert-rules/${rule.id}`, { is_active: !rule.is_active });
-    const res = await axios.get<AlertRule[]>("/api/admin/alert-rules");
-    setAlertRules(res.data);
-  }
+  const toggleRule = (rule: AlertRule) =>
+    run(async () => {
+      // Sends the full rule, matching saveRule — the same endpoint was being
+      // called with two different payload shapes.
+      await axios.put(`/api/admin/alert-rules/${rule.id}`, { ...rule, is_active: !rule.is_active });
+      setAlertRules((await axios.get<AlertRule[]>("/api/admin/alert-rules")).data);
+    }, "تعذر تغيير حالة القاعدة");
 
   if (loading) return <div className="p-8 text-gray-400 text-sm">جاري التحميل...</div>;
 
   return (
     <div className="p-8 space-y-6">
       <h1 className="text-2xl font-bold text-white">التواصل</h1>
+
+      {error && (
+        <div
+          role="alert"
+          className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-sm text-red-300"
+        >
+          {error}
+        </div>
+      )}
 
       <Tabs.Root defaultValue="manual">
         <Tabs.List className="flex gap-1 bg-[#1e1e2e] p-1 rounded-xl w-fit border border-white/5 mb-6">

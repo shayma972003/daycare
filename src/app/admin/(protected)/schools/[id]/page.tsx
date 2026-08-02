@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import axios from "axios";
+import { describeApiError } from "@/lib/api-error";
 import * as Tabs from "@radix-ui/react-tabs";
 import { AdminInvoiceModal } from "@/components/admin/AdminInvoiceModal";
 
@@ -106,13 +107,17 @@ export default function SchoolDetailPage() {
   // Delete dialog
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [actionError, setActionError] = useState<string | null>(null);
 
   // Admin invoices
   const [invoices, setInvoices] = useState<AdminInvoice[]>([]);
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
 
   function loadInvoices() {
-    axios.get<AdminInvoice[]>(`/api/admin/invoices/${id}`).then((res) => setInvoices(res.data));
+    axios
+      .get<AdminInvoice[]>(`/api/admin/invoices/${id}`)
+      .then((res) => setInvoices(res.data))
+      .catch(() => setInvoices([]));
   }
 
   useEffect(() => {
@@ -166,7 +171,9 @@ export default function SchoolDetailPage() {
       setEditZakatStatus((s.zakatStatus as "" | "yes" | "no" | "needs_review") ?? "");
       setEditFinancialYear(s.financialYear ?? "");
       setEditTaxPeriod(s.taxPeriod ?? "");
-    }).finally(() => setLoading(false));
+    })
+      .catch((err) => setActionError(describeApiError(err, "فشل تحميل بيانات المدرسة")))
+      .finally(() => setLoading(false));
   }, [id]);
 
   async function handleSave() {
@@ -219,14 +226,54 @@ export default function SchoolDetailPage() {
     router.push("/admin/schools");
   }
 
+  /**
+   * All four handlers above awaited with no catch. Deleting a school in
+   * particular fails outright when the tenant has related rows, and the dialog
+   * simply sat there as though nothing had been clicked.
+   */
+  function guard(action: () => Promise<void>, fallback: string) {
+    return async () => {
+      setActionError(null);
+      try {
+        await action();
+      } catch (err) {
+        setActionError(describeApiError(err, fallback));
+      }
+    };
+  }
+
+  const onSave = guard(handleSave, "تعذر حفظ التعديلات");
+  const onSuspend = guard(handleSuspend, "تعذر تعليق المدرسة");
+  const onReactivate = guard(handleReactivate, "تعذر إعادة التفعيل");
+  const onDelete = guard(handleDelete, "تعذر حذف المدرسة");
+
   if (loading) return <div className="p-8 text-gray-400 text-sm">جاري التحميل...</div>;
-  if (!data) return null;
+  if (!data) {
+    return (
+      <div className="p-8">
+        <div
+          role="alert"
+          className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-sm text-red-300"
+        >
+          {actionError ?? "تعذر تحميل بيانات المدرسة"}
+        </div>
+      </div>
+    );
+  }
 
   const { school, stats, activityLogs, messages } = data;
   const isSuspended = school.subscription_status === "suspended";
 
   return (
     <div className="p-8 space-y-6">
+      {actionError && (
+        <div
+          role="alert"
+          className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-sm text-red-300"
+        >
+          {actionError}
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div>
           <button onClick={() => router.push("/admin/schools")} className="text-gray-400 hover:text-white text-sm mb-2">← العودة</button>
@@ -235,7 +282,7 @@ export default function SchoolDetailPage() {
         <div className="flex gap-3">
           {!editing && <button onClick={() => setEditing(true)} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-xl">تعديل</button>}
           {isSuspended
-            ? <button onClick={handleReactivate} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm rounded-xl">إعادة تفعيل</button>
+            ? <button onClick={onReactivate} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm rounded-xl">إعادة تفعيل</button>
             : <button onClick={() => setSuspendOpen(true)} className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm rounded-xl">إيقاف مؤقت</button>
           }
           <button onClick={() => setDeleteOpen(true)} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm rounded-xl">حذف</button>
@@ -349,7 +396,7 @@ export default function SchoolDetailPage() {
                 <Field label="الفترة الضريبية"><input value={editTaxPeriod} onChange={(e) => setEditTaxPeriod(e.target.value)} className="input-admin" /></Field>
 
                 <div className="flex gap-3 pt-2">
-                  <button onClick={handleSave} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-xl">حفظ</button>
+                  <button onClick={onSave} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-xl">حفظ</button>
                   <button onClick={() => setEditing(false)} className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white text-sm rounded-xl">إلغاء</button>
                 </div>
               </>
@@ -545,7 +592,7 @@ export default function SchoolDetailPage() {
               className="w-full bg-[#0f0f1a] border border-white/10 rounded-xl p-3 text-white text-sm resize-none h-24 focus:outline-none"
             />
             <div className="flex gap-3 mt-4">
-              <button onClick={handleSuspend} disabled={!suspendReason} className="flex-1 bg-orange-600 hover:bg-orange-700 disabled:opacity-50 text-white text-sm py-2 rounded-xl">إيقاف</button>
+              <button onClick={onSuspend} disabled={!suspendReason} className="flex-1 bg-orange-600 hover:bg-orange-700 disabled:opacity-50 text-white text-sm py-2 rounded-xl">إيقاف</button>
               <button onClick={() => setSuspendOpen(false)} className="flex-1 bg-white/5 hover:bg-white/10 text-white text-sm py-2 rounded-xl">إلغاء</button>
             </div>
           </div>
@@ -567,7 +614,7 @@ export default function SchoolDetailPage() {
             />
             <div className="flex gap-3">
               <button
-                onClick={handleDelete}
+                onClick={onDelete}
                 disabled={deleteConfirm !== school.name}
                 className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-40 text-white text-sm py-2 rounded-xl"
               >

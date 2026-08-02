@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import axios from "axios";
+import { describeApiError } from "@/lib/api-error";
 
 interface AlertRule {
   id: string;
@@ -43,11 +44,18 @@ export default function AdminSettingsPage() {
     });
   }, []);
 
+  const [ruleError, setRuleError] = useState<string | null>(null);
+
   async function saveRule(rule: AlertRule) {
-    await axios.put(`/api/admin/alert-rules/${rule.id}`, rule);
-    setEditingRule(null);
-    const res = await axios.get<AlertRule[]>("/api/admin/alert-rules");
-    setAlertRules(res.data);
+    setRuleError(null);
+    try {
+      await axios.put(`/api/admin/alert-rules/${rule.id}`, rule);
+      setEditingRule(null);
+      setAlertRules((await axios.get<AlertRule[]>("/api/admin/alert-rules")).data);
+    } catch (err) {
+      // Was unguarded: a failed save closed nothing and reported nothing.
+      setRuleError(describeApiError(err, "تعذر حفظ القاعدة"));
+    }
   }
 
   async function changePassword() {
@@ -95,6 +103,14 @@ export default function AdminSettingsPage() {
       {/* Alert Rules */}
       <section>
         <h2 className="text-white font-semibold mb-4">قواعد التنبيهات التلقائية</h2>
+        {ruleError && (
+          <div
+            role="alert"
+            className="mb-3 p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-sm text-red-300"
+          >
+            {ruleError}
+          </div>
+        )}
         <div className="bg-[#1e1e2e] rounded-2xl border border-white/5 overflow-hidden">
           <table className="w-full text-sm">
             <thead>

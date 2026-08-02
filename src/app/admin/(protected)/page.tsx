@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import axios from "axios";
+import { describeApiError } from "@/lib/api-error";
 import Link from "next/link";
 
 interface OverviewData {
@@ -55,8 +56,15 @@ export default function AdminOverviewPage() {
   const [data, setData] = useState<OverviewData | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const [error, setError] = useState<string | null>(null);
+
   useEffect(() => {
-    axios.get<OverviewData>("/api/admin/overview").then((r) => setData(r.data)).finally(() => setLoading(false));
+    axios
+      .get<OverviewData>("/api/admin/overview")
+      .then((r) => setData(r.data))
+      // Without this a failed load left "جاري التحميل..." on screen forever.
+      .catch((err) => setError(describeApiError(err, "فشل تحميل لوحة المعلومات")))
+      .finally(() => setLoading(false));
   }, []);
 
   if (loading) {
@@ -65,7 +73,19 @@ export default function AdminOverviewPage() {
     );
   }
 
-  if (!data) return null;
+  // `return null` on failure rendered a blank page with no explanation.
+  if (!data) {
+    return (
+      <div className="p-8">
+        <div
+          role="alert"
+          className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-sm text-red-300"
+        >
+          {error ?? "تعذر تحميل البيانات"}
+        </div>
+      </div>
+    );
+  }
 
   const { stats, alerts, recentLogs } = data;
 

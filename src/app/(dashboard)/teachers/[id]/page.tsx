@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import axios from "axios";
+import { describeApiError } from "@/lib/api-error";
 import { t, formatDate, formatCurrency } from "@/lib/utils";
 import { TeacherInvoiceModal } from "@/components/teachers/TeacherInvoiceModal";
 
@@ -140,6 +141,9 @@ export default function TeacherProfilePage() {
         qualification1: values.qualification1 || null,
         qualification2: values.qualification2 || null,
         qualification3: values.qualification3 || null,
+        // The class select was registered and rendered, but its value was never
+        // included in the payload — picking a class and saving did nothing.
+        classId: values.classId || null,
         ...extraPayload,
       });
       setSaveSuccess(true);
@@ -148,10 +152,21 @@ export default function TeacherProfilePage() {
     finally { setSaving(false); }
   }
 
+  const [actionMessage, setActionMessage] = useState<{ text: string; ok: boolean } | null>(null);
+
   async function handleDeleteLateFee() {
     setActionLoading("lateFee");
-    try { await axios.delete(`/api/teachers/${id}/late-fee`); await loadTeacher(); }
-    catch { /* silent */ } finally { setActionLoading(null); }
+    setActionMessage(null);
+    try {
+      await axios.delete(`/api/teachers/${id}/late-fee`);
+      await loadTeacher();
+      setActionMessage({ text: "تم حذف رسوم التأخير", ok: true });
+    } catch (err) {
+      // Was swallowed silently, so a failed delete looked identical to success.
+      setActionMessage({ text: describeApiError(err, "تعذر حذف رسوم التأخير"), ok: false });
+    } finally {
+      setActionLoading(null);
+    }
   }
 
   async function confirmDeleteLateFee() {
@@ -161,12 +176,33 @@ export default function TeacherProfilePage() {
 
   async function handleCancel() {
     setActionLoading("cancel");
-    try { await axios.post(`/api/teachers/${id}/cancel`); await loadTeacher(); }
-    catch { /* silent */ } finally { setActionLoading(null); }
+    setActionMessage(null);
+    try {
+      await axios.post(`/api/teachers/${id}/cancel`);
+      await loadTeacher();
+      setActionMessage({ text: "تم إلغاء الاشتراك", ok: true });
+    } catch (err) {
+      setActionMessage({ text: describeApiError(err, "تعذر إلغاء الاشتراك"), ok: false });
+    } finally {
+      setActionLoading(null);
+    }
   }
 
-  function handleSendReminder() {
-    alert("تم الإرسال");
+  /**
+   * This used to be `alert("تم الإرسال")` with no request at all — staff were
+   * told a notice had been sent when nothing had happened.
+   */
+  async function handleSendReminder() {
+    setActionLoading("reminder");
+    setActionMessage(null);
+    try {
+      const res = await axios.post<{ sentTo: string }>(`/api/teachers/${id}/reminder`);
+      setActionMessage({ text: `تم الإرسال إلى ${res.data.sentTo}`, ok: true });
+    } catch (err) {
+      setActionMessage({ text: describeApiError(err, "تعذر إرسال الإشعار"), ok: false });
+    } finally {
+      setActionLoading(null);
+    }
   }
 
   function onInvoiceIssued(inv: { id: string; amount: number; pdfUrl: string | null; createdAt: string }) {
@@ -380,6 +416,18 @@ export default function TeacherProfilePage() {
               {/* Feedback */}
               {saveError && <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{saveError}</div>}
               {saveSuccess && <div className="p-3 bg-success-bg border border-success-text/20 rounded-xl text-sm text-success-text">{t("common.success")}</div>}
+              {actionMessage && (
+                <div
+                  role="alert"
+                  className={`p-3 rounded-xl text-sm border ${
+                    actionMessage.ok
+                      ? "bg-success-bg border-success-text/20 text-success-text"
+                      : "bg-red-50 border-red-200 text-red-700"
+                  }`}
+                >
+                  {actionMessage.text}
+                </div>
+              )}
             </div>
 
             {/* Sidebar */}

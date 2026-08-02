@@ -1,6 +1,7 @@
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
+import { astDateOnly } from "@/lib/datetime";
 
 export async function POST(
   request: Request,
@@ -20,38 +21,24 @@ export async function POST(
     return Response.json({ error: "Not found" }, { status: 404 });
   }
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  const now = new Date();
+  // AST business day. Host-local midnight flipped the day three hours early on
+  // a UTC server, so this route and the kiosk disagreed about which day it was.
+  const today = astDateOnly(now);
 
-  const existing = await prisma.attendance.findFirst({
-    where: {
+  // Upsert against the (studentId, date) unique key: a double click updates the
+  // same row rather than racing findFirst-then-create into a duplicate.
+  const attendance = await prisma.attendance.upsert({
+    where: { studentId_date: { studentId: id, date: today } },
+    create: {
       studentId: id,
       schoolId,
-      date: { gte: today, lt: tomorrow },
+      classId: student.classId ?? null,
+      checkinAt: now,
+      date: today,
     },
+    update: { checkinAt: now },
   });
-
-  const now = new Date();
-
-  let attendance;
-  if (existing) {
-    attendance = await prisma.attendance.update({
-      where: { id: existing.id },
-      data: { checkinAt: now },
-    });
-  } else {
-    attendance = await prisma.attendance.create({
-      data: {
-        studentId: id,
-        schoolId,
-        classId: student.classId ?? null,
-        checkinAt: now,
-        date: today,
-      },
-    });
-  }
 
   await logAction({
     school_id: schoolId,

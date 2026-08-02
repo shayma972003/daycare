@@ -20,10 +20,19 @@ export async function DELETE(
     return Response.json({ error: "Not found" }, { status: 404 });
   }
 
-  await prisma.teacher.update({
-    where: { id },
-    data: { lateHours: 0 },
-  });
+  // Clearing `lateHours` without touching the attendance rows left the two
+  // permanently inconsistent — the teacher showed zero while the records that
+  // produced the figure still carried it.
+  await prisma.$transaction([
+    prisma.teacher.update({
+      where: { id },
+      data: { lateHours: 0 },
+    }),
+    prisma.teacherAttendance.updateMany({
+      where: { teacherId: id, schoolId },
+      data: { lateMinutes: 0, compensated: true },
+    }),
+  ]);
 
   await logAction({
     school_id: schoolId,

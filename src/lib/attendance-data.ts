@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { astDateOnly } from "@/lib/datetime";
 
 export interface AttendancePerson {
   id: string;
@@ -21,9 +22,10 @@ export async function getAttendancePageData(schoolId: string): Promise<{
   teachers: AttendancePerson[];
   classes: AttendanceClass[];
 }> {
-  const now = new Date();
-  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+  // `Attendance.date` is a bare calendar date, so it is matched by equality
+  // against the AST business day. Host-local midnight put the board a day out
+  // between 21:00 and midnight UTC.
+  const today = astDateOnly();
 
   const [students, teachers, classes] = await Promise.all([
     prisma.student.findMany({
@@ -36,7 +38,7 @@ export async function getAttendancePageData(schoolId: string): Promise<{
         period: true,
         class: { select: { name: true } },
         attendances: {
-          where: { date: { gte: startOfDay, lt: endOfDay } },
+          where: { date: today },
           orderBy: { date: "desc" },
           take: 1,
           select: { checkinAt: true, checkoutAt: true },
@@ -50,9 +52,17 @@ export async function getAttendancePageData(schoolId: string): Promise<{
         id: true,
         name: true,
         period: true,
-        classes: { select: { id: true, name: true }, take: 1 },
+        // A deleted class still showed as the teacher's class here, unlike the
+        // sibling class query below which filters it. `orderBy` makes the pick
+        // deterministic when a teacher owns several.
+        classes: {
+          where: { deletedAt: null },
+          select: { id: true, name: true },
+          orderBy: { name: "asc" },
+          take: 1,
+        },
         teacherAttendances: {
-          where: { date: { gte: startOfDay, lt: endOfDay } },
+          where: { date: today },
           orderBy: { date: "desc" },
           take: 1,
           select: { checkinAt: true, checkoutAt: true },

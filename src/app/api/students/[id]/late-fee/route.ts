@@ -20,26 +20,20 @@ export async function DELETE(
     return Response.json({ error: "Not found" }, { status: 404 });
   }
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-
-  // Reset lateHours on student
-  await prisma.student.update({
-    where: { id },
-    data: { lateHours: 0 },
-  });
-
-  // Reset lateFee on all today's attendance records
-  await prisma.attendance.updateMany({
-    where: {
-      studentId: id,
-      schoolId,
-      date: { gte: today, lt: tomorrow },
-    },
-    data: { lateFee: 0 },
-  });
+  // `Student.lateHours` is a lifetime total, but only *today's* attendance rows
+  // were being cleared, so the two drifted permanently apart: the student showed
+  // zero late hours while historical rows still carried fees. Both are cleared
+  // together, in one transaction.
+  await prisma.$transaction([
+    prisma.student.update({
+      where: { id },
+      data: { lateHours: 0 },
+    }),
+    prisma.attendance.updateMany({
+      where: { studentId: id, schoolId },
+      data: { lateFee: 0, lateMinutes: 0 },
+    }),
+  ]);
 
   await logAction({
     school_id: schoolId,

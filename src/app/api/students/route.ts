@@ -8,6 +8,7 @@ import {
   assertGuardianOwned,
   crossTenantResponse,
 } from "@/lib/tenant-guard";
+import { assertStudentCapacity, planLimitResponse } from "@/lib/plan-limits";
 import {
   parseAcademicStage,
   parseAttendanceType,
@@ -152,9 +153,14 @@ export async function POST(request: Request) {
   let guardianId: string | null;
   let ownedClassId: string | null;
   try {
+    // Plan caps were stored and displayed but never enforced — a school on a
+    // 20-student trial could enrol two hundred.
+    await assertStudentCapacity(schoolId);
     guardianId = await assertGuardianOwned(clientGuardianId, schoolId);
     ownedClassId = await assertClassOwned(classId, schoolId);
   } catch (error) {
+    const overLimit = planLimitResponse(error);
+    if (overLimit) return overLimit;
     const denied = crossTenantResponse(error);
     if (denied) return denied;
     throw error;

@@ -2,6 +2,7 @@ import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
 import { assertTeacherOwned, crossTenantResponse } from "@/lib/tenant-guard";
+import { assertClassCapacity, planLimitResponse } from "@/lib/plan-limits";
 import { parseClassGroup } from "@/lib/enum-labels";
 import { z } from "zod";
 
@@ -87,8 +88,11 @@ export async function POST(request: Request) {
   // list query includes `teacher: { name }`, leaking it straight back out.
   let ownedTeacherId: string | null;
   try {
+    await assertClassCapacity(schoolId);
     ownedTeacherId = await assertTeacherOwned(teacherId, schoolId);
   } catch (error) {
+    const overLimit = planLimitResponse(error);
+    if (overLimit) return overLimit;
     const denied = crossTenantResponse(error);
     if (denied) return denied;
     throw error;

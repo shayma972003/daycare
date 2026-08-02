@@ -182,21 +182,34 @@ export async function DELETE(
   const school = await prisma.school.findUnique({ where: { id } });
   if (!school) return Response.json({ error: "Not found" }, { status: 404 });
 
-  // Log before deletion
-  await prisma.adminActivityLog.create({
-    data: { action: "school_deleted", metadata: { schoolName: school.name, schoolId: id }, performed_by: "admin" },
-  });
-
-  // Delete in dependency order
+  // Deletion runs first and the audit entry is written only once it succeeds.
+  // The previous order logged "school_deleted" before attempting the delete, so
+  // a failure left the audit log asserting a deletion that never happened.
+  //
+  // Eight models with a non-nullable School FK were missing from this list —
+  // PaymentCycle, ActivityLog, AdminInvoice, TwoFASession, Expense,
+  // FinancialReport, EnrollmentToken and EnrollmentSubmission. Deleting any
+  // school that had ever logged an action or recorded an expense raised a
+  // foreign-key violation, which is to say: this route did not work.
   await prisma.$transaction([
     prisma.adminMessageRecipient.deleteMany({ where: { school_id: id } }),
     prisma.adminActivityLog.deleteMany({ where: { school_id: id } }),
+    prisma.activityLog.deleteMany({ where: { school_id: id } }),
+    prisma.exportAuditLog.deleteMany({ where: { schoolId: id } }),
     prisma.importRow.deleteMany({ where: { session: { school_id: id } } }),
     prisma.importSession.deleteMany({ where: { school_id: id } }),
+    prisma.enrollmentSubmission.deleteMany({ where: { school_id: id } }),
+    prisma.enrollmentToken.deleteMany({ where: { school_id: id } }),
+    prisma.twoFASession.deleteMany({ where: { schoolId: id } }),
     prisma.attendance.deleteMany({ where: { schoolId: id } }),
     prisma.teacherAttendance.deleteMany({ where: { schoolId: id } }),
+    prisma.paymentCycle.deleteMany({ where: { school_id: id } }),
+    prisma.adminInvoice.deleteMany({ where: { school_id: id } }),
     prisma.invoice.deleteMany({ where: { schoolId: id } }),
+    prisma.invoiceCounter.deleteMany({ where: { schoolId: id } }),
     prisma.notificationLog.deleteMany({ where: { schoolId: id } }),
+    prisma.expense.deleteMany({ where: { school_id: id } }),
+    prisma.financialReport.deleteMany({ where: { school_id: id } }),
     prisma.monthlyExpense.deleteMany({ where: { schoolId: id } }),
     prisma.activityInvite.deleteMany({ where: { activity: { schoolId: id } } }),
     prisma.activity.deleteMany({ where: { schoolId: id } }),
@@ -208,6 +221,14 @@ export async function DELETE(
     prisma.user.deleteMany({ where: { schoolId: id } }),
     prisma.school.delete({ where: { id } }),
   ]);
+
+  await prisma.adminActivityLog.create({
+    data: {
+      action: "school_deleted",
+      metadata: { schoolName: school.name, schoolId: id },
+      performed_by: "admin",
+    },
+  });
 
   return Response.json({ success: true });
 }

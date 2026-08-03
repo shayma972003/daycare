@@ -1,4 +1,4 @@
-import { requireSession } from "@/lib/session";
+import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { sendNotification } from "@/lib/notifications";
 import { buildMessageVars } from "@/lib/message-variables";
@@ -11,8 +11,12 @@ export async function POST(
   let session;
   try {
     session = await requireSession();
-  } catch {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (error) {
+    // 403 when the caller is known but lacks the permission; 401 otherwise.
+    return (
+      sessionErrorResponse(error) ??
+      Response.json({ error: "Unauthorized" }, { status: 401 })
+    );
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
   const { id } = await params;
@@ -66,7 +70,10 @@ export async function POST(
     reminderTemplate,
     vars,
     schoolName,
-    "reminder"
+    "reminder",
+    // The message goes to the guardian but is about the child — recorded so the
+    // retention sweep can clear the name from this log later.
+    { studentId: student.id }
   );
 
   await logAction({

@@ -56,6 +56,30 @@ const envSchema = z.object({
   /** Public links in outbound messages. Falls back to NEXTAUTH_URL. */
   NEXT_PUBLIC_APP_URL: optional(z.string().url()),
 
+  // ─── Monitoring — every one optional, the app runs without them ───────────
+  /**
+   * Sentry. Public by design: a DSN is embedded in the browser bundle and is not
+   * a credential — it can only be used to *send* events, not read them.
+   */
+  NEXT_PUBLIC_SENTRY_DSN: optional(z.string().url()),
+  /** Source-map upload at build time. Absent means traces stay minified. */
+  SENTRY_AUTH_TOKEN: optional(z.string()),
+  SENTRY_ORG: optional(z.string()),
+  SENTRY_PROJECT: optional(z.string()),
+  /** Any endpoint accepting JSON — a Slack webhook, typically. */
+  ERROR_WEBHOOK_URL: optional(z.string().url()),
+
+  // ─── Cloudflare R2 — object storage for uploads ────────────────────────────
+  /**
+   * All four or none. Without them uploads fall back to base64-in-column, which
+   * still works — so a missing key degrades one behaviour instead of taking the
+   * app down. `storageEnabled` below is the single check every caller uses.
+   */
+  R2_ACCOUNT_ID: optional(z.string()),
+  R2_ACCESS_KEY_ID: optional(z.string()),
+  R2_SECRET_ACCESS_KEY: optional(z.string()),
+  R2_BUCKET: optional(z.string()),
+
   // ─── WhatsApp (Twilio) — off unless explicitly enabled ─────────────────────
   ENABLE_WHATSAPP: z
     .string()
@@ -135,6 +159,17 @@ export const emailProvider: "resend" | "smtp" | "none" = !env.FROM_EMAIL
 
 /** Email delivery is configured and usable. */
 export const emailEnabled = emailProvider !== "none";
+
+/**
+ * Object storage is fully configured.
+ *
+ * All four or nothing: three-quarters of a credential set is not a working
+ * bucket, and letting uploads *try* would give a runtime failure per upload
+ * instead of one clear "not configured" at the seam.
+ */
+export const storageEnabled = Boolean(
+  env.R2_ACCOUNT_ID && env.R2_ACCESS_KEY_ID && env.R2_SECRET_ACCESS_KEY && env.R2_BUCKET
+);
 
 /** WhatsApp is explicitly enabled *and* fully configured. */
 export const whatsappEnabled = Boolean(

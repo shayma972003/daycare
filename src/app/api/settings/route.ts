@@ -1,4 +1,4 @@
-import { requireSession } from "@/lib/session";
+import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
 import { z } from "zod";
@@ -27,8 +27,12 @@ export async function GET(_request: Request) {
   let session;
   try {
     session = await requireSession();
-  } catch {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (error) {
+    // 403 when the caller is known but lacks the permission; 401 otherwise.
+    return (
+      sessionErrorResponse(error) ??
+      Response.json({ error: "Unauthorized" }, { status: 401 })
+    );
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
 
@@ -67,8 +71,12 @@ export async function PUT(request: Request) {
   let session;
   try {
     session = await requireSession();
-  } catch {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (error) {
+    // 403 when the caller is known but lacks the permission; 401 otherwise.
+    return (
+      sessionErrorResponse(error) ??
+      Response.json({ error: "Unauthorized" }, { status: 401 })
+    );
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
 
@@ -121,15 +129,63 @@ export async function PUT(request: Request) {
   if (address !== undefined) schoolData.address = address;
   if (phoneNumber !== undefined) schoolData.phoneNumber = phoneNumber;
 
-  const [settings] = await Promise.all([
+  /**
+   * The account email is the login credential, and it lives on `User`, not on
+   * `School`.
+   *
+   * Editing it here only ever touched `School.email`, so the address shown in
+   * settings drifted away from the one that actually signs in — and password
+   * reset, 2FA and every notification kept going to the old one. The two are
+   * written together now, inside a transaction, so they cannot diverge again.
+   *
+   * Refused rather than silently skipped when the school has more than one user
+   * (there is no way to know whose login was meant) or when the address is
+   * already taken (`User.email` is unique, and a raw constraint violation would
+   * surface as a 500).
+   */
+  if (email !== undefined) {
+    const users = await prisma.user.findMany({
+      where: { schoolId },
+      select: { id: true, email: true },
+    });
+
+    if (users.length > 1) {
+      return Response.json(
+        { error: "لا يمكن تغيير البريد من هنا لوجود أكثر من مستخدم للمنشأة" },
+        { status: 409 }
+      );
+    }
+
+    if (users.length === 1 && users[0].email !== email) {
+      const taken = await prisma.user.findFirst({
+        where: { email, id: { not: users[0].id } },
+        select: { id: true },
+      });
+      if (taken) {
+        return Response.json(
+          { error: "هذا البريد مستخدم في حساب آخر" },
+          { status: 409 }
+        );
+      }
+      schoolData.__syncUserId = users[0].id;
+    }
+  }
+
+  const syncUserId = schoolData.__syncUserId as string | undefined;
+  delete schoolData.__syncUserId;
+
+  const [settings] = await prisma.$transaction([
     prisma.settings.upsert({
       where: { schoolId },
       create: { schoolId, ...settingsData },
       update: settingsData,
     }),
-    Object.keys(schoolData).length > 0
-      ? prisma.school.update({ where: { id: schoolId }, data: schoolData })
-      : Promise.resolve(null),
+    ...(Object.keys(schoolData).length > 0
+      ? [prisma.school.update({ where: { id: schoolId }, data: schoolData })]
+      : []),
+    ...(syncUserId
+      ? [prisma.user.update({ where: { id: syncUserId }, data: { email: email! } })]
+      : []),
   ]);
 
   await logAction({

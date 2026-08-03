@@ -1,3 +1,5 @@
+import { formatAst } from "@/lib/datetime";
+
 export interface MessageContext {
   student?: {
     name?: string | null;
@@ -21,9 +23,23 @@ export interface MessageContext {
   };
 }
 
+/**
+ * Date for a message body.
+ *
+ * `toLocaleDateString("ar-SA")` resolves to the Gregorian calendar, so this was
+ * not sending Hijri dates — but it was wrong twice over:
+ *
+ * - **No time zone.** It used the host's, which on Vercel is UTC. A reminder
+ *   generated after 21:00 Riyadh time quoted the previous day as the due date.
+ * - **Arabic-Indic numerals.** "٠٣/٠٨/٢٠٢٦" in the message against "03/08/2026"
+ *   on screen — the same date, looking like two.
+ *
+ * Routed through `formatAst`, the single definition of how this product writes
+ * a date.
+ */
 function toArabicDate(value: Date | string | null | undefined): string {
   if (!value) return "";
-  return new Date(value).toLocaleDateString("ar-SA", {
+  return formatAst(new Date(value), {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -58,12 +74,4 @@ export function buildMessageVars(ctx: MessageContext): Record<string, string> {
         ? `${ctx.student.registration_fee} ر.س`
         : "",
   };
-}
-
-export function replaceMessageVariables(
-  template: string,
-  ctx: MessageContext
-): string {
-  const vars = buildMessageVars(ctx);
-  return template.replace(/<(\w+)>/g, (match, key) => vars[key] ?? match);
 }

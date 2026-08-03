@@ -1,7 +1,13 @@
-import { requireSession } from "@/lib/session";
+import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
 import { assertClassOwned, crossTenantResponse } from "@/lib/tenant-guard";
+import { astParts, astDateOnly } from "@/lib/datetime";
+import {
+  EMPLOYMENT_STATUSES,
+  buildTeacherDeparture,
+  getRetentionPolicy,
+} from "@/lib/data-retention";
 import { z } from "zod";
 
 const updateTeacherSchema = z.object({
@@ -31,6 +37,16 @@ const updateTeacherSchema = z.object({
   qualification10: z.string().nullish(),
   enrollmentEndDate: z.string().nullish(),
   isActive: z.boolean().optional(),
+  /** Post, qualification and field of study (task 2.39). */
+  jobTitle: z.string().max(80).nullish(),
+  educationLevel: z
+    .enum(["HIGH_SCHOOL", "DIPLOMA", "BACHELOR", "MASTER", "PHD", "OTHER"])
+    .nullish(),
+  specialization: z.string().max(120).nullish(),
+  /** Employment lifecycle. Anything but ACTIVE starts the retention clock. */
+  status: z.enum(EMPLOYMENT_STATUSES as [string, ...string[]]).optional(),
+  /** Last working day. Defaults to now when a leaving status arrives without one. */
+  leftAt: z.string().nullish(),
 });
 
 export async function GET(
@@ -40,8 +56,12 @@ export async function GET(
   let session;
   try {
     session = await requireSession();
-  } catch {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (error) {
+    // 403 when the caller is known but lacks the permission; 401 otherwise.
+    return (
+      sessionErrorResponse(error) ??
+      Response.json({ error: "Unauthorized" }, { status: 401 })
+    );
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
   const { id } = await params;
@@ -56,14 +76,21 @@ export async function GET(
       return Response.json({ error: "Not found" }, { status: 404 });
     }
 
+    // Month boundary in AST, not in server-local time. On Vercel the host runs
+    // in UTC, so `new Date(y, m, 1)` named the wrong instant and, in the first
+    // three hours of every month, counted the previous month's lateness.
     const now = new Date();
+    const { year, month } = astParts(now);
     const lateCountThisMonth = await prisma.teacherAttendance.count({
       where: {
         teacherId: id,
+        // Defence in depth: the teacher was already scoped, but attendance rows
+        // carry their own `schoolId` and there is no reason not to use it.
+        schoolId,
         lateMinutes: { gt: 0 },
         compensated: false,
         date: {
-          gte: new Date(now.getFullYear(), now.getMonth(), 1),
+          gte: astDateOnly(new Date(Date.UTC(year, month, 1))),
           lte: now,
         },
       },
@@ -83,8 +110,12 @@ export async function PUT(
   let session;
   try {
     session = await requireSession();
-  } catch {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (error) {
+    // 403 when the caller is known but lacks the permission; 401 otherwise.
+    return (
+      sessionErrorResponse(error) ??
+      Response.json({ error: "Unauthorized" }, { status: 401 })
+    );
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
   const { id } = await params;
@@ -129,11 +160,48 @@ export async function PUT(
       ? new Date(data.enrollmentEndDate)
       : null;
   }
+  if ("jobTitle" in data) updateData.jobTitle = data.jobTitle?.trim() || null;
+  if ("educationLevel" in data) updateData.educationLevel = data.educationLevel ?? null;
+  if ("specialization" in data) {
+    updateData.specialization = data.specialization?.trim() || null;
+  }
   if (data.isActive !== undefined) updateData.isActive = data.isActive;
 
   const existing = await prisma.teacher.findFirst({ where: { id, schoolId, deletedAt: null } });
   if (!existing) {
     return Response.json({ error: "Not found" }, { status: 404 });
+  }
+
+  // Anonymisation is a one-way door — see the matching guard on the student
+  // route for why an edit afterwards cannot be allowed.
+  if (existing.anonymizedAt) {
+    return Response.json(
+      { error: "هذا السجل مجهَّل نهائياً ولا يمكن تعديله" },
+      { status: 409 }
+    );
+  }
+
+  // ---- Employment lifecycle -----------------------------------------------
+  // Mirrors the student route: classification and departure date are written
+  // together, because the retention clock has nothing to count from otherwise.
+  const departureStatus = data.status
+    ? (data.status as (typeof EMPLOYMENT_STATUSES)[number])
+    : data.isActive === false && existing.status === "ACTIVE"
+      ? ("RESIGNED" as const)
+      : data.isActive === true && existing.status !== "ACTIVE"
+        ? ("ACTIVE" as const)
+        : null;
+
+  if (departureStatus) {
+    const policy = await getRetentionPolicy();
+    const leftAt = data.leftAt ? new Date(data.leftAt) : (existing.leftAt ?? null);
+
+    Object.assign(
+      updateData,
+      buildTeacherDeparture(departureStatus, leftAt, policy.employeeRetentionYears)
+    );
+
+    if (data.isActive !== undefined) updateData.isActive = data.isActive;
   }
 
   // Class assignment lives on Class.teacherId, not on Teacher, so it is applied
@@ -195,8 +263,12 @@ export async function DELETE(
   let session;
   try {
     session = await requireSession();
-  } catch {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (error) {
+    // 403 when the caller is known but lacks the permission; 401 otherwise.
+    return (
+      sessionErrorResponse(error) ??
+      Response.json({ error: "Unauthorized" }, { status: 401 })
+    );
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
   const { id } = await params;
@@ -206,15 +278,17 @@ export async function DELETE(
     return Response.json({ error: "Not found" }, { status: 404 });
   }
 
+  // `schoolId` on both secondary queries — see the matching note in the class
+  // route for why the redundant filter is deliberate.
   const assignedClasses = await prisma.class.findMany({
-    where: { teacherId: id, deletedAt: null },
+    where: { teacherId: id, schoolId, deletedAt: null },
     select: { id: true, name: true, group: true },
   });
 
   await prisma.$transaction([
     prisma.teacher.update({ where: { id }, data: { deletedAt: new Date() } }),
     prisma.class.updateMany({
-      where: { teacherId: id, deletedAt: null },
+      where: { teacherId: id, schoolId, deletedAt: null },
       data: { teacherId: null, needsTeacherWarning: true },
     }),
   ]);

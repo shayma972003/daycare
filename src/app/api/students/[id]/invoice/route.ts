@@ -1,6 +1,8 @@
-import { requireSession } from "@/lib/session";
+import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
+import { VAT_RATE } from "@/lib/finance";
+import { findInvoiceThisMonth, duplicateInvoiceResponse } from "@/lib/invoice-duplicates";
 
 export async function POST(
   request: Request,
@@ -9,8 +11,12 @@ export async function POST(
   let session;
   try {
     session = await requireSession();
-  } catch {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (error) {
+    // 403 when the caller is known but lacks the permission; 401 otherwise.
+    return (
+      sessionErrorResponse(error) ??
+      Response.json({ error: "Unauthorized" }, { status: 401 })
+    );
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
   const { id } = await params;
@@ -24,10 +30,35 @@ export async function POST(
     return Response.json({ error: "Not found" }, { status: 404 });
   }
 
-  const settings = await prisma.settings.findUnique({ where: { schoolId } });
+  // A double click on "issue invoice" used to produce two documents for the same
+  // month, both counted as revenue. `?force=1` reissues deliberately.
+  const force = new URL(request.url).searchParams.get("force") === "1";
+  if (!force) {
+    const existing = await findInvoiceThisMonth(schoolId, { studentId: id });
+    if (existing) return duplicateInvoiceResponse(existing);
+  }
+
+  const [settings, school] = await Promise.all([
+    prisma.settings.findUnique({ where: { schoolId } }),
+    prisma.school.findUnique({ where: { id: schoolId }, select: { vatRegistered: true } }),
+  ]);
   const monthlyStudentFee = settings?.monthlyStudentFee ?? 0;
 
   const issueDate = new Date().toISOString().split("T")[0];
+
+  /**
+   * VAT is computed and stored, not left at the column default.
+   *
+   * `vat_amount` was written by exactly one of the five invoice-creation paths,
+   * so most invoices recorded zero tax regardless of the school's registration —
+   * and the finance layer, which subtracts VAT out of revenue, was reading a
+   * figure that had never been calculated. The fee is treated as VAT-inclusive
+   * (it is the price a guardian is quoted), so the tax is extracted from it
+   * rather than added on top, which would silently raise everybody's bill.
+   */
+  const vatAmount = school?.vatRegistered
+    ? Math.round(((monthlyStudentFee * VAT_RATE) / (1 + VAT_RATE) + Number.EPSILON) * 100) / 100
+    : 0;
 
   const invoiceData = {
     studentName: student.name,
@@ -36,6 +67,7 @@ export async function POST(
     class: student.class?.name ?? "",
     period: student.period,
     monthlyFee: monthlyStudentFee,
+    vatAmount,
     issueDate,
   };
 
@@ -45,6 +77,7 @@ export async function POST(
       type: "STUDENT",
       studentId: id,
       amount: monthlyStudentFee,
+      vat_amount: vatAmount,
       data: invoiceData,
     },
     include: { student: true },

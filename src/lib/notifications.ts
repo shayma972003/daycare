@@ -127,6 +127,19 @@ body{font-family:'Tajawal',Arial,sans-serif;background:#f4f6fb;margin:0;padding:
   }
 }
 
+/**
+ * Who the message is *about*, as opposed to who receives it.
+ *
+ * A payment reminder goes to a guardian but concerns a child, and the logged
+ * body quotes that child by name. Recording the subject is what lets the
+ * retention sweep find these rows years later — without it the name outlives
+ * anonymisation in every reminder ever sent. See docs/DATA_LIFECYCLE.md.
+ */
+export interface NotificationSubject {
+  studentId?: string | null;
+  teacherId?: string | null;
+}
+
 export async function sendNotification(
   schoolId: string,
   recipientName: string,
@@ -135,9 +148,14 @@ export async function sendNotification(
   template: string,
   vars: NotificationVars,
   schoolName: string,
-  source: string = "other"
+  source: string = "other",
+  subject: NotificationSubject = {}
 ) {
   const message = replaceVariables(template, vars as Record<string, string>);
+  const subjectColumns = {
+    studentId: subject.studentId ?? null,
+    teacherId: subject.teacherId ?? null,
+  };
 
   const results: Array<Promise<void>> = [];
 
@@ -154,6 +172,7 @@ export async function sendNotification(
             content: message,
             status: res.success ? "SENT" : "FAILED",
             source,
+            ...subjectColumns,
           },
         });
       })
@@ -172,6 +191,7 @@ export async function sendNotification(
               content: message,
               status: res.success ? "SENT" : "FAILED",
               source,
+              ...subjectColumns,
             },
           });
         }

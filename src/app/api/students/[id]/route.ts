@@ -1,4 +1,4 @@
-import { requireSession } from "@/lib/session";
+import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
 import { generatePaymentCycles } from "@/lib/payment-cycles";
@@ -9,6 +9,11 @@ import {
 } from "@/lib/tenant-guard";
 import { parseAcademicStage, parseAttendanceType, parsePaymentStatus } from "@/lib/enum-labels";
 import { protectIdNumber } from "@/lib/pii-crypto";
+import {
+  STUDENT_STATUSES,
+  buildStudentDeparture,
+  getRetentionPolicy,
+} from "@/lib/data-retention";
 import { z } from "zod";
 
 const updateStudentSchema = z.object({
@@ -29,6 +34,10 @@ const updateStudentSchema = z.object({
   paymentStatus: z.string().nullish(),
   isActive: z.boolean().optional(),
   registration_fee: z.number().min(0).optional(),
+  /** Enrolment lifecycle. Sending anything but ACTIVE starts the retention clock. */
+  status: z.enum(STUDENT_STATUSES as [string, ...string[]]).optional(),
+  /** Departure date. Defaults to now when a leaving status arrives without one. */
+  leftAt: z.string().nullish(),
   // Guardian fields
   guardianId: z.string().nullish(),
   guardianName: z.string().nullish(),
@@ -48,8 +57,12 @@ export async function GET(
   let session;
   try {
     session = await requireSession();
-  } catch {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (error) {
+    // 403 when the caller is known but lacks the permission; 401 otherwise.
+    return (
+      sessionErrorResponse(error) ??
+      Response.json({ error: "Unauthorized" }, { status: 401 })
+    );
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
   const { id } = await params;
@@ -109,8 +122,12 @@ export async function PUT(
   let session;
   try {
     session = await requireSession();
-  } catch {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (error) {
+    // 403 when the caller is known but lacks the permission; 401 otherwise.
+    return (
+      sessionErrorResponse(error) ??
+      Response.json({ error: "Unauthorized" }, { status: 401 })
+    );
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
   const { id } = await params;
@@ -130,6 +147,17 @@ export async function PUT(
   const existing = await prisma.student.findFirst({ where: { id, schoolId, deletedAt: null } });
   if (!existing) {
     return Response.json({ error: "Not found" }, { status: 404 });
+  }
+
+  // Anonymisation is a one-way door. Allowing edits afterwards would let a name
+  // or a phone number be written back into a record the platform has already
+  // certified as carrying no personal data — and the audit log would still claim
+  // it was cleared.
+  if (existing.anonymizedAt) {
+    return Response.json(
+      { error: "هذا السجل مجهَّل نهائياً ولا يمكن تعديله" },
+      { status: 409 }
+    );
   }
 
   const data = parsed.data;
@@ -178,6 +206,40 @@ export async function PUT(
   if (data.isActive !== undefined) updateData.isActive = data.isActive;
   if (data.registration_fee !== undefined) updateData.registration_fee = data.registration_fee;
 
+  // ---- Enrolment lifecycle -------------------------------------------------
+  //
+  // The retention clock can only start from a departure date, so classification
+  // and date are applied together and never separately. An explicit `status`
+  // wins; otherwise flipping `isActive` off is treated as a withdrawal, because
+  // that is what the existing UI does when a child leaves and there would
+  // otherwise be no date to count from at all.
+  const departureStatus = data.status
+    ? (data.status as (typeof STUDENT_STATUSES)[number])
+    : data.isActive === false && existing.status === "ACTIVE"
+      ? ("WITHDRAWN" as const)
+      : data.isActive === true && existing.status !== "ACTIVE"
+        ? ("ACTIVE" as const)
+        : null;
+
+  if (departureStatus) {
+    const policy = await getRetentionPolicy();
+    // An already-departed child keeps their original date unless the request
+    // supplies a new one — re-saving the profile must not silently push the
+    // expiry years into the future.
+    const leftAt = data.leftAt
+      ? new Date(data.leftAt)
+      : (existing.leftAt ?? null);
+
+    Object.assign(
+      updateData,
+      buildStudentDeparture(departureStatus, leftAt, policy.studentRetentionYears)
+    );
+
+    // An explicit `isActive` in the same request is the caller's intent and
+    // outranks the value the helper derives.
+    if (data.isActive !== undefined) updateData.isActive = data.isActive;
+  }
+
   // Guardian update logic
   if ("guardianId" in data && data.guardianId) {
     // Client is linking an existing guardian — prove it is one of ours first.
@@ -211,7 +273,25 @@ export async function PUT(
       ...(data.guardianEmail2 !== undefined && { email_2: data.guardianEmail2 ?? null }),
     };
 
-    if (foundGuardian) {
+    /**
+     * A match on phone or email is *another family's record* unless it is
+     * already this child's guardian.
+     *
+     * The old branch overwrote whatever it found: typing a phone number that
+     * happened to belong to a different guardian rewrote that guardian's name,
+     * second contact and email with this child's data — corrupting a family that
+     * was never part of the request, and silently re-parenting every sibling
+     * attached to them.
+     *
+     * Linking is safe and is what the feature is for (siblings share a
+     * guardian). Editing someone else's details is not.
+     */
+    const isOwnGuardian = foundGuardian?.id === existing.guardianId;
+
+    if (foundGuardian && !isOwnGuardian) {
+      // Link only. Their name and contacts stay exactly as they were.
+      updateData.guardianId = foundGuardian.id;
+    } else if (foundGuardian) {
       updateData.guardianId = foundGuardian.id;
       await prisma.guardian.update({
         where: { id: foundGuardian.id },
@@ -280,8 +360,12 @@ export async function DELETE(
   let session;
   try {
     session = await requireSession();
-  } catch {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (error) {
+    // 403 when the caller is known but lacks the permission; 401 otherwise.
+    return (
+      sessionErrorResponse(error) ??
+      Response.json({ error: "Unauthorized" }, { status: 401 })
+    );
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
   const { id } = await params;

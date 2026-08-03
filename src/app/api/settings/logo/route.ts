@@ -1,18 +1,22 @@
 export const runtime = "nodejs";
 
-import { requireSession } from "@/lib/session";
+import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
+import { storeUpload, isFailure, LOGO_TYPES, LOGO_LABEL } from "@/lib/file-upload";
 
-const ALLOWED_TYPES = ["image/png", "image/svg+xml"];
 const MAX_BYTES = 2 * 1024 * 1024; // 2 MB
 
 export async function PUT(request: Request) {
   let session;
   try {
     session = await requireSession();
-  } catch {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (error) {
+    // 403 when the caller is known but lacks the permission; 401 otherwise.
+    return (
+      sessionErrorResponse(error) ??
+      Response.json({ error: "Unauthorized" }, { status: 401 })
+    );
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
 
@@ -27,16 +31,27 @@ export async function PUT(request: Request) {
   if (!(file instanceof File))
     return Response.json({ error: "No file uploaded" }, { status: 400 });
 
-  if (!ALLOWED_TYPES.includes(file.type))
-    return Response.json({ error: "يُسمح فقط بملفات PNG و SVG" }, { status: 400 });
+  // The type used to be read from `file.type` — a value the client chooses.
+  // `storeUpload` reads it from the bytes instead, and enforces the tenant's
+  // storage quota on the way.
+  const school = await prisma.school.findUnique({
+    where: { id: schoolId },
+    select: { logoUrl: true },
+  });
 
-  if (file.size > MAX_BYTES)
-    return Response.json({ error: "حجم الملف يتجاوز 2 ميغابايت" }, { status: 400 });
+  const stored = await storeUpload(schoolId, file, {
+    allowed: LOGO_TYPES,
+    maxBytes: MAX_BYTES,
+    humanLabel: LOGO_LABEL,
+    category: "school",
+    ownerId: schoolId,
+    previousUrl: school?.logoUrl,
+  });
+  if (isFailure(stored)) {
+    return Response.json({ error: stored.error }, { status: stored.status });
+  }
 
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const base64 = buffer.toString("base64");
-  const logoUrl = `data:${file.type};base64,${base64}`;
-
+  const logoUrl = stored.url;
   await prisma.school.update({ where: { id: schoolId }, data: { logoUrl } });
 
   await logAction({

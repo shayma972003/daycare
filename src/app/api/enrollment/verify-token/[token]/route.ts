@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { stampFileUrl } from "@/lib/file-token";
 
 export async function GET(
   _request: Request,
@@ -39,7 +40,7 @@ export async function GET(
     maxSubmissions: rec.max_submissions,
     school: {
       name: rec.school.name,
-      logoUrl: rec.school.logoUrl,
+      logoUrl: stampFileUrl(rec.school.logoUrl),
     },
   });
 }

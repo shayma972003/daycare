@@ -1,20 +1,27 @@
-import { requireSession } from "@/lib/session";
+import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
+import { passwordSchema, BCRYPT_COST } from "@/lib/password-policy";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 
 const changePasswordSchema = z.object({
   currentPassword: z.string().min(1),
-  newPassword: z.string().min(6),
+  // Was `min(6)` at cost 10 — the weakest password path in the product, and the
+  // one a school admin actually uses. Now on the shared policy.
+  newPassword: passwordSchema,
 });
 
 export async function PUT(request: Request) {
   let session;
   try {
     session = await requireSession();
-  } catch {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (error) {
+    // 403 when the caller is known but lacks the permission; 401 otherwise.
+    return (
+      sessionErrorResponse(error) ??
+      Response.json({ error: "Unauthorized" }, { status: 401 })
+    );
   }
 
   let body: unknown;
@@ -46,7 +53,7 @@ export async function PUT(request: Request) {
     return Response.json({ error: "Current password is incorrect" }, { status: 400 });
   }
 
-  const hashed = await bcrypt.hash(newPassword, 10);
+  const hashed = await bcrypt.hash(newPassword, BCRYPT_COST);
   await prisma.user.update({
     where: { id: user.id },
     data: { password: hashed },

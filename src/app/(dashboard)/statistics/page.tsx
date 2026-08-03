@@ -3,7 +3,9 @@
 import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { Topbar } from "@/components/layout/Topbar";
-import { formatCurrency, t } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils";
+import { describeApiError } from "@/lib/api-error";
+import { useT } from "@/lib/i18n-provider";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -317,6 +319,10 @@ function SummaryRow({ label, value, valueClass }: { label: string; value: string
 }
 
 function SummaryTab() {
+  // Each component calls the hook itself rather than receiving `t` as a prop —
+  // threading it through would make every one of these signatures about
+  // translation.
+  const t = useT();
   const [periodType, setPeriodType] = useState<ReportPeriodType>("monthly");
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -325,16 +331,43 @@ function SummaryTab() {
   const [generatingReport, setGeneratingReport] = useState(false);
   const [openPanel, setOpenPanel] = useState<"revenue" | "expenses" | "payments" | null>(null);
 
-  useEffect(() => {
-    setLoading(true);
-    axios.get<DashboardSummary>(`/api/statistics/dashboard?type=${periodType}`)
-      .then((r) => setSummary(r.data))
-      .finally(() => setLoading(false));
-  }, [periodType]);
+  /**
+   * The failure path used to have no exit.
+   *
+   * `.finally()` cleared `loading`, but nothing set `summary`, and the guard
+   * below renders the spinner whenever `summary` is null — so a failed request
+   * left the page spinning for ever with no message and no way to retry. The
+   * rejection was also unhandled, so the only trace was in the console.
+   */
+  const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
-    axios.get<Report[]>("/api/financial-reports")
+    let cancelled = false;
+    setLoading(true);
+    axios
+      .get<DashboardSummary>(`/api/statistics/dashboard?type=${periodType}`)
+      .then((r) => {
+        if (cancelled) return;
+        setSummary(r.data);
+        setError(null);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(describeApiError(err, "تعذر تحميل الإحصائيات"));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [periodType, reloadKey]);
+
+  useEffect(() => {
+    axios
+      .get<Report[]>("/api/financial-reports")
       .then((r) => setReports(r.data))
+      .catch(() => setReports([]))
       .finally(() => setLoadingReports(false));
   }, []);
 
@@ -372,7 +405,25 @@ function SummaryTab() {
     }
   }
 
-  if (loading || !summary) return <div className="py-20 text-center text-sm text-gray-400">{t("common.loading")}</div>;
+  if (loading) return <div className="py-20 text-center text-sm text-gray-400">{t("common.loading")}</div>;
+
+  // A dead end without this: no data, no explanation, no retry.
+  if (!summary) {
+    return (
+      <div className="py-20 text-center space-y-4">
+        <p role="alert" className="text-sm text-red-500">
+          {error ?? "تعذر تحميل الإحصائيات"}
+        </p>
+        <button
+          type="button"
+          onClick={() => setReloadKey((k) => k + 1)}
+          className="px-5 py-2 rounded-lg bg-[#2F96A6] text-white text-sm font-medium hover:bg-[#26808e]"
+        >
+          إعادة المحاولة
+        </button>
+      </div>
+    );
+  }
 
   const combinedPayments = [
     ...summary.details.revenue.map((r) => ({ ...r, kind: "إيراد" as const })),
@@ -599,6 +650,7 @@ function SummaryTab() {
 // ── TAB 2: Expenses Management ────────────────────────────────────────────────
 
 function ExpensesTab() {
+  const t = useT();
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -763,6 +815,8 @@ function ExpensesTab() {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function StatisticsPage() {
+  // Locale-aware translation — see src/lib/i18n.tsx.
+  const t = useT();
   const [activeTab, setActiveTab] = useState<"summary" | "expenses">("summary");
 
   return (

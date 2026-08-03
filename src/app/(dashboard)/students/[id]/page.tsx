@@ -3,10 +3,26 @@
 import { useEffect, useState, use, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
-import { useForm } from "react-hook-form";
+import { useForm, type Resolver } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { studentFormSchema } from "@/lib/form-schemas";
 import { Topbar } from "@/components/layout/Topbar";
-import { t, formatDate } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
 import { InvoiceModal } from "@/components/students/InvoiceModal";
+import { StudentCareFeed } from "@/components/care/StudentCareFeed";
+import { STUDENT_STATUS_LABELS, PAYMENT_STATUS_LABELS } from "@/lib/enum-labels";
+import { PAYMENT_STATUSES } from "@/lib/payment-status";
+import { astDayStart } from "@/lib/datetime";
+import { useT } from "@/lib/i18n-provider";
+
+/** ACTIVE is excluded: this is the set of reasons a child *leaves*. */
+type StudentDepartureStatus = "GRADUATED" | "WITHDRAWN" | "TRANSFERRED";
+
+const DEPARTURE_OPTIONS: StudentDepartureStatus[] = [
+  "GRADUATED",
+  "WITHDRAWN",
+  "TRANSFERRED",
+];
 
 type Class = { id: string; name: string };
 type Invoice = {
@@ -85,6 +101,8 @@ export default function StudentProfilePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  // Locale-aware translation — see src/lib/i18n.tsx.
+  const t = useT();
   const { id } = use(params);
   const router = useRouter();
   const [classes, setClasses] = useState<Class[]>([]);
@@ -99,6 +117,14 @@ export default function StudentProfilePage({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [showTrashModal, setShowTrashModal] = useState(false);
   const [trashing, setTrashing] = useState(false);
+  // Enrolment departure. The date defaults to today in Riyadh terms — the value
+  // an <input type="date"> expects — and drives the retention clock.
+  const [showDepartureModal, setShowDepartureModal] = useState(false);
+  const [departureStatus, setDepartureStatus] = useState<StudentDepartureStatus>("WITHDRAWN");
+  const [departureDate, setDepartureDate] = useState(() =>
+    astDayStart().toISOString().slice(0, 10)
+  );
+  const [departing, setDeparting] = useState(false);
   const [showLateFeeConfirm, setShowLateFeeConfirm] = useState(false);
   const [evalFileUrl, setEvalFileUrl] = useState<string | null>(null);
   const [evalFileName, setEvalFileName] = useState<string | null>(null);
@@ -116,7 +142,12 @@ export default function StudentProfilePage({
   const suggestionsRef = useRef<HTMLDivElement>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const { register, handleSubmit, reset, watch, setValue } = useForm<FormData>();
+  // Same schema as the create form — an edit that accepts what creation refuses
+  // is how invalid rows get in through the side door (task 2.41).
+  const { register, handleSubmit, reset, watch, setValue, formState: { errors } } =
+    useForm<FormData>({
+      resolver: zodResolver(studentFormSchema) as Resolver<FormData>,
+    });
 
   useEffect(() => {
     Promise.all([
@@ -262,7 +293,13 @@ export default function StudentProfilePage({
         guardianPhone3: data.guardianPhone3 || null,
         guardianPhone4: data.guardianPhone4 || null,
         guardianEmail2: data.guardianEmail2 || null,
-        registration_fee: registrationFeeIsDefault ? 0 : parseFloat(data.registrationFee) || 0,
+        // See the matching note on the create form. Omitting the field here also
+        // stops every profile save from regenerating the payment schedule: the
+        // route treats any `registration_fee` in the body as a change and calls
+        // `generatePaymentCycles`, which deletes and rebuilds the unpaid cycles.
+        registration_fee: registrationFeeIsDefault
+          ? undefined
+          : parseFloat(data.registrationFee) || 0,
       });
       alert("تم حفظ التغييرات");
     } catch {
@@ -388,10 +425,26 @@ export default function StudentProfilePage({
     setInvoices((prev) => [{ ...invoice, type: "STUDENT" }, ...prev]);
   }
 
-  async function cancelStudent() {
-    if (!confirm("هل أنت متأكد من إلغاء اشتراك هذا الطالب؟")) return;
-    await axios.post(`/api/students/${id}/cancel`);
-    window.location.reload();
+  /**
+   * Ends the enrolment.
+   *
+   * The reason and the date are asked for rather than assumed, because they are
+   * the only inputs to the retention clock: the child's personal data is erased
+   * five years from `leftAt`, so a wrong date here is a wrong erasure date. The
+   * reason is also the sole record of *why* a child left.
+   */
+  async function confirmDeparture() {
+    setDeparting(true);
+    try {
+      await axios.post(`/api/students/${id}/cancel`, {
+        status: departureStatus,
+        leftAt: new Date(departureDate).toISOString(),
+      });
+      window.location.reload();
+    } catch {
+      alert(t("common.error"));
+      setDeparting(false);
+    }
   }
 
   async function reactivate() {
@@ -584,10 +637,18 @@ export default function StudentProfilePage({
                       <button
                         type="button"
                         onClick={() => {
-                          const base64 = evalFileUrl.split(",")[1];
-                          const mime = evalFileUrl.slice(5, evalFileUrl.indexOf(";"));
-                          const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
-                          window.open(URL.createObjectURL(new Blob([bytes], { type: mime })), "_blank");
+                          // A stored file is now a URL the browser can open: the
+                          // route checks the session cookie and redirects to a
+                          // signed link. Only a legacy base64 value still has to
+                          // be decoded into a blob by hand.
+                          if (evalFileUrl.startsWith("data:")) {
+                            const base64 = evalFileUrl.split(",")[1];
+                            const mime = evalFileUrl.slice(5, evalFileUrl.indexOf(";"));
+                            const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+                            window.open(URL.createObjectURL(new Blob([bytes], { type: mime })), "_blank");
+                            return;
+                          }
+                          window.open(evalFileUrl, "_blank");
                         }}
                         className="px-2.5 py-1 text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
                       >
@@ -773,12 +834,13 @@ export default function StudentProfilePage({
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">حالة الدفع</label>
+                    {/* Generated from the enum — see the note on the create form. */}
                     <select {...register("paymentStatus")} className={inputCls}>
-                      <option value="PAID">{t("paymentStatus.PAID")}</option>
-                      <option value="LATE">{t("paymentStatus.LATE")}</option>
-                      <option value="CANCELLED">{t("paymentStatus.CANCELLED")}</option>
-                      <option value="SUSPENDED">{t("paymentStatus.SUSPENDED")}</option>
-                      <option value="بانتظار الدفع">بانتظار الدفع</option>
+                      {PAYMENT_STATUSES.map((status) => (
+                        <option key={status} value={status}>
+                          {PAYMENT_STATUS_LABELS[status]}
+                        </option>
+                      ))}
                     </select>
                   </div>
                   <div>
@@ -858,7 +920,7 @@ export default function StudentProfilePage({
                   {student?.isActive ? (
                     <button
                       type="button"
-                      onClick={cancelStudent}
+                      onClick={() => setShowDepartureModal(true)}
                       className="w-full px-5 py-2.5 rounded-md bg-white font-medium text-sm
                                  border border-[#666666] text-[#666666]
                                  hover:border-[#2F96A6] hover:text-[#2F96A6] hover:bg-[#E0F7FA]
@@ -907,6 +969,62 @@ export default function StudentProfilePage({
             </div>
           </div>
         </form>
+
+        {showDepartureModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div className="bg-white rounded-2xl shadow-xl p-6 w-96 space-y-4" dir="rtl">
+              <p className="text-base font-bold text-[#111111] text-center">إنهاء تسجيل الطالب</p>
+
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">سبب المغادرة</label>
+                <select
+                  value={departureStatus}
+                  onChange={(e) => setDepartureStatus(e.target.value as StudentDepartureStatus)}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm"
+                >
+                  {DEPARTURE_OPTIONS.map((value) => (
+                    <option key={value} value={value}>
+                      {STUDENT_STATUS_LABELS[value]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">تاريخ المغادرة</label>
+                <input
+                  type="date"
+                  value={departureDate}
+                  onChange={(e) => setDepartureDate(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm"
+                />
+              </div>
+
+              {/* Stated up front: this date is what the erasure schedule counts
+                  from, and it is not obvious from a form labelled "cancel". */}
+              <p className="text-xs text-gray-500 leading-relaxed">
+                تُحفظ بيانات الطالب الشخصية لمدة الاحتفاظ المعتمدة ابتداءً من هذا التاريخ، ثم تُزال
+                تلقائياً مع بقاء السجل المالي والإحصائي كاملاً.
+              </p>
+
+              <div className="flex gap-3 justify-center pt-1">
+                <button
+                  onClick={confirmDeparture}
+                  disabled={departing || !departureDate}
+                  className="px-5 py-2 bg-[#2F96A6] text-white rounded-xl text-sm font-medium hover:bg-[#26808e] disabled:opacity-60"
+                >
+                  {departing ? "..." : "تأكيد"}
+                </button>
+                <button
+                  onClick={() => setShowDepartureModal(false)}
+                  className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm"
+                >
+                  إلغاء
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {showTrashModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
@@ -1011,6 +1129,12 @@ export default function StudentProfilePage({
           onClose={() => setInvoiceModalOpen(false)}
           onIssued={onInvoiceIssued}
         />
+
+        {/* Daily care reports — grouped by day. */}
+        <div className="mt-5 bg-white rounded-xl shadow-md p-6">
+          <h3 className="text-base font-bold text-[#111111] mb-4">تقارير الرعاية اليومية</h3>
+          <StudentCareFeed studentId={id} />
+        </div>
 
         {/* Invoices */}
         <div className="mt-5 bg-white rounded-xl shadow-md p-6">

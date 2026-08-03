@@ -1,6 +1,6 @@
-import { requireSession } from "@/lib/session";
+import { requireSession, sessionErrorResponse } from "@/lib/session";
 import {
-  validateUpload,
+  storeUpload,
   isFailure,
   IMAGE_TYPES,
   IMAGE_LABEL,
@@ -15,15 +15,24 @@ import {
  * also stored files outside any tenant namespace and served them from a public
  * path with no access control.
  *
- * It now returns a validated data URI, matching how every other upload path in
- * the codebase already works. Object storage replaces this wholesale in a later
- * phase; until then, correctness beats a broken filesystem write.
+ * It now stores to R2 and returns a `/api/files/…` path, like every other upload
+ * path in the codebase (task 0.34).
+ *
+ * The caller — a class or activity form — may still be abandoned without saving,
+ * leaving an object nothing references. `category` and `ownerId` are recorded
+ * anyway, so `orphaned-uploads` can find and sweep them; the alternative,
+ * uploading only on submit, means the form cannot show a preview.
  */
 export async function POST(request: Request) {
+  let session;
   try {
-    await requireSession();
-  } catch {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+    session = await requireSession();
+  } catch (error) {
+    // 403 when the caller is known but lacks the permission; 401 otherwise.
+    return (
+      sessionErrorResponse(error) ??
+      Response.json({ error: "Unauthorized" }, { status: 401 })
+    );
   }
 
   const formData = await request.formData();
@@ -32,10 +41,20 @@ export async function POST(request: Request) {
     return Response.json({ error: "No file provided" }, { status: 400 });
   }
 
-  const validated = await validateUpload(file, IMAGE_TYPES, MAX_IMAGE_BYTES, IMAGE_LABEL);
-  if (isFailure(validated)) {
-    return Response.json({ error: validated.error }, { status: validated.status });
+  // Tenant-aware: also refuses when the school is over its storage quota
+  // (task 2.31).
+  const stored = await storeUpload(session.user.schoolId, file, {
+    allowed: IMAGE_TYPES,
+    maxBytes: MAX_IMAGE_BYTES,
+    humanLabel: IMAGE_LABEL,
+    // No row exists yet — the form is still open. `pending` is a real owner id
+    // that the orphan sweep looks for, rather than a blank that means nothing.
+    category: "classes",
+    ownerId: "pending",
+  });
+  if (isFailure(stored)) {
+    return Response.json({ error: stored.error }, { status: stored.status });
   }
 
-  return Response.json({ url: validated.dataUrl });
+  return Response.json({ url: stored.url });
 }

@@ -7,7 +7,8 @@ import { Topbar } from "@/components/layout/Topbar";
 import { AvatarPlaceholder } from "@/components/ui/IconPlaceholder";
 import { PeriodBadge } from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { t, formatTime } from "@/lib/utils";
+import { formatTime } from "@/lib/utils";
+import { useT } from "@/lib/i18n-provider";
 
 interface TodayAttendance {
   id: string;
@@ -45,6 +46,8 @@ function LiveTimer({ from }: { from: string }) {
 }
 
 export default function TeachersPage() {
+  // Locale-aware translation — see src/lib/i18n.tsx.
+  const t = useT();
   const router = useRouter();
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [loading, setLoading] = useState(true);

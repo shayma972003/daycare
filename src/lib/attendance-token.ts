@@ -1,5 +1,6 @@
 import { randomBytes } from "crypto";
 import { prisma } from "@/lib/prisma";
+import { stampFileUrl } from "@/lib/file-token";
 
 /**
  * The walk-up attendance kiosk is unauthenticated by design — staff scan a
@@ -29,10 +30,17 @@ export async function resolveAttendanceToken(
 ): Promise<AttendanceSchool | null> {
   if (!token || token.length < 16) return null;
 
-  return prisma.school.findUnique({
+  const school = await prisma.school.findUnique({
     where: { attendanceToken: token },
     select: { id: true, name: true, logoUrl: true },
   });
+  if (!school) return null;
+
+  // The kiosk has no session — that is the whole point of it — so the logo, now
+  // a private object in R2, has to arrive with its own short-lived grant or the
+  // screen shows a broken image. Validating the kiosk token *is* the
+  // authorisation; this converts it into one the browser can use.
+  return { ...school, logoUrl: stampFileUrl(school.logoUrl) };
 }
 
 /** Returns the school's kiosk token, minting one on first use. */

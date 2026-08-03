@@ -1,31 +1,33 @@
 "use client";
 
 import { t } from "@/lib/utils";
+import { PAYMENT_STATUS_LABELS, parsePaymentStatus } from "@/lib/enum-labels";
 
 type DeliveryStatus = "SENT" | "FAILED";
 
+/**
+ * Keyed on the enum only.
+ *
+ * `PENDING` had no entry at all — the maps were written when the column stored
+ * the Arabic literal — so the most common state in the product rendered as a
+ * grey dot with an untranslated key beside it. Legacy Arabic values still
+ * arriving from older rows are normalised through `parsePaymentStatus` rather
+ * than given duplicate entries here.
+ */
 const PAYMENT_DOT_COLORS: Record<string, string> = {
-  PAID:             "bg-[#2D7A4F]",
-  LATE:             "bg-[#C45000]",
-  CANCELLED:        "bg-[#C0232C]",
-  SUSPENDED:        "bg-gray-400",
-  "بانتظار الدفع":  "bg-[#7C3AED]",
+  PAID:      "bg-[#2D7A4F]",
+  LATE:      "bg-[#C45000]",
+  CANCELLED: "bg-[#C0232C]",
+  SUSPENDED: "bg-gray-400",
+  PENDING:   "bg-[#7C3AED]",
 };
 
 const PAYMENT_TEXT_COLORS: Record<string, string> = {
-  PAID:             "text-[#2D7A4F]",
-  LATE:             "text-[#C45000]",
-  CANCELLED:        "text-[#C0232C]",
-  SUSPENDED:        "text-gray-500",
-  "بانتظار الدفع":  "text-[#7C3AED]",
-};
-
-const PAYMENT_LABELS: Record<string, string> = {
-  PAID:             "مدفوع",
-  LATE:             "متأخر",
-  CANCELLED:        "ملغي",
-  SUSPENDED:        "موقف",
-  "بانتظار الدفع":  "بانتظار الدفع",
+  PAID:      "text-[#2D7A4F]",
+  LATE:      "text-[#C45000]",
+  CANCELLED: "text-[#C0232C]",
+  SUSPENDED: "text-gray-500",
+  PENDING:   "text-[#7C3AED]",
 };
 
 const deliveryDotColors: Record<DeliveryStatus, string> = {
@@ -39,9 +41,10 @@ const deliveryTextColors: Record<DeliveryStatus, string> = {
 };
 
 export function PaymentStatusBadge({ status }: { status: string }) {
-  const dot = PAYMENT_DOT_COLORS[status] ?? "bg-gray-300";
-  const text = PAYMENT_TEXT_COLORS[status] ?? "text-gray-500";
-  const label = PAYMENT_LABELS[status] ?? (t(`paymentStatus.${status}`) || status);
+  const normalized = parsePaymentStatus(status);
+  const dot = normalized ? PAYMENT_DOT_COLORS[normalized] : "bg-gray-300";
+  const text = normalized ? PAYMENT_TEXT_COLORS[normalized] : "text-gray-500";
+  const label = normalized ? PAYMENT_STATUS_LABELS[normalized] : status;
   return (
     <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${text}`}>
       <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${dot}`} />

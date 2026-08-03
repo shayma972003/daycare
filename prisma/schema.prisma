@@ -98,6 +98,167 @@ enum InvoiceType {
   TEACHER
 }
 
+/// Why a child is no longer enrolled.
+///
+/// Separate from `isActive` and from `deletedAt` on purpose. `isActive` is a
+/// display toggle, `deletedAt` is the trash bin, and neither says *when* the
+/// child left — which is the only date the retention clock can start from.
+/// ACTIVE means still enrolled; every other value requires `leftAt`.
+enum StudentStatus {
+  ACTIVE
+  GRADUATED
+  WITHDRAWN
+  TRANSFERRED
+}
+
+/// Why a staff member is no longer employed. Mirrors StudentStatus; graduation
+/// has no employment equivalent, so the leaving reasons differ.
+enum EmploymentStatus {
+  ACTIVE
+  RESIGNED
+  TERMINATED
+  CONTRACT_ENDED
+}
+
+/// Which table an anonymisation run touched.
+enum AnonymizedEntity {
+  STUDENT
+  TEACHER
+  GUARDIAN
+}
+
+/// Push transport. HUAWEI is not a variant of Android here: Huawei devices ship
+/// without Google Play Services, so an FCM message to one is accepted by the API
+/// and never delivered — a silent failure that looks like a working integration.
+enum PushPlatform {
+  IOS
+  ANDROID
+  HUAWEI
+  WEB
+}
+
+enum PushStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+/// The eight kinds of daily care report a nursery files about a child.
+enum CareReportType {
+  MEAL
+  NAP
+  TOILET
+  MOOD
+  MEDICATION
+  HEALTH
+  SUPPLIES
+  GENERAL
+}
+
+/// How much of a meal the child actually ate. An enum, not a percentage: staff
+/// are recording an impression between other tasks, and four buckets are what
+/// they can report honestly and consistently.
+enum MealAmount {
+  ALL
+  HALF
+  LITTLE
+  REFUSED
+}
+
+enum ToiletKind {
+  DIAPER
+  POTTY
+}
+
+enum ChildMood {
+  HAPPY
+  CALM
+  TIRED
+  UPSET
+  CRYING
+  UNWELL
+}
+
+enum SupplyUrgency {
+  NORMAL
+  SOON
+  URGENT
+}
+
+/// Age bands a room caters for.
+///
+/// `ClassGroup` (NURSERY/KG1/KG2/KG3) describes a *school*, where a year is the
+/// natural unit. It cannot describe a nursery: a room of six-month-olds and a
+/// room of two-year-olds are both "NURSERY" while needing different ratios,
+/// different equipment and different staff. The bands are narrow at the bottom
+/// because that is where children change fastest.
+enum AgeGroup {
+  AGE_0_6M
+  AGE_6_12M
+  AGE_1_2Y
+  AGE_2_3Y
+  AGE_3_4Y
+}
+
+/// A child's state for one day.
+///
+/// Previously inferred from two nullable timestamps, which cannot express the
+/// difference between "absent" and "nobody has recorded anything yet" — and a
+/// parent seeing a blank row cannot tell whether their child was marked absent
+/// or the teacher simply had not got to it.
+///
+/// NO_RECORD is not stored; it is the absence of a row. It exists in the enum so
+/// the UI has one vocabulary for all five states.
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LEAVE
+  CHECKED_OUT
+  NO_RECORD
+}
+
+/// Highest completed qualification (task 2.39).
+///
+/// An enum rather than free text because this is the field a licensing
+/// inspection asks about and the sector reports will group on — "بكالوريوس",
+/// "بكالريوس" and "بكالوريوس تربية" are three strings and one answer.
+/// The existing `qualification1..10` columns stay for the detail (institution,
+/// year, subject); this is the one comparable fact.
+enum EducationLevel {
+  HIGH_SCHOOL
+  DIPLOMA
+  BACHELOR
+  MASTER
+  PHD
+  OTHER
+}
+
+/// How often a child's fee recurs (task 2.37).
+///
+/// The product assumed monthly everywhere — `Settings.monthlyStudentFee`, a
+/// payment cycle per month — which cannot express a nursery that charges by the
+/// day for drop-ins or by the year with a discount. CUSTOM exists for the
+/// arrangements that are neither, and carries its own interval in days.
+enum BillingCycle {
+  DAILY
+  WEEKLY
+  MONTHLY
+  YEARLY
+  CUSTOM
+}
+
+/// What a calendar entry is.
+///
+/// The three behave differently and a single "event" type would hide that: a
+/// LESSON belongs to a teaching unit and occupies a slot, an ACTIVITY is an
+/// outing or a party the whole room joins, and an ANNOUNCEMENT has no duration
+/// at all — it is a notice pinned to a day.
+enum CalendarEventType {
+  LESSON
+  ACTIVITY
+  ANNOUNCEMENT
+}
+
 /// Records every bulk export of tenant data.
 ///
 /// Exports are the widest data-egress path in the product: one click can pull a
@@ -132,6 +293,393 @@ model ExportAuditLog {
 
   @@index([schoolId, exportedAt])
   @@index([exportedEntity])
+}
+
+/// Platform-wide settings. Exactly one row, pinned to id "global".
+///
+/// Deliberately NOT per-tenant, unlike `Settings`. Retention is a processor-level
+/// promise the platform makes in its privacy policy and DPA; letting one nursery
+/// set fifty years would make that promise unenforceable and would silently widen
+/// the exposure of every other tenant's children in the same database. A tenant
+/// that negotiates a different period is a contract change, not a form field.
+model SystemSettings {
+  /// Fixed at "global" so a second row cannot exist.
+  id String @id @default("global")
+
+  /// Years a child's personal data is kept after `Student.leftAt`.
+  studentRetentionYears  Int @default(5)
+  /// Years a staff member's personal data is kept after `Teacher.leftAt`.
+  employeeRetentionYears Int @default(5)
+
+  /// Kill switch for the nightly sweep. Off means records pile up past their
+  /// expiry — visible on the admin page — rather than being anonymised. Exists so
+  /// a legal hold can be honoured without deleting the cron.
+  anonymizationEnabled Boolean @default(true)
+
+  /// Last sweep, for the "next run" display and for spotting a stalled cron.
+  lastSweepAt        DateTime?
+  lastSweepProcessed Int       @default(0)
+
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+}
+
+/// Append-only record of every anonymisation.
+///
+/// Anonymisation is irreversible and unattended, so it needs the same
+/// accountability trail as an export: what was cleared, when, under which policy.
+/// Field *names* only — a log that stored the old values would recreate exactly
+/// the personal data the sweep just destroyed.
+model AnonymizationLog {
+  id String @id @default(cuid())
+
+  entityType AnonymizedEntity
+  /// Row id in the source table. The row still exists; only its PII is gone.
+  entityId   String
+  /// Pseudonymous handle that survives anonymisation, so analytics can be traced
+  /// back to this log entry without touching the operational id.
+  analyticsId String?
+  /// Nullable: the tenant may be deleted later while this record must survive.
+  schoolId    String?
+
+  anonymizedAt DateTime @default(now())
+  /// "SYSTEM" for the cron, otherwise the admin who forced the run.
+  executedBy   String   @default("SYSTEM")
+
+  /// Count first — it is what the admin page reports — with the names beside it
+  /// for anyone auditing which columns the policy actually covered.
+  clearedFieldCount Int
+  clearedFields     String[] @default([])
+
+  /// Policy in force at execution time. Retention years can change; this row must
+  /// still explain why this record expired on this date.
+  retentionYears Int?
+
+  @@index([entityType, anonymizedAt])
+  @@index([schoolId, anonymizedAt])
+  @@index([entityId])
+}
+
+/// A single daily-care observation about one child.
+///
+/// One table for all eight types, with per-type columns rather than a JSON blob.
+/// The blob is smaller and the columns are the right call anyway: "how much did
+/// he eat this week", "how long did she nap", "temperature over time" are the
+/// questions this feature exists to answer, and a JSON field cannot be indexed
+/// or aggregated without extracting it at query time. Nullable columns cost a
+/// bit each in Postgres's null bitmap; a wrong data model costs a rewrite once
+/// the analytics layer (D5) arrives.
+///
+/// **Contains personal data about a child** — `note` in particular is free text
+/// a teacher types about a specific child's day. Cleared by the anonymisation
+/// sweep; see docs/DATA_LIFECYCLE.md.
+model CareReport {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id])
+
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id])
+  /// Snapshot of the class at the time. The child may move rooms later, and a
+  /// report belongs to the day it describes.
+  classId   String?
+
+  /// Who filed it. `teacherId` may be null for an office account; the name is
+  /// stored alongside so the report still reads correctly after that staff
+  /// member leaves and their record is anonymised.
+  teacherId      String?
+  reportedByName String
+
+  type CareReportType
+
+  /// When it happened, not when it was typed. A teacher records the 10:30 nap at
+  /// 11:15, and the parent needs the former.
+  occurredAt DateTime
+
+  // ── MEAL ────────────────────────────────────────────────────────────────
+  mealName   String?
+  mealAmount MealAmount?
+
+  // ── NAP ─────────────────────────────────────────────────────────────────
+  napStartAt DateTime?
+  napEndAt   DateTime?
+  /// Derived from the two above and stored, so "average nap length" is a sum
+  /// rather than a per-row subtraction across millions of rows.
+  napMinutes Int?
+  napQuality String?
+
+  // ── TOILET ──────────────────────────────────────────────────────────────
+  toiletKind  ToiletKind?
+  toiletState String?
+
+  // ── MOOD ────────────────────────────────────────────────────────────────
+  mood ChildMood?
+
+  // ── MEDICATION ──────────────────────────────────────────────────────────
+  /// Sensitive — health data about a child under PDPL.
+  medicationName String?
+  medicationDose String?
+  /// Who administered it. A medication record without this is not a record.
+  givenByName    String?
+
+  // ── HEALTH ──────────────────────────────────────────────────────────────
+  /// Sensitive. Celsius.
+  temperature Float?
+  symptom     String?
+  actionTaken String?
+
+  // ── SUPPLIES ────────────────────────────────────────────────────────────
+  /// Not about the child at all — a request to the parent for nappies, spare
+  /// clothes. Kept in the same table because it appears in the same daily feed.
+  supplyItem     String?
+  supplyQuantity Int?
+  supplyUrgency  SupplyUrgency?
+
+  /// PII — free text about this child's day.
+  note String?
+  /// Today a base64 data URI, like every other upload here. Moves to R2 with
+  /// tasks 0.34/0.35, at which point anonymisation must also delete the object.
+  photoUrl String?
+
+  /// Soft delete: a report a parent has already read should be retractable
+  /// without vanishing from the audit trail.
+  deletedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// The daily digest sends each report once. Null means "not yet included".
+  summarizedAt DateTime?
+
+  @@index([studentId, occurredAt])
+  @@index([schoolId, occurredAt])
+  @@index([schoolId, type, occurredAt])
+  /// Drives the nightly digest: unsent reports for a given day.
+  @@index([schoolId, summarizedAt])
+}
+
+/// A teaching unit — a themed block of work spanning weeks (task 2.22).
+model Unit {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id])
+
+  name        String
+  description String?
+  startDate   DateTime?
+  endDate     DateTime?
+
+  /// Archived, not deleted (task 2.23). Last year's units are the material a
+  /// nursery reuses; hiding them from the working list is the requirement,
+  /// losing them is not.
+  archivedAt DateTime?
+  deletedAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lessons Lesson[]
+  files   UnitFile[]
+  events  CalendarEvent[]
+  classes UnitClass[]
+
+  @@index([schoolId, archivedAt])
+  @@index([schoolId, deletedAt])
+}
+
+/// Which rooms a unit is taught to (task 2.24).
+///
+/// An explicit join table rather than Prisma's implicit m-n, matching
+/// `ActivityInvite` — and because a unit-per-room will eventually want its own
+/// start date when two rooms run the same material a fortnight apart.
+model UnitClass {
+  unitId  String
+  classId String
+  unit    Unit   @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  @@id([unitId, classId])
+  @@index([classId])
+}
+
+/// One lesson inside a unit.
+model Lesson {
+  id     String @id @default(cuid())
+  unitId String
+  unit   Unit   @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String?
+  /// Explicit ordering: lessons are a sequence, and sorting by creation time
+  /// breaks the moment one is inserted between two others.
+  orderIndex  Int    @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  events CalendarEvent[]
+
+  @@index([unitId, orderIndex])
+}
+
+/// A file attached to a unit.
+///
+/// A separate table rather than columns on `Unit` for one reason that matters
+/// today: attachments are base64 payloads until the move to R2 (tasks
+/// 0.34/0.35), and holding them on the unit row would drag megabytes into every
+/// query that lists units. Here they are fetched only when opened.
+model UnitFile {
+  id     String @id @default(cuid())
+  unitId String
+  unit   Unit   @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  name     String
+  mimeType String?
+  sizeBytes Int?
+  /// base64 data URI today; an object key once R2 lands.
+  url      String
+
+  uploadedByName String?
+  createdAt      DateTime @default(now())
+
+  @@index([unitId])
+}
+
+/// A dated entry on the nursery's calendar (task 2.18).
+model CalendarEvent {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id])
+
+  type        CalendarEventType
+  title       String
+  description String?
+
+  startAt DateTime
+  /// Null for an announcement, which has a day but no duration.
+  endAt   DateTime?
+  /// Distinguishes "all of Thursday" from "Thursday at midnight", which are the
+  /// same instant and not the same statement.
+  allDay  Boolean   @default(false)
+
+  teacherId String?
+  unitId    String?
+  unit      Unit?    @relation(fields: [unitId], references: [id])
+  lessonId  String?
+  lesson    Lesson?  @relation(fields: [lessonId], references: [id])
+
+  location String?
+
+  createdByName String?
+  deletedAt     DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  classes CalendarEventClass[]
+
+  /// The month view's query: everything in a school between two instants.
+  @@index([schoolId, startAt])
+  @@index([schoolId, type, startAt])
+  @@index([teacherId, startAt])
+}
+
+/// Which rooms an event applies to (task 2.21).
+model CalendarEventClass {
+  eventId String
+  classId String
+  event   CalendarEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@id([eventId, classId])
+  @@index([classId])
+}
+
+/// A staff member's scheduled shift (task 2.28).
+///
+/// One row per person per day, not a recurring rule. A nursery's rota is agreed
+/// week by week and changes constantly — someone swaps, someone is off sick —
+/// and a recurrence model would spend all its time being overridden. Copying
+/// last week forward is a button, not a data structure.
+model Shift {
+  id        String  @id @default(cuid())
+  schoolId  String
+  school    School  @relation(fields: [schoolId], references: [id])
+  teacherId String
+  teacher   Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  /// The rota day. `@db.Date` so it compares by equality, like Attendance.
+  date DateTime @db.Date
+
+  /// "HH:mm" wall-clock in AST, matching how school hours are already stored on
+  /// School. Storing instants would mean every read had to convert back to the
+  /// wall clock people actually talk in.
+  startTime String
+  endTime   String
+
+  role  String?
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// One shift per person per day. A split shift is expressed by widening the
+  /// range or with a note — two rows would break the weekly grid's one-cell
+  /// assumption and give no way to say which is which.
+  @@unique([teacherId, date])
+  @@index([schoolId, date])
+}
+
+/// Cached storage consumption per school (tasks 2.29–2.31).
+///
+/// Cached because computing it means summing the length of every base64 column
+/// in the tenant — cheap for one school, not something to run on every page
+/// load. Refreshed nightly and on demand.
+///
+/// The breakdown mirrors what the admin screen shows, so adding a category is a
+/// column here and a line there rather than a reinterpretation of one total.
+model StorageUsage {
+  schoolId String @id
+  school   School @relation(fields: [schoolId], references: [id])
+
+  studentFilesBytes Int @default(0)
+  careReportBytes   Int @default(0)
+  staffFilesBytes   Int @default(0)
+  unitFilesBytes    Int @default(0)
+  invoiceBytes      Int @default(0)
+  otherBytes        Int @default(0)
+
+  totalBytes  Int      @default(0)
+  computedAt  DateTime @default(now())
+}
+
+/// One row per object in R2 (task 0.34).
+///
+/// The object store is the only place that knows an object's real size, and it
+/// cannot be asked cheaply — `ListObjects` over a prefix is a paginated network
+/// call, not something to put behind a settings page. So the size is recorded
+/// once at upload and summed from here.
+///
+/// The second reason is deletion. Once bytes live outside Postgres, deleting a
+/// row no longer deletes the file: anonymising a child, deleting a school, or
+/// replacing an avatar each have to name the objects to remove. Without this
+/// table the only way to find them would be a prefix listing, which is exactly
+/// the call that is too expensive to make — and a missed object here is not a
+/// wasted byte but a surviving photograph of a child whose record was erased.
+model StoredFile {
+  key      String @id
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id])
+
+  /// Matches `FileCategory` in src/lib/r2.ts — drives the storage breakdown.
+  category    String
+  /// The row this belongs to: a student id, a unit id. Not a foreign key — it
+  /// points at six different tables, and a file must outlive nothing but its
+  /// tenant.
+  ownerId     String
+  contentType String
+  sizeBytes   Int
+  createdAt   DateTime @default(now())
+
+  @@index([schoolId, category])
+  @@index([schoolId, ownerId])
 }
 
 /// Monotonic per-tenant counter for invoice numbers.
@@ -178,6 +726,10 @@ model SubscriptionPlan {
   max_students           Int
   max_classes            Int
   max_whatsapp_per_month Int
+  /// Storage quota in megabytes (task 2.29). Zero means unlimited, matching how
+  /// `max_students` and `max_classes` are already read by the plan-limit layer —
+  /// one sentinel across all three rather than three conventions.
+  max_storage_mb         Int      @default(0)
   is_active              Boolean  @default(true)
   created_at             DateTime @default(now())
   updated_at             DateTime @updatedAt
@@ -312,7 +864,6 @@ model School {
   invoices         Invoice[]
   notificationLogs NotificationLog[]
   settings         Settings?
-  monthlyExpenses  MonthlyExpense[]
   import_sessions   ImportSession[]
   financial_reports FinancialReport[]
   expenses          Expense[]
@@ -323,6 +874,14 @@ model School {
   activity_log_entries    ActivityLog[]
   payment_cycles          PaymentCycle[]
   export_logs             ExportAuditLog[]
+  roles                   Role[]
+  guardian_accounts       GuardianAccount[]
+  care_reports            CareReport[]
+  units                   Unit[]
+  calendar_events         CalendarEvent[]
+  shifts                  Shift[]
+  storage_usage           StorageUsage?
+  stored_files            StoredFile[]
 }
 
 model PaymentCycle {
@@ -417,18 +976,220 @@ model TwoFASession {
   @@index([expiresAt])
 }
 
+/// A set of permissions a school grants to its staff.
+///
+/// Seeded per school from the templates in src/lib/permissions.ts rather than
+/// shared globally: a nursery must be able to widen or narrow what *its* teachers
+/// can do without changing it for every other tenant.
+///
+/// The permission keys themselves are NOT a table. They are a property of the
+/// release — a new screen ships with a new key — so rows would need a data
+/// migration per deploy, and a row that drifted from the code would be a
+/// permission the UI could grant and nothing would enforce. See the note at the
+/// top of src/lib/permissions.ts.
+model Role {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id])
+
+  /// Stable identifier from the template ("manager", "teacher", …). Permanent:
+  /// it is what the seeder matches on when a new release adds a role.
+  key    String
+  nameAr String
+
+  /// Permission keys, or the single wildcard "*" for the owner's role. A frozen
+  /// explicit list would not pick up permissions added in later releases, so the
+  /// owner of an existing school would silently lose each new feature.
+  permissions String[] @default([])
+
+  /// Seeded roles cannot be deleted — removing "مدير" would leave a school with
+  /// no way back into its own settings.
+  isSystem  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users User[]
+
+  @@unique([schoolId, key])
+  @@index([schoolId])
+}
+
+/// A staff login.
+///
+/// This is the "StaffAccount" the plan asks for, kept on the existing `User`
+/// table rather than added beside it. A second credentials table for the same
+/// audience would mean two sign-in paths, two password-reset flows and two
+/// lockout counters — and the security work in week 1 (rate limiting, dummy-hash
+/// timing, subscription checks) would have had to be duplicated onto the copy or
+/// silently not apply to it.
+///
+/// What was missing was not a table but a *role*: every user was an "admin"
+/// string with nothing reading it.
 model User {
   id        String   @id @default(cuid())
   name      String
   email     String   @unique
   password  String
+  /// Legacy free-text role. Kept because sessions and older rows carry it;
+  /// `roleId` is what the permission layer reads.
   role      String   @default("admin")
   schoolId  String
   school    School   @relation(fields: [schoolId], references: [id])
+
+  /// Nullable: rows created before this feature have no role yet. The permission
+  /// layer treats a missing role as "owner" only for the school's first user —
+  /// see resolvePermissions() in src/lib/authz.ts.
+  roleId String?
+  roleRef Role?  @relation(fields: [roleId], references: [id])
+
+  /// Links the login to the staff record it belongs to, so a teacher signing in
+  /// can be scoped to her own classes. Null for an office account with no
+  /// teaching record.
+  teacherId String?
+
+  /// Set when the account is suspended without being deleted — a teacher on
+  /// leave keeps her history but cannot sign in.
+  disabledAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   resetTokens PasswordResetToken[]
+
+  @@index([schoolId])
+  @@index([teacherId])
+}
+
+/// A guardian's login to the parent portal and the mobile app.
+///
+/// Separate from `User` on purpose, unlike staff: a different audience, a
+/// different sign-in (phone number + emailed OTP, no password at first), and a
+/// hard requirement that it can only ever reach its own children. Folding it into
+/// the staff table would put a parent one bad `where` clause away from the
+/// roster.
+model GuardianAccount {
+  id         String   @id @default(cuid())
+  schoolId   String
+  school     School   @relation(fields: [schoolId], references: [id])
+  guardianId String   @unique
+  guardian   Guardian @relation(fields: [guardianId], references: [id])
+
+  /// PII — the sign-in identifiers.
+  email String  @unique
+  phone String?
+
+  /// Null until the guardian sets one from the invitation link. A null password
+  /// must never satisfy a comparison; see the guard in the mobile auth layer.
+  passwordHash String?
+
+  /// Invitation lifecycle. The token is stored hashed — a leaked database row
+  /// must not be a working invitation link.
+  inviteTokenHash String?   @unique
+  inviteExpiresAt DateTime?
+  acceptedAt      DateTime?
+
+  disabledAt DateTime?
+  lastLoginAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  devices DeviceToken[]
+
+  @@index([schoolId])
+  @@index([phone])
+}
+
+/// Where to deliver a push notification.
+///
+/// One row per installed app, not per user: a guardian with a phone and a tablet
+/// must receive both. `platform` decides the transport — Huawei devices have no
+/// Google Play Services, so FCM silently never arrives there and HMS is the only
+/// route.
+model DeviceToken {
+  id       String @id @default(cuid())
+  schoolId String
+
+  /// Exactly one of these is set. Kept as two nullable columns rather than a
+  /// polymorphic pair so the database can enforce the foreign key.
+  guardianAccountId String?
+  guardianAccount   GuardianAccount? @relation(fields: [guardianAccountId], references: [id], onDelete: Cascade)
+  userId            String?
+
+  platform PushPlatform
+  /// The provider's registration token. Unique because the same device
+  /// re-registering must update the existing row, not accumulate duplicates that
+  /// each produce a copy of every notification.
+  token    String       @unique
+
+  /// Cleared to null on a permanent provider rejection so the sender stops
+  /// retrying a token the device will never accept again.
+  failedAt     DateTime?
+  lastSeenAt   DateTime  @default(now())
+  createdAt    DateTime  @default(now())
+
+  @@index([schoolId])
+  @@index([guardianAccountId])
+  @@index([userId])
+}
+
+/// Outbound push queue.
+///
+/// Notifications are enqueued by the request that causes them and delivered by a
+/// worker, so a slow or failing push provider cannot make a teacher's "record
+/// attendance" tap hang or fail. Retries are bounded and recorded.
+model PushNotification {
+  id       String @id @default(cuid())
+  schoolId String
+
+  deviceTokenId String?
+  title    String
+  body     String
+  /// Deep-link payload — which screen to open. Never carries the child's health
+  /// or contact details: a notification is read on a lock screen.
+  data     Json?
+
+  status      PushStatus @default(PENDING)
+  attempts    Int        @default(0)
+  lastError   String?
+  scheduledAt DateTime   @default(now())
+  sentAt      DateTime?
+  createdAt   DateTime   @default(now())
+
+  @@index([status, scheduledAt])
+  @@index([schoolId, createdAt])
+}
+
+/// Refresh tokens for the mobile app.
+///
+/// The web uses NextAuth cookies, which a native app cannot hold. Only the hash
+/// is stored: a leaked table must not be a set of working sessions. Rotating on
+/// every use makes a stolen token detectable — presenting a token that has
+/// already been rotated means two parties hold it, and the whole family is
+/// revoked.
+model RefreshToken {
+  id        String @id @default(cuid())
+  tokenHash String @unique
+
+  /// Exactly one of these identifies the bearer.
+  userId            String?
+  guardianAccountId String?
+
+  /// Chain identifier, so detecting a replay can revoke every descendant.
+  familyId  String
+  expiresAt DateTime
+  revokedAt DateTime?
+  /// Set when this token is exchanged, making reuse detectable.
+  rotatedAt DateTime?
+
+  /// Provenance, for the "devices signed in" screen and for incident response.
+  userAgent String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([guardianAccountId])
+  @@index([familyId])
+  @@index([expiresAt])
 }
 
 model PasswordResetToken {
@@ -465,11 +1226,39 @@ model Class {
   school           School   @relation(fields: [schoolId], references: [id])
   teacherId        String?
   teacher          Teacher? @relation(fields: [teacherId], references: [id])
+  /// Legacy school-style stage. Kept because existing rows, imports and the
+  /// activities screen still carry it; `ageGroups` is what a nursery actually
+  /// uses. Do not read this for new features.
   group            ClassGroup @default(KG1)
+  /// Age bands this room takes. An array because a small nursery runs one room
+  /// for 1–3 year olds and must be able to say so, rather than being forced to
+  /// pick the band that fits worst.
+  ageGroups        AgeGroup[] @default([])
+
+  /// How many children the room holds.
+  ///
+  /// Null means "not set" and is treated as no limit — an existing school must
+  /// not start seeing capacity warnings on rooms it never configured. Zero is a
+  /// real answer meaning the room is closed.
+  capacity         Int?
+
   period           Period   @default(MORNING)
   registrationDate DateTime @default(now())
   notes            String?
   imageUrl         String?
+
+  /// Archived, not deleted (task 2.25).
+  ///
+  /// Distinct from `deletedAt`, which is the 30-day trash. A room closed at the
+  /// end of the year keeps its history and its links; it simply stops appearing
+  /// in the working lists.
+  ///
+  /// Children and staff deliberately do **not** get this column: they already
+  /// carry `status` + `leftAt` from the retention work, and "archived" for them
+  /// means `status != ACTIVE`. A fourth overlapping flag on those tables would be
+  /// the kind of near-duplicate state that eventually disagrees with itself.
+  archivedAt          DateTime?
+
   deletedAt           DateTime?
   needsTeacherWarning Boolean  @default(false)
   createdAt        DateTime @default(now())
@@ -526,6 +1315,20 @@ model Teacher {
   qualification8    String?
   qualification9    String?
   qualification10   String?
+
+  /// Role in the nursery (task 2.39).
+  ///
+  /// Free text with a suggested list in the UI rather than an enum: a nursery's
+  /// own words for its posts vary, and an enum would force "مساعدة معلمة" into
+  /// whichever option fits worst. Distinct from the *permission* role on `User`
+  /// — this is what appears on a staff list, that is what the system enforces.
+  jobTitle       String?
+  /// Highest completed qualification. The comparable one; `qualification1..10`
+  /// keep the detail.
+  educationLevel EducationLevel?
+  /// Field of study — "طفولة مبكرة", "تربية خاصة".
+  specialization String?
+
   attendanceHours   Float         @default(0)
   lateHours         Float         @default(0)
   isActive          Boolean       @default(true)
@@ -533,13 +1336,32 @@ model Teacher {
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 
+  /// Operational — data lifecycle. Same contract as Student; see
+  /// docs/DATA_LIFECYCLE.md. Governed by
+  /// SystemSettings.employeeRetentionYears.
+  status         EmploymentStatus @default(ACTIVE)
+  leftAt         DateTime?
+  retentionUntil DateTime?
+  anonymizedAt   DateTime?
+
+  /// Analytics — derived at anonymisation, before the source fields are cleared.
+  /// Staff age and tenure feed the workforce side of the sector reports
+  /// (turnover, teacher-to-child ratio by cohort).
+  ageAtHireMonths Int?
+  nationalityCode String?
+  hireYear        Int?
+  leftYear        Int?
+
   classes            Class[]
   activities         Activity[]
   teacherAttendances TeacherAttendance[]
   invoices           Invoice[]
+  shifts             Shift[]
 
   @@index([schoolId, idNumberHash])
   @@index([schoolId, deletedAt])
+  @@index([retentionUntil, anonymizedAt])
+  @@index([schoolId, status])
 }
 
 model Guardian {
@@ -558,10 +1380,58 @@ model Guardian {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
+  /// Operational — data lifecycle. A guardian has no retention clock of their
+  /// own: they are cleared only once *every* child linked to them has been
+  /// anonymised. Clearing earlier would blank the contact details of a sibling
+  /// who is still enrolled.
+  anonymizedAt DateTime?
+
+  /// Children where this guardian is the *primary* contact.
   students Student[]
+  /// Every child this guardian is attached to, primary or not (task 2.34).
+  links    StudentGuardian[]
+  account  GuardianAccount?
 
   @@index([schoolId, deletedAt])
   @@index([schoolId, phone1])
+}
+
+/// A child ↔ guardian link (task 2.34).
+///
+/// The flat `name_2`, `phone_3`, `phone_4`, `email_2` columns on Guardian could
+/// hold a second adult but not describe one: no relationship, no pick-up
+/// permission, no login of their own, and no way to attach a grandmother to two
+/// grandchildren without typing her twice.
+///
+/// `Student.guardianId` stays as the primary contact. Dozens of screens, the
+/// invoice generator and the reminder flow all read it, and turning that into a
+/// lookup through this table in the same change would have been a rewrite
+/// wearing a migration's clothes. Primary is one column; *everyone else* is this
+/// table.
+model StudentGuardian {
+  studentId  String
+  guardianId String
+  student    Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  guardian   Guardian @relation(fields: [guardianId], references: [id], onDelete: Cascade)
+
+  /// "الأب" · "الأم" · "الجدة" — free text, because a family's own word for it
+  /// is the one that should appear on the emergency sheet.
+  relation String?
+
+  /// Mirrors `Student.guardianId`. Denormalised on purpose so a query that
+  /// starts from this table does not need to join back to Student to know which
+  /// contact comes first.
+  isPrimary Boolean @default(false)
+
+  /// Whether this adult may collect the child. Defaults to true because that is
+  /// what a listed guardian usually means — the ones who may not are the
+  /// exception a nursery needs to be able to record.
+  canPickup Boolean @default(true)
+
+  createdAt DateTime @default(now())
+
+  @@id([studentId, guardianId])
+  @@index([guardianId])
 }
 
 model Student {
@@ -601,6 +1471,19 @@ model Student {
 
   /// Operational
   paymentMethod     PaymentMethod  @default(CASH)
+
+  /// How this child's fee recurs (task 2.37).
+  ///
+  /// Defaults to MONTHLY, which is what every existing row already is — the
+  /// product had no other option — so the column changes nothing until a nursery
+  /// chooses otherwise.
+  billingCycle      BillingCycle   @default(MONTHLY)
+  /// Interval in days, read only when `billingCycle` is CUSTOM.
+  billingIntervalDays Int?
+  /// Per-cycle fee. Null falls back to `Settings.monthlyStudentFee`, preserving
+  /// how the product behaves today for anyone who never sets it.
+  cycleFee          Float?
+
   enrollmentEndDate DateTime?
   paymentStatus     PaymentStatus  @default(PENDING)
   attendanceHours   Float          @default(0)
@@ -617,26 +1500,61 @@ model Student {
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 
+  /// Which weekdays this child attends (task 2.11).
+  ///
+  /// `0` = Sunday … `6` = Saturday, matching `Date.getUTCDay()` so no translation
+  /// table is needed anywhere. Empty means "every working day" — the common case,
+  /// and the one an existing school is already in, so it must not require anyone
+  /// to fill this in before attendance works.
+  ///
+  /// An `Int[]` on the child rather than an `AttendanceSchedule` table: it is a
+  /// strict one-to-one with a single array field, so a separate table would add a
+  /// join to the most-read screen in the product and buy nothing. If schedules
+  /// ever need effective dates, that is the point to promote it to a table.
+  attendanceDays Int[] @default([])
+
   enrollment_date        DateTime?
   payment_notified_at    DateTime? // last time expiry popup was shown
   suspension_notified_at DateTime? // last time suspension popup was shown
   auto_status_updated_at DateTime? // last automatic status update
 
-  /// Operational — data lifecycle. `retentionUntil` is when the personal fields
-  /// must be destroyed; `anonymizedAt` records when that happened. The
-  /// anonymisation service itself is deferred (see D3 in the plan) — the columns
-  /// exist now so the decision is not lost and no backfill is needed later.
+  /// Operational — data lifecycle. See docs/DATA_LIFECYCLE.md.
+  ///
+  /// `status` + `leftAt` mark the move from active to archived; `retentionUntil`
+  /// is `leftAt` + SystemSettings.studentRetentionYears and is the only date the
+  /// nightly sweep reads; `anonymizedAt` is set once the personal columns above
+  /// have been cleared and doubles as the "already done" guard.
+  status         StudentStatus @default(ACTIVE)
+  leftAt         DateTime?
   retentionUntil DateTime?
   anonymizedAt   DateTime?
+
+  /// Analytics — derived once, at anonymisation, from fields that are about to be
+  /// destroyed.
+  ///
+  /// Age is the single most valuable dimension in the sector reports this data
+  /// eventually feeds, and it is computable only while `dateOfBirth` still
+  /// exists. Storing it in months rather than years keeps infant cohorts
+  /// (0-6m, 6-12m) distinguishable. `nationalityCode` replaces the free-text
+  /// `nationality` with a stable code so aggregates survive spelling variants.
+  ageAtEnrollmentMonths Int?
+  nationalityCode       String?
+  enrollmentYear        Int?
+  leftYear              Int?
 
   attendances     Attendance[]
   invoices        Invoice[]
   payment_cycles  PaymentCycle[]
+  care_reports    CareReport[]
+  guardianLinks   StudentGuardian[]
 
   @@index([schoolId, idNumberHash])
   @@index([schoolId, deletedAt])
   @@index([schoolId, isActive])
   @@index([classId])
+  /// Drives the nightly sweep: due records only, already-anonymised skipped.
+  @@index([retentionUntil, anonymizedAt])
+  @@index([schoolId, status])
   @@index([guardianId])
   @@index([retentionUntil])
 }
@@ -685,6 +1603,17 @@ model Attendance {
   schoolId    String
   checkinAt   DateTime?
   checkoutAt  DateTime?
+
+  /// The day's state, stated rather than inferred.
+  ///
+  /// Two nullable timestamps cannot distinguish "absent" from "on leave" from
+  /// "nobody has recorded anything", and a parent seeing a blank row cannot tell
+  /// which. Defaults to PRESENT because the overwhelming majority of rows are
+  /// created by a check-in.
+  status      AttendanceStatus @default(PRESENT)
+  /// Why, for ABSENT and LEAVE. Free text — a nursery's reasons are its own.
+  statusNote  String?
+
   lateMinutes Int       @default(0)
   lateFee     Float     @default(0)
   date        DateTime  @default(dbgenerated("CURRENT_DATE")) @db.Date
@@ -741,6 +1670,7 @@ model NotificationLog {
   id            String           @id @default(cuid())
   schoolId      String
   school        School           @relation(fields: [schoolId], references: [id])
+  /// PII — recipient name and the message body, which quotes the child by name.
   recipientName String
   type          NotificationType
   content       String
@@ -748,23 +1678,19 @@ model NotificationLog {
   source        String           @default("other")
   sentAt        DateTime         @default(now())
 
+  /// Operational — who the message was *about*, so the retention sweep can find
+  /// and clear it. Without this the child's name survived anonymisation in every
+  /// reminder ever sent about them.
+  ///
+  /// Plain nullable columns, not relations: the trash purge hard-deletes a
+  /// student 30 days after they are binned, and a foreign key would either block
+  /// that delete or cascade away a delivery record the school may still need.
+  studentId String?
+  teacherId String?
+
   @@index([schoolId, sentAt])
-}
-
-model MonthlyExpense {
-  id          String   @id @default(cuid())
-  schoolId    String
-  school      School   @relation(fields: [schoolId], references: [id])
-  month       Int
-  year        Int
-  rent        Float    @default(0)
-  maintenance Float    @default(0)
-  materials   Float    @default(0)
-  misc        Float    @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@unique([schoolId, month, year])
+  @@index([studentId])
+  @@index([teacherId])
 }
 
 model Expense {

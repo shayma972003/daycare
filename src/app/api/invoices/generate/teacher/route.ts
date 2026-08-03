@@ -1,7 +1,7 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-import { requireSession } from "@/lib/session";
+import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { renderToBuffer } from "@react-pdf/renderer";
@@ -112,8 +112,12 @@ export async function POST(request: Request) {
   let session;
   try {
     session = await requireSession();
-  } catch {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (error) {
+    // 403 when the caller is known but lacks the permission; 401 otherwise.
+    return (
+      sessionErrorResponse(error) ??
+      Response.json({ error: "Unauthorized" }, { status: 401 })
+    );
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
 
@@ -267,6 +271,9 @@ export async function POST(request: Request) {
         teacherId,
         studentId: null,
         amount: inv.netSalary,
+        // A salary is not a taxable supply — zero on purpose, stated rather
+        // than defaulted.
+        vat_amount: 0,
         pdfUrl: fileUrl,
         data: inv as object,
       },

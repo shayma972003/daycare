@@ -5,7 +5,8 @@ import axios from "axios";
 import { useRouter } from "next/navigation";
 import { Topbar } from "@/components/layout/Topbar";
 import { PeriodBadge } from "@/components/ui/StatusBadge";
-import { t } from "@/lib/utils";
+import { useT } from "@/lib/i18n-provider";
+
 
 interface ClassItem {
   id: string;
@@ -22,6 +23,8 @@ interface ClassItem {
 }
 
 export default function ClassesPage() {
+  // Locale-aware translation — see src/lib/i18n.tsx.
+  const t = useT();
   const router = useRouter();
   const [classes, setClasses] = useState<ClassItem[]>([]);
   const [loading, setLoading] = useState(true);

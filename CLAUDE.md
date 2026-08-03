@@ -34,6 +34,21 @@ npx prisma studio    # open Prisma Studio GUI
 ### Multi-tenancy
 Every DB table has `schoolId`. Every API route must call `requireSession()` from `src/lib/session.ts`, extract `schoolId` from the JWT, and filter all queries by it. The super-admin panel (`src/app/admin/`) uses a separate JWT via `src/lib/admin-auth.ts` — completely separate from NextAuth.
 
+### Authorisation
+`requireSession()` does three jobs: proves the tenant claim, re-reads the account from the database (JWT sessions outlive a deleted or disabled user), and enforces the route's permission. Requirements live in `src/lib/route-permissions.ts`, keyed by path and method — **add a rule there when adding a route**, or it falls back to owner-only. Permission keys and role templates are in `src/lib/permissions.ts`; they are code, not rows.
+
+`src/proxy.ts` (the Next 16 rename of `middleware.ts`) is deny-by-default: everything is protected except an explicit exclusion list. It also forwards `x-pathname`/`x-method`, which is how the permission table is reachable from inside a handler.
+
+Routes catch session failures with `sessionErrorResponse(error) ?? 401` so a permission denial answers **403**, not 401 — the client treats 401 as "session ended" and redirects to sign-in.
+
+### File storage
+Uploads go to Cloudflare R2 via `storeUpload()` in `src/lib/file-upload.ts` — never write a data URI to a column. The bucket is **private**; the column holds `/api/files/<key>`, and that route proves the caller before redirecting to a 5-minute signed URL. Keys are `schools/<schoolId>/<category>/<ownerId>/<uuid>.<ext>`, so the tenant is checkable without a query and a child's files are deletable by owner.
+
+Deleting a row is no longer deleting a file: call `discardStoredFile()` / `discardFilesOwnedBy()` from `src/lib/stored-files.ts`. For any surface without a cookie session (kiosk, parent portal, mobile), stamp URLs with `stampFileUrl()` — an `<img>` cannot send a bearer token.
+
+### Mobile API
+`/api/mobile/v1/*` is versioned and separate from the web routes: an app in the wild cannot be updated on demand. Bearer tokens, never cookies — see `src/lib/mobile-auth.ts` (short access JWT + rotating hashed refresh token) and `src/lib/mobile-guard.ts`. All guardian queries scope through `guardianChildIds()`.
+
 ### Route layout
 ```
 src/app/
@@ -41,7 +56,7 @@ src/app/
   register/            # public — self-service school registration
   forgot-password/     # public — OTP request
   reset-password/      # public — OTP verify + new password
-  (dashboard)/         # protected by middleware — school admin panel
+  (dashboard)/         # protected by src/proxy.ts — school admin panel
   admin/               # super-admin panel (own JWT auth)
   api/
     auth/              # NextAuth + register + forgot/reset password

@@ -210,9 +210,31 @@ export async function DELETE(
     prisma.notificationLog.deleteMany({ where: { schoolId: id } }),
     prisma.expense.deleteMany({ where: { school_id: id } }),
     prisma.financialReport.deleteMany({ where: { school_id: id } }),
-    prisma.monthlyExpense.deleteMany({ where: { schoolId: id } }),
     prisma.activityInvite.deleteMany({ where: { activity: { schoolId: id } } }),
     prisma.activity.deleteMany({ where: { schoolId: id } }),
+
+    /**
+     * Tables added after task 0.91 fixed this transaction the first time.
+     *
+     * Each one holds a hard `schoolId` foreign key with `ON DELETE RESTRICT`, so
+     * a missing line here does not silently orphan rows — it makes the whole
+     * delete throw, which is how the original eight omissions were found. The
+     * order matters: anything pointing at Student, Guardian or Teacher has to go
+     * before them.
+     *
+     * `StorageUsage` is absent on purpose — its FK cascades. So do `Lesson`,
+     * `UnitFile`, `UnitClass`, `CalendarEventClass`, `StudentGuardian` and
+     * `DeviceToken`, each through its own parent.
+     */
+    prisma.careReport.deleteMany({ where: { schoolId: id } }),
+    prisma.shift.deleteMany({ where: { schoolId: id } }),
+    prisma.calendarEvent.deleteMany({ where: { schoolId: id } }),
+    prisma.unit.deleteMany({ where: { schoolId: id } }),
+    prisma.guardianAccount.deleteMany({ where: { schoolId: id } }),
+    // Before `user`: User.roleId is ON DELETE SET NULL, so roles may go first,
+    // and doing so avoids leaving a dangling reference mid-transaction.
+    prisma.role.deleteMany({ where: { schoolId: id } }),
+
     prisma.student.deleteMany({ where: { schoolId: id } }),
     prisma.guardian.deleteMany({ where: { schoolId: id } }),
     prisma.class.deleteMany({ where: { schoolId: id } }),

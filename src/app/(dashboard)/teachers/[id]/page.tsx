@@ -2,11 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
+import { useForm, type Resolver } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { teacherFormSchema } from "@/lib/form-schemas";
 import axios from "axios";
 import { describeApiError } from "@/lib/api-error";
-import { t, formatDate, formatCurrency } from "@/lib/utils";
+import { formatDate, formatCurrency } from "@/lib/utils";
 import { TeacherInvoiceModal } from "@/components/teachers/TeacherInvoiceModal";
+import { useT } from "@/lib/i18n-provider";
 
 interface ClassItem { id: string; name: string }
 interface Invoice { id: string; createdAt: string; type: string; amount?: number | null; pdfUrl?: string | null }
@@ -41,6 +44,8 @@ interface FormValues {
 const MAX_EXTRA = 7; // qualification4–10
 
 export default function TeacherProfilePage() {
+  // Locale-aware translation — see src/lib/i18n.tsx.
+  const t = useT();
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
 
@@ -62,7 +67,9 @@ export default function TeacherProfilePage() {
   // Extra qualifications (4–10) stored as array of strings
   const [extraQuals, setExtraQuals] = useState<string[]>([]);
 
-  const { register, handleSubmit, reset, watch, setValue } = useForm<FormValues>({
+  // Same schema as the create form — see the note on the student profile.
+  const { register, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<FormValues>({
+    resolver: zodResolver(teacherFormSchema) as Resolver<FormValues>,
     defaultValues: {
       name: "", period: "", classId: "", idNumber: "", dateOfBirth: "",
       nationality: "", email: "", phone1: "", phone2: "",

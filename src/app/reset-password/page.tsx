@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import axios from "axios";
+import { PasswordRules, meetsRequiredRules } from "@/components/ui/PasswordRules";
+import { PASSWORD_MIN_MESSAGE } from "@/lib/password-policy";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -35,8 +37,9 @@ export default function ResetPasswordPage() {
       setError("كلمة المرور وتأكيدها غير متطابقتين");
       return;
     }
-    if (newPassword.length < 8) {
-      setError("كلمة المرور يجب أن تكون 8 أحرف على الأقل");
+    // One source for the rule and its wording — see src/lib/password-policy.ts.
+    if (!meetsRequiredRules(newPassword)) {
+      setError(PASSWORD_MIN_MESSAGE);
       return;
     }
 
@@ -124,6 +127,9 @@ export default function ResetPasswordPage() {
                   {showPassword ? "إخفاء" : "إظهار"}
                 </button>
               </div>
+              {/* Live rules, so the policy is visible while there is still time
+                  to act on it rather than as an error after submit. */}
+              <PasswordRules value={newPassword} />
             </div>
 
             <div>

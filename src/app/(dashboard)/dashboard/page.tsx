@@ -5,9 +5,11 @@ import axios from "axios";
 import { useRouter } from "next/navigation";
 import { Topbar } from "@/components/layout/Topbar";
 import { ActivityGrid, type Activity } from "@/components/activities/ActivityGrid";
+import { AttendanceDonut } from "@/components/attendance/AttendanceDonut";
 import { ActivityFormModal } from "@/components/activities/ActivityFormModal";
 import { DeliveryStatusBadge } from "@/components/ui/StatusBadge";
-import { t } from "@/lib/utils";
+import { useT } from "@/lib/i18n-provider";
+
 
 interface NotificationLog {
   id: string;
@@ -23,6 +25,8 @@ type EnrollmentNotif = { id: string; full_name: string; submitted_at: string };
 const PAGE_SIZE = 15;
 
 export default function HomePage() {
+  // Locale-aware translation — see src/lib/i18n.tsx.
+  const t = useT();
   const router = useRouter();
   const [currentActivities, setCurrentActivities] = useState<Activity[]>([]);
   const [pastActivities, setPastActivities] = useState<Activity[]>([]);
@@ -240,6 +244,14 @@ export default function HomePage() {
           </div>
         ) : (
           <>
+            {/* Today's register at a glance — task 2.17. Above the activities
+                because "who is in the building" is the first question of the
+                day, every day. */}
+            <section className="bg-white rounded-xl shadow-md p-6">
+              <h2 className="text-base font-bold text-[#111111] mb-2">حضور اليوم</h2>
+              <AttendanceDonut />
+            </section>
+
             <section>
               <h2 className="text-base font-bold text-[#111111] mb-4">{t("home.currentActivities")}</h2>
               <ActivityGrid activities={currentActivities} onAdd={openAddModal} onSelect={openEditModal} />

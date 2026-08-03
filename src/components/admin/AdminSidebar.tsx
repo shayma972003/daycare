@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { href: "/admin/subscriptions", label: "الاشتراكات", icon: "◈" },
   { href: "/admin/communications", label: "التواصل", icon: "✉" },
   { href: "/admin/logs", label: "السجل", icon: "≡" },
+  { href: "/admin/data-retention", label: "الاحتفاظ بالبيانات", icon: "⏳" },
   { href: "/admin/settings", label: "الإعدادات", icon: "⚙" },
 ];
 

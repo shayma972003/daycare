@@ -6,7 +6,8 @@ import axios from "axios";
 import { Topbar } from "@/components/layout/Topbar";
 import { PeriodBadge } from "@/components/ui/StatusBadge";
 import { ClassDeleteConfirmModal } from "@/components/classes/ClassDeleteConfirmModal";
-import { t } from "@/lib/utils";
+import { useT } from "@/lib/i18n-provider";
+
 
 type Teacher = { id: string; name: string };
 
@@ -44,6 +45,8 @@ export default function ClassProfilePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  // Locale-aware translation — see src/lib/i18n.tsx.
+  const t = useT();
   const { id } = use(params);
   const router = useRouter();
 

@@ -4,9 +4,10 @@ import { useEffect, useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import axios from "axios";
 import * as Dialog from "@radix-ui/react-dialog";
-import { t } from "@/lib/utils";
+
 import { VariableReference } from "@/components/ui/VariableReference";
 import type { Activity } from "./ActivityGrid";
+import { useT } from "@/lib/i18n-provider";
 
 interface Teacher {
   id: string;
@@ -16,6 +17,12 @@ interface Teacher {
 interface ClassItem {
   id: string;
   name: string;
+}
+
+/** Shape of `GET /api/activities/[id]` — the fields the grid does not carry. */
+interface ActivityDetails {
+  teacherId: string | null;
+  activityInvites?: { classId: string }[];
 }
 
 interface ActivityFormValues {
@@ -44,12 +51,18 @@ export function ActivityFormModal({
   activity,
   onSaved,
 }: ActivityFormModalProps) {
+  // Locale-aware translation — see src/lib/i18n.tsx.
+  const t = useT();
   const isEdit = !!activity;
 
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [classes, setClasses] = useState<ClassItem[]>([]);
   const [loadingTeachers, setLoadingTeachers] = useState(false);
   const [loadingClasses, setLoadingClasses] = useState(false);
+  const [loadingDetails, setLoadingDetails] = useState(false);
+  // Opt-in, not automatic. Every edit used to fire the notification endpoint, so
+  // fixing a typo in the title re-emailed every guardian in every invited class.
+  const [notifyGuardians, setNotifyGuardians] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -100,7 +113,17 @@ export function ActivityFormModal({
       .finally(() => setLoadingClasses(false));
   }, [open]);
 
+  /**
+   * Loads the full record when editing.
+   *
+   * The grid only carries `teacherName` — no `teacherId`, no class list — so the
+   * form used to open with the teacher select empty and no classes ticked, and
+   * saving wrote those blanks back. Opening an activity and pressing save
+   * silently unassigned its teacher and cancelled every class invitation.
+   */
   useEffect(() => {
+    setError(null);
+
     if (open && activity) {
       reset({
         name: activity.name ?? "",
@@ -116,6 +139,28 @@ export function ActivityFormModal({
       });
       setImageUrl(activity.imageUrl ?? null);
       setImagePreview(activity.imageUrl ?? null);
+
+      let cancelled = false;
+      setLoadingDetails(true);
+      axios
+        .get<ActivityDetails>(`/api/activities/${activity.id}`)
+        .then((r) => {
+          if (cancelled) return;
+          setValue("teacherId", r.data.teacherId ?? "");
+          setValue(
+            "classIds",
+            (r.data.activityInvites ?? []).map((invite) => invite.classId)
+          );
+        })
+        .catch(() => {
+          if (!cancelled) setError("تعذر تحميل بيانات الفعالية كاملة");
+        })
+        .finally(() => {
+          if (!cancelled) setLoadingDetails(false);
+        });
+      return () => {
+        cancelled = true;
+      };
     } else if (open && !activity) {
       reset({
         name: "",
@@ -132,8 +177,7 @@ export function ActivityFormModal({
       setImageUrl(null);
       setImagePreview(null);
     }
-    setError(null);
-  }, [open, activity, reset]);
+  }, [open, activity, reset, setValue]);
 
   const toggleClass = (id: string) => {
     const current = selectedClassIds.includes(id)
@@ -172,7 +216,10 @@ export function ActivityFormModal({
       const payload = { ...data, imageUrl };
       if (isEdit && activity) {
         await axios.put(`/api/activities/${activity.id}`, payload);
-        await axios.post(`/api/activities/${activity.id}/send`);
+        // Only when the user asked for it. See `notifyGuardians`.
+        if (notifyGuardians) {
+          await axios.post(`/api/activities/${activity.id}/send`);
+        }
       } else {
         await axios.post("/api/activities", payload);
       }
@@ -450,14 +497,39 @@ export function ActivityFormModal({
               )}
             </div>
 
+            {/* Notification opt-in — edit only. Creating an activity has its own
+                send step, and an unticked box here means "save quietly". */}
+            {isEdit && (
+              <label className="flex items-start gap-2 text-sm text-gray-600 pt-2">
+                <input
+                  type="checkbox"
+                  checked={notifyGuardians}
+                  onChange={(e) => setNotifyGuardians(e.target.checked)}
+                  className="accent-[#F64651] mt-0.5"
+                />
+                <span>
+                  إرسال إشعار لأولياء الأمور بالتعديل
+                  <span className="block text-xs text-gray-400">
+                    بدون التفعيل يُحفظ التعديل دون إرسال أي رسالة
+                  </span>
+                </span>
+              </label>
+            )}
+
             {/* Action buttons */}
             <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
               <button
                 type="submit"
-                disabled={saving || uploadingImage}
+                disabled={saving || uploadingImage || loadingDetails}
                 className="flex-1 bg-[#F64651] text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-[#D93A44] transition-colors disabled:opacity-60"
               >
-                {saving ? t("common.loading") : t("home.activityForm.saveAndSend")}
+                {/* Blocked while the teacher and class list are still loading —
+                    submitting early would save the blanks this fix removed. */}
+                {saving || loadingDetails
+                  ? t("common.loading")
+                  : isEdit && !notifyGuardians
+                    ? t("common.save")
+                    : t("home.activityForm.saveAndSend")}
               </button>
 
               {isEdit && (

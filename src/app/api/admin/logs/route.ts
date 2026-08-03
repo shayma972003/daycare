@@ -10,8 +10,12 @@ export async function GET(request: Request) {
   const action = url.searchParams.get("action") ?? undefined;
   const from = url.searchParams.get("from");
   const to = url.searchParams.get("to");
-  const page = Math.max(1, parseInt(url.searchParams.get("page") ?? "1"));
-  const limit = Math.min(100, parseInt(url.searchParams.get("limit") ?? "50"));
+
+  // `parseInt` returns NaN for anything non-numeric, and `Math.max(1, NaN)` is
+  // NaN — which Prisma rejected with a 500. `?limit=abc` was a crash, and
+  // `?limit=0` produced `take: 0` (an empty page that looks like "no logs").
+  const page = clampInt(url.searchParams.get("page"), 1, 1, Number.MAX_SAFE_INTEGER);
+  const limit = clampInt(url.searchParams.get("limit"), 50, 1, 100);
 
   const where = {
     ...(school_id && { school_id }),
@@ -19,8 +23,10 @@ export async function GET(request: Request) {
     ...(from || to
       ? {
           performed_at: {
-            ...(from && { gte: new Date(from) }),
-            ...(to && { lte: new Date(to) }),
+            // An unparseable date produced an Invalid Date, which Prisma also
+            // rejects. Bad filter values are ignored rather than fatal.
+            ...(parseDate(from) && { gte: parseDate(from)! }),
+            ...(parseDate(to) && { lte: parseDate(to)! }),
           },
         }
       : {}),
@@ -51,4 +57,17 @@ export async function GET(request: Request) {
     page,
     totalPages: Math.ceil(total / limit),
   });
+}
+
+/** Parses a query-string integer, falling back rather than producing NaN. */
+function clampInt(raw: string | null, fallback: number, min: number, max: number): number {
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, Math.trunc(parsed)));
+}
+
+function parseDate(raw: string | null): Date | null {
+  if (!raw) return null;
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }

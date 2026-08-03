@@ -3,6 +3,7 @@ import { randomBytes } from "crypto";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import bcrypt from "bcryptjs";
+import { ROLE_TEMPLATES } from "../src/lib/permissions";
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!,
@@ -54,14 +55,33 @@ async function main() {
     }));
   console.log(`school: ${school.name}`);
 
+  // Roles before the user, so the owner is created holding one rather than
+  // relying on the "first user" fallback in requireSession().
+  await prisma.role.createMany({
+    data: ROLE_TEMPLATES.map((template) => ({
+      schoolId: school.id,
+      key: template.key,
+      nameAr: template.nameAr,
+      permissions: template.permissions,
+      isSystem: true,
+    })),
+    skipDuplicates: true,
+  });
+  const managerRole = await prisma.role.findUniqueOrThrow({
+    where: { schoolId_key: { schoolId: school.id, key: "manager" } },
+    select: { id: true },
+  });
+  console.log(`roles: ${ROLE_TEMPLATES.length} seeded`);
+
   const user = await prisma.user.upsert({
     where: { email: SCHOOL_EMAIL },
-    update: {},
+    update: { roleId: managerRole.id },
     create: {
       name: "مدير الروضة",
       email: SCHOOL_EMAIL,
       password: await bcrypt.hash(SCHOOL_PASSWORD, 12),
       schoolId: school.id,
+      roleId: managerRole.id,
     },
   });
   console.log(`admin user: ${user.email}`);

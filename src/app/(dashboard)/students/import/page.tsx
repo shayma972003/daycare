@@ -154,15 +154,6 @@ export default function StudentsImportPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const confirmCalledRef = useRef(false);
 
-  // Step 5: auto-run confirm
-  useEffect(() => {
-    if (step === 5 && sessionId && !confirmCalledRef.current) {
-      confirmCalledRef.current = true;
-      runConfirm();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, sessionId]);
-
   const runConfirm = useCallback(async () => {
     if (!sessionId) return;
     setLoading(true);
@@ -175,9 +166,22 @@ export default function StudentsImportPage() {
       setStep(6);
     } catch (err) {
       setError(axios.isAxiosError(err) ? err.response?.data?.error ?? "فشل الاستيراد" : "فشل الاستيراد");
+    } finally {
       setLoading(false);
     }
   }, [sessionId]);
+
+  // Step 5: auto-run confirm.
+  //
+  // Declared after `runConfirm` on purpose — reading it above its own definition
+  // captured a stale binding, which is a real hazard here: a retry would have
+  // re-run the first version of the callback against an old session id.
+  useEffect(() => {
+    if (step === 5 && sessionId && !confirmCalledRef.current) {
+      confirmCalledRef.current = true;
+      runConfirm();
+    }
+  }, [step, sessionId, runConfirm]);
 
   async function handleFileUpload(file: File) {
     setLoading(true);
@@ -577,19 +581,54 @@ export default function StudentsImportPage() {
           </div>
         )}
 
-        {/* STEP 5: Importing */}
-        {step === 5 && (
+        {/* STEP 5: Importing.
+            A failure here used to leave the spinner turning under the words
+            "do not close the page", with the error printed below it and no
+            button of any kind — the wizard simply ended. The failed state is now
+            a state of its own, with a way forward and a way back. */}
+        {step === 5 && !error && (
           <div className="bg-white rounded-2xl shadow-md p-12 flex flex-col items-center justify-center gap-6">
             <div className="w-16 h-16 border-4 border-gray-100 border-t-[#F64651] rounded-full animate-spin" />
             <div className="text-center">
               <p className="text-xl font-bold text-[#111111]">جاري الاستيراد...</p>
               <p className="text-sm text-gray-500 mt-1">يرجى الانتظار، لا تغلق الصفحة</p>
             </div>
-            {error && (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
-                {error}
-              </div>
-            )}
+          </div>
+        )}
+
+        {step === 5 && error && (
+          <div className="bg-white rounded-2xl shadow-md p-12 flex flex-col items-center justify-center gap-6">
+            <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center text-3xl text-red-500">
+              !
+            </div>
+            <div className="text-center space-y-1">
+              <p className="text-xl font-bold text-[#111111]">تعذّر إتمام الاستيراد</p>
+              <p role="alert" className="text-sm text-red-600">{error}</p>
+              <p className="text-xs text-gray-500">
+                لم يُحفظ شيء ناقص — يمكنك إعادة المحاولة أو العودة للمراجعة.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => { confirmCalledRef.current = true; runConfirm(); }}
+                disabled={loading}
+                className="px-6 py-2 bg-[#F64651] text-white rounded-xl text-sm font-bold hover:bg-[#D93A44] transition-colors disabled:opacity-60"
+              >
+                {loading ? "جارٍ المحاولة..." : "إعادة المحاولة"}
+              </button>
+              <button
+                onClick={() => { confirmCalledRef.current = false; setError(null); setStep(4); }}
+                className="px-5 py-2 border border-gray-300 text-gray-600 rounded-xl text-sm hover:bg-gray-50 transition-colors"
+              >
+                العودة للخطوة السابقة
+              </button>
+              <button
+                onClick={() => router.push("/students")}
+                className="px-5 py-2 border border-gray-300 text-gray-600 rounded-xl text-sm hover:bg-gray-50 transition-colors"
+              >
+                إنهاء
+              </button>
+            </div>
           </div>
         )}
 

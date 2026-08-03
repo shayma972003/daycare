@@ -1,13 +1,14 @@
-import { requireSession } from "@/lib/session";
+import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
 import {
-  validateUpload,
+  storeUpload,
   isFailure,
   DOCUMENT_TYPES,
   DOCUMENT_LABEL,
   MAX_DOCUMENT_BYTES,
 } from "@/lib/file-upload";
+import { discardStoredFile } from "@/lib/stored-files";
 
 export async function POST(
   request: Request,
@@ -16,8 +17,12 @@ export async function POST(
   let session;
   try {
     session = await requireSession();
-  } catch {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (error) {
+    // 403 when the caller is known but lacks the permission; 401 otherwise.
+    return (
+      sessionErrorResponse(error) ??
+      Response.json({ error: "Unauthorized" }, { status: 401 })
+    );
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
   const { id } = await params;
@@ -33,19 +38,21 @@ export async function POST(
     return Response.json({ error: "No file provided" }, { status: 400 });
   }
 
-  const validated = await validateUpload(
-    file,
-    DOCUMENT_TYPES,
-    MAX_DOCUMENT_BYTES,
-    DOCUMENT_LABEL
-  );
-  if (isFailure(validated)) {
-    return Response.json({ error: validated.error }, { status: validated.status });
+  const stored = await storeUpload(schoolId, file, {
+    allowed: DOCUMENT_TYPES,
+    maxBytes: MAX_DOCUMENT_BYTES,
+    humanLabel: DOCUMENT_LABEL,
+    category: "students",
+    ownerId: student.id,
+    previousUrl: student.evaluationFileUrl,
+  });
+  if (isFailure(stored)) {
+    return Response.json({ error: stored.error }, { status: stored.status });
   }
 
   const updated = await prisma.student.update({
     where: { id },
-    data: { evaluationFileUrl: validated.dataUrl, evaluationFileName: file.name },
+    data: { evaluationFileUrl: stored.url, evaluationFileName: file.name },
   });
 
   await logAction({
@@ -71,8 +78,12 @@ export async function DELETE(
   let session;
   try {
     session = await requireSession();
-  } catch {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (error) {
+    // 403 when the caller is known but lacks the permission; 401 otherwise.
+    return (
+      sessionErrorResponse(error) ??
+      Response.json({ error: "Unauthorized" }, { status: 401 })
+    );
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
   const { id } = await params;
@@ -86,6 +97,9 @@ export async function DELETE(
     where: { id },
     data: { evaluationFileUrl: null, evaluationFileName: null },
   });
+
+  // Nulling the column stops being a deletion once the bytes are in a bucket.
+  await discardStoredFile(student.evaluationFileUrl);
 
   await logAction({
     school_id: schoolId,

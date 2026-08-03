@@ -2,10 +2,15 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
+import { useForm, type Resolver } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { studentFormSchema } from "@/lib/form-schemas";
 import axios from "axios";
 import { Topbar } from "@/components/layout/Topbar";
-import { t } from "@/lib/utils";
+
+import { PAYMENT_STATUS_LABELS } from "@/lib/enum-labels";
+import { PAYMENT_STATUSES } from "@/lib/payment-status";
+import { useT } from "@/lib/i18n-provider";
 
 type Class = { id: string; name: string };
 type GuardianSuggestion = { id: string; name: string; phone1?: string | null; phone2?: string | null; email?: string | null; name_2?: string | null; phone_3?: string | null; phone_4?: string | null; email_2?: string | null };
@@ -49,6 +54,8 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 const inputCls = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111111]";
 
 export default function NewStudentPage() {
+  // Locale-aware translation — see src/lib/i18n.tsx.
+  const t = useT();
   const router = useRouter();
   const [classes, setClasses] = useState<Class[]>([]);
   const [saving, setSaving] = useState(false);
@@ -60,13 +67,17 @@ export default function NewStudentPage() {
   const suggestionsRef = useRef<HTMLDivElement>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Zod on the client, from the same schema the API uses — task 2.41. Without a
+  // resolver the only validation was whatever the input element enforced, which
+  // for a text field is nothing.
   const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<StudentFormData>({
+    resolver: zodResolver(studentFormSchema) as Resolver<StudentFormData>,
     defaultValues: {
       gender: "MALE",
       period: "MORNING",
       attendanceType: "دوام منتظم",
       paymentMethod: "CASH",
-      paymentStatus: "بانتظار الدفع",
+      paymentStatus: "PENDING",
     },
   });
 
@@ -176,7 +187,16 @@ export default function NewStudentPage() {
         guardianPhone3: data.guardianPhone3 || undefined,
         guardianPhone4: data.guardianPhone4 || undefined,
         guardianEmail2: data.guardianEmail2 || undefined,
-        registration_fee: registrationFeeIsDefault ? 0 : parseFloat(data.registrationFee) || 0,
+        // Omitted rather than sent as 0 when the school default is in force.
+        //
+        // Zero is not "use the default", it is "this child owes no joining fee",
+        // and the finance layer reads the column that second way — so a student
+        // created with the default contributed nothing to registration revenue
+        // while the form showed them a figure taken from settings. Leaving the
+        // field out states "not overridden" and lets the server resolve it.
+        registration_fee: registrationFeeIsDefault
+          ? undefined
+          : parseFloat(data.registrationFee) || 0,
       });
       router.push("/students");
     } catch (err) {
@@ -374,12 +394,15 @@ export default function NewStudentPage() {
                 </select>
               </Field>
               <Field label="حالة الدفع">
+                {/* Options generated from the enum. Hand-written lists here were
+                    where the Arabic literal "بانتظار الدفع" entered the column
+                    and split the state machine across two alphabets. */}
                 <select {...register("paymentStatus")} className={inputCls}>
-                  <option value="بانتظار الدفع">بانتظار الدفع</option>
-                  <option value="PAID">{t("paymentStatus.PAID")}</option>
-                  <option value="LATE">{t("paymentStatus.LATE")}</option>
-                  <option value="CANCELLED">{t("paymentStatus.CANCELLED")}</option>
-                  <option value="SUSPENDED">{t("paymentStatus.SUSPENDED")}</option>
+                  {PAYMENT_STATUSES.map((status) => (
+                    <option key={status} value={status}>
+                      {PAYMENT_STATUS_LABELS[status]}
+                    </option>
+                  ))}
                 </select>
               </Field>
               <Field label="تاريخ الانضمام">

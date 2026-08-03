@@ -1,13 +1,14 @@
-import { requireSession } from "@/lib/session";
+import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
 import {
-  validateUpload,
+  storeUpload,
   isFailure,
   IMAGE_TYPES,
   IMAGE_LABEL,
   MAX_IMAGE_BYTES,
 } from "@/lib/file-upload";
+import { discardStoredFile } from "@/lib/stored-files";
 
 export async function POST(
   request: Request,
@@ -16,8 +17,12 @@ export async function POST(
   let session;
   try {
     session = await requireSession();
-  } catch {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (error) {
+    // 403 when the caller is known but lacks the permission; 401 otherwise.
+    return (
+      sessionErrorResponse(error) ??
+      Response.json({ error: "Unauthorized" }, { status: 401 })
+    );
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
   const { id } = await params;
@@ -33,14 +38,23 @@ export async function POST(
     return Response.json({ error: "No file" }, { status: 400 });
   }
 
-  const validated = await validateUpload(file, IMAGE_TYPES, MAX_IMAGE_BYTES, IMAGE_LABEL);
-  if (isFailure(validated)) {
-    return Response.json({ error: validated.error }, { status: validated.status });
+  const stored = await storeUpload(schoolId, file, {
+    allowed: IMAGE_TYPES,
+    maxBytes: MAX_IMAGE_BYTES,
+    humanLabel: IMAGE_LABEL,
+    category: "students",
+    ownerId: student.id,
+    // Replacing a photo must remove the one it replaces; keys are never reused,
+    // so without this the bucket keeps every avatar a child has ever had.
+    previousUrl: student.avatarUrl,
+  });
+  if (isFailure(stored)) {
+    return Response.json({ error: stored.error }, { status: stored.status });
   }
 
   const updated = await prisma.student.update({
     where: { id },
-    data: { avatarUrl: validated.dataUrl },
+    data: { avatarUrl: stored.url },
   });
 
   await logAction({
@@ -63,8 +77,12 @@ export async function DELETE(
   let session;
   try {
     session = await requireSession();
-  } catch {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (error) {
+    // 403 when the caller is known but lacks the permission; 401 otherwise.
+    return (
+      sessionErrorResponse(error) ??
+      Response.json({ error: "Unauthorized" }, { status: 401 })
+    );
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
   const { id } = await params;
@@ -78,6 +96,9 @@ export async function DELETE(
     where: { id },
     data: { avatarUrl: null },
   });
+
+  // Nulling the column stops being a deletion once the bytes are in a bucket.
+  await discardStoredFile(student.avatarUrl);
 
   await logAction({
     school_id: schoolId,

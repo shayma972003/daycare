@@ -43,8 +43,12 @@ export function AlertsProvider({ children }: { children: React.ReactNode }) {
     const alreadyChecked = sessionStorage.getItem("alerts_checked");
     if (alreadyChecked) return;
 
+    // POST, not GET: the endpoint marks these alerts as shown, and a prefetch or
+    // a cached GET would burn them without anyone seeing the popup.
     axios
-      .get<{ expiredStudents: ExpiredStudent[]; suspendedStudents: SuspendedStudent[] }>("/api/notifications/alerts")
+      .post<{ expiredStudents: ExpiredStudent[]; suspendedStudents: SuspendedStudent[] }>(
+        "/api/notifications/alerts"
+      )
       .then(({ data }) => {
         if (data.expiredStudents?.length > 0) setExpiredAlert(data.expiredStudents);
         if (data.suspendedStudents?.length > 0) setSuspendedAlert(data.suspendedStudents);

@@ -1,11 +1,14 @@
-import { requireSession } from "@/lib/session";
+import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
 import { generatePaymentCycles } from "@/lib/payment-cycles";
+import { formatAst } from "@/lib/datetime";
 import { z } from "zod";
 
 const schema = z.object({
-  ids: z.array(z.string()).min(1),
+  // Capped like bulk-status: each id triggers a payment-cycle regeneration, so
+  // an unbounded list is a request that runs until the function times out.
+  ids: z.array(z.string()).min(1).max(500),
   enrollmentEndDate: z.string().min(1),
 });
 
@@ -13,8 +16,12 @@ export async function POST(request: Request) {
   let session;
   try {
     session = await requireSession();
-  } catch {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (error) {
+    // 403 when the caller is known but lacks the permission; 401 otherwise.
+    return (
+      sessionErrorResponse(error) ??
+      Response.json({ error: "Unauthorized" }, { status: 401 })
+    );
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
 
@@ -46,7 +53,10 @@ export async function POST(request: Request) {
   }
 
   await prisma.student.updateMany({
-    where: { id: { in: students.map((s) => s.id) } },
+    // `schoolId` repeated even though the ids came from a scoped query above:
+    // if that filter is ever loosened, the write must still refuse to cross a
+    // tenant boundary rather than silently follow it.
+    where: { id: { in: students.map((s) => s.id) }, schoolId, deletedAt: null },
     data: { enrollmentEndDate: newDate },
   });
 
@@ -56,7 +66,14 @@ export async function POST(request: Request) {
 
   await logAction({
     school_id: schoolId,
-    action: `تمديد تاريخ الاشتراك لـ ${students.length} طالب حتى ${newDate.toLocaleDateString("ar-SA")}`,
+    // `toLocaleDateString("ar-SA")` defaults to the Islamic calendar, so this
+    // line recorded a Hijri date while every other date in the product is
+    // Gregorian — the same defect fixed in task 0.68.
+    action: `تمديد تاريخ الاشتراك لـ ${students.length} طالب حتى ${formatAst(newDate, {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    })}`,
     entity_type: "student",
     performed_by: session.user.name ?? "المدير",
     request,

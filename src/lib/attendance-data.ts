@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { astDateOnly } from "@/lib/datetime";
+import { stampFileUrl } from "@/lib/file-token";
 
 export interface AttendancePerson {
   id: string;
@@ -81,7 +82,10 @@ export async function getAttendancePageData(schoolId: string): Promise<{
     students: students.map((s) => ({
       id: s.id,
       full_name: s.name,
-      avatar_url: s.avatarUrl,
+      // Stamped for the same reason as the kiosk logo: the screen is
+      // deliberately session-less, and a private object needs a grant the
+      // browser can present. See src/lib/file-token.ts.
+      avatar_url: stampFileUrl(s.avatarUrl),
       class_id: s.classId,
       class_name: s.class?.name ?? null,
       period: s.period,

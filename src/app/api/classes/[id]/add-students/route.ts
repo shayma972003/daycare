@@ -1,4 +1,4 @@
-import { requireSession } from "@/lib/session";
+import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
 import { z } from "zod";
@@ -14,8 +14,12 @@ export async function POST(
   let session;
   try {
     session = await requireSession();
-  } catch {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (error) {
+    // 403 when the caller is known but lacks the permission; 401 otherwise.
+    return (
+      sessionErrorResponse(error) ??
+      Response.json({ error: "Unauthorized" }, { status: 401 })
+    );
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
   const { id } = await params;
@@ -53,8 +57,26 @@ export async function POST(
     return Response.json({ error: "لا يوجد طلاب صالحين للإضافة" }, { status: 400 });
   }
 
+  /**
+   * Capacity check (task 2.10).
+   *
+   * A **warning, not a refusal**: a nursery that has agreed to take one child
+   * over its stated number needs the system to let it, and a hard block would
+   * simply teach staff to raise the capacity field until it stopped complaining.
+   * The number is on screen and the response says it was exceeded — which is
+   * what makes it useful for the ratio conversations it exists for.
+   */
+  const current = await prisma.student.count({
+    where: { classId: id, schoolId, deletedAt: null },
+  });
+  const after = current + students.length;
+  const overCapacity =
+    cls.capacity !== null && cls.capacity !== undefined && after > cls.capacity;
+
   await prisma.student.updateMany({
-    where: { id: { in: students.map((s) => s.id) } },
+    // `schoolId` repeated — defence in depth on a write whose id list came from
+    // the client.
+    where: { id: { in: students.map((s) => s.id) }, schoolId, deletedAt: null },
     data: { classId: id, needsClassWarning: false },
   });
 
@@ -68,5 +90,17 @@ export async function POST(
     request,
   });
 
-  return Response.json({ success: true, added: students.length }, { status: 200 });
+  return Response.json(
+    {
+      success: true,
+      added: students.length,
+      capacity: cls.capacity ?? null,
+      count: after,
+      overCapacity,
+      ...(overCapacity
+        ? { warning: `عدد الأطفال (${after}) تجاوز سعة الفصل (${cls.capacity})` }
+        : {}),
+    },
+    { status: 200 }
+  );
 }

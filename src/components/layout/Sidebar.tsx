@@ -3,15 +3,32 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
-import { cn, t } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n-provider";
+import { LanguageSwitcher } from "@/components/layout/LanguageSwitcher";
 
-const navItems = [
-  { href: "/dashboard", label: t("nav.home") },
-  { href: "/students", label: t("nav.students") },
-  { href: "/classes", label: t("nav.classes") },
-  { href: "/statistics", label: t("nav.statistics") },
-  { href: "/teachers", label: t("nav.teachers") },
-  { href: "/settings", label: t("nav.settings") },
+/**
+ * Nav entries as translation *keys*, resolved inside the component.
+ *
+ * They were resolved here at module scope, which froze every label to whatever
+ * language was active when the module first loaded — switching language would
+ * have changed the whole product except the menu.
+ *
+ * The newer screens use literal Arabic because they have no entry in
+ * `locales/*.json` yet; they fall back to the literal until keys are added,
+ * which is the same incremental path `useT` supports elsewhere.
+ */
+const navItems: Array<{ href: string; key?: string; label?: string }> = [
+  { href: "/dashboard", key: "nav.home" },
+  { href: "/students", key: "nav.students" },
+  { href: "/care", label: "تقارير الرعاية" },
+  { href: "/calendar", label: "التقويم" },
+  { href: "/units", label: "الوحدات" },
+  { href: "/classes", key: "nav.classes" },
+  { href: "/statistics", key: "nav.statistics" },
+  { href: "/teachers", key: "nav.teachers" },
+  { href: "/shifts", label: "المناوبات" },
+  { href: "/settings", key: "nav.settings" },
 ];
 
 interface SidebarProps {
@@ -20,6 +37,8 @@ interface SidebarProps {
 }
 
 export function Sidebar({ schoolName: schoolNameProp, schoolLogo }: SidebarProps = {}) {
+  // Locale-aware translation — see src/lib/i18n.tsx.
+  const t = useT();
   const pathname = usePathname();
   const { data: session } = useSession();
 
@@ -72,14 +91,15 @@ export function Sidebar({ schoolName: schoolNameProp, schoolLogo }: SidebarProps
               )}
             >
               <div className={cn("w-2 h-2 rounded-full flex-shrink-0", isActive ? "bg-coral" : "bg-white/20")} />
-              <span>{item.label}</span>
+              <span>{item.key ? t(item.key) : item.label}</span>
             </Link>
           );
         })}
       </nav>
 
-      {/* Logout */}
-      <div className="relative p-3 border-t border-white/5">
+      {/* Language and logout */}
+      <div className="relative p-3 border-t border-white/5 space-y-1">
+        <LanguageSwitcher />
         <button
           onClick={() => signOut({ callbackUrl: "/login" })}
           className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-white/30 hover:text-white/60 hover:bg-white/5 text-sm transition-all"

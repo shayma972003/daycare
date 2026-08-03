@@ -4,11 +4,14 @@ import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
 import { Topbar } from "@/components/layout/Topbar";
-import { t } from "@/lib/utils";
+import { useT } from "@/lib/i18n-provider";
+
 
 type Teacher = { id: string; name: string };
 
 export default function NewClassPage() {
+  // Locale-aware translation — see src/lib/i18n.tsx.
+  const t = useT();
   const router = useRouter();
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [saving, setSaving] = useState(false);

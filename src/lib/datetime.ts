@@ -79,3 +79,39 @@ export function formatAst(
     ...options,
   }).format(at);
 }
+
+/**
+ * The same instant in the Hijri calendar (task 2.35).
+ *
+ * `ar-SA` defaults to the Islamic calendar, which is why every Gregorian
+ * formatter in this codebase pins `-u-ca-gregory` — see task 0.68, where that
+ * default silently produced Hijri dates in an audit log. Here it is what we
+ * actually want, requested explicitly rather than relied on.
+ *
+ * `islamic-umalqura` is the Umm al-Qura calendar used officially in Saudi
+ * Arabia. Plain `islamic` is a different, calculated variant and can differ by a
+ * day — which matters when the date is on a document.
+ */
+export function formatHijri(
+  at: Date,
+  options: Intl.DateTimeFormatOptions = { year: "numeric", month: "long", day: "numeric" }
+): string {
+  return new Intl.DateTimeFormat("ar-SA-u-ca-islamic-umalqura-nu-latn", {
+    timeZone: "Asia/Riyadh",
+    ...options,
+  }).format(at);
+}
+
+/**
+ * Both calendars, Gregorian first.
+ *
+ * Gregorian leads because that is what the system stores and what every other
+ * screen shows; the Hijri date is the familiar cross-reference beside it, not a
+ * replacement. Showing only one would make the pair of dates on a printed
+ * document impossible to reconcile.
+ */
+export function formatDual(at: Date): string {
+  // No "هـ" appended here — `Intl` already emits the era marker for the Islamic
+  // calendar, and adding one produces "1448 هـ هـ".
+  return `${formatAst(at, { year: "numeric", month: "long", day: "numeric" })} · ${formatHijri(at)}`;
+}

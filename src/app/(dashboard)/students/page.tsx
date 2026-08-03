@@ -7,7 +7,11 @@ import { Topbar } from "@/components/layout/Topbar";
 import { PaymentStatusBadge, PeriodBadge } from "@/components/ui/StatusBadge";
 import { AvatarPlaceholder } from "@/components/ui/IconPlaceholder";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { t, formatTime } from "@/lib/utils";
+import { formatTime } from "@/lib/utils";
+import { PAYMENT_STATUS_LABELS } from "@/lib/enum-labels";
+import { PAYMENT_STATUSES } from "@/lib/payment-status";
+import { describeApiError } from "@/lib/api-error";
+import { useT } from "@/lib/i18n-provider";
 
 type Student = {
   id: string;
@@ -69,6 +73,8 @@ function LiveTimer({ from }: { from: string }) {
 }
 
 export default function StudentsPage() {
+  // Locale-aware translation — see src/lib/i18n.tsx.
+  const t = useT();
   const router = useRouter();
   const [students, setStudents] = useState<Student[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
@@ -289,8 +295,14 @@ export default function StudentsPage() {
         if (bulkAction === "checkout") await axios.post("/api/attendance/students/checkout", { student_id: id }).catch(() => {});
         if (bulkAction === "reminder") await axios.post(`/api/students/${id}/reminder`).catch(() => {});
       }
-    } else if (["PAID", "LATE", "CANCELLED", "SUSPENDED", "بانتظار الدفع"].includes(bulkAction)) {
-      await axios.put("/api/students/bulk-status", { ids, paymentStatus: bulkAction }).catch(() => {});
+    } else if ((PAYMENT_STATUSES as string[]).includes(bulkAction)) {
+      // No longer silent: a rejected bulk update used to be swallowed whole, so
+      // the list simply refreshed unchanged with no indication anything failed.
+      try {
+        await axios.put("/api/students/bulk-status", { ids, paymentStatus: bulkAction });
+      } catch (err) {
+        alert(describeApiError(err, "تعذر تغيير حالة الدفع"));
+      }
     }
 
     fetchStudents();
@@ -433,8 +445,10 @@ export default function StudentsPage() {
             <option value="PAID">{t("paymentStatus.PAID")}</option>
             <option value="LATE">{t("paymentStatus.LATE")}</option>
             <option value="CANCELLED">{t("paymentStatus.CANCELLED")}</option>
-            <option value="SUSPENDED">{t("paymentStatus.SUSPENDED")}</option>
-            <option value="بانتظار الدفع">بانتظار الدفع</option>
+            {/* Was `value="بانتظار الدفع"`. The column is an enum of English
+                identifiers, so the Arabic literal matched no row and the filter
+                silently returned nothing. */}
+            <option value="PENDING">{PAYMENT_STATUS_LABELS.PENDING}</option>
           </select>
           <select
             value={genderFilter}
@@ -460,8 +474,11 @@ export default function StudentsPage() {
               <option value="PAID">تغيير الحالة: مدفوع</option>
               <option value="LATE">تغيير الحالة: متأخر</option>
               <option value="CANCELLED">تغيير الحالة: ملغي</option>
-              <option value="SUSPENDED">تغيير الحالة: موقف</option>
-              <option value="بانتظار الدفع">تغيير الحالة: بانتظار الدفع</option>
+              {/* Same fix: `bulk-status` validates against the enum, so the
+                  Arabic value was rejected with a 422 that the `.catch(() => {})`
+                  below swallowed — the action appeared to work and changed
+                  nothing. */}
+              <option value="PENDING">تغيير الحالة: {PAYMENT_STATUS_LABELS.PENDING}</option>
               <option value="extend_subscription">تمديد تاريخ الاشتراك</option>
             </select>
             <button

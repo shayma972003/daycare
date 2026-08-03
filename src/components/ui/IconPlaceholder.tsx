@@ -53,25 +53,3 @@ export function AvatarPlaceholder({
     </div>
   );
 }
-
-export function ImagePlaceholder({
-  label,
-  className,
-}: {
-  label: string;
-  className?: string;
-}) {
-  return (
-    <div
-      className={cn(
-        "w-full h-32 bg-gray-100 rounded-xl flex flex-col items-center justify-center gap-1 text-gray-400 border-2 border-dashed border-gray-200",
-        className
-      )}
-    >
-      <div className="w-8 h-8 bg-gray-200 rounded flex items-center justify-center text-xs">
-        [img]
-      </div>
-      <span className="text-xs">{label}</span>
-    </div>
-  );
-}

@@ -2,12 +2,14 @@ import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
+import { passwordSchema, BCRYPT_COST } from "@/lib/password-policy";
+import { ROLE_TEMPLATES } from "@/lib/permissions";
 
 const registerSchema = z
   .object({
     schoolName: z.string().min(1, "اسم المنشأة مطلوب"),
     email: z.string().email("البريد الإلكتروني غير صالح"),
-    password: z.string().min(8, "كلمة المرور يجب أن تكون 8 أحرف على الأقل"),
+    password: passwordSchema,
     confirmPassword: z.string().min(1, "تأكيد كلمة المرور مطلوب"),
   })
   .refine((d) => d.password === d.confirmPassword, {
@@ -52,12 +54,30 @@ export async function POST(request: Request) {
       );
     }
 
-    const hashedPassword = await bcrypt.hash(password, 12);
+    const hashedPassword = await bcrypt.hash(password, BCRYPT_COST);
 
-    // School and user are created together: a failure must not leave an orphan school.
+    // School, roles and owner are created together: a failure must not leave an
+    // orphan school, and must not leave one whose owner has no role — that
+    // account would fall through to the "first user" fallback in
+    // `requireSession()` and work by accident rather than by design.
     await prisma.$transaction(async (tx) => {
       const school = await tx.school.create({
         data: { name: schoolName, email },
+      });
+
+      await tx.role.createMany({
+        data: ROLE_TEMPLATES.map((template) => ({
+          schoolId: school.id,
+          key: template.key,
+          nameAr: template.nameAr,
+          permissions: template.permissions,
+          isSystem: true,
+        })),
+      });
+
+      const manager = await tx.role.findUniqueOrThrow({
+        where: { schoolId_key: { schoolId: school.id, key: "manager" } },
+        select: { id: true },
       });
 
       await tx.user.create({
@@ -67,6 +87,7 @@ export async function POST(request: Request) {
           password: hashedPassword,
           role: "admin",
           schoolId: school.id,
+          roleId: manager.id,
         },
       });
     });

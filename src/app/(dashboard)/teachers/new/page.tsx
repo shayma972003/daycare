@@ -2,10 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
+import { useForm, type Resolver } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { teacherFormSchema } from "@/lib/form-schemas";
 import axios from "axios";
 import { Topbar } from "@/components/layout/Topbar";
-import { t } from "@/lib/utils";
+import { useT } from "@/lib/i18n-provider";
+
 
 type Class = { id: string; name: string };
 
@@ -41,12 +44,16 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 const inputCls = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111111]";
 
 export default function NewTeacherPage() {
+  // Locale-aware translation — see src/lib/i18n.tsx.
+  const t = useT();
   const router = useRouter();
   const [classes, setClasses] = useState<Class[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Shared schema — see the note on the student form and task 2.41.
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<TeacherFormData>({
+    resolver: zodResolver(teacherFormSchema) as Resolver<TeacherFormData>,
     defaultValues: {
       period: "MORNING",
       paymentMethod: "CASH",

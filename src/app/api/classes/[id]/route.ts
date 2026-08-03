@@ -1,14 +1,23 @@
-import { requireSession } from "@/lib/session";
+import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
 import { assertTeacherOwned, crossTenantResponse } from "@/lib/tenant-guard";
 import { parseClassGroup } from "@/lib/enum-labels";
+import { capacityState } from "@/lib/attendance-schedule";
 import { z } from "zod";
 
 const updateClassSchema = z.object({
   name: z.string().min(1).optional(),
   teacherId: z.string().nullish(),
   group: z.string().nullish(),
+  /** Infant age bands (task 2.9). Several per room — see the schema comment. */
+  ageGroups: z
+    .array(z.enum(["AGE_0_6M", "AGE_6_12M", "AGE_1_2Y", "AGE_2_3Y", "AGE_3_4Y"]))
+    .optional(),
+  /** Null clears the limit; 0 means the room is closed (task 2.10). */
+  capacity: z.number().int().min(0).max(500).nullish(),
+  /** Archiving — distinct from the trash (task 2.25). */
+  archived: z.boolean().optional(),
   period: z.enum(["MORNING", "EVENING"]).nullish(),
   registrationDate: z.string().nullish(),
   notes: z.string().nullish(),
@@ -22,8 +31,12 @@ export async function GET(
   let session;
   try {
     session = await requireSession();
-  } catch {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (error) {
+    // 403 when the caller is known but lacks the permission; 401 otherwise.
+    return (
+      sessionErrorResponse(error) ??
+      Response.json({ error: "Unauthorized" }, { status: 401 })
+    );
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
   const { id } = await params;
@@ -55,7 +68,11 @@ export async function GET(
     return Response.json({ error: "Not found" }, { status: 404 });
   }
 
-  return Response.json(cls, { status: 200 });
+  // Capacity resolved server-side so every screen reports "over" the same way.
+  return Response.json(
+    { ...cls, capacityState: capacityState(cls._count.students, cls.capacity) },
+    { status: 200 }
+  );
 }
 
 export async function PUT(
@@ -65,8 +82,12 @@ export async function PUT(
   let session;
   try {
     session = await requireSession();
-  } catch {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (error) {
+    // 403 when the caller is known but lacks the permission; 401 otherwise.
+    return (
+      sessionErrorResponse(error) ??
+      Response.json({ error: "Unauthorized" }, { status: 401 })
+    );
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
   const { id } = await params;
@@ -98,6 +119,13 @@ export async function PUT(
     if (updateData.teacherId) updateData.needsTeacherWarning = false;
   }
   if ("group" in data) updateData.group = parseClassGroup(data.group) ?? "KG1";
+  if (data.ageGroups !== undefined) updateData.ageGroups = data.ageGroups;
+  // `null` clears the limit, `0` closes the room — two different intents, so
+  // the presence of the key matters and not just its truthiness.
+  if ("capacity" in data) updateData.capacity = data.capacity ?? null;
+  if (data.archived !== undefined) {
+    updateData.archivedAt = data.archived ? new Date() : null;
+  }
   if ("period" in data) updateData.period = data.period ?? null;
   if ("registrationDate" in data) {
     updateData.registrationDate = data.registrationDate ? new Date(data.registrationDate) : null;
@@ -152,8 +180,12 @@ export async function DELETE(
   let session;
   try {
     session = await requireSession();
-  } catch {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (error) {
+    // 403 when the caller is known but lacks the permission; 401 otherwise.
+    return (
+      sessionErrorResponse(error) ??
+      Response.json({ error: "Unauthorized" }, { status: 401 })
+    );
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
   const { id } = await params;
@@ -163,15 +195,19 @@ export async function DELETE(
     return Response.json({ error: "Not found" }, { status: 404 });
   }
 
+  // `schoolId` on both secondary queries. The class was already proven to belong
+  // to this tenant, so these filters are redundant today — that is the point:
+  // they are the layer that still holds if the ownership check above is ever
+  // moved, weakened, or skipped by a new code path.
   const enrolledStudents = await prisma.student.findMany({
-    where: { classId: id, deletedAt: null },
+    where: { classId: id, schoolId, deletedAt: null },
     select: { id: true, name: true },
   });
 
   await prisma.$transaction([
     prisma.class.update({ where: { id }, data: { deletedAt: new Date() } }),
     prisma.student.updateMany({
-      where: { classId: id, deletedAt: null },
+      where: { classId: id, schoolId, deletedAt: null },
       data: { classId: null, needsClassWarning: true },
     }),
   ]);

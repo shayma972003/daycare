@@ -1,11 +1,12 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-import { requireSession } from "@/lib/session";
+import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { allocateInvoiceNumber, seedInvoiceCounter } from "@/lib/invoice-number";
 import { astParts } from "@/lib/datetime";
 import { recomputeInvoiceTotals } from "@/lib/invoice-totals";
+import { VAT_RATE } from "@/lib/finance";
 import { logAction } from "@/lib/activity-logger";
 import { z } from "zod";
 import { renderToBuffer } from "@react-pdf/renderer";
@@ -140,8 +141,12 @@ export async function POST(request: Request) {
   let session;
   try {
     session = await requireSession();
-  } catch {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (error) {
+    // 403 when the caller is known but lacks the permission; 401 otherwise.
+    return (
+      sessionErrorResponse(error) ??
+      Response.json({ error: "Unauthorized" }, { status: 401 })
+    );
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
 
@@ -439,6 +444,7 @@ export async function POST(request: Request) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let invoiceData: any = {};
   let amount = 0;
+  let studentVatAmount = 0;
   let invoiceType: "STUDENT" | "TEACHER";
 
   if (studentId) {
@@ -452,8 +458,15 @@ export async function POST(request: Request) {
     const lateHoursFee = (student.lateHours ?? 0) * (school.settings?.hourlyLateFee ?? 0);
     amount = monthlyFee + lateHoursFee;
 
+    // Fees are quoted VAT-inclusive, so the tax is extracted from the total
+    // rather than added on top — adding it would raise every guardian's bill.
+    studentVatAmount = school.vatRegistered
+      ? Math.round(((amount * VAT_RATE) / (1 + VAT_RATE) + Number.EPSILON) * 100) / 100
+      : 0;
+
     invoiceData = {
       type: "STUDENT",
+      vatAmount: studentVatAmount,
       studentName: student.name,
       studentId: student.idNumber,
       className: student.class?.name,
@@ -639,6 +652,11 @@ export async function POST(request: Request) {
         studentId: studentId ?? null,
         teacherId: teacherId ?? null,
         amount,
+        // Was left to the column default on this path, so an auto-generated
+        // student invoice recorded no tax at all while the finance layer
+        // subtracts VAT out of revenue on the strength of this column. Salary
+        // invoices stay at zero — a salary is not a taxable supply.
+        vat_amount: invoiceType === "STUDENT" ? studentVatAmount : 0,
         pdfUrl: fileUrl,
         data: invoiceData,
       },

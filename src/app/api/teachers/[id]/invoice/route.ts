@@ -1,7 +1,8 @@
-import { requireSession } from "@/lib/session";
+import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
 import { astDateOnly, astParts } from "@/lib/datetime";
+import { findInvoiceThisMonth, duplicateInvoiceResponse } from "@/lib/invoice-duplicates";
 
 export async function POST(
   request: Request,
@@ -10,8 +11,12 @@ export async function POST(
   let session;
   try {
     session = await requireSession();
-  } catch {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (error) {
+    // 403 when the caller is known but lacks the permission; 401 otherwise.
+    return (
+      sessionErrorResponse(error) ??
+      Response.json({ error: "Unauthorized" }, { status: 401 })
+    );
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
   const { id } = await params;
@@ -22,6 +27,13 @@ export async function POST(
 
   if (!teacher) {
     return Response.json({ error: "Not found" }, { status: 404 });
+  }
+
+  // One salary document per month. `?force=1` reissues after a correction.
+  const force = new URL(request.url).searchParams.get("force") === "1";
+  if (!force) {
+    const existing = await findInvoiceThisMonth(schoolId, { teacherId: id });
+    if (existing) return duplicateInvoiceResponse(existing);
   }
 
   const now = new Date();
@@ -66,6 +78,10 @@ export async function POST(
       type: "TEACHER",
       teacherId: id,
       amount: netSalary,
+      // Explicitly zero, not left to the column default: a salary is not a
+      // taxable supply, and stating it here is what tells the next reader the
+      // omission is deliberate rather than the bug it was on the other paths.
+      vat_amount: 0,
       data: invoiceData,
     },
     include: { teacher: true },

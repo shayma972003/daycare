@@ -5,7 +5,10 @@ import { useRouter } from "next/navigation";
 import axios from "axios";
 import { Topbar } from "@/components/layout/Topbar";
 import { DeliveryStatusBadge } from "@/components/ui/StatusBadge";
-import { t } from "@/lib/utils";
+
+import { isPasswordAcceptable, PASSWORD_MIN_MESSAGE } from "@/lib/password-policy";
+import { PasswordRules } from "@/components/ui/PasswordRules";
+import { useT } from "@/lib/i18n-provider";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -98,6 +101,8 @@ function FormField({
 // ── Main Page ────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
+  // Locale-aware translation — see src/lib/i18n.tsx.
+  const t = useT();
   const router = useRouter();
   const [search, setSearch] = useState("");
 
@@ -311,8 +316,10 @@ export default function SettingsPage() {
       setPasswordError("كلمة المرور الجديدة وتأكيدها غير متطابقتين");
       return;
     }
-    if (newPassword.length < 6) {
-      setPasswordError("كلمة المرور الجديدة يجب أن تكون 6 أحرف على الأقل");
+    // Same rule and same wording as the server — a form that accepts 6 and a
+    // route that requires 8 just produces an unexplained validation failure.
+    if (!isPasswordAcceptable(newPassword)) {
+      setPasswordError(PASSWORD_MIN_MESSAGE);
       return;
     }
 
@@ -969,6 +976,7 @@ export default function SettingsPage() {
                     className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                     placeholder="••••••••"
                   />
+                  <PasswordRules value={newPassword} />
                 </FormField>
                 <FormField label={t("settings.confirmPassword")}>
                   <input
@@ -1042,6 +1050,22 @@ export default function SettingsPage() {
                   className="w-full px-5 py-2.5 rounded-md bg-white border border-[#666666] text-[#666666] text-sm font-medium hover:border-[#2F96A6] hover:text-[#2F96A6] hover:bg-[#E0F7FA] transition-all text-right"
                 >
                   عرض سجل التغييرات ←
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => router.push("/settings/permissions")}
+                  className="w-full px-5 py-2.5 rounded-md bg-white border border-[#666666] text-[#666666] text-sm font-medium hover:border-[#2F96A6] hover:text-[#2F96A6] hover:bg-[#E0F7FA] transition-all text-right"
+                >
+                  الصلاحيات وحسابات الموظفين ←
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => router.push("/settings/storage")}
+                  className="w-full px-5 py-2.5 rounded-md bg-white border border-[#666666] text-[#666666] text-sm font-medium hover:border-[#2F96A6] hover:text-[#2F96A6] hover:bg-[#E0F7FA] transition-all text-right"
+                >
+                  مساحة التخزين ←
                 </button>
               </SettingsSection>
             )}

@@ -1,7 +1,8 @@
 "use client";
 
-import { t, formatDate } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
 import { PeriodBadge } from "@/components/ui/StatusBadge";
+import { useT } from "@/lib/i18n-provider";
 
 export interface Activity {
   id: string;
@@ -25,6 +26,8 @@ interface ActivityGridProps {
 }
 
 export function ActivityGrid({ activities, onAdd, onSelect }: ActivityGridProps) {
+  // Locale-aware translation — see src/lib/i18n.tsx.
+  const t = useT();
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
       {/* Add card */}

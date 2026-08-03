@@ -7,12 +7,15 @@ import axios from "axios";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { PasswordRules } from "@/components/ui/PasswordRules";
+import { passwordSchema } from "@/lib/password-policy";
 
 const registerSchema = z
   .object({
     schoolName: z.string().min(1, "اسم المنشأة مطلوب"),
     email: z.string().email("البريد الإلكتروني غير صالح"),
-    password: z.string().min(8, "كلمة المرور يجب أن تكون 8 أحرف على الأقل"),
+    // Shared with the server route, so the two cannot drift apart.
+    password: passwordSchema,
     confirmPassword: z.string().min(1, "تأكيد كلمة المرور مطلوب"),
   })
   .refine((d) => d.password === d.confirmPassword, {
@@ -31,8 +34,11 @@ export default function RegisterPage() {
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<RegisterFormValues>({ resolver: zodResolver(registerSchema) });
+
+  const passwordValue = watch("password");
 
   async function onSubmit(data: RegisterFormValues) {
     setServerError(null);
@@ -120,6 +126,9 @@ export default function RegisterPage() {
               {errors.password && (
                 <p className="mt-1 text-xs text-red-600">{errors.password.message}</p>
               )}
+              {/* Shown while typing rather than after a failed submit — see the
+                  note in PasswordRules. */}
+              <PasswordRules value={passwordValue ?? ""} />
             </div>
 
             {/* Confirm password */}

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { stampFileUrl } from "@/lib/file-token";
 import { z } from "zod";
 import { createHash } from "crypto";
 import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
@@ -44,7 +45,7 @@ export async function POST(request: Request) {
   if (rec.otp_verified) {
     return Response.json({
       success: true,
-      school: { name: rec.school.name, logoUrl: rec.school.logoUrl },
+      school: { name: rec.school.name, logoUrl: stampFileUrl(rec.school.logoUrl) },
     });
   }
 
@@ -95,6 +96,6 @@ export async function POST(request: Request) {
 
   return Response.json({
     success: true,
-    school: { name: rec.school.name, logoUrl: rec.school.logoUrl },
+    school: { name: rec.school.name, logoUrl: stampFileUrl(rec.school.logoUrl) },
   });
 }

@@ -18,6 +18,10 @@ import type {
   Period,
   Gender,
   PaymentMethod,
+  StudentStatus,
+  EmploymentStatus,
+  AnonymizedEntity,
+  EducationLevel,
 } from "@/generated/prisma/client";
 
 export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
@@ -79,6 +83,77 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   TRANSFER: "تحويل",
   CARD: "بطاقة",
 };
+
+/** Enrolment lifecycle — drives the retention clock, so the wording matters. */
+export const STUDENT_STATUS_LABELS: Record<StudentStatus, string> = {
+  ACTIVE: "مُسجَّل",
+  GRADUATED: "متخرّج",
+  WITHDRAWN: "منسحب",
+  TRANSFERRED: "منقول",
+};
+
+export const EMPLOYMENT_STATUS_LABELS: Record<EmploymentStatus, string> = {
+  ACTIVE: "على رأس العمل",
+  RESIGNED: "مستقيل",
+  TERMINATED: "منتهية خدماته",
+  CONTRACT_ENDED: "انتهى العقد",
+};
+
+export const ANONYMIZED_ENTITY_LABELS: Record<AnonymizedEntity, string> = {
+  STUDENT: "طفل",
+  TEACHER: "موظف",
+  GUARDIAN: "ولي أمر",
+};
+
+export const EDUCATION_LEVEL_LABELS: Record<EducationLevel, string> = {
+  HIGH_SCHOOL: "ثانوي",
+  DIPLOMA: "دبلوم",
+  BACHELOR: "بكالوريوس",
+  MASTER: "ماجستير",
+  PHD: "دكتوراه",
+  OTHER: "أخرى",
+};
+
+/**
+ * Suggested job titles (task 2.39).
+ *
+ * A datalist, not a `<select>`: the column is free text on purpose, because a
+ * nursery's own words for its posts vary and an enum would force "مساعدة معلمة"
+ * into whichever option fits worst. These are the common ones, offered as
+ * autocomplete so most entries land on a consistent spelling anyway.
+ */
+export const JOB_TITLE_SUGGESTIONS = [
+  "مديرة",
+  "مساعدة مديرة",
+  "معلمة",
+  "مساعدة معلمة",
+  "معلمة تربية خاصة",
+  "معلمة طفولة مبكرة",
+  "أخصائية نفسية",
+  "ممرضة",
+  "موارد بشرية",
+  "محاسبة",
+  "إدارية",
+  "مشرفة",
+  "عاملة",
+  "سائق",
+  "حارس",
+];
+
+/** Common specialisations, offered the same way and for the same reason. */
+export const SPECIALIZATION_SUGGESTIONS = [
+  "طفولة مبكرة",
+  "تربية خاصة",
+  "رياض أطفال",
+  "علم نفس",
+  "لغة عربية",
+  "لغة إنجليزية",
+  "تربية بدنية",
+  "تغذية",
+  "تمريض",
+  "إدارة أعمال",
+  "محاسبة",
+];
 
 /** Shapes a label map into the `{ value, label }` list that selects expect. */
 export function toOptions<T extends string>(labels: Record<T, string>) {

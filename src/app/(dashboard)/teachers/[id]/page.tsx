@@ -10,6 +10,17 @@ import { describeApiError } from "@/lib/api-error";
 import { formatDate, formatCurrency } from "@/lib/utils";
 import { TeacherInvoiceModal } from "@/components/teachers/TeacherInvoiceModal";
 import { useT } from "@/lib/i18n-provider";
+import { astDayStart } from "@/lib/datetime";
+import { EMPLOYMENT_STATUS_LABELS } from "@/lib/enum-labels";
+import type { EmploymentStatus } from "@/generated/prisma/enums";
+
+/** Every reason except "still employed", which is the reactivate action. */
+type TeacherDepartureStatus = Exclude<EmploymentStatus, "ACTIVE">;
+const DEPARTURE_OPTIONS: TeacherDepartureStatus[] = [
+  "CONTRACT_ENDED",
+  "RESIGNED",
+  "TERMINATED",
+];
 
 interface ClassItem { id: string; name: string }
 interface Invoice { id: string; createdAt: string; type: string; amount?: number | null; pdfUrl?: string | null }
@@ -28,6 +39,7 @@ interface Teacher {
   qualification7?: string | null; qualification8?: string | null; qualification9?: string | null;
   qualification10?: string | null;
   attendanceHours?: number | null; lateHours?: number | null; isActive?: boolean;
+  status?: EmploymentStatus | null; leftAt?: string | null; retentionUntil?: string | null;
   lateCountThisMonth?: number;
 }
 
@@ -63,6 +75,17 @@ export default function TeacherProfilePage() {
   const [trashClasses, setTrashClasses] = useState<{ id: string; name: string; group: string }[]>([]);
   const [trashing, setTrashing] = useState(false);
   const [showLateFeeConfirm, setShowLateFeeConfirm] = useState(false);
+
+  // Ending the engagement (task D3.13). Defaults: contract ended, today —
+  // the commonest case, and both are editable before confirming.
+  const [showDepartureModal, setShowDepartureModal] = useState(false);
+  const [departureStatus, setDepartureStatus] =
+    useState<TeacherDepartureStatus>("CONTRACT_ENDED");
+  // Today in Riyadh terms, in the `yyyy-mm-dd` an <input type="date"> expects —
+  // matching the student screen, and never the host's UTC date.
+  const [departureDate, setDepartureDate] = useState(() =>
+    astDayStart().toISOString().slice(0, 10)
+  );
 
   // Extra qualifications (4–10) stored as array of strings
   const [extraQuals, setExtraQuals] = useState<string[]>([]);
@@ -181,15 +204,43 @@ export default function TeacherProfilePage() {
     await handleDeleteLateFee();
   }
 
-  async function handleCancel() {
+  /**
+   * Ends the engagement (task D3.13).
+   *
+   * The reason and the date are asked for rather than assumed, matching the
+   * student screen and for the same reason: `leftAt` starts the retention clock,
+   * so a date defaulted to today for someone who left in March schedules the
+   * erasure eight months late. "Resigned" versus "terminated" is also recorded
+   * nowhere else.
+   */
+  async function confirmDeparture() {
     setActionLoading("cancel");
     setActionMessage(null);
     try {
-      await axios.post(`/api/teachers/${id}/cancel`);
+      await axios.post(`/api/teachers/${id}/cancel`, {
+        status: departureStatus,
+        leftAt: new Date(departureDate).toISOString(),
+      });
+      setShowDepartureModal(false);
       await loadTeacher();
-      setActionMessage({ text: "تم إلغاء الاشتراك", ok: true });
+      setActionMessage({ text: "تم إنهاء الخدمة", ok: true });
     } catch (err) {
-      setActionMessage({ text: describeApiError(err, "تعذر إلغاء الاشتراك"), ok: false });
+      setActionMessage({ text: describeApiError(err, "تعذر إنهاء الخدمة"), ok: false });
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  /** Puts an archived record back into service; clears `leftAt` and the expiry. */
+  async function reactivate() {
+    setActionLoading("cancel");
+    setActionMessage(null);
+    try {
+      await axios.post(`/api/teachers/${id}/cancel`, { status: "ACTIVE" });
+      await loadTeacher();
+      setActionMessage({ text: "تمت إعادة التفعيل", ok: true });
+    } catch (err) {
+      setActionMessage({ text: describeApiError(err, "تعذرت إعادة التفعيل"), ok: false });
     } finally {
       setActionLoading(null);
     }
@@ -262,7 +313,17 @@ export default function TeacherProfilePage() {
         </button>
         <span className="text-gray-300">|</span>
         <h1 className="text-lg font-bold text-[#111111]">{teacher.name}</h1>
-        {!teacher.isActive && <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">غير نشط</span>}
+        {/* The reason and the last working day, not just "inactive" — the date
+            is what the erasure schedule counts from, so it belongs on screen
+            rather than only in the database. */}
+        {!teacher.isActive && (
+          <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">
+            {teacher.status && teacher.status !== "ACTIVE"
+              ? EMPLOYMENT_STATUS_LABELS[teacher.status]
+              : "غير نشط"}
+            {teacher.leftAt && ` · ${formatDate(teacher.leftAt)}`}
+          </span>
+        )}
       </div>
 
       <div className="flex-1 p-6">
@@ -475,17 +536,23 @@ export default function TeacherProfilePage() {
                     {t("teachers.profile.actions.issueInvoice")}
                   </button>
 
-                  {/* 4. إلغاء الانضمام */}
+                  {/* 4. إنهاء الخدمة — أو إعادة التفعيل لمن أُنهيت خدمته */}
                   <button
                     type="button"
-                    onClick={handleCancel}
+                    onClick={() =>
+                      teacher.isActive === false ? reactivate() : setShowDepartureModal(true)
+                    }
                     disabled={actionLoading === "cancel"}
                     className="w-full px-5 py-2.5 rounded-md bg-white font-medium text-sm
                                border border-[#666666] text-[#666666]
                                hover:border-[#2F96A6] hover:text-[#2F96A6] hover:bg-[#E0F7FA]
                                active:scale-[0.98] transition-all disabled:opacity-60"
                   >
-                    {actionLoading === "cancel" ? t("common.loading") : t("teachers.profile.actions.cancel")}
+                    {actionLoading === "cancel"
+                      ? t("common.loading")
+                      : teacher.isActive === false
+                        ? "إعادة التفعيل"
+                        : "إنهاء الخدمة"}
                   </button>
 
                   {/* 5. حذف رسوم التأخير */}
@@ -579,6 +646,62 @@ export default function TeacherProfilePage() {
       </div>
 
       <TeacherInvoiceModal open={invoiceModalOpen} teacherId={id} onClose={() => setInvoiceModalOpen(false)} onIssued={onInvoiceIssued} />
+
+      {showDepartureModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-96 space-y-4" dir="rtl">
+            <p className="text-base font-bold text-[#111111] text-center">إنهاء خدمة الموظف</p>
+
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">سبب الإنهاء</label>
+              <select
+                value={departureStatus}
+                onChange={(e) => setDepartureStatus(e.target.value as TeacherDepartureStatus)}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm"
+              >
+                {DEPARTURE_OPTIONS.map((value) => (
+                  <option key={value} value={value}>
+                    {EMPLOYMENT_STATUS_LABELS[value]}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">تاريخ آخر يوم عمل</label>
+              <input
+                type="date"
+                value={departureDate}
+                onChange={(e) => setDepartureDate(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm"
+              />
+            </div>
+
+            {/* Stated up front: this date is what the erasure schedule counts
+                from, and it is not obvious from a form labelled "end service". */}
+            <p className="text-xs text-gray-500 leading-relaxed">
+              تُحفظ بيانات الموظف الشخصية لمدة الاحتفاظ المعتمدة ابتداءً من هذا التاريخ، ثم تُزال
+              تلقائياً مع بقاء سجل الرواتب والإحصاءات كاملاً.
+            </p>
+
+            <div className="flex gap-3 justify-center pt-1">
+              <button
+                onClick={confirmDeparture}
+                disabled={actionLoading === "cancel" || !departureDate}
+                className="px-5 py-2 bg-[#2F96A6] text-white rounded-xl text-sm font-medium hover:bg-[#26808e] disabled:opacity-60"
+              >
+                {actionLoading === "cancel" ? "..." : "تأكيد"}
+              </button>
+              <button
+                onClick={() => setShowDepartureModal(false)}
+                className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm"
+              >
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showTrashModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">

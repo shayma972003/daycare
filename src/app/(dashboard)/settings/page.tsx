@@ -185,9 +185,23 @@ export default function SettingsPage() {
   const [deletingBulkLog, setDeletingBulkLog] = useState(false);
   const PAGE_SIZE = 20;
 
-  // Fetch settings
+  /**
+   * "Now", captured once at mount.
+   *
+   * `daysRemaining` used to call `Date.now()` while rendering, which makes the
+   * render impure: two renders of the same data could disagree, and React is
+   * free to render whenever it likes. A countdown measured in days does not
+   * need to tick anyway — the screen is reopened long before the number moves.
+   */
+  const [mountedAt] = useState(() => Date.now());
+
+  // Fetch settings.
+  //
+  // No `setLoadingSettings(true)` here: the state already starts true and this
+  // effect runs once. A synchronous setState in an effect body schedules a
+  // second render before the first has painted, which is what
+  // `react-hooks/set-state-in-effect` is warning about.
   useEffect(() => {
-    setLoadingSettings(true);
     axios
       .get<SettingsData>("/api/settings")
       .then((res) => {
@@ -216,9 +230,9 @@ export default function SettingsPage() {
       .finally(() => setLoadingSettings(false));
   }, []);
 
-  // Fetch initial notification logs (reminders + other, exclude activity logs)
+  // Fetch initial notification logs (reminders + other, exclude activity logs).
+  // Starts true in useState — see the note on the settings fetch above.
   useEffect(() => {
-    setLoadingLogs(true);
     axios
       .get<{ logs: NotificationLog[]; total: number }>(
         `/api/notifications?skip=0&take=${PAGE_SIZE}&source=other`
@@ -426,6 +440,9 @@ export default function SettingsPage() {
 
   async function loadTrash(tab: "students" | "teachers" | "classes") {
     setLoadingTrash(true);
+    // Belongs to the tab being left, not to the one being loaded — a "restored
+    // 4 children" message must not sit above the classes list.
+    setRestoreAllMsg("");
     try {
       const res = await axios.get(`/api/trash/${tab}`);
       if (tab === "students") setTrashStudents(res.data.items ?? res.data);
@@ -439,8 +456,10 @@ export default function SettingsPage() {
   }
 
   useEffect(() => {
+    // `setRestoreAllMsg` used to be called here synchronously. The message
+    // belongs to a tab, so it is cleared by `loadTrash` as part of loading that
+    // tab rather than by a second state write racing the same render.
     loadTrash(trashTab);
-    setRestoreAllMsg("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trashTab]);
 
@@ -508,7 +527,7 @@ export default function SettingsPage() {
 
   function daysRemaining(deletedAt: string) {
     return Math.ceil(
-      (new Date(deletedAt).getTime() + 30 * 24 * 60 * 60 * 1000 - Date.now()) / (1000 * 60 * 60 * 24)
+      (new Date(deletedAt).getTime() + 30 * 24 * 60 * 60 * 1000 - mountedAt) / (1000 * 60 * 60 * 24)
     );
   }
 

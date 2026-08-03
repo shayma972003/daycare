@@ -392,11 +392,19 @@ export default function EnrollPage() {
   const [resending, setResending] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Load guardian prefill from sessionStorage once token is available
+  /**
+   * Guardian prefill, carried across the OTP step in sessionStorage.
+   *
+   * This has to be an effect and cannot be a lazy `useState` initialiser: the
+   * page is server-rendered first, and `sessionStorage` does not exist there.
+   * Reading it during render would throw on the server and, if it did not, would
+   * produce markup the client could not match.
+   */
   useEffect(() => {
     if (!token) return;
     try {
       const stored = sessionStorage.getItem(`enrollment_guardian_${token}`);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- browser-only source; see above
       if (stored) setGuardianPrefill(JSON.parse(stored) as GuardianPrefill);
     } catch { /* ignore */ }
   }, [token]);

@@ -76,9 +76,17 @@ export default function ActivityLogsPage() {
     fetchLogs();
   }, [fetchLogs]);
 
-  useEffect(() => {
+  /**
+   * Changing a filter returns to the first page.
+   *
+   * Done where the filter changes, not in an effect watching it. As an effect it
+   * rendered page 5 of the new filter first — usually an empty list — then
+   * corrected itself, and fired a wasted request for that page on the way.
+   */
+  function applyFilter(change: () => void) {
+    change();
     setPage(0);
-  }, [search, entityType]);
+  }
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
@@ -99,13 +107,13 @@ export default function ActivityLogsPage() {
           <div className="flex gap-3 mb-6">
             <input
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => applyFilter(() => setSearch(e.target.value))}
               placeholder="بحث في السجل..."
               className="flex-1 px-4 py-2 rounded-md border border-gray-200 text-sm text-right focus:outline-none focus:ring-2 focus:ring-teal/30 focus:border-teal"
             />
             <select
               value={entityType}
-              onChange={(e) => setEntityType(e.target.value)}
+              onChange={(e) => applyFilter(() => setEntityType(e.target.value))}
               className="px-3 py-2 rounded-md border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal/30 focus:border-teal"
             >
               <option value="">جميع الإجراءات</option>

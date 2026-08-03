@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { isAuthorizedCron, cronUnauthorized } from "@/lib/cron-auth";
+import { formatDate } from "@/lib/utils";
 
 export async function GET(request: Request) {
   if (!isAuthorizedCron(request)) return cronUnauthorized();
@@ -24,10 +25,17 @@ export async function GET(request: Request) {
   for (const rule of rules) {
     for (const school of schools) {
       let shouldSend = false;
-      let messageBody = rule.message_template
+      const messageBody = rule.message_template
         .replace(/<school_name>/g, school.name)
         .replace(/<plan_name>/g, school.subscription_plan?.name ?? "")
-        .replace(/<renewal_date>/g, school.renewal_date?.toLocaleDateString("ar-SA") ?? "")
+        // Through `formatDate`, not `toLocaleDateString`: this runs on Vercel,
+        // whose host clock is UTC, so an unqualified format names the previous
+        // day for every renewal after 21:00 Riyadh — in a message telling a
+        // school when its subscription expires.
+        .replace(
+          /<renewal_date>/g,
+          school.renewal_date ? formatDate(school.renewal_date) : ""
+        )
         .replace(/<threshold_days>/g, String(rule.threshold_days ?? 0));
 
       if (rule.trigger_type === "no_login") {

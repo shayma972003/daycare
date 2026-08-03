@@ -1,6 +1,6 @@
 export function normalizePhone(raw: string | number | null | undefined): string | null {
   if (raw == null) return null;
-  let s = String(raw).trim().replace(/\s+/g, '').replace(/-/g, '');
+  const s = String(raw).trim().replace(/\s+/g, '').replace(/-/g, '');
   if (!s) return null;
   if (s.startsWith('+966')) {
     const rest = s.slice(4);

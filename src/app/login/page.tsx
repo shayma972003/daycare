@@ -13,7 +13,18 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  /**
+   * Derived, not stored.
+   *
+   * This message says only one thing — "your password was changed" — and the
+   * only input is a query parameter. Copying that into state through an effect
+   * was a second render for a value already known during the first, and the
+   * effect could not remove the message when the parameter went away.
+   */
+  const success =
+    searchParams.get("reset") === "1"
+      ? "تم تغيير كلمة المرور بنجاح. يمكنك تسجيل الدخول الآن."
+      : "";
   const [loading, setLoading] = useState(false);
 
   // 2FA state
@@ -25,11 +36,6 @@ function LoginForm() {
   const [otpLoading, setOtpLoading] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
 
-  useEffect(() => {
-    if (searchParams.get("reset") === "1") {
-      setSuccess("تم تغيير كلمة المرور بنجاح. يمكنك تسجيل الدخول الآن.");
-    }
-  }, [searchParams]);
 
   useEffect(() => {
     if (resendCooldown <= 0) return;

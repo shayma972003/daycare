@@ -148,7 +148,7 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
           acts.map((a) => ({
             id: a?.id ?? String(Math.random()),
             description: a?.name ?? "",
-            qty: "" as "",
+            qty: "" as const,
             price: a?.fee ?? 0,
           }))
         );

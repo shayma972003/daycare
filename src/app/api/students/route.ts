@@ -94,8 +94,17 @@ export async function GET(request: Request) {
       guardian: { select: { id: true, name: true, phone1: true, phone2: true, email: true } },
       isActive: true,
       needsClassWarning: true,
-      // avatarUrl / evaluationFileUrl are large base64 blobs (up to 100MB) — only
-      // loaded on the individual student profile, never in this list query.
+      /**
+       * Included again since uploads moved to R2 (task 0.35).
+       *
+       * It was excluded because the column held a base64 payload, and sixty of
+       * those made the roster a multi-megabyte response. It now holds a short
+       * `/api/files/…` path, so the cost is a few dozen bytes per row and the
+       * list can show faces instead of initials.
+       *
+       * `evaluationFileUrl` stays out: nothing in a list renders it.
+       */
+      avatarUrl: true,
     },
     orderBy: { name: "asc" },
   });

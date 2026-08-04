@@ -13,6 +13,7 @@ import axios from "axios";
 import { describeApiError } from "@/lib/api-error";
 import { EVENT_TYPE_LABELS } from "@/lib/calendar";
 import type { CalendarEventType } from "@/generated/prisma/enums";
+import { useT } from "@/lib/i18n-provider";
 
 interface EventRow {
   id: string;
@@ -57,6 +58,7 @@ export function CalendarEventModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const t = useT();
   const isEdit = Boolean(event);
 
   const [type, setType] = useState<CalendarEventType>(event?.type ?? "LESSON");
@@ -146,7 +148,7 @@ export function CalendarEventModal({
           )}
 
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">النوع</label>
+            <label className="block text-xs font-medium text-gray-500 mb-1.5">{t("finance.type")}</label>
             <div className="flex gap-2">
               {(Object.keys(EVENT_TYPE_LABELS) as CalendarEventType[]).map((option) => (
                 <button
@@ -166,7 +168,7 @@ export function CalendarEventModal({
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">العنوان</label>
+            <label className="block text-xs font-medium text-gray-500 mb-1.5">{t("settings.address")}</label>
             <input value={title} onChange={(e) => setTitle(e.target.value)} className={inputCls} />
           </div>
 
@@ -197,7 +199,7 @@ export function CalendarEventModal({
 
               {!allDay && (
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1.5">إلى</label>
+                  <label className="block text-xs font-medium text-gray-500 mb-1.5">{t("common.to")}</label>
                   <input
                     type="datetime-local"
                     value={endAt}
@@ -209,7 +211,7 @@ export function CalendarEventModal({
               )}
 
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1.5">المعلمة</label>
+                <label className="block text-xs font-medium text-gray-500 mb-1.5">{t("fields.teacher")}</label>
                 <select
                   value={teacherId}
                   onChange={(e) => setTeacherId(e.target.value)}
@@ -245,7 +247,7 @@ export function CalendarEventModal({
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1.5">المكان</label>
+                <label className="block text-xs font-medium text-gray-500 mb-1.5">{t("fields.place")}</label>
                 <input
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
@@ -256,7 +258,7 @@ export function CalendarEventModal({
           )}
 
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">التفاصيل</label>
+            <label className="block text-xs font-medium text-gray-500 mb-1.5">{t("finance.details")}</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}

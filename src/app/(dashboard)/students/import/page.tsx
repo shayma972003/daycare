@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import axios from "axios";
 import { Topbar } from "@/components/layout/Topbar";
 import { STUDENT_FIELD_ALIASES } from "@/lib/import-mapper";
+import { useT } from "@/lib/i18n-provider";
 
 // All possible field names from STUDENT_FIELD_ALIASES
 const ALL_STUDENT_FIELDS = Object.keys(STUDENT_FIELD_ALIASES);
@@ -137,6 +138,7 @@ function downloadErrorCsv(rows: ImportRow[], fileLanguage: string) {
 }
 
 export default function StudentsImportPage() {
+  const t = useT();
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -456,7 +458,7 @@ export default function StudentsImportPage() {
                     <th className="px-4 py-3 text-right font-medium text-gray-600">عمود الملف</th>
                     <th className="px-4 py-3 text-right font-medium text-gray-600">الحقل المعيّن</th>
                     <th className="px-4 py-3 text-right font-medium text-gray-600">الثقة</th>
-                    <th className="px-4 py-3 text-right font-medium text-gray-600">الحالة</th>
+                    <th className="px-4 py-3 text-right font-medium text-gray-600">{t("finance.status")}</th>
                   </tr>
                 </thead>
                 <tbody>

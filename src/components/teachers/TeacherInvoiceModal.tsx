@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import axios from "axios";
+import { useT } from "@/lib/i18n-provider";
 
 interface TeacherLineItem {
   id: string;
@@ -71,6 +72,7 @@ function calcItemTotal(item: TeacherLineItem): number {
 }
 
 export function TeacherInvoiceModal({ open, teacherId, onClose, onIssued }: TeacherInvoiceModalProps) {
+  const t = useT();
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -266,7 +268,7 @@ export function TeacherInvoiceModal({ open, teacherId, onClose, onIssued }: Teac
                     <input value={commercialReg} onChange={(e) => setCommercialReg(e.target.value)} className={inputCls} />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500 block mb-1">الرقم الضريبي VAT</label>
+                    <label className="text-xs text-gray-500 block mb-1">{t("settings.vatNumber")}</label>
                     <input value={vatNumber} onChange={(e) => setVatNumber(e.target.value)} className={inputCls} />
                   </div>
                   <div>
@@ -274,11 +276,11 @@ export function TeacherInvoiceModal({ open, teacherId, onClose, onIssued }: Teac
                     <input value={contactNumber} onChange={(e) => setContactNumber(e.target.value)} className={inputCls} />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500 block mb-1">البريد الإلكتروني</label>
+                    <label className="text-xs text-gray-500 block mb-1">{t("fields.email")}</label>
                     <input value={schoolEmail} onChange={(e) => setSchoolEmail(e.target.value)} className={inputCls} dir="ltr" />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500 block mb-1">العنوان</label>
+                    <label className="text-xs text-gray-500 block mb-1">{t("settings.address")}</label>
                     <input value={address} onChange={(e) => setAddress(e.target.value)} className={inputCls} />
                   </div>
                 </div>
@@ -324,7 +326,7 @@ export function TeacherInvoiceModal({ open, teacherId, onClose, onIssued }: Teac
                 <h3 className="text-sm font-bold text-[#111111] mb-3">بيانات المعلم</h3>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs text-gray-500 block mb-1">اسم المعلم</label>
+                    <label className="text-xs text-gray-500 block mb-1">{t("fields.teacherName")}</label>
                     <input value={teacherName} onChange={(e) => setTeacherName(e.target.value)} className={inputCls} />
                   </div>
                   <div>
@@ -336,11 +338,11 @@ export function TeacherInvoiceModal({ open, teacherId, onClose, onIssued }: Teac
                     <input value={teacherPhone} onChange={(e) => setTeacherPhone(e.target.value)} className={inputCls} dir="ltr" />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500 block mb-1">البريد الإلكتروني</label>
+                    <label className="text-xs text-gray-500 block mb-1">{t("fields.email")}</label>
                     <input value={teacherEmail} onChange={(e) => setTeacherEmail(e.target.value)} className={inputCls} dir="ltr" />
                   </div>
                   <div className="col-span-2">
-                    <label className="text-xs text-gray-500 block mb-1">طريقة الدفع</label>
+                    <label className="text-xs text-gray-500 block mb-1">{t("fields.paymentMethod")}</label>
                     <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className={inputCls}>
                       <option value="CASH">نقدي</option>
                       <option value="TRANSFER">تحويل بنكي</option>
@@ -358,8 +360,8 @@ export function TeacherInvoiceModal({ open, teacherId, onClose, onIssued }: Teac
                       <tr>
                         <th className="px-3 py-2 text-right">الوصف</th>
                         <th className="px-3 py-2 text-right w-28">ساعات التأخير</th>
-                        <th className="px-3 py-2 text-right w-24">السعر</th>
-                        <th className="px-3 py-2 text-right w-28">الإجمالي</th>
+                        <th className="px-3 py-2 text-right w-24">{t("finance.price")}</th>
+                        <th className="px-3 py-2 text-right w-28">{t("fields.total")}</th>
                         <th className="px-3 py-2 w-8"></th>
                       </tr>
                     </thead>

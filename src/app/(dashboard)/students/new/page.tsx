@@ -287,7 +287,7 @@ export default function NewStudentPage() {
 
           {/* Card 2: المعلومات الصحية */}
           <div className="bg-white rounded-xl shadow-md p-6">
-            <h2 className="text-base font-bold text-[#111111] mb-5">المعلومات الصحية</h2>
+            <h2 className="text-base font-bold text-[#111111] mb-5">{t("fields.healthInfo")}</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label={t("students.profile.healthCondition")}>
                 <input {...register("healthCondition")} type="text" className={inputCls} />
@@ -368,7 +368,7 @@ export default function NewStudentPage() {
                   }}
                 />
               </Field>
-              <Field label="اسم ولي الأمر 2">
+              <Field label={t("fields.guardianName2")}>
                 <input {...register("guardianName2")} type="text" className={inputCls}
                   onChange={(e) => { register("guardianName2").onChange(e); handleGuardian2FieldChange(e.target.value); }} />
               </Field>
@@ -380,7 +380,7 @@ export default function NewStudentPage() {
                 <input {...register("guardianPhone4")} type="tel" dir="ltr" className={inputCls}
                   onChange={(e) => { register("guardianPhone4").onChange(e); handleGuardian2FieldChange(e.target.value); }} />
               </Field>
-              <Field label="البريد الإلكتروني 2">
+              <Field label={t("fields.email2")}>
                 <input {...register("guardianEmail2")} type="email" dir="ltr" className={inputCls}
                   onChange={(e) => { register("guardianEmail2").onChange(e); handleGuardian2FieldChange(e.target.value); }} />
               </Field>

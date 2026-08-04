@@ -16,6 +16,7 @@ import { Topbar } from "@/components/layout/Topbar";
 import { describeApiError } from "@/lib/api-error";
 import { PasswordRules, meetsRequiredRules } from "@/components/ui/PasswordRules";
 import type { PermissionDefinition, PermissionCategory } from "@/lib/permissions";
+import { useT } from "@/lib/i18n-provider";
 
 interface RoleRow {
   id: string;
@@ -366,6 +367,7 @@ function InviteStaffModal({
   onClose: () => void;
   onCreated: (message: string) => void;
 }) {
+  const t = useT();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [roleId, setRoleId] = useState(roles[0]?.id ?? "");
@@ -410,7 +412,7 @@ function InviteStaffModal({
         )}
 
         <div>
-          <label className="block text-xs text-gray-500 mb-1">الاسم</label>
+          <label className="block text-xs text-gray-500 mb-1">{t("fields.name")}</label>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -419,7 +421,7 @@ function InviteStaffModal({
         </div>
 
         <div>
-          <label className="block text-xs text-gray-500 mb-1">البريد الإلكتروني</label>
+          <label className="block text-xs text-gray-500 mb-1">{t("fields.email")}</label>
           <input
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -430,7 +432,7 @@ function InviteStaffModal({
         </div>
 
         <div>
-          <label className="block text-xs text-gray-500 mb-1">الدور</label>
+          <label className="block text-xs text-gray-500 mb-1">{t("fields.role")}</label>
           <select
             value={roleId}
             onChange={(e) => setRoleId(e.target.value)}

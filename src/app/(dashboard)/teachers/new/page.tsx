@@ -112,7 +112,7 @@ export default function NewTeacherPage() {
             <h2 className="text-base font-bold text-[#111111] mb-5">بيانات المعلم</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
 
-              <Field label="الاسم الكامل">
+              <Field label={t("fields.fullName")}>
                 <input {...register("name", { required: true })} type="text" className={`${inputCls} ${errors.name ? "border-red-400" : ""}`} />
               </Field>
 
@@ -130,7 +130,7 @@ export default function NewTeacherPage() {
                 </select>
               </Field>
 
-              <Field label="الفصل">
+              <Field label={t("fields.classroom")}>
                 <select {...register("classId")} className={inputCls}>
                   <option value="">— {t("common.select")} —</option>
                   {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -141,39 +141,39 @@ export default function NewTeacherPage() {
                 <input {...register("idNumber")} type="text" className={inputCls} />
               </Field>
 
-              <Field label="تاريخ الميلاد">
+              <Field label={t("fields.dateOfBirth")}>
                 <input {...register("dateOfBirth")} type="date" dir="ltr" className={inputCls} />
               </Field>
 
-              <Field label="الجنسية">
+              <Field label={t("fields.nationality")}>
                 <input {...register("nationality")} type="text" className={inputCls} />
               </Field>
 
-              <Field label="البريد الإلكتروني">
+              <Field label={t("fields.email")}>
                 <input {...register("email")} type="email" dir="ltr" className={inputCls} />
               </Field>
 
-              <Field label="الهاتف 1">
+              <Field label={t("fields.tel1")}>
                 <input {...register("phone1")} type="tel" dir="ltr" className={inputCls} />
               </Field>
 
-              <Field label="الهاتف 2">
+              <Field label={t("fields.tel2")}>
                 <input {...register("phone2")} type="tel" dir="ltr" className={inputCls} />
               </Field>
 
-              <Field label="المؤهل 1">
+              <Field label={t("fields.qualification1")}>
                 <input {...register("qualification1")} type="text" className={inputCls} />
               </Field>
 
-              <Field label="المؤهل 2">
+              <Field label={t("fields.qualification2")}>
                 <input {...register("qualification2")} type="text" className={inputCls} />
               </Field>
 
-              <Field label="المؤهل 3">
+              <Field label={t("fields.qualification3")}>
                 <input {...register("qualification3")} type="text" className={inputCls} />
               </Field>
 
-              <Field label="طريقة الدفع">
+              <Field label={t("fields.paymentMethod")}>
                 <select {...register("paymentMethod")} className={inputCls}>
                   <option value="CASH">{t("paymentMethod.CASH")}</option>
                   <option value="TRANSFER">{t("paymentMethod.TRANSFER")}</option>
@@ -189,7 +189,7 @@ export default function NewTeacherPage() {
                 <input {...register("enrollmentEndDate")} type="date" dir="ltr" className={inputCls} />
               </Field>
 
-              <Field label="الراتب الشهري (ر.س)">
+              <Field label={t("fields.salarySar")}>
                 <input {...register("monthlySalary")} type="number" min={0} step="0.01" className={inputCls} />
               </Field>
 

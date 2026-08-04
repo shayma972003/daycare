@@ -831,15 +831,15 @@ export default function StudentsPage() {
                   <input className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.academic_stage ?? ""} onChange={(e) => setRE("academic_stage", e.target.value)} />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1">الجنس</label>
+                  <label className="block text-xs text-gray-500 mb-1">{t("fields.gender")}</label>
                   <select className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.gender ?? ""} onChange={(e) => setRE("gender", e.target.value)}>
                     <option value="">—</option>
-                    <option value="ذكر">ذكر</option>
-                    <option value="أنثى">أنثى</option>
+                    <option value="ذكر">{t("gender.MALE")}</option>
+                    <option value="أنثى">{t("gender.FEMALE")}</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1">الفترة</label>
+                  <label className="block text-xs text-gray-500 mb-1">{t("fields.period")}</label>
                   <select className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.period ?? ""} onChange={(e) => setRE("period", e.target.value)}>
                     <option value="">—</option>
                     <option value="صباحي">صباحي</option>
@@ -847,7 +847,7 @@ export default function StudentsPage() {
                   </select>
                 </div>
                 <div className="col-span-2">
-                  <label className="block text-xs text-gray-500 mb-1">تاريخ الميلاد</label>
+                  <label className="block text-xs text-gray-500 mb-1">{t("fields.dateOfBirth")}</label>
                   <input type="date" className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={(reviewEdit as Record<string, string>).date_of_birth_str ?? ""} onChange={(e) => setRE("date_of_birth_str", e.target.value)} />
                 </div>
               </div>
@@ -855,13 +855,13 @@ export default function StudentsPage() {
 
             {/* Health Info */}
             <div className="bg-red-50 rounded-xl p-4 mb-4 space-y-3">
-              <h3 className="text-sm font-bold text-gray-700">المعلومات الصحية</h3>
+              <h3 className="text-sm font-bold text-gray-700">{t("fields.healthInfo")}</h3>
               <div>
-                <label className="block text-xs text-gray-500 mb-1">الحالة الصحية</label>
+                <label className="block text-xs text-gray-500 mb-1">{t("fields.healthCondition")}</label>
                 <textarea className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651] resize-none h-16" value={reviewEdit.health_condition ?? ""} onChange={(e) => setRE("health_condition", e.target.value)} />
               </div>
               <div>
-                <label className="block text-xs text-gray-500 mb-1">الحساسيات</label>
+                <label className="block text-xs text-gray-500 mb-1">{t("fields.allergies")}</label>
                 <textarea className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651] resize-none h-16" value={reviewEdit.allergies ?? ""} onChange={(e) => setRE("allergies", e.target.value)} />
               </div>
             </div>
@@ -875,27 +875,27 @@ export default function StudentsPage() {
                   <input className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.guardian_name ?? ""} onChange={(e) => setRE("guardian_name", e.target.value)} />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1">الجوال 1</label>
+                  <label className="block text-xs text-gray-500 mb-1">{t("fields.mobile1")}</label>
                   <input dir="ltr" className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.guardian_phone_1 ?? ""} onChange={(e) => setRE("guardian_phone_1", e.target.value)} />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1">الجوال 2</label>
+                  <label className="block text-xs text-gray-500 mb-1">{t("fields.mobile2")}</label>
                   <input dir="ltr" className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.guardian_phone_2 ?? ""} onChange={(e) => setRE("guardian_phone_2", e.target.value)} />
                 </div>
                 <div className="col-span-2">
-                  <label className="block text-xs text-gray-500 mb-1">البريد الإلكتروني</label>
+                  <label className="block text-xs text-gray-500 mb-1">{t("fields.email")}</label>
                   <input dir="ltr" type="email" className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.guardian_email ?? ""} onChange={(e) => setRE("guardian_email", e.target.value)} />
                 </div>
                 <div className="col-span-2">
-                  <label className="block text-xs text-gray-500 mb-1">اسم ولي الأمر 2</label>
+                  <label className="block text-xs text-gray-500 mb-1">{t("fields.guardianName2")}</label>
                   <input className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.guardian_name_2 ?? ""} onChange={(e) => setRE("guardian_name_2", e.target.value)} />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1">الجوال 3</label>
+                  <label className="block text-xs text-gray-500 mb-1">{t("fields.phone3")}</label>
                   <input dir="ltr" className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.guardian_phone_3 ?? ""} onChange={(e) => setRE("guardian_phone_3", e.target.value)} />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1">الجوال 4</label>
+                  <label className="block text-xs text-gray-500 mb-1">{t("fields.phone4")}</label>
                   <input dir="ltr" className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.guardian_phone_4 ?? ""} onChange={(e) => setRE("guardian_phone_4", e.target.value)} />
                 </div>
               </div>
@@ -915,7 +915,7 @@ export default function StudentsPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1">طريقة الدفع</label>
+                  <label className="block text-xs text-gray-500 mb-1">{t("fields.paymentMethod")}</label>
                   <select className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.payment_method ?? ""} onChange={(e) => setRE("payment_method", e.target.value)}>
                     <option value="">—</option>
                     <option value="نقدي">نقدي</option>

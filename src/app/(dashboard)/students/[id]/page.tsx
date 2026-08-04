@@ -501,7 +501,7 @@ export default function StudentProfilePage({
                   {/* Siblings */}
                   {student?.siblings && student.siblings.length > 0 && (
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs text-gray-400">أشقاء:</span>
+                      <span className="text-xs text-gray-400">{t("fields.siblings")}</span>
                       {student.siblings.map((sib) => (
                         <button
                           key={sib.id}
@@ -697,7 +697,7 @@ export default function StudentProfilePage({
 
               {/* Card 2: المعلومات الصحية */}
               <div className="bg-white rounded-xl shadow-md p-6">
-                <h2 className="text-base font-bold text-[#111111] mb-5">المعلومات الصحية</h2>
+                <h2 className="text-base font-bold text-[#111111] mb-5">{t("fields.healthInfo")}</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">{t("students.profile.healthCondition")}</label>
@@ -802,7 +802,7 @@ export default function StudentProfilePage({
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">اسم ولي الأمر 2</label>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">{t("fields.guardianName2")}</label>
                     <input {...register("guardianName2")} type="text" className={inputCls}
                       onChange={(e) => { register("guardianName2").onChange(e); handleGuardian2FieldChange(e.target.value); }} />
                   </div>
@@ -817,7 +817,7 @@ export default function StudentProfilePage({
                       onChange={(e) => { register("guardianPhone4").onChange(e); handleGuardian2FieldChange(e.target.value); }} />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">البريد الإلكتروني 2</label>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">{t("fields.email2")}</label>
                     <input {...register("guardianEmail2")} type="email" dir="ltr" className={inputCls}
                       onChange={(e) => { register("guardianEmail2").onChange(e); handleGuardian2FieldChange(e.target.value); }} />
                   </div>
@@ -1159,8 +1159,8 @@ export default function StudentProfilePage({
                 <tr className="text-gray-500 border-b border-gray-100">
                   <th className="py-2 text-right">#</th>
                   <th className="py-2 text-right">{t("invoices.issuedAt")}</th>
-                  <th className="py-2 text-right">المبلغ</th>
-                  <th className="py-2 text-right">الإجراء</th>
+                  <th className="py-2 text-right">{t("finance.amount")}</th>
+                  <th className="py-2 text-right">{t("fields.action")}</th>
                 </tr>
               </thead>
               <tbody>

@@ -187,10 +187,10 @@ export default function TeacherProfilePage() {
     try {
       await axios.delete(`/api/teachers/${id}/late-fee`);
       await loadTeacher();
-      setActionMessage({ text: "تم حذف رسوم التأخير", ok: true });
+      setActionMessage({ text: t("teacherProfile.lateFeeRemoved"), ok: true });
     } catch (err) {
       // Was swallowed silently, so a failed delete looked identical to success.
-      setActionMessage({ text: describeApiError(err, "تعذر حذف رسوم التأخير"), ok: false });
+      setActionMessage({ text: describeApiError(err, t("teacherProfile.lateFeeFailed")), ok: false });
     } finally {
       setActionLoading(null);
     }
@@ -220,9 +220,9 @@ export default function TeacherProfilePage() {
       });
       setShowDepartureModal(false);
       await loadTeacher();
-      setActionMessage({ text: "تم إنهاء الخدمة", ok: true });
+      setActionMessage({ text: t("teacherProfile.serviceEnded"), ok: true });
     } catch (err) {
-      setActionMessage({ text: describeApiError(err, "تعذر إنهاء الخدمة"), ok: false });
+      setActionMessage({ text: describeApiError(err, t("teacherProfile.endFailed")), ok: false });
     } finally {
       setActionLoading(null);
     }
@@ -235,9 +235,9 @@ export default function TeacherProfilePage() {
     try {
       await axios.post(`/api/teachers/${id}/cancel`, { status: "ACTIVE" });
       await loadTeacher();
-      setActionMessage({ text: "تمت إعادة التفعيل", ok: true });
+      setActionMessage({ text: t("teacherProfile.reactivated"), ok: true });
     } catch (err) {
-      setActionMessage({ text: describeApiError(err, "تعذرت إعادة التفعيل"), ok: false });
+      setActionMessage({ text: describeApiError(err, t("teacherProfile.reactivateFailed")), ok: false });
     } finally {
       setActionLoading(null);
     }
@@ -254,7 +254,7 @@ export default function TeacherProfilePage() {
       const res = await axios.post<{ sentTo: string }>(`/api/teachers/${id}/reminder`);
       setActionMessage({ text: `تم الإرسال إلى ${res.data.sentTo}`, ok: true });
     } catch (err) {
-      setActionMessage({ text: describeApiError(err, "تعذر إرسال الإشعار"), ok: false });
+      setActionMessage({ text: describeApiError(err, t("teacherProfile.reminderFailed")), ok: false });
     } finally {
       setActionLoading(null);
     }
@@ -317,7 +317,7 @@ export default function TeacherProfilePage() {
           <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">
             {teacher.status && teacher.status !== "ACTIVE"
               ? EMPLOYMENT_STATUS_LABELS[teacher.status]
-              : "غير نشط"}
+              : t("fields.inactive")}
             {teacher.leftAt && ` · ${formatDate(teacher.leftAt)}`}
           </span>
         )}
@@ -331,38 +331,38 @@ export default function TeacherProfilePage() {
 
               {/* ── بطاقة البيانات الشخصية ─────────────────────────── */}
               <div className="bg-white rounded-xl shadow-md p-6 space-y-4">
-                <h2 className="font-bold text-[#111111] text-base border-b border-gray-100 pb-3">البيانات الشخصية</h2>
+                <h2 className="font-bold text-[#111111] text-base border-b border-gray-100 pb-3">{t("fields.personalInfo")}</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="sm:col-span-2">
-                    <label className={labelCls}>الاسم الكامل</label>
+                    <label className={labelCls}>{t("fields.fullName")}</label>
                     <input {...register("name")} className={inputCls} />
                   </div>
                   <div>
-                    <label className={labelCls}>رقم الهوية / الإقامة</label>
+                    <label className={labelCls}>{t("fields.idNumber")}</label>
                     <input {...register("idNumber")} className={inputCls} dir="ltr" />
                   </div>
                   <div>
-                    <label className={labelCls}>تاريخ الميلاد</label>
+                    <label className={labelCls}>{t("fields.dateOfBirth")}</label>
                     <input type="date" {...register("dateOfBirth")} className={inputCls} dir="ltr" />
                   </div>
                   <div>
-                    <label className={labelCls}>الجنسية</label>
+                    <label className={labelCls}>{t("fields.nationality")}</label>
                     <input {...register("nationality")} className={inputCls} />
                   </div>
                   <div>
-                    <label className={labelCls}>البريد الإلكتروني</label>
+                    <label className={labelCls}>{t("fields.email")}</label>
                     <input type="email" {...register("email")} className={inputCls} dir="ltr" />
                   </div>
                   <div>
-                    <label className={labelCls}>رقم الجوال 1</label>
+                    <label className={labelCls}>{t("fields.phone1")}</label>
                     <input {...register("phone1")} className={inputCls} dir="ltr" />
                   </div>
                   <div>
-                    <label className={labelCls}>رقم الجوال 2</label>
+                    <label className={labelCls}>{t("fields.phone2")}</label>
                     <input {...register("phone2")} className={inputCls} dir="ltr" />
                   </div>
                   <div>
-                    <label className={labelCls}>الفترة</label>
+                    <label className={labelCls}>{t("fields.period")}</label>
                     <select
                       {...register("period")}
                       className={selectCls}
@@ -372,12 +372,12 @@ export default function TeacherProfilePage() {
                       }}
                     >
                       <option value="">{t("common.select")}</option>
-                      <option value="MORNING">صباحي</option>
-                      <option value="EVENING">مسائي</option>
+                      <option value="MORNING">{t("fields.morning")}</option>
+                      <option value="EVENING">{t("fields.evening")}</option>
                     </select>
                   </div>
                   <div>
-                    <label className={labelCls}>الفصل</label>
+                    <label className={labelCls}>{t("fields.classroom")}</label>
                     <select {...register("classId")} className={selectCls}>
                       <option value="">{t("common.select")}</option>
                       {classes.map((cls) => <option key={cls.id} value={cls.id}>{cls.name}</option>)}
@@ -401,33 +401,33 @@ export default function TeacherProfilePage() {
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className={labelCls}>تاريخ الانضمام</label>
+                    <label className={labelCls}>{t("fields.joinDate")}</label>
                     <input type="date" {...register("joinDate")} className={inputCls} dir="ltr" />
                   </div>
                   <div>
-                    <label className={labelCls}>تاريخ انتهاء العقد</label>
+                    <label className={labelCls}>{t("fields.contractEnd")}</label>
                     <input type="date" {...register("enrollmentEndDate")} className={inputCls} dir="ltr" />
                   </div>
                   <div>
-                    <label className={labelCls}>خصم التأخير</label>
+                    <label className={labelCls}>{t("fields.lateDeduction")}</label>
                     <div className="relative">
                       <input type="number" min={0} step="0.01" {...register("lateDeductionRate", { valueAsNumber: true })} className={inputCls} />
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">ر.س/ساعة</span>
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">{t("fields.perHour")}</span>
                     </div>
                   </div>
                   <div>
-                    <label className={labelCls}>الراتب الشهري</label>
+                    <label className={labelCls}>{t("fields.monthlySalary")}</label>
                     <div className="relative">
                       <input type="number" min={0} {...register("monthlySalary", { valueAsNumber: true })} className={inputCls} />
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">ر.س</span>
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">{t("common.sar")}</span>
                     </div>
                   </div>
                   <div className="sm:col-span-2">
-                    <label className={labelCls}>طريقة الدفع</label>
+                    <label className={labelCls}>{t("fields.paymentMethod")}</label>
                     <select {...register("paymentMethod")} className={selectCls}>
                       <option value="">{t("common.select")}</option>
-                      <option value="CASH">نقدي</option>
-                      <option value="TRANSFER">تحويل</option>
+                      <option value="CASH">{t("fields.cash")}</option>
+                      <option value="TRANSFER">{t("fields.transfer")}</option>
                     </select>
                   </div>
                 </div>
@@ -435,7 +435,7 @@ export default function TeacherProfilePage() {
 
               {/* ── بطاقة المؤهلات الوظيفية ────────────────────────── */}
               <div className="bg-white rounded-xl shadow-md p-6 space-y-4">
-                <h2 className="font-bold text-[#111111] text-base border-b border-gray-100 pb-3">المؤهلات الوظيفية</h2>
+                <h2 className="font-bold text-[#111111] text-base border-b border-gray-100 pb-3">{t("fields.qualifications")}</h2>
                 <div className="space-y-3">
                   {([1, 2, 3] as const).map((n) => (
                     <div key={n}>
@@ -468,11 +468,11 @@ export default function TeacherProfilePage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-gray-100 mt-2">
                   <div>
-                    <label className={labelCls}>ساعات الحضور</label>
+                    <label className={labelCls}>{t("fields.attendanceHours")}</label>
                     <div className={readonlyCls}>{teacher.attendanceHours ?? 0} {t("common.hours")}</div>
                   </div>
                   <div>
-                    <label className={labelCls}>ساعات التأخير</label>
+                    <label className={labelCls}>{t("fields.lateHours")}</label>
                     <div className={readonlyCls}>{teacher.lateHours ?? 0} {t("common.hours")}</div>
                   </div>
                 </div>
@@ -548,8 +548,8 @@ export default function TeacherProfilePage() {
                     {actionLoading === "cancel"
                       ? t("common.loading")
                       : teacher.isActive === false
-                        ? "إعادة التفعيل"
-                        : "إنهاء الخدمة"}
+                        ? t("teacherProfile.reactivate")
+                        : t("teacherProfile.endService")}
                   </button>
 
                   {/* 5. حذف رسوم التأخير */}
@@ -612,24 +612,24 @@ export default function TeacherProfilePage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50">
-                  <th className="px-6 py-3 text-right font-medium text-gray-600">الفاتورة</th>
-                  <th className="px-6 py-3 text-right font-medium text-gray-600">صافي الراتب</th>
-                  <th className="px-6 py-3 text-right font-medium text-gray-600">تاريخ الإصدار</th>
-                  <th className="px-6 py-3 text-right font-medium text-gray-600">إجراءات</th>
+                  <th className="px-6 py-3 text-right font-medium text-gray-600">{t("teacherProfile.invoice")}</th>
+                  <th className="px-6 py-3 text-right font-medium text-gray-600">{t("teacherProfile.netSalary")}</th>
+                  <th className="px-6 py-3 text-right font-medium text-gray-600">{t("finance.issuedOn")}</th>
+                  <th className="px-6 py-3 text-right font-medium text-gray-600">{t("common.actions")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {invoices.map((inv) => (
                   <tr key={inv.id} className="hover:bg-gray-50/50">
                     <td className="px-6 py-3 text-gray-700">{t("invoices.teacherInvoice")} #{inv.id.slice(0, 8)}</td>
-                    <td className="px-6 py-3 text-gray-500">{inv.amount != null ? `${Number(inv.amount).toFixed(2)} ر.س` : "—"}</td>
+                    <td className="px-6 py-3 text-gray-500">{inv.amount != null ? formatCurrency(Number(inv.amount)) : "—"}</td>
                     <td className="px-6 py-3 text-gray-500">{formatDate(inv.createdAt)}</td>
                     <td className="px-6 py-3">
                       <div className="flex gap-2">
                         {inv.pdfUrl && (
                           <>
-                            <button onClick={() => { const b64 = inv.pdfUrl!.split(",")[1]; const bytes = Uint8Array.from(atob(b64),(c)=>c.charCodeAt(0)); window.open(URL.createObjectURL(new Blob([bytes],{type:"application/pdf"})),"_blank"); }} className="px-2.5 py-1 text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100">عرض</button>
-                            <button onClick={() => { const a=document.createElement("a"); a.href=inv.pdfUrl!; a.download=`فاتورة-${inv.id.slice(0,8)}.pdf`; document.body.appendChild(a); a.click(); document.body.removeChild(a); }} className="px-2.5 py-1 text-xs bg-gray-50 text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-100">تنزيل</button>
+                            <button onClick={() => { const b64 = inv.pdfUrl!.split(",")[1]; const bytes = Uint8Array.from(atob(b64),(c)=>c.charCodeAt(0)); window.open(URL.createObjectURL(new Blob([bytes],{type:"application/pdf"})),"_blank"); }} className="px-2.5 py-1 text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100">{t("finance.view")}</button>
+                            <button onClick={() => { const a=document.createElement("a"); a.href=inv.pdfUrl!; a.download=`invoice-${inv.id.slice(0,8)}.pdf`; document.body.appendChild(a); a.click(); document.body.removeChild(a); }} className="px-2.5 py-1 text-xs bg-gray-50 text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-100">{t("finance.download")}</button>
                           </>
                         )}
                       </div>
@@ -647,10 +647,10 @@ export default function TeacherProfilePage() {
       {showDepartureModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl shadow-xl p-6 w-96 space-y-4" dir="rtl">
-            <p className="text-base font-bold text-[#111111] text-center">إنهاء خدمة الموظف</p>
+            <p className="text-base font-bold text-[#111111] text-center">{t("teacherProfile.endServiceTitle")}</p>
 
             <div>
-              <label className="block text-sm text-gray-600 mb-1">سبب الإنهاء</label>
+              <label className="block text-sm text-gray-600 mb-1">{t("teacherProfile.endReason")}</label>
               <select
                 value={departureStatus}
                 onChange={(e) => setDepartureStatus(e.target.value as TeacherDepartureStatus)}
@@ -665,7 +665,7 @@ export default function TeacherProfilePage() {
             </div>
 
             <div>
-              <label className="block text-sm text-gray-600 mb-1">تاريخ آخر يوم عمل</label>
+              <label className="block text-sm text-gray-600 mb-1">{t("teacherProfile.lastWorkingDay")}</label>
               <input
                 type="date"
                 value={departureDate}
@@ -687,7 +687,7 @@ export default function TeacherProfilePage() {
                 disabled={actionLoading === "cancel" || !departureDate}
                 className="px-5 py-2 bg-[#2F96A6] text-white rounded-xl text-sm font-medium hover:bg-[#26808e] disabled:opacity-60"
               >
-                {actionLoading === "cancel" ? "..." : "تأكيد"}
+                {actionLoading === "cancel" ? "..." : t("common.confirm")}
               </button>
               <button
                 onClick={() => setShowDepartureModal(false)}
@@ -705,14 +705,14 @@ export default function TeacherProfilePage() {
           <div className="bg-white rounded-2xl shadow-xl p-6 w-96 text-center space-y-4">
             {trashClasses.length === 0 ? (
               <>
-                <p className="text-base font-bold text-[#111111]">نقل إلى سلة المحذوفات؟</p>
+                <p className="text-base font-bold text-[#111111]">{t("teacherProfile.moveToTrash")}</p>
                 <p className="text-sm text-gray-600 whitespace-pre-line">
                   {`سيتم نقل ملف ${teacher?.name ?? ""} إلى سلة المحذوفات.\nيمكنك استعادته خلال 30 يوماً.`}
                 </p>
               </>
             ) : (
               <>
-                <p className="text-base font-bold text-[#111111] text-right">هذا المعلم هو المعلم المسؤول على:</p>
+                <p className="text-base font-bold text-[#111111] text-right">{t("teacherProfile.isLeadTeacherOf")}</p>
                 <ul className="text-sm text-gray-700 text-right space-y-1 max-h-40 overflow-y-auto">
                   {trashClasses.map((c) => (
                     <li key={c.id}>- {c.name} ({c.group})</li>
@@ -729,7 +729,7 @@ export default function TeacherProfilePage() {
                 disabled={trashing}
                 className="px-5 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 disabled:opacity-60"
               >
-                {trashing ? "..." : trashClasses.length === 0 ? "تأكيد النقل" : "حذف"}
+                {trashing ? "..." : trashClasses.length === 0 ? t("teacherProfile.confirmMove") : t("common.delete")}
               </button>
               <button
                 onClick={() => setShowTrashModal(false)}
@@ -745,15 +745,15 @@ export default function TeacherProfilePage() {
       {showLateFeeConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl shadow-xl p-6 w-96 text-center space-y-4">
-            <p className="text-base font-bold text-[#111111]">حذف رسوم التأخير؟</p>
-            <p className="text-sm text-gray-600">هل أنت متأكد من حذف رسوم التأخير لهذا المعلم؟</p>
+            <p className="text-base font-bold text-[#111111]">{t("teacherProfile.removeLateFee")}</p>
+            <p className="text-sm text-gray-600">{t("teacherProfile.removeLateFeeAsk")}</p>
             <div className="flex gap-3 justify-center">
               <button
                 onClick={confirmDeleteLateFee}
                 disabled={actionLoading === "lateFee"}
                 className="px-5 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 disabled:opacity-60"
               >
-                {actionLoading === "lateFee" ? "..." : "حذف"}
+                {actionLoading === "lateFee" ? "..." : t("common.delete")}
               </button>
               <button
                 onClick={() => setShowLateFeeConfirm(false)}

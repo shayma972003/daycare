@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { generateQRCode } from "@/lib/qr-generator";
 import { AttendanceCard } from "./AttendanceCard";
 import type { AttendancePerson, AttendanceClass } from "@/lib/attendance-data";
+import { useT } from "@/lib/i18n-provider";
 
 interface AttendanceBoardProps {
   /** Kiosk token. Present on the public board; fetched on demand in the dashboard. */
@@ -15,6 +16,7 @@ interface AttendanceBoardProps {
 }
 
 export function AttendanceBoard({ token, isPublic, schoolName }: AttendanceBoardProps) {
+  const t = useT();
   const [activeTab, setActiveTab] = useState<"students" | "teachers">("students");
   const [selectedClass, setSelectedClass] = useState<string>("all");
   const [students, setStudents] = useState<AttendancePerson[]>([]);
@@ -111,7 +113,7 @@ export function AttendanceBoard({ token, isPublic, schoolName }: AttendanceBoard
       {/* Sidebar */}
       <aside className="w-56 bg-white border-l border-gray-100 flex flex-col p-4 gap-1 overflow-y-auto flex-shrink-0">
         {schoolName && <p className="text-sm font-bold text-navy mb-3 text-right truncate">{schoolName}</p>}
-        <p className="text-xs font-bold text-gray-400 mb-2 text-right">الفلتر</p>
+        <p className="text-xs font-bold text-gray-400 mb-2 text-right">{t("fields.filter")}</p>
 
         <button
           onClick={() => setSelectedClass("all")}

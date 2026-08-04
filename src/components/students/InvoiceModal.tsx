@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import axios from "axios";
+import { useT } from "@/lib/i18n-provider";
 
 interface LineItem {
   id: string;
@@ -59,6 +60,7 @@ function calcTotal(items: Array<{ qty: number | ""; price: number | "" }>) {
 }
 
 export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModalProps) {
+  const t = useT();
   const [prefill, setPrefill] = useState<PrefillData | null>(null);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -300,7 +302,7 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
                     <input value={commercialReg} onChange={(e) => setCommercialReg(e.target.value)} className={inputCls} />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500 block mb-1">الرقم الضريبي VAT</label>
+                    <label className="text-xs text-gray-500 block mb-1">{t("settings.vatNumber")}</label>
                     <input value={vatNumber} onChange={(e) => setVatNumber(e.target.value)} className={inputCls} />
                   </div>
                   <div>
@@ -308,11 +310,11 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
                     <input value={contactNumber} onChange={(e) => setContactNumber(e.target.value)} className={inputCls} />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500 block mb-1">البريد الإلكتروني</label>
+                    <label className="text-xs text-gray-500 block mb-1">{t("fields.email")}</label>
                     <input value={schoolEmail} onChange={(e) => setSchoolEmail(e.target.value)} className={inputCls} dir="ltr" />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500 block mb-1">العنوان</label>
+                    <label className="text-xs text-gray-500 block mb-1">{t("settings.address")}</label>
                     <input value={address} onChange={(e) => setAddress(e.target.value)} className={inputCls} />
                   </div>
                 </div>
@@ -358,11 +360,11 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
                 <h3 className="text-sm font-bold text-[#111111] mb-3">بيانات الطالب وولي الأمر</h3>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs text-gray-500 block mb-1">اسم الطفل</label>
+                    <label className="text-xs text-gray-500 block mb-1">{t("fields.childName")}</label>
                     <input value={studentName} onChange={(e) => setStudentName(e.target.value)} className={inputCls} />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500 block mb-1">الرقم الطلابي</label>
+                    <label className="text-xs text-gray-500 block mb-1">{t("fields.studentNumber")}</label>
                     <input value={studentIdNum} onChange={(e) => setStudentIdNum(e.target.value)} className={inputCls} />
                   </div>
                   <div>
@@ -370,7 +372,7 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
                     <input value={className} onChange={(e) => setClassName(e.target.value)} className={inputCls} />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500 block mb-1">طريقة الدفع</label>
+                    <label className="text-xs text-gray-500 block mb-1">{t("fields.paymentMethod")}</label>
                     <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className={inputCls}>
                       <option value="CASH">نقدي</option>
                       <option value="TRANSFER">تحويل بنكي</option>
@@ -378,7 +380,7 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500 block mb-1">اسم ولي الأمر</label>
+                    <label className="text-xs text-gray-500 block mb-1">{t("fields.guardianName")}</label>
                     <input value={guardianName} onChange={(e) => setGuardianName(e.target.value)} className={inputCls} />
                   </div>
                   <div>
@@ -386,7 +388,7 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
                     <input value={guardianPhone} onChange={(e) => setGuardianPhone(e.target.value)} className={inputCls} dir="ltr" />
                   </div>
                   <div className="col-span-2">
-                    <label className="text-xs text-gray-500 block mb-1">البريد الإلكتروني لولي الأمر</label>
+                    <label className="text-xs text-gray-500 block mb-1">{t("fields.guardianEmail")}</label>
                     <input value={guardianEmail} onChange={(e) => setGuardianEmail(e.target.value)} className={inputCls} dir="ltr" />
                   </div>
                 </div>
@@ -400,9 +402,9 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
                     <thead className="bg-gray-50 border-b border-gray-100 text-gray-500">
                       <tr>
                         <th className="px-3 py-2 text-right">الوصف</th>
-                        <th className="px-3 py-2 text-right w-20">الكمية</th>
-                        <th className="px-3 py-2 text-right w-24">السعر</th>
-                        <th className="px-3 py-2 text-right w-24">الإجمالي</th>
+                        <th className="px-3 py-2 text-right w-20">{t("careForm.amount")}</th>
+                        <th className="px-3 py-2 text-right w-24">{t("finance.price")}</th>
+                        <th className="px-3 py-2 text-right w-24">{t("fields.total")}</th>
                         <th className="px-3 py-2 w-8"></th>
                       </tr>
                     </thead>
@@ -462,7 +464,7 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
                               value={discountLabel}
                               onChange={(e) => setDiscountLabel(e.target.value)}
                               className={tdInput}
-                              placeholder="التخفيض"
+                              placeholder={t("fields.discount")}
                             />
                           </td>
                           <td className="px-2 py-1.5 text-center text-gray-300 text-sm">—</td>
@@ -572,15 +574,15 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
                     ) : (
                       <div className="border border-gray-200 rounded-xl overflow-hidden">
                         <div className="px-3 py-2 bg-gray-50 border-b border-gray-100">
-                          <span className="text-xs font-semibold text-gray-600">الفعاليات</span>
+                          <span className="text-xs font-semibold text-gray-600">{t("fields.activities")}</span>
                         </div>
                         <table className="w-full text-sm">
                           <thead className="bg-gray-50 border-b border-gray-100 text-gray-500">
                             <tr>
                               <th className="px-3 py-2 text-right">الوصف</th>
-                              <th className="px-3 py-2 text-right w-20">الكمية</th>
-                              <th className="px-3 py-2 text-right w-24">السعر</th>
-                              <th className="px-3 py-2 text-right w-24">الإجمالي</th>
+                              <th className="px-3 py-2 text-right w-20">{t("careForm.amount")}</th>
+                              <th className="px-3 py-2 text-right w-24">{t("finance.price")}</th>
+                              <th className="px-3 py-2 text-right w-24">{t("fields.total")}</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -638,7 +640,7 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
               <div className="text-right space-y-1 mt-3 pt-3 border-t border-gray-100">
                 <div className="flex justify-between text-sm text-gray-500">
                   <span>{baseTotalView.toFixed(2)} ر.س</span>
-                  <span>المجموع قبل الضريبة</span>
+                  <span>{t("fields.subtotal")}</span>
                 </div>
                 {hasVat && (
                   <div className="flex justify-between text-sm text-gray-500">
@@ -660,7 +662,7 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
                 )}
                 <div className="flex justify-between text-base font-bold text-gray-900 pt-1 border-t border-gray-200">
                   <span>{grandTotal.toFixed(2)} ر.س</span>
-                  <span>الإجمالي الكلي</span>
+                  <span>{t("fields.grandTotal")}</span>
                 </div>
               </div>
 

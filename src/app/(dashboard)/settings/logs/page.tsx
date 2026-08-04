@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
 import { Topbar } from "@/components/layout/Topbar";
+import { useT } from "@/lib/i18n-provider";
 
 interface LogEntry {
   id: string;
@@ -29,6 +30,7 @@ const ENTITY_TYPE_LABELS: Record<string, string> = {
 const PAGE_SIZE = 50;
 
 export default function ActivityLogsPage() {
+  const t = useT();
   const router = useRouter();
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [total, setTotal] = useState(0);
@@ -117,11 +119,11 @@ export default function ActivityLogsPage() {
               className="px-3 py-2 rounded-md border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal/30 focus:border-teal"
             >
               <option value="">جميع الإجراءات</option>
-              <option value="student">الطلاب</option>
-              <option value="teacher">المعلمون</option>
-              <option value="class">الفصول</option>
-              <option value="invoice">الفواتير</option>
-              <option value="settings">الإعدادات</option>
+              <option value="student">{t("fields.students")}</option>
+              <option value="teacher">{t("fields.teachers")}</option>
+              <option value="class">{t("fields.classes")}</option>
+              <option value="invoice">{t("fields.invoices")}</option>
+              <option value="settings">{t("fields.settings")}</option>
               <option value="auth">تسجيل الدخول</option>
             </select>
             <button

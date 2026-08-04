@@ -25,6 +25,7 @@ import {
   SUPPLY_URGENCY_LABELS,
 } from "@/lib/care-reports";
 import type { CareReportType } from "@/generated/prisma/enums";
+import { useT } from "@/lib/i18n-provider";
 
 interface Props {
   type: CareReportType;
@@ -52,6 +53,7 @@ export function CareReportModal({
   onClose,
   onSaved,
 }: Props) {
+  const t = useT();
   const [occurredAt, setOccurredAt] = useState(nowForInput());
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
@@ -85,7 +87,7 @@ export function CareReportModal({
       const response = await axios.post<{ url: string }>("/api/care-reports/photo", form);
       setPhotoUrl(response.data.url);
     } catch (err) {
-      setError(describeApiError(err, "تعذر رفع الصورة"));
+      setError(describeApiError(err, t("careForm.photoUploadFailed")));
     } finally {
       setUploading(false);
     }
@@ -129,11 +131,11 @@ export function CareReportModal({
       const response = await axios.post<{ created: number }>("/api/care-reports", body);
       onSaved(
         studentIds.length === 1
-          ? "تم تسجيل التقرير"
+          ? t("careForm.saved")
           : `تم تسجيل التقرير لـ${response.data.created} طفل`
       );
     } catch (err) {
-      setError(describeApiError(err, "تعذر حفظ التقرير"));
+      setError(describeApiError(err, t("careForm.saveFailed")));
       setSaving(false);
     }
   }
@@ -165,7 +167,7 @@ export function CareReportModal({
           )}
 
           {type !== "NAP" && (
-            <Field label="الوقت">
+            <Field label={t("careForm.time")}>
               <input
                 type="datetime-local"
                 value={occurredAt}
@@ -178,15 +180,15 @@ export function CareReportModal({
 
           {type === "MEAL" && (
             <>
-              <Field label="الوجبة">
+              <Field label={t("careForm.meal")}>
                 <input
                   value={fields.mealName ?? ""}
                   onChange={(e) => set("mealName", e.target.value)}
-                  placeholder="فطور · وجبة خفيفة · غداء"
+                  placeholder={t("careForm.mealHint")}
                   className={inputCls}
                 />
               </Field>
-              <Field label="الكمية">
+              <Field label={t("careForm.amount")}>
                 <ChoiceRow
                   options={MEAL_AMOUNT_LABELS}
                   value={fields.mealAmount}
@@ -198,7 +200,7 @@ export function CareReportModal({
 
           {type === "NAP" && (
             <>
-              <Field label="من">
+              <Field label={t("common.from")}>
                 <input
                   type="datetime-local"
                   value={fields.napStartAt ?? ""}
@@ -207,7 +209,7 @@ export function CareReportModal({
                   dir="ltr"
                 />
               </Field>
-              <Field label="إلى">
+              <Field label={t("common.to")}>
                 <input
                   type="datetime-local"
                   value={fields.napEndAt ?? ""}
@@ -219,11 +221,11 @@ export function CareReportModal({
               {/* Shown live, but the stored value is computed on the server —
                   the duration and the two timestamps must agree. */}
               <NapDuration start={fields.napStartAt} end={fields.napEndAt} />
-              <Field label="جودة النوم">
+              <Field label={t("careForm.napQuality")}>
                 <input
                   value={fields.napQuality ?? ""}
                   onChange={(e) => set("napQuality", e.target.value)}
-                  placeholder="هادئ · متقطع"
+                  placeholder={t("careForm.napHint")}
                   className={inputCls}
                 />
               </Field>
@@ -232,14 +234,14 @@ export function CareReportModal({
 
           {type === "TOILET" && (
             <>
-              <Field label="النوع">
+              <Field label={t("careForm.kind")}>
                 <ChoiceRow
                   options={TOILET_KIND_LABELS}
                   value={fields.toiletKind}
                   onChange={(v) => set("toiletKind", v)}
                 />
               </Field>
-              <Field label="الحالة">
+              <Field label={t("careForm.state")}>
                 <input
                   value={fields.toiletState ?? ""}
                   onChange={(e) => set("toiletState", e.target.value)}
@@ -250,7 +252,7 @@ export function CareReportModal({
           )}
 
           {type === "MOOD" && (
-            <Field label="المزاج">
+            <Field label={t("careForm.mood")}>
               <ChoiceRow
                 options={MOOD_LABELS}
                 value={fields.mood}
@@ -261,21 +263,21 @@ export function CareReportModal({
 
           {type === "MEDICATION" && (
             <>
-              <Field label="اسم الدواء">
+              <Field label={t("careForm.medicationName")}>
                 <input
                   value={fields.medicationName ?? ""}
                   onChange={(e) => set("medicationName", e.target.value)}
                   className={inputCls}
                 />
               </Field>
-              <Field label="الجرعة">
+              <Field label={t("careForm.dose")}>
                 <input
                   value={fields.medicationDose ?? ""}
                   onChange={(e) => set("medicationDose", e.target.value)}
                   className={inputCls}
                 />
               </Field>
-              <Field label="مَن أعطاها">
+              <Field label={t("careForm.givenBy")}>
                 <input
                   value={fields.givenByName ?? ""}
                   onChange={(e) => set("givenByName", e.target.value)}
@@ -287,7 +289,7 @@ export function CareReportModal({
 
           {type === "HEALTH" && (
             <>
-              <Field label="درجة الحرارة (°م)">
+              <Field label={t("careForm.temperature")}>
                 <input
                   type="number"
                   step="0.1"
@@ -299,14 +301,14 @@ export function CareReportModal({
                   dir="ltr"
                 />
               </Field>
-              <Field label="العَرَض">
+              <Field label={t("careForm.symptom")}>
                 <input
                   value={fields.symptom ?? ""}
                   onChange={(e) => set("symptom", e.target.value)}
                   className={inputCls}
                 />
               </Field>
-              <Field label="الإجراء المتخذ">
+              <Field label={t("careForm.actionTaken")}>
                 <input
                   value={fields.actionTaken ?? ""}
                   onChange={(e) => set("actionTaken", e.target.value)}
@@ -318,15 +320,15 @@ export function CareReportModal({
 
           {type === "SUPPLIES" && (
             <>
-              <Field label="الصنف">
+              <Field label={t("careForm.supplyItem")}>
                 <input
                   value={fields.supplyItem ?? ""}
                   onChange={(e) => set("supplyItem", e.target.value)}
-                  placeholder="حفاضات · ملابس احتياطية"
+                  placeholder={t("careForm.supplyHint")}
                   className={inputCls}
                 />
               </Field>
-              <Field label="الكمية">
+              <Field label={t("careForm.amount")}>
                 <input
                   type="number"
                   min="1"
@@ -336,7 +338,7 @@ export function CareReportModal({
                   dir="ltr"
                 />
               </Field>
-              <Field label="العجلة">
+              <Field label={t("careForm.urgency")}>
                 <ChoiceRow
                   options={SUPPLY_URGENCY_LABELS}
                   value={fields.supplyUrgency}
@@ -346,7 +348,7 @@ export function CareReportModal({
             </>
           )}
 
-          <Field label={type === "GENERAL" ? "الملاحظة" : "ملاحظة (اختياري)"}>
+          <Field label={type === "GENERAL" ? t("careForm.note") : t("careForm.noteOptional")}>
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
@@ -360,13 +362,13 @@ export function CareReportModal({
               report — attaching the same picture to a batch would send every
               family the same image of somebody else's child. */}
           {studentIds.length === 1 && (
-            <Field label="صورة (اختياري)">
+            <Field label={t("careForm.photoOptional")}>
               {photoUrl ? (
                 <div className="flex items-center gap-3">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={photoUrl}
-                    alt="الصورة المرفقة"
+                    alt={t("careForm.attachedPhoto")}
                     className="w-20 h-20 rounded-xl object-cover border border-gray-200"
                   />
                   <button
@@ -397,7 +399,7 @@ export function CareReportModal({
                       if (file) void uploadPhoto(file);
                     }}
                   />
-                  {uploading ? "جارٍ الرفع…" : "إضافة صورة"}
+                  {uploading ? t("careForm.uploadingPhoto") : t("careForm.addPhoto")}
                 </label>
               )}
             </Field>
@@ -410,7 +412,7 @@ export function CareReportModal({
             disabled={saving}
             className="flex-1 px-5 py-3 bg-[#2F96A6] text-white rounded-xl text-sm font-bold hover:bg-[#26808e] disabled:opacity-60"
           >
-            {saving ? "جارٍ الحفظ…" : "إبلاغ"}
+            {saving ? t("careForm.saving") : t("careForm.submit")}
           </button>
           <button
             onClick={onClose}

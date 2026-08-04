@@ -14,6 +14,7 @@ import { STUDENT_STATUS_LABELS } from "@/lib/enum-labels";
 import { PAYMENT_STATUSES } from "@/lib/payment-status";
 import { astDateInputValue } from "@/lib/datetime";
 import { useT } from "@/lib/i18n-provider";
+import { useAcademicStages, useStageName } from "@/lib/use-academic-stages";
 
 /** ACTIVE is excluded: this is the set of reasons a child *leaves*. */
 type StudentDepartureStatus = "GRADUATED" | "WITHDRAWN" | "TRANSFERRED";
@@ -39,7 +40,7 @@ type StudentData = {
   id: string;
   name: string;
   healthCondition: string | null;
-  academicStage: string | null;
+  stageId: string | null;
   period: string;
   classId: string | null;
   idNumber: string | null;
@@ -69,7 +70,7 @@ type StudentData = {
 type FormData = {
   name: string;
   healthCondition: string;
-  academicStage: string;
+  stageId: string;
   period: string;
   classId: string;
   idNumber: string;
@@ -103,6 +104,8 @@ export default function StudentProfilePage({
 }) {
   // Locale-aware translation — see src/lib/i18n.tsx.
   const t = useT();
+  const { stages } = useAcademicStages();
+  const stageName = useStageName();
   const { id } = use(params);
   const router = useRouter();
   const [classes, setClasses] = useState<Class[]>([]);
@@ -167,7 +170,7 @@ export default function StudentProfilePage({
         reset({
           name: s.name,
           healthCondition: s.healthCondition ?? "",
-          academicStage: s.academicStage ?? "",
+          stageId: s.stageId ?? "",
           period: s.period,
           classId: s.classId ?? "",
           idNumber: s.idNumber ?? "",
@@ -270,7 +273,7 @@ export default function StudentProfilePage({
         name: data.name,
         classId: data.classId || null,
         healthCondition: data.healthCondition || null,
-        academicStage: data.academicStage || null,
+        stageId: data.stageId || null,
         period: data.period,
         idNumber: data.idNumber || null,
         dateOfBirth: data.dateOfBirth || null,
@@ -565,13 +568,24 @@ export default function StudentProfilePage({
                     ["name", t("students.profile.name"), "text"],
                     ["idNumber", t("students.profile.idNumber"), "text"],
                     ["nationality", t("students.profile.nationality"), "text"],
-                    ["academicStage", t("students.profile.academicStage"), "text"],
                   ].map(([field, label, type]) => (
                     <div key={field}>
                       <label className="block text-xs font-medium text-gray-500 mb-1">{label}</label>
                       <input {...register(field as keyof FormData)} type={type} className={inputCls} />
                     </div>
                   ))}
+                  {/* The school's own list, not free text (task 2.44). */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">{t("common.academicStage")}</label>
+                    <select {...register("stageId")} className={inputCls}>
+                      <option value="">{t("common.noStage")}</option>
+                      {stages.map((stage) => (
+                        <option key={stage.id} value={stage.id}>
+                          {stageName(stage)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">{t("students.profile.gender")}</label>
                     <select {...register("gender")} className={inputCls}>

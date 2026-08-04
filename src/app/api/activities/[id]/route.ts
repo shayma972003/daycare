@@ -2,6 +2,7 @@ import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
 import { parseClassGroup } from "@/lib/enum-labels";
+import { resolveStageId, foreignStageResponse } from "@/lib/academic-stage";
 import { assertTeacherOwned, assertClassOwned, crossTenantResponse } from "@/lib/tenant-guard";
 import { z } from "zod";
 
@@ -12,7 +13,10 @@ const updateActivitySchema = z.object({
   // Empty string means "no teacher" — the form sends it for an unset select, and
   // it used to be written straight through as a foreign key.
   teacherId: z.string().nullable().optional(),
+  /** DEPRECATED — still accepted so older clients keep working. */
   group: z.string().optional(),
+  /** The school's own academic stage (task 2.44). */
+  stageId: z.string().nullish(),
   period: z.enum(["MORNING", "EVENING"]).optional(),
   childrenCount: z.number().int().optional(),
   activityFee: z.number().optional(),
@@ -97,6 +101,7 @@ export async function PUT(
     endDate,
     teacherId,
     group,
+    stageId,
     period,
     childrenCount,
     activityFee,
@@ -112,6 +117,8 @@ export async function PUT(
   // another tenant's classes, whose guardians would then be notified.
   let ownedTeacherId: string | null | undefined;
   let ownedClassIds: string[] | undefined;
+  // `undefined` means the client did not mention it; `null` means clear it.
+  let ownedStageId: string | null | undefined;
   try {
     if (teacherId !== undefined) {
       ownedTeacherId = await assertTeacherOwned(teacherId || null, schoolId);
@@ -123,9 +130,14 @@ export async function PUT(
         if (owned) ownedClassIds.push(owned);
       }
     }
+    if (stageId !== undefined) {
+      ownedStageId = await resolveStageId(stageId, schoolId);
+    }
   } catch (error) {
     const denied = crossTenantResponse(error);
     if (denied) return denied;
+    const foreignStage = foreignStageResponse(error);
+    if (foreignStage) return foreignStage;
     throw error;
   }
 
@@ -143,6 +155,7 @@ export async function PUT(
       ...(endDate !== undefined && { endDate: new Date(endDate) }),
       ...(teacherId !== undefined && { teacherId: ownedTeacherId ?? null }),
       ...(group !== undefined && { group: parseClassGroup(group) ?? "KG1" }),
+      ...(ownedStageId !== undefined && { stageId: ownedStageId }),
       ...(period !== undefined && { period }),
       ...(childrenCount !== undefined && { childrenCount }),
       ...(resolvedFee !== undefined && { activityFee: resolvedFee }),

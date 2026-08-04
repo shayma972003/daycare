@@ -15,13 +15,17 @@ import {
   parsePaymentStatus,
 } from "@/lib/enum-labels";
 import { protectIdNumber } from "@/lib/pii-crypto";
+import { resolveStageId, foreignStageResponse } from "@/lib/academic-stage";
 import { z } from "zod";
 
 const createStudentSchema = z.object({
   name: z.string().min(1),
   classId: z.string().optional(),
   healthCondition: z.string().optional(),
+  /** DEPRECATED — still accepted so older clients keep working. */
   academicStage: z.string().optional(),
+  /** The school's own academic stage (task 2.44). */
+  stageId: z.string().nullish(),
   period: z.enum(["MORNING", "EVENING"]).optional(),
   idNumber: z.string().optional(),
   dateOfBirth: z.string().optional(),
@@ -142,6 +146,7 @@ export async function POST(request: Request) {
     classId,
     healthCondition,
     academicStage,
+    stageId,
     period,
     idNumber,
     dateOfBirth,
@@ -165,21 +170,26 @@ export async function POST(request: Request) {
     registration_fee,
   } = parsed.data;
 
-  // Both ids come from the client and were previously written through unchecked,
-  // which let a student be attached to another school's class or guardian.
+  // Every id here comes from the client and was previously written through
+  // unchecked, which let a student be attached to another school's class,
+  // guardian or stage.
   let guardianId: string | null;
   let ownedClassId: string | null;
+  let ownedStageId: string | null;
   try {
     // Plan caps were stored and displayed but never enforced — a school on a
     // 20-student trial could enrol two hundred.
     await assertStudentCapacity(schoolId);
     guardianId = await assertGuardianOwned(clientGuardianId, schoolId);
     ownedClassId = await assertClassOwned(classId, schoolId);
+    ownedStageId = await resolveStageId(stageId, schoolId);
   } catch (error) {
     const overLimit = planLimitResponse(error);
     if (overLimit) return overLimit;
     const denied = crossTenantResponse(error);
     if (denied) return denied;
+    const foreignStage = foreignStageResponse(error);
+    if (foreignStage) return foreignStage;
     throw error;
   }
 
@@ -226,6 +236,7 @@ export async function POST(request: Request) {
       // Free-text values from older clients and imports are mapped onto the
       // enum rather than rejected.
       ...(academicStage !== undefined && { academicStage: parseAcademicStage(academicStage) }),
+      ...(ownedStageId !== null && { stageId: ownedStageId }),
       ...(period !== undefined && { period }),
       ...(idNumber !== undefined && { idNumber, ...protectIdNumber(idNumber) }),
       ...(dateOfBirth !== undefined && { dateOfBirth: new Date(dateOfBirth) }),

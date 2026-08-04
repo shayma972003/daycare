@@ -7,6 +7,7 @@ import { Topbar } from "@/components/layout/Topbar";
 import { PeriodBadge } from "@/components/ui/StatusBadge";
 import { ClassDeleteConfirmModal } from "@/components/classes/ClassDeleteConfirmModal";
 import { useT } from "@/lib/i18n-provider";
+import { useAcademicStages, useStageName } from "@/lib/use-academic-stages";
 
 
 type Teacher = { id: string; name: string };
@@ -31,7 +32,7 @@ type ClassData = {
   name: string;
   teacherId: string | null;
   teacher: Teacher | null;
-  group: string | null;
+  stage: { id: string; nameAr: string; nameEn: string | null } | null;
   period: "MORNING" | "EVENING" | null;
   registrationDate: string | null;
   notes: string | null;
@@ -47,6 +48,8 @@ export default function ClassProfilePage({
 }) {
   // Locale-aware translation — see src/lib/i18n.tsx.
   const t = useT();
+  const { stages } = useAcademicStages();
+  const stageName = useStageName();
   const { id } = use(params);
   const router = useRouter();
 
@@ -68,7 +71,7 @@ export default function ClassProfilePage({
   const [form, setForm] = useState({
     name: "",
     teacherId: "",
-    group: "",
+    stageId: "",
     period: "" as "" | "MORNING" | "EVENING",
     registrationDate: "",
     notes: "",
@@ -89,7 +92,7 @@ export default function ClassProfilePage({
     setForm({
       name: c.name,
       teacherId: c.teacherId ?? "",
-      group: c.group ?? "",
+      stageId: c.stage?.id ?? "",
       period: (c.period as "MORNING" | "EVENING") ?? "",
       registrationDate: c.registrationDate ? c.registrationDate.slice(0, 10) : "",
       notes: c.notes ?? "",
@@ -200,7 +203,7 @@ export default function ClassProfilePage({
       const res = await axios.put<ClassData>(`/api/classes/${id}`, {
         name: form.name,
         teacherId: form.teacherId || null,
-        group: form.group || null,
+        stageId: form.stageId || null,
         period: form.period || null,
         registrationDate: form.registrationDate || null,
         notes: form.notes || null,
@@ -406,21 +409,22 @@ export default function ClassProfilePage({
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">{t("classes.form.group")}</label>
+              <label className="block text-xs font-medium text-gray-500 mb-1">{t("common.academicStage")}</label>
               {editing ? (
                 <select
-                  value={form.group}
-                  onChange={(e) => setForm((f) => ({ ...f, group: e.target.value }))}
+                  value={form.stageId}
+                  onChange={(e) => setForm((f) => ({ ...f, stageId: e.target.value }))}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#111111]"
                 >
-                  <option value="">{t("common.select")}</option>
-                  <option value="kg1">{t("groups.kg1")}</option>
-                  <option value="kg2">{t("groups.kg2")}</option>
-                  <option value="kg3">{t("groups.kg3")}</option>
-                  <option value="nursery">{t("groups.nursery")}</option>
+                  <option value="">{t("common.noStage")}</option>
+                  {stages.map((stage) => (
+                    <option key={stage.id} value={stage.id}>
+                      {stageName(stage)}
+                    </option>
+                  ))}
                 </select>
               ) : (
-                <p className="text-sm text-gray-700">{cls.group ? t(`groups.${cls.group}`) : "—"}</p>
+                <p className="text-sm text-gray-700">{cls.stage ? stageName(cls.stage) : "—"}</p>
               )}
             </div>
 

@@ -3,12 +3,13 @@
 import { formatDate } from "@/lib/utils";
 import { PeriodBadge } from "@/components/ui/StatusBadge";
 import { useT } from "@/lib/i18n-provider";
+import { useStageName } from "@/lib/use-academic-stages";
 
 export interface Activity {
   id: string;
   name: string;
   teacherName?: string;
-  group?: "kg1" | "kg2" | "kg3" | "nursery";
+  stage?: { id: string; nameAr: string; nameEn: string | null } | null;
   period?: "MORNING" | "EVENING";
   childrenCount?: number;
   startDate?: string | null;
@@ -28,6 +29,7 @@ interface ActivityGridProps {
 export function ActivityGrid({ activities, onAdd, onSelect }: ActivityGridProps) {
   // Locale-aware translation — see src/lib/i18n.tsx.
   const t = useT();
+  const stageName = useStageName();
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
       {/* Add card */}
@@ -83,9 +85,9 @@ export function ActivityGrid({ activities, onAdd, onSelect }: ActivityGridProps)
             )}
 
             <div className="flex flex-wrap gap-1.5">
-              {activity.group && (
+              {activity.stage && (
                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700">
-                  {t(`groups.${activity.group}`)}
+                  {stageName(activity.stage)}
                 </span>
               )}
               {activity.period && <PeriodBadge period={activity.period} />}

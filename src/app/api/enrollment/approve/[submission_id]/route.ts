@@ -2,6 +2,7 @@ import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
 import { assertClassOwned, crossTenantResponse } from "@/lib/tenant-guard";
+import { resolveStageId, foreignStageResponse } from "@/lib/academic-stage";
 import { parseAcademicStage, parseAttendanceType } from "@/lib/enum-labels";
 import { z } from "zod";
 
@@ -10,7 +11,16 @@ const schema = z.object({
   full_name: z.string().min(1).optional(),
   id_number: z.string().nullish(),
   nationality: z.string().nullish(),
+  /** What the parent typed — a hint, kept for the record. */
   academic_stage: z.string().nullish(),
+  /**
+   * The stage the school assigns while reviewing (task 2.44).
+   *
+   * Chosen here rather than on the parent's form: a parent knows their child's
+   * age, not which room this particular nursery puts them in, and the school is
+   * looking at the request anyway.
+   */
+  stage_id: z.string().nullish(),
   gender: z.string().nullish(),
   period: z.string().nullish(),
   date_of_birth: z.string().nullish(),
@@ -118,11 +128,15 @@ export async function POST(
   // The class id comes from the reviewer's form and was written straight
   // through, so a student could be attached to another school's class.
   let ownedClassId: string | null;
+  let ownedStageId: string | null;
   try {
     ownedClassId = await assertClassOwned(ov.class_id || null, schoolId);
+    ownedStageId = await resolveStageId(ov.stage_id, schoolId);
   } catch (error) {
     const denied = crossTenantResponse(error);
     if (denied) return denied;
+    const foreignStage = foreignStageResponse(error);
+    if (foreignStage) return foreignStage;
     throw error;
   }
 
@@ -136,6 +150,7 @@ export async function POST(
       idNumber: ov.id_number ?? sub.id_number ?? null,
       nationality: ov.nationality ?? sub.nationality ?? null,
       academicStage: parseAcademicStage(ov.academic_stage ?? sub.academic_stage),
+      ...(ownedStageId !== null && { stageId: ownedStageId }),
       gender: mapGender(ov.gender ?? sub.gender),
       period: mapPeriod(ov.period ?? sub.period),
       dateOfBirth: dobRaw ? new Date(dobRaw) : null,

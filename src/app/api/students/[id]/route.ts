@@ -8,6 +8,7 @@ import {
   crossTenantResponse,
 } from "@/lib/tenant-guard";
 import { parseAcademicStage, parseAttendanceType, parsePaymentStatus } from "@/lib/enum-labels";
+import { resolveStageId, foreignStageResponse } from "@/lib/academic-stage";
 import { protectIdNumber } from "@/lib/pii-crypto";
 import {
   STUDENT_STATUSES,
@@ -20,7 +21,10 @@ const updateStudentSchema = z.object({
   name: z.string().min(1).optional(),
   classId: z.string().nullish(),
   healthCondition: z.string().nullish(),
+  /** DEPRECATED — still accepted so older clients keep working. */
   academicStage: z.string().nullish(),
+  /** The school's own academic stage (task 2.44). */
+  stageId: z.string().nullish(),
   period: z.enum(["MORNING", "EVENING"]).nullish(),
   idNumber: z.string().nullish(),
   dateOfBirth: z.string().nullish(),
@@ -179,6 +183,15 @@ export async function PUT(
   }
   if ("healthCondition" in data) updateData.healthCondition = data.healthCondition ?? null;
   if ("academicStage" in data) updateData.academicStage = parseAcademicStage(data.academicStage);
+  if ("stageId" in data) {
+    try {
+      updateData.stageId = await resolveStageId(data.stageId, schoolId);
+    } catch (error) {
+      const foreignStage = foreignStageResponse(error);
+      if (foreignStage) return foreignStage;
+      throw error;
+    }
+  }
   if ("period" in data) updateData.period = data.period ?? null;
   if ("idNumber" in data) {
     updateData.idNumber = data.idNumber ?? null;

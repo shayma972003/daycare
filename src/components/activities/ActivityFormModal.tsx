@@ -8,6 +8,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { VariableReference } from "@/components/ui/VariableReference";
 import type { Activity } from "./ActivityGrid";
 import { useT } from "@/lib/i18n-provider";
+import { useAcademicStages, useStageName } from "@/lib/use-academic-stages";
 
 interface Teacher {
   id: string;
@@ -22,6 +23,7 @@ interface ClassItem {
 /** Shape of `GET /api/activities/[id]` — the fields the grid does not carry. */
 interface ActivityDetails {
   teacherId: string | null;
+  stageId?: string | null;
   activityInvites?: { classId: string }[];
 }
 
@@ -29,7 +31,7 @@ interface ActivityFormValues {
   name: string;
   teacherId: string;
   childrenCount: number;
-  group: "kg1" | "kg2" | "kg3" | "nursery";
+  stageId: string;
   period: "MORNING" | "EVENING";
   startDate: string;
   endDate: string;
@@ -53,6 +55,8 @@ export function ActivityFormModal({
 }: ActivityFormModalProps) {
   // Locale-aware translation — see src/lib/i18n.tsx.
   const t = useT();
+  const { stages } = useAcademicStages();
+  const stageName = useStageName();
   const isEdit = !!activity;
 
   const [teachers, setTeachers] = useState<Teacher[]>([]);
@@ -83,7 +87,7 @@ export function ActivityFormModal({
       name: "",
       teacherId: "",
       childrenCount: 0,
-      group: "kg1",
+      stageId: "",
       period: "MORNING",
       startDate: "",
       endDate: "",
@@ -129,7 +133,8 @@ export function ActivityFormModal({
         name: activity.name ?? "",
         teacherId: "",
         childrenCount: activity.childrenCount ?? 0,
-        group: activity.group ?? "kg1",
+        // The list carries the stage nested; the form needs only its id.
+        stageId: activity.stage?.id ?? "",
         period: activity.period ?? "MORNING",
         startDate: activity.startDate ? activity.startDate.slice(0, 10) : "",
         endDate: activity.endDate ? activity.endDate.slice(0, 10) : "",
@@ -166,7 +171,7 @@ export function ActivityFormModal({
         name: "",
         teacherId: "",
         childrenCount: 0,
-        group: "kg1",
+        stageId: "",
         period: "MORNING",
         startDate: "",
         endDate: "",
@@ -337,16 +342,18 @@ export function ActivityFormModal({
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  {t("home.activityForm.group")}
+                  {t("common.academicStage")}
                 </label>
                 <select
-                  {...register("group")}
+                  {...register("stageId")}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651]"
                 >
-                  <option value="kg1">{t("groups.kg1")}</option>
-                  <option value="kg2">{t("groups.kg2")}</option>
-                  <option value="kg3">{t("groups.kg3")}</option>
-                  <option value="nursery">{t("groups.nursery")}</option>
+                  <option value="">{t("common.noStage")}</option>
+                  {stages.map((stage) => (
+                    <option key={stage.id} value={stage.id}>
+                      {stageName(stage)}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>

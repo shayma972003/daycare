@@ -10,6 +10,7 @@ import { Topbar } from "@/components/layout/Topbar";
 
 import { PAYMENT_STATUSES } from "@/lib/payment-status";
 import { useT } from "@/lib/i18n-provider";
+import { useAcademicStages, useStageName } from "@/lib/use-academic-stages";
 
 type Class = { id: string; name: string };
 type GuardianSuggestion = { id: string; name: string; phone1?: string | null; phone2?: string | null; email?: string | null; name_2?: string | null; phone_3?: string | null; phone_4?: string | null; email_2?: string | null };
@@ -17,7 +18,7 @@ type GuardianSuggestion = { id: string; name: string; phone1?: string | null; ph
 type StudentFormData = {
   name: string;
   healthCondition: string;
-  academicStage: string;
+  stageId: string;
   period: "MORNING" | "EVENING";
   classId: string;
   idNumber: string;
@@ -55,6 +56,8 @@ const inputCls = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm foc
 export default function NewStudentPage() {
   // Locale-aware translation — see src/lib/i18n.tsx.
   const t = useT();
+  const { stages } = useAcademicStages();
+  const stageName = useStageName();
   const router = useRouter();
   const [classes, setClasses] = useState<Class[]>([]);
   const [saving, setSaving] = useState(false);
@@ -165,7 +168,7 @@ export default function NewStudentPage() {
         name: data.name,
         classId: data.classId || undefined,
         healthCondition: data.healthCondition || undefined,
-        academicStage: data.academicStage || undefined,
+        stageId: data.stageId || undefined,
         period: data.period,
         idNumber: data.idNumber || undefined,
         dateOfBirth: data.dateOfBirth || undefined,
@@ -247,8 +250,18 @@ export default function NewStudentPage() {
               <Field label={t("students.profile.idNumber")}>
                 <input {...register("idNumber")} type="text" className={inputCls} />
               </Field>
-              <Field label={t("students.profile.academicStage")}>
-                <input {...register("academicStage")} type="text" className={inputCls} />
+              {/* The school's own list, not free text (task 2.44). Typing the
+                  stage produced "كي جي 1", "كيجي1" and "KG1" as three different
+                  answers to the same question. */}
+              <Field label={t("common.academicStage")}>
+                <select {...register("stageId")} className={inputCls}>
+                  <option value="">{t("common.noStage")}</option>
+                  {stages.map((stage) => (
+                    <option key={stage.id} value={stage.id}>
+                      {stageName(stage)}
+                    </option>
+                  ))}
+                </select>
               </Field>
               <Field label={t("students.profile.period")}>
                 <select

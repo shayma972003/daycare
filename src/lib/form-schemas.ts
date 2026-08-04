@@ -92,7 +92,8 @@ export const studentFormSchema = z
     classId: z.string().optional().nullable(),
     healthCondition: z.string().max(500).optional().nullable(),
     allergies: z.string().max(500).optional().nullable(),
-    academicStage: z.string().optional().nullable(),
+    /** The school's own academic stage (task 2.44) — an id, not free text. */
+    stageId: z.string().optional().nullable(),
     period: z.enum(["MORNING", "EVENING"]).optional(),
     idNumber: optionalNationalId,
     dateOfBirth: optionalDate,

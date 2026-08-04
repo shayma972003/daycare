@@ -695,8 +695,9 @@ model AcademicStageOption {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  classes  Class[]
-  students Student[]
+  classes    Class[]
+  students   Student[]
+  activities Activity[]
 
   @@unique([schoolId, nameAr])
   @@index([schoolId, archivedAt])
@@ -1626,7 +1627,10 @@ model Activity {
   school        School   @relation(fields: [schoolId], references: [id])
   teacherId     String?
   teacher       Teacher? @relation(fields: [teacherId], references: [id])
+  /// DEPRECATED — read `stage` instead (task 2.44).
   group         ClassGroup @default(KG1)
+  stageId       String?
+  stage         AcademicStageOption? @relation(fields: [stageId], references: [id])
   period        Period   @default(MORNING)
   childrenCount Int      @default(0)
   startDate     DateTime

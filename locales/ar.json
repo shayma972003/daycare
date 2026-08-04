@@ -211,7 +211,9 @@
     "idNumber": "رقم الهوية",
     "nationality": "الجنسية",
     "academicStage": "المرحلة الدراسية",
-    "changeStatusFailed": "تعذر تغيير حالة الدفع"
+    "changeStatusFailed": "تعذر تغيير حالة الدفع",
+    "assignClass": "تعيين الفصل",
+    "noClass": "بدون فصل"
   },
   "classes": {
     "title": "الفصول",
@@ -430,12 +432,6 @@
     "issuedAt": "تاريخ الإصدار",
     "download": "تحميل",
     "view": "عرض"
-  },
-  "groups": {
-    "kg1": "كي جي 1",
-    "kg2": "كي جي 2",
-    "kg3": "كي جي 3",
-    "nursery": "الحضانة"
   },
   "attendanceStatus": {
     "PRESENT": "حاضر",

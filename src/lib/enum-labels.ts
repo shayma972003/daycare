@@ -61,13 +61,6 @@ export const ACADEMIC_STAGE_LABELS: Record<AcademicStage, string> = {
   KG3: "تمهيدي",
 };
 
-export const CLASS_GROUP_LABELS: Record<ClassGroup, string> = {
-  NURSERY: "حضانة",
-  KG1: "روضة أولى",
-  KG2: "روضة ثانية",
-  KG3: "تمهيدي",
-};
-
 export const PERIOD_LABELS: Record<Period, string> = {
   MORNING: "صباحي",
   EVENING: "مسائي",

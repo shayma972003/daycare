@@ -211,7 +211,9 @@
     "idNumber": "ID number",
     "nationality": "Nationality",
     "academicStage": "Academic stage",
-    "changeStatusFailed": "Could not change the payment status"
+    "changeStatusFailed": "Could not change the payment status",
+    "assignClass": "Assign a class",
+    "noClass": "No class"
   },
   "classes": {
     "title": "Classes",
@@ -430,12 +432,6 @@
     "issuedAt": "Issue Date",
     "download": "Download",
     "view": "View"
-  },
-  "groups": {
-    "kg1": "KG 1",
-    "kg2": "KG 2",
-    "kg3": "KG 3",
-    "nursery": "Nursery"
   },
   "attendanceStatus": {
     "PRESENT": "Present",

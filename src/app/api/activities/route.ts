@@ -2,6 +2,7 @@ import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
 import { parseClassGroup } from "@/lib/enum-labels";
+import { resolveStageId, foreignStageResponse } from "@/lib/academic-stage";
 import { z } from "zod";
 
 const createActivitySchema = z.object({
@@ -9,7 +10,10 @@ const createActivitySchema = z.object({
   startDate: z.string().min(1),
   endDate: z.string().min(1),
   teacherId: z.string().optional(),
+  /** DEPRECATED — still accepted so older clients keep working. */
   group: z.string().optional(),
+  /** The school's own academic stage (task 2.44). */
+  stageId: z.string().nullish(),
   period: z.enum(["MORNING", "EVENING"]).optional(),
   childrenCount: z.number().int().optional(),
   activityFee: z.number().optional(),
@@ -45,7 +49,10 @@ export async function GET(request: Request) {
 
   const activities = await prisma.activity.findMany({
     where,
-    include: { teacher: true },
+    include: {
+      teacher: true,
+      stage: { select: { id: true, nameAr: true, nameEn: true } },
+    },
     orderBy: { createdAt: "desc" },
   });
 
@@ -85,6 +92,7 @@ export async function POST(request: Request) {
     endDate,
     teacherId,
     group,
+    stageId,
     period,
     childrenCount,
     activityFee,
@@ -93,6 +101,16 @@ export async function POST(request: Request) {
     message,
     classIds,
   } = parsed.data;
+
+  // Proven to belong to this school before it is stored.
+  let ownedStageId: string | null;
+  try {
+    ownedStageId = await resolveStageId(stageId, schoolId);
+  } catch (error) {
+    const foreignStage = foreignStageResponse(error);
+    if (foreignStage) return foreignStage;
+    throw error;
+  }
 
   const resolvedFee = fee ?? activityFee;
 
@@ -104,6 +122,7 @@ export async function POST(request: Request) {
       endDate: new Date(endDate),
       ...(teacherId !== undefined && { teacherId }),
       ...(group !== undefined && { group: parseClassGroup(group) ?? "KG1" }),
+      ...(ownedStageId !== null && { stageId: ownedStageId }),
       ...(period !== undefined && { period }),
       ...(childrenCount !== undefined && { childrenCount }),
       ...(resolvedFee !== undefined && { activityFee: resolvedFee }),

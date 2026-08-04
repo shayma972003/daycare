@@ -11,6 +11,7 @@ import { formatTime } from "@/lib/utils";
 import { PAYMENT_STATUSES } from "@/lib/payment-status";
 import { describeApiError } from "@/lib/api-error";
 import { useT, useLocale } from "@/lib/i18n-provider";
+import { useAcademicStages, useStageName } from "@/lib/use-academic-stages";
 
 type Student = {
   id: string;
@@ -74,6 +75,8 @@ function LiveTimer({ from }: { from: string }) {
 export default function StudentsPage() {
   // Locale-aware translation — see src/lib/i18n.tsx.
   const t = useT();
+  const { stages } = useAcademicStages();
+  const stageName = useStageName();
   const { locale } = useLocale();
   const router = useRouter();
   const [students, setStudents] = useState<Student[]>([]);
@@ -108,6 +111,7 @@ export default function StudentsPage() {
   const [submissionsExpanded, setSubmissionsExpanded] = useState(false);
   const [reviewModalSub, setReviewModalSub] = useState<EnrollmentSubmission | null>(null);
   const [reviewClassId, setReviewClassId] = useState("");
+  const [reviewStageId, setReviewStageId] = useState("");
   const [reviewApproving, setReviewApproving] = useState(false);
   const [reviewRejecting, setReviewRejecting] = useState(false);
   const [reviewEdit, setReviewEdit] = useState<Partial<EnrollmentSubmission & { date_of_birth_str: string }>>({});
@@ -115,6 +119,7 @@ export default function StudentsPage() {
   function openReviewModal(sub: EnrollmentSubmission) {
     setReviewModalSub(sub);
     setReviewClassId("");
+    setReviewStageId("");
     setReviewEdit({
       full_name: sub.full_name,
       id_number: sub.id_number ?? "",
@@ -254,10 +259,12 @@ export default function StudentsPage() {
       await axios.post(`/api/enrollment/approve/${reviewModalSub.id}`, {
         ...rest,
         class_id: reviewClassId || undefined,
+        stage_id: reviewStageId || undefined,
         date_of_birth: date_of_birth_str || undefined,
       });
       setReviewModalSub(null);
       setReviewClassId("");
+    setReviewStageId("");
       setReviewEdit({});
       fetchSubmissions();
       fetchStudents();
@@ -918,17 +925,37 @@ export default function StudentsPage() {
               </div>
             </div>
 
-            {/* Class assignment */}
-            <div className="mb-5">
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">تعيين الفصل</label>
-              <select
-                value={reviewClassId}
-                onChange={(e) => setReviewClassId(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651]"
-              >
-                <option value="">بدون فصل</option>
-                {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+            {/* Class and stage assignment.
+                The stage is chosen here rather than on the parent's form: a
+                parent knows their child's age, not which room this nursery puts
+                them in. */}
+            <div className="mb-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">{t("students.assignClass")}</label>
+                <select
+                  value={reviewClassId}
+                  onChange={(e) => setReviewClassId(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651]"
+                >
+                  <option value="">{t("students.noClass")}</option>
+                  {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">{t("common.academicStage")}</label>
+                <select
+                  value={reviewStageId}
+                  onChange={(e) => setReviewStageId(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651]"
+                >
+                  <option value="">{t("common.noStage")}</option>
+                  {stages.map((stage) => (
+                    <option key={stage.id} value={stage.id}>
+                      {stageName(stage)}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             {/* Actions */}

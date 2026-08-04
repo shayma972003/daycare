@@ -72,10 +72,10 @@ export function WeeklyAttendanceGrid({ classId }: { classId?: string }) {
         setData(response.data);
         setError(null);
       } catch (err) {
-        setError(describeApiError(err, "تعذر تحميل الحضور"));
+        setError(describeApiError(err, t("attendance.loadFailed")));
       }
     },
-    [classId]
+    [classId, t]
   );
 
   useEffect(() => {
@@ -89,12 +89,12 @@ export function WeeklyAttendanceGrid({ classId }: { classId?: string }) {
         if (!cancelled) setData(response.data);
       })
       .catch((err) => {
-        if (!cancelled) setError(describeApiError(err, "تعذر تحميل الحضور"));
+        if (!cancelled) setError(describeApiError(err, t("attendance.loadFailed")));
       });
     return () => {
       cancelled = true;
     };
-  }, [classId, weekStart]);
+  }, [classId, weekStart, t]);
 
   async function setStatus(row: Row, cell: Cell, status: AttendanceStatus) {
     const cellKey = `${row.studentId}|${cell.date}`;
@@ -108,7 +108,7 @@ export function WeeklyAttendanceGrid({ classId }: { classId?: string }) {
       });
       await load(data?.weekStart);
     } catch (err) {
-      setError(describeApiError(err, "تعذر تحديث الحضور"));
+      setError(describeApiError(err, t("attendance.updateFailed")));
     } finally {
       setSavingCell(null);
     }
@@ -129,7 +129,7 @@ export function WeeklyAttendanceGrid({ classId }: { classId?: string }) {
     );
   }
 
-  if (!data) return <p className="text-sm text-gray-400 py-4">جارٍ التحميل…</p>;
+  if (!data) return <p className="text-sm text-gray-400 py-4">{t("common.loading")}</p>;
 
   return (
     <div className="space-y-3">
@@ -145,19 +145,19 @@ export function WeeklyAttendanceGrid({ classId }: { classId?: string }) {
             onClick={() => shiftWeek(-7)}
             className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm hover:bg-gray-50"
           >
-            الأسبوع السابق
+            {t("attendance.previousWeek")}
           </button>
           <button
             onClick={() => setWeekStart(null)}
             className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm hover:bg-gray-50"
           >
-            هذا الأسبوع
+            {t("attendance.thisWeek")}
           </button>
           <button
             onClick={() => shiftWeek(7)}
             className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm hover:bg-gray-50"
           >
-            التالي
+            {t("common.next")}
           </button>
         </div>
 
@@ -167,8 +167,8 @@ export function WeeklyAttendanceGrid({ classId }: { classId?: string }) {
               data.class.capacityState.over ? "text-red-500 font-medium" : "text-gray-500"
             }`}
           >
-            السعة: {data.class.capacityState.count}/{data.class.capacityState.capacity}
-            {data.class.capacityState.over && " — تجاوز السعة"}
+            {t("attendance.capacity")} {data.class.capacityState.count}/{data.class.capacityState.capacity}
+            {data.class.capacityState.over && t("attendance.overCapacity")}
           </span>
         )}
       </div>
@@ -178,7 +178,7 @@ export function WeeklyAttendanceGrid({ classId }: { classId?: string }) {
           <thead>
             <tr>
               <th className="sticky right-0 bg-white px-3 py-2 text-right text-gray-500 font-medium border-b border-gray-100">
-                الطفل
+                {t("fields.child")}
               </th>
               {data.days.map((day, index) => (
                 <th key={day.date} className="px-2 py-2 text-center border-b border-gray-100">
@@ -186,12 +186,12 @@ export function WeeklyAttendanceGrid({ classId }: { classId?: string }) {
                   <div className="text-[11px] text-gray-400">{day.date.slice(5)}</div>
                   {/* "2/3 حاضر" per column — task 2.13. */}
                   <div className="text-[11px] text-[#2F96A6] mt-0.5">
-                    {data.dayTotals[index].present}/{data.dayTotals[index].expected} حاضر
+                    {data.dayTotals[index].present}/{data.dayTotals[index].expected} {t("attendance.present")}
                   </div>
                 </th>
               ))}
               <th className="px-3 py-2 text-center text-gray-500 font-medium border-b border-gray-100">
-                الحضور
+                {t("nav.attendance")}
               </th>
             </tr>
           </thead>
@@ -253,7 +253,7 @@ export function WeeklyAttendanceGrid({ classId }: { classId?: string }) {
       </div>
 
       {data.rows.length === 0 && (
-        <p className="text-sm text-gray-400 py-6 text-center">لا يوجد أطفال</p>
+        <p className="text-sm text-gray-400 py-6 text-center">{t("attendance.noChildren")}</p>
       )}
     </div>
   );

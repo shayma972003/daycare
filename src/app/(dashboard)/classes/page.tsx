@@ -143,7 +143,7 @@ export default function ClassesPage() {
               >
                 {cls.needsTeacherWarning && (
                   <span
-                    title="هذا الفصل بدون معلم مسؤول"
+                    title={t("classes.noHeadTeacher")}
                     className="absolute bottom-2 left-2 z-10 flex items-center justify-center w-6 h-6 rounded-full bg-orange-100 text-orange-600 text-sm shadow"
                   >
                     ⚠

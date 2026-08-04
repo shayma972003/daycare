@@ -1,6 +1,7 @@
 "use client";
 
 import type { AttendancePerson } from "@/lib/attendance-data";
+import { useT } from "@/lib/i18n-provider";
 
 interface AttendanceCardProps {
   person: AttendancePerson;
@@ -10,6 +11,7 @@ interface AttendanceCardProps {
 }
 
 export function AttendanceCard({ person, onCheckin, onCheckout, loading }: AttendanceCardProps) {
+  const t = useT();
   const isCheckedIn = !!person.today_attendance?.checkin_time;
   const isCheckedOut = !!person.today_attendance?.checkout_time;
 
@@ -20,7 +22,7 @@ export function AttendanceCard({ person, onCheckin, onCheckout, loading }: Atten
           <img src={person.avatar_url} alt={person.full_name} className="w-full h-full object-cover" />
         ) : (
           <div className="w-full h-full bg-gray-200 rounded-full flex items-center justify-center text-gray-400 text-xs">
-            [صورة]
+            {t("common.imagePlaceholder")}
           </div>
         )}
       </div>
@@ -28,19 +30,19 @@ export function AttendanceCard({ person, onCheckin, onCheckout, loading }: Atten
       <div>
         <p className="text-sm font-bold text-gray-900 leading-tight">{person.full_name}</p>
         <p className="text-xs text-gray-400 mt-0.5">{person.class_name ?? "—"}</p>
-        <p className="text-xs text-gray-300">{person.period === "MORNING" ? "صباحي" : person.period === "EVENING" ? "مسائي" : "—"}</p>
+        <p className="text-xs text-gray-300">{person.period === "MORNING" ? t("fields.morning") : person.period === "EVENING" ? t("fields.evening") : "—"}</p>
       </div>
 
       {isCheckedIn && (
         <div className="text-xs text-gray-500">
-          <span>دخول: </span>
+          <span>{t("attendance.checkInLabel")} </span>
           <span className="font-medium text-teal">
             {new Date(person.today_attendance!.checkin_time!).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}
           </span>
           {isCheckedOut && (
             <>
               <span className="mx-1">|</span>
-              <span>خروج: </span>
+              <span>{t("attendance.checkOutLabel")} </span>
               <span className="font-medium text-coral">
                 {new Date(person.today_attendance!.checkout_time!).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}
               </span>
@@ -56,7 +58,7 @@ export function AttendanceCard({ person, onCheckin, onCheckout, loading }: Atten
             disabled={loading}
             className="w-full py-2 rounded-lg bg-[#2D7A4F] text-white text-xs font-medium hover:opacity-90 transition-all active:scale-95 disabled:opacity-50"
           >
-            تسجيل الدخول
+            {t("auth.login")}
           </button>
         )}
         {isCheckedIn && !isCheckedOut && (
@@ -65,11 +67,11 @@ export function AttendanceCard({ person, onCheckin, onCheckout, loading }: Atten
             disabled={loading}
             className="w-full py-2 rounded-lg bg-coral text-white text-xs font-medium hover:bg-coral-dark transition-all active:scale-95 disabled:opacity-50"
           >
-            تسجيل الخروج
+            {t("auth.logout")}
           </button>
         )}
         {isCheckedOut && (
-          <div className="w-full py-2 rounded-lg bg-gray-100 text-gray-400 text-xs text-center">انتهى الدوام</div>
+          <div className="w-full py-2 rounded-lg bg-gray-100 text-gray-400 text-xs text-center">{t("attendance.dayEnded")}</div>
         )}
       </div>
     </div>

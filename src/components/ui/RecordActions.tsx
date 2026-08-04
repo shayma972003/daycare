@@ -14,6 +14,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
+import { useT } from "@/lib/i18n-provider";
 
 export interface RecordAction {
   key: string;
@@ -26,11 +27,15 @@ export interface RecordAction {
 
 export function RecordActions({
   actions,
-  label = "إجراءات",
+  label,
 }: {
   actions: RecordAction[];
   label?: string;
 }) {
+  const t = useT();
+  // Defaulted here rather than in the parameter list: `t` is a hook result and
+  // cannot be called before the component body starts.
+  const menuLabel = label ?? t("common.actions");
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -69,7 +74,7 @@ export function RecordActions({
         onClick={() => setOpen((current) => !current)}
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label={label}
+        aria-label={menuLabel}
         className="px-2.5 py-1.5 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors text-lg leading-none"
       >
         ⋮

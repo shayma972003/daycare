@@ -450,7 +450,7 @@ export default function StudentsPage() {
             <option value="PAID">{t("paymentStatus.PAID")}</option>
             <option value="LATE">{t("paymentStatus.LATE")}</option>
             <option value="CANCELLED">{t("paymentStatus.CANCELLED")}</option>
-            {/* Was `value="بانتظار الدفع"`. The column is an enum of English
+            {/* Was `value=t("paymentStatus.PENDING")`. The column is an enum of English
                 identifiers, so the Arabic literal matched no row and the filter
                 silently returned nothing. */}
             <option value="PENDING">{t("paymentStatus.PENDING")}</option>
@@ -722,7 +722,7 @@ export default function StudentsPage() {
                 onClick={() => { setShowExtendModal(false); setNewEndDate(""); }}
                 className="px-4 py-2.5 rounded-lg border border-gray-200 text-gray-600 text-sm hover:bg-gray-50 transition-colors"
               >
-                إلغاء
+                {t("common.cancel")}
               </button>
               <button
                 onClick={handleExtendSubscription}
@@ -753,7 +753,7 @@ export default function StudentsPage() {
                   onClick={() => setEnrollmentModalOpen(false)}
                   className="mt-4 w-full py-2.5 bg-[#111111] text-white rounded-xl text-sm font-medium"
                 >
-                  إغلاق
+                  {t("common.close")}
                 </button>
               </div>
             ) : (
@@ -792,7 +792,7 @@ export default function StudentsPage() {
                     onClick={() => setEnrollmentModalOpen(false)}
                     className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm hover:bg-gray-50 transition-colors"
                   >
-                    إلغاء
+                    {t("common.cancel")}
                   </button>
                 </div>
               </>
@@ -842,8 +842,8 @@ export default function StudentsPage() {
                   <label className="block text-xs text-gray-500 mb-1">{t("fields.period")}</label>
                   <select className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.period ?? ""} onChange={(e) => setRE("period", e.target.value)}>
                     <option value="">—</option>
-                    <option value="صباحي">صباحي</option>
-                    <option value="مسائي">مسائي</option>
+                    <option value="صباحي">{t("fields.morning")}</option>
+                    <option value="مسائي">{t("fields.evening")}</option>
                   </select>
                 </div>
                 <div className="col-span-2">
@@ -868,7 +868,7 @@ export default function StudentsPage() {
 
             {/* Guardian Info */}
             <div className="bg-blue-50 rounded-xl p-4 mb-4 space-y-3">
-              <h3 className="text-sm font-bold text-gray-700">معلومات ولي الأمر</h3>
+              <h3 className="text-sm font-bold text-gray-700">{t("studentProfile.guardianInfo")}</h3>
               <div className="grid grid-cols-2 gap-3">
                 <div className="col-span-2">
                   <label className="block text-xs text-gray-500 mb-1">{t("students.guardianName")}</label>
@@ -903,23 +903,23 @@ export default function StudentsPage() {
 
             {/* Registration Info */}
             <div className="bg-gray-50 rounded-xl p-4 mb-4 space-y-3">
-              <h3 className="text-sm font-bold text-gray-700">معلومات التسجيل</h3>
+              <h3 className="text-sm font-bold text-gray-700">{t("studentProfile.enrollmentInfo")}</h3>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">{t("students.attendanceType")}</label>
                   <select className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.attendance_type ?? ""} onChange={(e) => setRE("attendance_type", e.target.value)}>
                     <option value="">—</option>
-                    <option value="دوام منتظم">دوام منتظم</option>
-                    <option value="شفتات">شفتات</option>
-                    <option value="غيره">غيره</option>
+                    <option value="دوام منتظم">{t("attendanceTypes.REGULAR")}</option>
+                    <option value="شفتات">{t("attendanceTypes.SHIFTS")}</option>
+                    <option value="غيره">{t("attendanceTypes.OTHER")}</option>
                   </select>
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">{t("fields.paymentMethod")}</label>
                   <select className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.payment_method ?? ""} onChange={(e) => setRE("payment_method", e.target.value)}>
                     <option value="">—</option>
-                    <option value="نقدي">نقدي</option>
-                    <option value="تحويل">تحويل</option>
+                    <option value="نقدي">{t("fields.cash")}</option>
+                    <option value="تحويل">{t("fields.transfer")}</option>
                   </select>
                 </div>
               </div>
@@ -965,14 +965,14 @@ export default function StudentsPage() {
                 disabled={reviewApproving}
                 className="flex-1 py-3 bg-[#F64651] text-white rounded-xl text-sm font-bold hover:bg-[#D93A44] disabled:opacity-50 transition-colors"
               >
-                {reviewApproving ? "جاري القبول..." : "قبول وتفعيل"}
+                {reviewApproving ? t("reviewForm.accepting") : t("reviewForm.acceptAndActivate")}
               </button>
               <button
                 onClick={() => rejectSubmission(reviewModalSub.id)}
                 disabled={reviewRejecting}
                 className="flex-1 py-3 border-2 border-red-300 text-red-600 rounded-xl text-sm font-bold hover:bg-red-50 disabled:opacity-50 transition-colors"
               >
-                {reviewRejecting ? "..." : "رفض"}
+                {reviewRejecting ? "..." : t("common.reject")}
               </button>
             </div>
           </div>

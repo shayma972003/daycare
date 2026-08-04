@@ -81,7 +81,7 @@ export default function CalendarPage() {
     } catch (err) {
       setError(describeApiError(err, t("calendar.loadFailed")));
     }
-  }, [range.from, range.to, classFilter, teacherFilter]);
+  }, [range.from, range.to, classFilter, teacherFilter, t]);
 
   useEffect(() => {
     let cancelled = false;
@@ -104,7 +104,7 @@ export default function CalendarPage() {
     return () => {
       cancelled = true;
     };
-  }, [range.from, range.to, classFilter, teacherFilter]);
+  }, [range.from, range.to, classFilter, teacherFilter, t]);
 
   useEffect(() => {
     let cancelled = false;
@@ -176,19 +176,19 @@ export default function CalendarPage() {
               onClick={() => setAnchor((current) => shiftAnchor(view, current, -1))}
               className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm hover:bg-gray-50"
             >
-              السابق
+              {t("common.previous")}
             </button>
             <button
               onClick={() => setAnchor(new Date())}
               className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm hover:bg-gray-50"
             >
-              اليوم
+              {t("common.today")}
             </button>
             <button
               onClick={() => setAnchor((current) => shiftAnchor(view, current, 1))}
               className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm hover:bg-gray-50"
             >
-              التالي
+              {t("common.next")}
             </button>
           </div>
 
@@ -219,7 +219,7 @@ export default function CalendarPage() {
               onClick={() => setCreating(anchor)}
               className="px-4 py-2 bg-[#2F96A6] text-white rounded-xl text-sm font-medium hover:bg-[#26808e]"
             >
-              إضافة
+              {t("common.add")}
             </button>
           </div>
         </div>

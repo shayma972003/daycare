@@ -174,7 +174,7 @@ export default function TeachersImportPage() {
       setError(axios.isAxiosError(err) ? err.response?.data?.error ?? t("importer.importFailed") : t("importer.importFailed"));
       setLoading(false);
     }
-  }, [sessionId]);
+  }, [sessionId, t]);
 
   async function handleFileUpload(file: File) {
     setLoading(true);
@@ -349,7 +349,7 @@ export default function TeachersImportPage() {
                   onClick={handleCancelAndReset}
                   className="px-4 py-2 border border-gray-300 text-gray-600 rounded-xl text-sm hover:bg-gray-50 transition-colors"
                 >
-                  رفع ملف آخر
+                  {t("importer.uploadAnother")}
                 </button>
                 <button
                   onClick={handleDetectMapping}
@@ -548,14 +548,14 @@ export default function TeachersImportPage() {
                   )}
                   className="px-4 py-2 border border-gray-300 text-gray-600 rounded-xl text-sm hover:bg-gray-50 transition-colors"
                 >
-                  تنزيل تقرير الأخطاء
+                  {t("importer.downloadErrors")}
                 </button>
               )}
               <button
                 onClick={() => router.push("/teachers")}
                 className="px-5 py-2 bg-[#111111] text-white rounded-xl text-sm font-medium hover:bg-[#243060] transition-colors"
               >
-                العودة إلى قائمة المعلمين
+                {t("importer.backToTeachers")}
               </button>
             </div>
           </div>

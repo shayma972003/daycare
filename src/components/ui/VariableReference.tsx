@@ -1,44 +1,49 @@
+"use client";
+
+import { useT } from "@/lib/i18n-provider";
+
 interface VariableReferenceProps {
   mode?: "full" | "payment" | "activity";
 }
 
 interface VarDef {
   key: string;
-  label: string;
+  /** A key — resolved per render, not at module load. */
+  labelKey: string;
   color?: "indigo" | "purple" | "emerald";
 }
 
 const ALL_VARS: VarDef[] = [
-  { key: "child_name",       label: "اسم الطفل" },
-  { key: "guardian_name",    label: "اسم ولي الأمر الأول" },
-  { key: "guardian_2_name",  label: "اسم ولي الأمر الثاني", color: "purple" },
-  { key: "school_name",      label: "اسم المنشأة" },
-  { key: "checkin_time",     label: "وقت دخول الطالب" },
-  { key: "checkout_time",    label: "وقت خروج الطالب" },
-  { key: "subscription_fee", label: "رسوم التسجيل", color: "emerald" },
-  { key: "due_date",         label: "تاريخ انتهاء الاشتراك" },
-  { key: "activity_name",    label: "اسم الفعالية" },
-  { key: "activity_fee",     label: "رسوم الفعالية", color: "emerald" },
-  { key: "activity_date",    label: "تاريخ الفعالية" },
+  { key: "child_name",       labelKey: "variables.childNameDesc" },
+  { key: "guardian_name",    labelKey: "variables.guardianNameDesc" },
+  { key: "guardian_2_name",  labelKey: "variables.guardian_2_name", color: "purple" },
+  { key: "school_name",      labelKey: "variables.schoolNameDesc" },
+  { key: "checkin_time",     labelKey: "variables.checkInTime" },
+  { key: "checkout_time",    labelKey: "variables.checkOutTime" },
+  { key: "subscription_fee", labelKey: "studentProfile.registrationFee", color: "emerald" },
+  { key: "due_date",         labelKey: "students.profile.enrollmentEndDate" },
+  { key: "activity_name",    labelKey: "home.activityForm.name" },
+  { key: "activity_fee",     labelKey: "home.activityForm.fee", color: "emerald" },
+  { key: "activity_date",    labelKey: "variables.activityDate" },
 ];
 
 const PAYMENT_VARS: VarDef[] = [
-  { key: "child_name",       label: "اسم الطفل" },
-  { key: "guardian_name",    label: "اسم ولي الأمر الأول" },
-  { key: "guardian_2_name",  label: "اسم ولي الأمر الثاني", color: "purple" },
-  { key: "school_name",      label: "اسم المنشأة" },
-  { key: "subscription_fee", label: "رسوم التسجيل", color: "emerald" },
-  { key: "due_date",         label: "تاريخ انتهاء الاشتراك" },
+  { key: "child_name",       labelKey: "variables.childNameDesc" },
+  { key: "guardian_name",    labelKey: "variables.guardianNameDesc" },
+  { key: "guardian_2_name",  labelKey: "variables.guardian_2_name", color: "purple" },
+  { key: "school_name",      labelKey: "variables.schoolNameDesc" },
+  { key: "subscription_fee", labelKey: "studentProfile.registrationFee", color: "emerald" },
+  { key: "due_date",         labelKey: "students.profile.enrollmentEndDate" },
 ];
 
 const ACTIVITY_VARS: VarDef[] = [
-  { key: "child_name",       label: "اسم الطفل" },
-  { key: "guardian_name",    label: "اسم ولي الأمر الأول" },
-  { key: "guardian_2_name",  label: "اسم ولي الأمر الثاني", color: "purple" },
-  { key: "school_name",      label: "اسم المنشأة" },
-  { key: "activity_name",    label: "اسم الفعالية" },
-  { key: "activity_fee",     label: "رسوم الفعالية", color: "emerald" },
-  { key: "activity_date",    label: "تاريخ الفعالية" },
+  { key: "child_name",       labelKey: "variables.childNameDesc" },
+  { key: "guardian_name",    labelKey: "variables.guardianNameDesc" },
+  { key: "guardian_2_name",  labelKey: "variables.guardian_2_name", color: "purple" },
+  { key: "school_name",      labelKey: "variables.schoolNameDesc" },
+  { key: "activity_name",    labelKey: "home.activityForm.name" },
+  { key: "activity_fee",     labelKey: "home.activityForm.fee", color: "emerald" },
+  { key: "activity_date",    labelKey: "variables.activityDate" },
 ];
 
 const COLOR_MAP: Record<string, string> = {
@@ -49,6 +54,7 @@ const COLOR_MAP: Record<string, string> = {
 const DEFAULT_CLASS = COLOR_MAP.indigo;
 
 export function VariableReference({ mode = "full" }: VariableReferenceProps) {
+  const t = useT();
   const vars =
     mode === "payment"  ? PAYMENT_VARS  :
     mode === "activity" ? ACTIVITY_VARS :
@@ -56,12 +62,12 @@ export function VariableReference({ mode = "full" }: VariableReferenceProps) {
 
   return (
     <div className="mt-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
-      <p className="text-xs font-semibold text-slate-600 mb-2">المتغيرات المتاحة</p>
+      <p className="text-xs font-semibold text-slate-600 mb-2">{t("variables.title")}</p>
       <div className="flex flex-wrap gap-1.5">
         {vars.map((v) => (
           <code
             key={v.key}
-            title={v.label}
+            title={t(v.labelKey)}
             className={COLOR_MAP[v.color ?? "indigo"] ?? DEFAULT_CLASS}
           >
             {"<"}{v.key}{">"}
@@ -71,7 +77,7 @@ export function VariableReference({ mode = "full" }: VariableReferenceProps) {
       <div className="flex flex-wrap gap-1.5 mt-2">
         {vars.map((v) => (
           <span key={v.key + "_label"} className="text-xs text-slate-500">
-            {`<${v.key}>`} = {v.label}
+            {`<${v.key}>`} = {t(v.labelKey)}
           </span>
         )).filter((_, i) => i < 4)}
         {vars.length > 4 && <span className="text-xs text-slate-400">…</span>}

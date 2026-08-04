@@ -14,16 +14,17 @@
  */
 
 import { LOCALES, LOCALE_LABELS } from "@/lib/i18n";
-import { useLocale } from "@/lib/i18n-provider";
+import { useLocale, useT } from "@/lib/i18n-provider";
 
 export function LanguageSwitcher() {
+  const t = useT();
   const { locale, setLocale } = useLocale();
 
   return (
     <div
       className="flex gap-1 px-1"
       role="group"
-      aria-label={locale === "ar" ? "اللغة" : "Language"}
+      aria-label={t("common.language")}
     >
       {LOCALES.map((option) => (
         <button

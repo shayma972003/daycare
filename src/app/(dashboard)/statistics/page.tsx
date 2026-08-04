@@ -158,7 +158,7 @@ function AddExpenseForm({ onSaved, onCancel }: { onSaved: (e: Expense) => void; 
         {type === "monthly" && (
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">
-              تاريخ الانتهاء <span className="text-gray-400">{t("finance.optional")}</span>
+              {t("fields.endDate")} <span className="text-gray-400">{t("finance.optional")}</span>
             </label>
             <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} dir="ltr"
               className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651]" />
@@ -173,7 +173,7 @@ function AddExpenseForm({ onSaved, onCancel }: { onSaved: (e: Expense) => void; 
         </button>
         <button type="button" onClick={onCancel}
           className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm hover:bg-gray-50">
-          إلغاء
+          {t("common.cancel")}
         </button>
       </div>
     </form>
@@ -244,7 +244,7 @@ function EditExpenseRow({ expense, onSaved, onCancel }: { expense: Expense; onSa
           </button>
           <button onClick={onCancel}
             className="px-3 py-1 border border-gray-200 text-gray-600 rounded-lg text-xs hover:bg-gray-50">
-            إلغاء
+            {t("common.cancel")}
           </button>
           {expense.type === "monthly" && expense.is_active && (
             confirmStop ? (
@@ -259,7 +259,7 @@ function EditExpenseRow({ expense, onSaved, onCancel }: { expense: Expense; onSa
             ) : (
               <button onClick={() => setConfirmStop(true)}
                 className="px-3 py-1 border border-orange-300 text-orange-600 rounded-lg text-xs hover:bg-orange-50">
-                إيقاف الدفع
+                {t("finance.stopPayment")}
               </button>
             )
           )}
@@ -291,22 +291,6 @@ function pctBadge(pct: number | null, t: (key: string) => string) {
       {up ? "↑" : "↓"} {Math.abs(pct).toFixed(1)}%
     </span>
   );
-}
-
-function downloadCsv(filename: string, rows: { label: string; date?: string; amount: number }[]) {
-  const header = "البند,التاريخ,المبلغ (ر.س)\n";
-  const body = rows
-    .map((r) => `"${r.label.replace(/"/g, '""')}",${r.date ? new Date(r.date).toLocaleDateString("ar-SA") : ""},${r.amount}`)
-    .join("\n");
-  const blob = new Blob(["﻿" + header + body], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
 }
 
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
@@ -370,7 +354,7 @@ function SummaryTab() {
     return () => {
       cancelled = true;
     };
-  }, [periodType, reloadKey]);
+  }, [periodType, reloadKey, t]);
 
   useEffect(() => {
     axios
@@ -404,7 +388,7 @@ function SummaryTab() {
       const res = await axios.post<{ file: string }>("/api/statistics/export/excel", { type: periodType });
       const link = document.createElement("a");
       link.href = res.data.file;
-      link.download = `التقرير-المالي-${periodType}.xlsx`;
+      link.download = t("finance.reportFilename", { period: periodType });
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -429,7 +413,7 @@ function SummaryTab() {
           onClick={() => setReloadKey((k) => k + 1)}
           className="px-5 py-2 rounded-lg bg-[#2F96A6] text-white text-sm font-medium hover:bg-[#26808e]"
         >
-          إعادة المحاولة
+          {t("common.retry")}
         </button>
       </div>
     );
@@ -512,8 +496,8 @@ function SummaryTab() {
             </div>
             <span className="text-sm text-gray-500">مدفوع ({summary.collection.paidCount} طالب)</span>
           </div>
-          <SummaryRow label={`متأخر (${summary.collection.lateCount} طالب)`} value={formatCurrency(summary.collection.late)} valueClass="text-red-500" />
-          <SummaryRow label={`بانتظار الدفع (${summary.collection.pendingCount} طالب)`} value={formatCurrency(summary.collection.pending)} valueClass="text-amber-500" />
+          <SummaryRow label={t("finance.lateCount", { n: String(summary.collection.lateCount) })} value={formatCurrency(summary.collection.late)} valueClass="text-red-500" />
+          <SummaryRow label={t("finance.pendingCount", { n: String(summary.collection.pendingCount) })} value={formatCurrency(summary.collection.pending)} valueClass="text-amber-500" />
         </SectionCard>
       </div>
 
@@ -556,15 +540,15 @@ function SummaryTab() {
         <div className="flex flex-wrap gap-3">
           <button onClick={() => setOpenPanel(openPanel === "revenue" ? null : "revenue")}
             className="px-4 py-2 text-sm border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
-            عرض جميع الإيرادات
+            {t("finance.viewAllRevenue")}
           </button>
           <button onClick={() => setOpenPanel(openPanel === "expenses" ? null : "expenses")}
             className="px-4 py-2 text-sm border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
-            عرض جميع المصروفات
+            {t("finance.viewAllExpenses")}
           </button>
           <button onClick={() => setOpenPanel(openPanel === "payments" ? null : "payments")}
             className="px-4 py-2 text-sm border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
-            عرض جميع المدفوعات
+            {t("finance.viewAllPayments")}
           </button>
           <button onClick={handleExportReport} disabled={generatingReport}
             className="px-4 py-2 text-sm bg-[#111111] text-white rounded-xl hover:bg-gray-800 transition-colors disabled:opacity-60">
@@ -741,7 +725,7 @@ function ExpensesTab() {
         </div>
         <button onClick={() => setShowAddForm(true)}
           className="px-4 py-2 bg-[#F64651] text-white rounded-xl text-sm font-bold hover:bg-[#D93A44] transition-all shadow-md">
-          + أضف مصروف
+          {t("finance.addExpense")}
         </button>
       </div>
 
@@ -778,7 +762,7 @@ function ExpensesTab() {
                         {exp.description && <span className="block text-xs text-gray-400 font-normal">{exp.description}</span>}
                       </td>
                       <td className="px-4 py-3 text-gray-600 text-xs">
-                        {exp.type === "monthly" ? "اشتراك شهري" : "دفعة مستقلة"}
+                        {exp.type === "monthly" ? t("finance.monthlySubscription") : t("finance.onePayment")}
                       </td>
                       <td className="px-4 py-3 text-gray-800 font-medium">{formatCurrency(exp.amount)}</td>
                       <td className="px-4 py-3 text-gray-500 text-xs">
@@ -805,11 +789,11 @@ function ExpensesTab() {
                         <div className="flex gap-2">
                           <button onClick={() => setEditingId(exp.id)}
                             className="px-3 py-1 text-xs border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50">
-                            تعديل
+                            {t("common.edit")}
                           </button>
                           <button onClick={() => setConfirmDeleteId(exp.id)}
                             className="px-3 py-1 text-xs border border-red-200 text-red-600 rounded-lg hover:bg-red-50">
-                            حذف
+                            {t("common.delete")}
                           </button>
                         </div>
                       </td>
@@ -843,13 +827,13 @@ export default function StatisticsPage() {
             onClick={() => setActiveTab("summary")}
             className={`px-5 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === "summary" ? "bg-white shadow text-[#111111]" : "text-gray-500 hover:text-gray-700"}`}
           >
-            الملخص المالي
+            {t("finance.summary")}
           </button>
           <button
             onClick={() => setActiveTab("expenses")}
             className={`px-5 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === "expenses" ? "bg-white shadow text-[#111111]" : "text-gray-500 hover:text-gray-700"}`}
           >
-            المصاريف
+            {t("finance.expenses")}
           </button>
         </div>
 

@@ -15,6 +15,7 @@ import { CARE_TYPE_COLORS, CARE_TYPE_LABELS } from "@/lib/care-reports";
 import { Icon, CARE_TYPE_ICON_NAMES } from "@/components/ui/Icon";
 import { formatAst, astDayStart } from "@/lib/datetime";
 import type { CareReportType } from "@/generated/prisma/enums";
+import { useT } from "@/lib/i18n-provider";
 
 interface ReportRow {
   id: string;
@@ -27,6 +28,7 @@ interface ReportRow {
 }
 
 export function StudentCareFeed({ studentId }: { studentId: string }) {
+  const t = useT();
   const [reports, setReports] = useState<ReportRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,12 +40,12 @@ export function StudentCareFeed({ studentId }: { studentId: string }) {
         if (!cancelled) setReports(response.data);
       })
       .catch((err) => {
-        if (!cancelled) setError(describeApiError(err, "تعذر تحميل التقارير"));
+        if (!cancelled) setError(describeApiError(err, t("care.loadFailed")));
       });
     return () => {
       cancelled = true;
     };
-  }, [studentId]);
+  }, [studentId, t]);
 
   if (error) {
     return (
@@ -54,11 +56,11 @@ export function StudentCareFeed({ studentId }: { studentId: string }) {
   }
 
   if (!reports) {
-    return <p className="text-sm text-gray-400 py-4">جارٍ التحميل…</p>;
+    return <p className="text-sm text-gray-400 py-4">{t("common.loading")}</p>;
   }
 
   if (reports.length === 0) {
-    return <p className="text-sm text-gray-400 py-4">لا توجد تقارير رعاية بعد</p>;
+    return <p className="text-sm text-gray-400 py-4">{t("care.noReports")}</p>;
   }
 
   // Grouped by the AST business day, not the UTC date: a report filed at 01:00

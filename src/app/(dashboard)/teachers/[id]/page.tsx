@@ -252,7 +252,7 @@ export default function TeacherProfilePage() {
     setActionMessage(null);
     try {
       const res = await axios.post<{ sentTo: string }>(`/api/teachers/${id}/reminder`);
-      setActionMessage({ text: `تم الإرسال إلى ${res.data.sentTo}`, ok: true });
+      setActionMessage({ text: t("teacherProfile.sentTo", { to: res.data.sentTo }), ok: true });
     } catch (err) {
       setActionMessage({ text: describeApiError(err, t("teacherProfile.reminderFailed")), ok: false });
     } finally {
@@ -394,7 +394,7 @@ export default function TeacherProfilePage() {
                     <div className="relative inline-block group">
                       <span className="text-yellow text-lg cursor-default">⚠</span>
                       <div className="absolute bottom-full right-0 mb-1 px-2 py-1 bg-gray-800 text-white text-xs rounded whitespace-nowrap hidden group-hover:block z-10">
-                        تأخير متكرر
+                        {t("teacherProfile.repeatedLateness")}
                       </div>
                     </div>
                   )}
@@ -461,7 +461,7 @@ export default function TeacherProfilePage() {
                       onClick={() => setExtraQuals((prev) => [...prev, ""])}
                       className="text-sm text-[#F64651] hover:underline font-medium"
                     >
-                      + إضافة مؤهل
+                      {t("teacherProfile.addQualification")}
                     </button>
                   )}
                 </div>
@@ -518,7 +518,7 @@ export default function TeacherProfilePage() {
                                hover:border-[#2F96A6] hover:text-[#2F96A6] hover:bg-[#E0F7FA]
                                active:scale-[0.98] transition-all"
                   >
-                    ارسال تذكير بالدفع
+                    {t("teacherProfile.sendPaymentReminder")}
                   </button>
 
                   {/* 3. إصدار فاتورة */}
@@ -574,7 +574,7 @@ export default function TeacherProfilePage() {
                                hover:border-[#F64651] hover:text-[#F64651] hover:bg-[#FFE8EA]
                                active:scale-[0.98] transition-all"
                   >
-                    نقل إلى سلة المحذوفات
+                    {t("classes.moveToTrash")}
                   </button>
                 </div>
               </div>
@@ -677,8 +677,7 @@ export default function TeacherProfilePage() {
             {/* Stated up front: this date is what the erasure schedule counts
                 from, and it is not obvious from a form labelled "end service". */}
             <p className="text-xs text-gray-500 leading-relaxed">
-              تُحفظ بيانات الموظف الشخصية لمدة الاحتفاظ المعتمدة ابتداءً من هذا التاريخ، ثم تُزال
-              تلقائياً مع بقاء سجل الرواتب والإحصاءات كاملاً.
+              {t("teacherProfile.retentionNotice")}
             </p>
 
             <div className="flex gap-3 justify-center pt-1">
@@ -693,7 +692,7 @@ export default function TeacherProfilePage() {
                 onClick={() => setShowDepartureModal(false)}
                 className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm"
               >
-                إلغاء
+                {t("common.cancel")}
               </button>
             </div>
           </div>
@@ -707,7 +706,7 @@ export default function TeacherProfilePage() {
               <>
                 <p className="text-base font-bold text-[#111111]">{t("teacherProfile.moveToTrash")}</p>
                 <p className="text-sm text-gray-600 whitespace-pre-line">
-                  {`سيتم نقل ملف ${teacher?.name ?? ""} إلى سلة المحذوفات.\nيمكنك استعادته خلال 30 يوماً.`}
+                  {t("teacherProfile.trashNotice", { name: teacher?.name ?? "" })}
                 </p>
               </>
             ) : (
@@ -719,7 +718,7 @@ export default function TeacherProfilePage() {
                   ))}
                 </ul>
                 <p className="text-sm text-gray-600 whitespace-pre-line text-right">
-                  {"عند الحذف ستبقى هذه الفصول بدون معلم مسؤول\nوسيظهر تنبيه عليها حتى يتم التعيين."}
+                  {t("teachers.deleteWarning")}
                 </p>
               </>
             )}
@@ -735,7 +734,7 @@ export default function TeacherProfilePage() {
                 onClick={() => setShowTrashModal(false)}
                 className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm"
               >
-                إلغاء
+                {t("common.cancel")}
               </button>
             </div>
           </div>
@@ -759,7 +758,7 @@ export default function TeacherProfilePage() {
                 onClick={() => setShowLateFeeConfirm(false)}
                 className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm"
               >
-                إلغاء
+                {t("common.cancel")}
               </button>
             </div>
           </div>

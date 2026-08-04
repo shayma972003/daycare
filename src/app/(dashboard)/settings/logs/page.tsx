@@ -50,7 +50,7 @@ export default function ActivityLogsPage() {
       const res = await axios.post<{ file_url: string }>("/api/settings/logs/export");
       const link = document.createElement("a");
       link.href = res.data.file_url;
-      link.download = "سجل-التغييرات.pdf";
+      link.download = t("logs.pdfFilename");
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -104,7 +104,7 @@ export default function ActivityLogsPage() {
           {/* Header */}
           <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-100">
             <button onClick={() => router.push("/settings")} className="text-sm text-gray-400 hover:text-gray-600">
-              → العودة للإعدادات
+              {t("settings.backToSettings")}
             </button>
             <h1 className="text-lg font-bold text-gray-900">{t("logs.title")}</h1>
           </div>
@@ -186,7 +186,7 @@ export default function ActivityLogsPage() {
                 disabled={page === 0}
                 className="px-4 py-2 rounded-md border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                السابق
+                {t("common.previous")}
               </button>
               <span className="text-xs text-gray-400 px-2">
                 {page + 1} / {totalPages}
@@ -196,7 +196,7 @@ export default function ActivityLogsPage() {
                 disabled={page >= totalPages - 1}
                 className="px-4 py-2 rounded-md border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                التالي
+                {t("common.next")}
               </button>
             </div>
           )}

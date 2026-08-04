@@ -94,7 +94,7 @@ export default function NewTeacherPage() {
 
   return (
     <div dir="rtl" className="min-h-screen bg-brand-bg">
-      <Topbar title="إضافة معلم جديد" />
+      <Topbar title={t("teachers.addNew")} />
       <div className="p-6">
         <button
           onClick={() => router.push("/teachers")}
@@ -109,7 +109,7 @@ export default function NewTeacherPage() {
 
         <form onSubmit={handleSubmit(onSubmit)}>
           <div className="bg-white rounded-xl shadow-md p-6">
-            <h2 className="text-base font-bold text-[#111111] mb-5">بيانات المعلم</h2>
+            <h2 className="text-base font-bold text-[#111111] mb-5">{t("teachers.data")}</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
 
               <Field label={t("fields.fullName")}>
@@ -137,7 +137,7 @@ export default function NewTeacherPage() {
                 </select>
               </Field>
 
-              <Field label="رقم الهوية / الإقامة">
+              <Field label={t("teachers.nationalId")}>
                 <input {...register("idNumber")} type="text" className={inputCls} />
               </Field>
 
@@ -181,11 +181,11 @@ export default function NewTeacherPage() {
                 </select>
               </Field>
 
-              <Field label="تاريخ الانضمام">
+              <Field label={t("teachers.joinDate")}>
                 <input {...register("joinDate")} type="date" dir="ltr" className={inputCls} />
               </Field>
 
-              <Field label="تاريخ انتهاء العقد">
+              <Field label={t("teachers.contractEnd")}>
                 <input {...register("enrollmentEndDate")} type="date" dir="ltr" className={inputCls} />
               </Field>
 
@@ -193,7 +193,7 @@ export default function NewTeacherPage() {
                 <input {...register("monthlySalary")} type="number" min={0} step="0.01" className={inputCls} />
               </Field>
 
-              <Field label="نسبة خصم التأخير (%)">
+              <Field label={t("teachers.lateDeductionRate")}>
                 <input {...register("lateDeductionRate")} type="number" min={0} step="0.01" className={inputCls} />
               </Field>
 
@@ -205,14 +205,14 @@ export default function NewTeacherPage() {
                 disabled={saving}
                 className="px-8 py-2.5 bg-[#F64651] text-white rounded-xl text-sm font-bold hover:bg-[#D93A44] transition-colors disabled:opacity-60"
               >
-                {saving ? t("common.loading") : "حفظ وإضافة المعلم"}
+                {saving ? t("common.loading") : t("teachers.saveAndAdd")}
               </button>
               <button
                 type="button"
                 onClick={() => router.push("/teachers")}
                 className="px-6 py-2.5 border border-gray-300 text-gray-600 rounded-xl text-sm hover:bg-gray-50 transition-colors"
               >
-                إلغاء
+                {t("common.cancel")}
               </button>
             </div>
           </div>

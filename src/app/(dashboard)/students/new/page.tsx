@@ -304,7 +304,7 @@ export default function NewStudentPage() {
               <h2 className="text-base font-bold text-[#111111]">{t("studentProfile.guardianInfo")}</h2>
               {guardianLinked && (
                 <span className="text-xs bg-success-bg text-success-text border border-success-text/20 px-3 py-1 rounded-full font-medium">
-                  تم ربط ولي الأمر الموجود
+                  {t("studentProfile.guardianLinked")}
                 </span>
               )}
             </div>
@@ -462,7 +462,7 @@ export default function NewStudentPage() {
               onClick={() => router.push("/students")}
               className="px-6 py-2.5 border border-gray-300 text-gray-600 rounded-xl text-sm hover:bg-gray-50 transition-colors"
             >
-              إلغاء
+              {t("common.cancel")}
             </button>
           </div>
         </form>

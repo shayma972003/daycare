@@ -16,6 +16,7 @@ import { describeApiError } from "@/lib/api-error";
 // connection at import time, which a Client Component must never do.
 import { formatBytes } from "@/lib/storage-format";
 import { formatAst } from "@/lib/datetime";
+import { useT } from "@/lib/i18n-provider";
 
 interface StorageResponse {
   studentFilesBytes: number;
@@ -52,6 +53,7 @@ const CATEGORY_COLORS: Record<(typeof CATEGORY_KEYS)[number], string> = {
 };
 
 export default function StoragePage() {
+  const t = useT();
   const [data, setData] = useState<StorageResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -66,9 +68,9 @@ export default function StoragePage() {
       setData(response.data);
       setError(null);
     } catch (err) {
-      setError(describeApiError(err, "تعذر تحميل بيانات التخزين"));
+      setError(describeApiError(err, t("storage.loadFailed")));
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     let cancelled = false;
@@ -78,12 +80,12 @@ export default function StoragePage() {
         if (!cancelled) setData(response.data);
       })
       .catch((err) => {
-        if (!cancelled) setError(describeApiError(err, "تعذر تحميل بيانات التخزين"));
+        if (!cancelled) setError(describeApiError(err, t("storage.loadFailed")));
       });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [t]);
 
   async function refresh() {
     setBusy(true);
@@ -102,14 +104,15 @@ export default function StoragePage() {
         { action: "purge_invoice_pdfs" }
       );
       setNotice(
-        `تم حذف ${response.data.cleared} ملف فاتورة وتحرير ${formatBytes(
-          Math.max(0, response.data.freedBytes)
-        )}`
+        t("storage.purged", {
+          count: String(response.data.cleared),
+          size: formatBytes(Math.max(0, response.data.freedBytes)),
+        })
       );
       setConfirmPurge(false);
       await load();
     } catch (err) {
-      setError(describeApiError(err, "تعذر إفراغ المساحة"));
+      setError(describeApiError(err, t("storage.purgeFailed")));
     } finally {
       setBusy(false);
     }
@@ -117,7 +120,7 @@ export default function StoragePage() {
 
   return (
     <div dir="rtl" className="min-h-screen bg-brand-bg">
-      <Topbar title="مساحة التخزين" />
+      <Topbar title={t("storage.title")} />
 
       <div className="p-6 space-y-5">
         {error && (
@@ -132,7 +135,7 @@ export default function StoragePage() {
         )}
 
         {!data ? (
-          <p className="text-sm text-gray-400 py-10 text-center">جارٍ التحميل…</p>
+          <p className="text-sm text-gray-400 py-10 text-center">{t("common.loading")}</p>
         ) : (
           <>
             <section className="bg-white rounded-2xl shadow-sm p-6 space-y-4">
@@ -160,7 +163,7 @@ export default function StoragePage() {
 
               {data.quotaBytes === null ? (
                 <p className="text-sm text-gray-500">
-                  لا يوجد حد للمساحة على خطتك الحالية.
+                  {t("storage.noLimit")}
                 </p>
               ) : (
                 <div className="h-3 w-full rounded-full bg-gray-100 overflow-hidden flex">
@@ -182,7 +185,7 @@ export default function StoragePage() {
 
               {data.over && (
                 <div role="alert" className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">
-                  تم تجاوز المساحة المتاحة — الرفع متوقف حتى تحرير مساحة أو ترقية الخطة.
+                  {t("storage.overQuota")}
                 </div>
               )}
 
@@ -196,13 +199,13 @@ export default function StoragePage() {
                 }) : "—"}
                 {" · "}
                 <button onClick={refresh} disabled={busy} className="text-[#2F96A6] hover:underline">
-                  إعادة الحساب
+                  {t("common.recalculate")}
                 </button>
               </p>
             </section>
 
             <section className="bg-white rounded-2xl shadow-sm p-6">
-              <h2 className="font-bold text-[#111111] mb-4">تفصيل الاستهلاك</h2>
+              <h2 className="font-bold text-[#111111] mb-4">{t("storage.breakdown")}</h2>
               <ul className="space-y-2">
                 {CATEGORY_KEYS.map((key) => (
                   <li key={key} className="flex items-center gap-3 text-sm">
@@ -215,14 +218,12 @@ export default function StoragePage() {
             </section>
 
             <section className="bg-white rounded-2xl shadow-sm p-6 space-y-3">
-              <h2 className="font-bold text-[#111111]">إفراغ المساحة المتاحة</h2>
+              <h2 className="font-bold text-[#111111]">{t("storage.purge")}</h2>
               <p className="text-sm text-gray-600">
-                يحذف ملفات PDF المحفوظة للفواتير. الفاتورة نفسها وأرقامها تبقى كاملة، ويمكن
-                إعادة إصدار الملف في أي وقت.
+                {t("storage.purgeHint")}
               </p>
               <p className="text-xs text-gray-400">
-                ملفات الأطفال وصور التقارير لا تُحذف هنا — لا يمكن إنشاؤها من جديد، فحذفها
-                قرار لكل ملف على حدة.
+                {t("storage.protectedHint")}
               </p>
 
               {confirmPurge ? (
@@ -232,13 +233,13 @@ export default function StoragePage() {
                     disabled={busy}
                     className="px-5 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 disabled:opacity-60"
                   >
-                    {busy ? "..." : "تأكيد الحذف"}
+                    {busy ? "..." : t("common.confirmDelete")}
                   </button>
                   <button
                     onClick={() => setConfirmPurge(false)}
                     className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm"
                   >
-                    إلغاء
+                    {t("common.cancel")}
                   </button>
                 </div>
               ) : (

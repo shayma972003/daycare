@@ -1,6 +1,8 @@
 {
   "app": {
-    "name": "نظام إدارة الروضة"
+    "name": "نظام إدارة الروضة",
+    "title": "نظام إدارة الروضة",
+    "description": "نظام متكامل لإدارة روضة الأطفال"
   },
   "nav": {
     "home": "الرئيسية",
@@ -12,24 +14,25 @@
     "care": "تقارير الرعاية",
     "calendar": "التقويم",
     "units": "الوحدات",
-    "shifts": "المناوبات"
+    "shifts": "المناوبات",
+    "attendance": "الحضور"
   },
   "common": {
-    "save": "حفظ التغييرات",
+    "save": "حفظ",
     "cancel": "إلغاء",
     "delete": "حذف",
     "edit": "تعديل",
     "add": "إضافة",
     "search": "بحث",
     "filter": "تصفية",
-    "loading": "جاري التحميل...",
-    "error": "حدث خطأ",
+    "loading": "جارٍ التحميل…",
+    "error": "خطأ",
     "success": "تم بنجاح",
     "confirm": "تأكيد",
     "close": "إغلاق",
     "viewMore": "معرفة المزيد",
     "noData": "لا توجد بيانات",
-    "actions": "الإجراءات",
+    "actions": "إجراءات",
     "select": "اختر",
     "all": "الكل",
     "export": "تصدير",
@@ -68,7 +71,39 @@
     "to": "إلى",
     "create": "إنشاء",
     "newestFirst": "الأحدث أولاً",
-    "oldestFirst": "الأقدم أولاً"
+    "oldestFirst": "الأقدم أولاً",
+    "none": "بدون",
+    "uploadFailed": "فشل رفع الصورة",
+    "working": "جارٍ…",
+    "required": "هذا الحقل مطلوب",
+    "preview": "معاينة",
+    "fileTooLarge": "حجم الملف كبير جدا، الحجم المسموح للملف هو 100 MB أو أقل",
+    "confirmDelete": "تأكيد الحذف",
+    "now": "الآن",
+    "language": "اللغة",
+    "view": "عرض",
+    "next": "التالي",
+    "previous": "السابق",
+    "today": "اليوم",
+    "week": "الأسبوع",
+    "clearAll": "مسح الكل",
+    "selectAll": "تحديد الكل",
+    "clearSelection": "إلغاء التحديد",
+    "restore": "استعادة",
+    "restoreAll": "استعادة الكل",
+    "deletePermanently": "حذف نهائي",
+    "retry": "إعادة المحاولة",
+    "recalculate": "إعادة الحساب",
+    "ok": "موافق",
+    "remove": "إزالة",
+    "replace": "استبدال",
+    "run": "تنفيذ",
+    "finish": "إنهاء",
+    "imagePlaceholder": "[صورة]",
+    "irreversibleConfirm": "هل أنت متأكد؟ لا يمكن التراجع عن هذا الإجراء",
+    "deleteImage": "حذف الصورة",
+    "removeImage": "إزالة الصورة",
+    "back": "الرجوع"
   },
   "auth": {
     "login": "تسجيل الدخول",
@@ -91,7 +126,40 @@
     "codeSentTo": "تم إرسال رمز التحقق إلى",
     "didNotGetIt": "لم تستلم الرمز؟ إعادة الإرسال",
     "signInTitle": "تسجيل الدخول",
-    "signIn": "دخول"
+    "signIn": "دخول",
+    "enterEmailOrPhone": "أدخل البريد الإلكتروني أو رقم الجوال",
+    "passwordsDiffer": "كلمة المرور وتأكيدها غير متطابقتين",
+    "genericError": "حدث خطأ، يرجى المحاولة مرة أخرى",
+    "genericErrorAlt": "حدث خطأ، يرجى المحاولة مجدداً",
+    "setNewPassword": "تعيين كلمة مرور جديدة",
+    "code": "رمز التحقق",
+    "newPassword": "كلمة المرور الجديدة",
+    "confirmPassword": "تأكيد كلمة المرور",
+    "setPassword": "تعيين كلمة المرور",
+    "resendCode": "إعادة إرسال الرمز",
+    "registerTitle": "تسجيل حساب جديد",
+    "createAccount": "إنشاء الحساب",
+    "schoolNameRequired": "اسم المنشأة مطلوب",
+    "invalidEmail": "البريد الإلكتروني غير صالح",
+    "confirmRequired": "تأكيد كلمة المرور مطلوب",
+    "forgotTitle": "نسيت كلمة المرور؟",
+    "identifierHint": "admin@school.com أو 05xxxxxxxx",
+    "sendCode": "إرسال رمز التحقق",
+    "sent": "تم الإرسال",
+    "schoolNamePlaceholder": "روضة النور",
+    "schoolName": "اسم المنشأة",
+    "verifying": "جارٍ التحقق…",
+    "signingIn": "جارٍ الدخول…",
+    "registering": "جارٍ التسجيل…",
+    "updating": "جارٍ التحديث…",
+    "sending": "جارٍ الإرسال…",
+    "backToSignIn": "العودة لتسجيل الدخول",
+    "emailOrPhone": "البريد الإلكتروني أو رقم الجوال",
+    "enterCode": "أدخل رمز التحقق",
+    "forgotHint": "أدخل بريدك الإلكتروني أو رقم الجوال المسجل وسنرسل لك رمز التحقق",
+    "resetHint": "أدخل رمز التحقق المرسل إليك ثم اختر كلمة مرور جديدة",
+    "codeSentNotice": "إذا كان الحساب موجوداً، سيصلك رمز التحقق عبر البريد الإلكتروني خلال دقائق. الرمز صالح لمدة 15 دقيقة.",
+    "resendIn": "لم تستلم الرمز؟ إعادة الإرسال ({n})"
   },
   "home": {
     "title": "الرئيسية",
@@ -260,7 +328,19 @@
     "teacher": "المعلم",
     "children": "طفل",
     "group": "المجموعة",
-    "period": "الفترة"
+    "period": "الفترة",
+    "moveToTrash": "نقل إلى سلة المحذوفات",
+    "info": "معلومات الفصل",
+    "addStudents": "إضافة طلاب للفصل",
+    "enrolledHere": "الأطفال المسجلين في هذا الفصل",
+    "noAvailableStudents": "لا يوجد طلاب متاحون للإضافة",
+    "uploadHint": "انقر لرفع صورة (jpg, png)",
+    "periodMismatch": "الطالب مسجل كـ {student} لكن الفصل {class}",
+    "selectedCount": "{count} طالب محدد",
+    "noHeadTeacher": "هذا الفصل بدون معلم مسؤول",
+    "deleteWarning": "عند الحذف سيبقى هؤلاء الطلاب بدون فصل محدد\nوسيظهر تنبيه عليهم حتى يتم التعيين.",
+    "edit": "تعديل الفصل",
+    "trashNotice": "سيتم نقل فصل \"{name}\" إلى سلة المحذوفات. يمكنك استعادته خلال 30 يوماً."
   },
   "teachers": {
     "title": "المعلم",
@@ -312,7 +392,20 @@
         "lateDeduction": "خصم التأخير",
         "netSalary": "صافي الراتب"
       }
-    }
+    },
+    "emptyTitle": "لا يوجد معلمون بعد",
+    "emptyHint": "ابدأ بإضافة أول معلم لعرضه هنا",
+    "checkedOut": "✓ خرج",
+    "addNew": "إضافة معلم جديد",
+    "data": "بيانات المعلم",
+    "nationalId": "رقم الهوية / الإقامة",
+    "joinDate": "تاريخ الانضمام",
+    "contractEnd": "تاريخ انتهاء العقد",
+    "lateDeductionRate": "نسبة خصم التأخير (%)",
+    "saveAndAdd": "حفظ وإضافة المعلم",
+    "deleteWarning": "عند الحذف ستبقى هذه الفصول بدون معلم مسؤول\nوسيظهر تنبيه عليها حتى يتم التعيين.",
+    "addNewShort": "أضف معلم جديد",
+    "uploadFile": "ارفع ملف المعلمين"
   },
   "statistics": {
     "title": "الإحصائيات",
@@ -464,7 +557,22 @@
     "restoreAll": "استعادة الكل",
     "deleteForever": "حذف نهائي",
     "confirmClearLogs": "هل تريد حذف جميع سجلات الإشعارات؟ لا يمكن التراجع عن هذا الإجراء",
-    "confirmDeleteLog": "هل تريد حذف هذا السجل؟"
+    "confirmDeleteLog": "هل تريد حذف هذا السجل؟",
+    "permissionsLink": "الصلاحيات وحسابات الموظفين ←",
+    "logsLink": "عرض سجل التغييرات ←",
+    "storageLink": "مساحة التخزين ←",
+    "backToSettings": "→ العودة للإعدادات",
+    "passwordChanged": "تم تغيير كلمة المرور بنجاح",
+    "twoFactorHint": "حماية حسابك بطبقة أمان إضافية عبر رمز يُرسل إلى جوالك عند كل تسجيل دخول",
+    "variablesHint": "اكتب المتغير في نص الرسالة وسيتم استبداله تلقائياً بالقيمة الفعلية عند الإرسال.",
+    "needsReassignment": "\nيحتاج {n} طالب إلى تعيين فصل",
+    "restoredStudents": "تم استعادة {n} طالب",
+    "restoredClasses": "تم استعادة {n} فصل",
+    "restoredTeachers": "تم استعادة {n} معلم",
+    "showMore": "عرض المزيد ({n} متبقي)",
+    "restoreAllStudents": "هل تريد استعادة جميع الطلاب المحذوفين؟ ({n} طلاب)",
+    "restoreAllClasses": "هل تريد استعادة جميع الفصول المحذوفة؟ ({n} فصول)",
+    "restoreAllTeachers": "هل تريد استعادة جميع المعلمين المحذوفين؟ ({n} معلمين)"
   },
   "periods": {
     "MORNING": "صباحية",
@@ -514,7 +622,10 @@
     "checkinDesc": "وقت الدخول من الإعدادات",
     "checkoutDesc": "وقت الخروج من الإعدادات",
     "dueDateDesc": "تاريخ انتهاء الاشتراك",
-    "activityNameDesc": "اسم الفعالية"
+    "activityNameDesc": "اسم الفعالية",
+    "checkInTime": "وقت دخول الطالب",
+    "checkOutTime": "وقت خروج الطالب",
+    "activityDate": "تاريخ الفعالية"
   },
   "invoices": {
     "invoice": "فاتورة",
@@ -539,11 +650,21 @@
     "reportType": "نوع التقرير",
     "pickOneFirst": "اختاري طفلاً واحداً على الأقل أولاً",
     "todayReports": "تقارير اليوم",
-    "noneYet": "لا توجد تقارير بعد"
+    "noneYet": "لا توجد تقارير بعد",
+    "loadFailed": "تعذر تحميل التقارير",
+    "noReports": "لا توجد تقارير رعاية بعد",
+    "selectedChildren": "{n} أطفال",
+    "willRecordFor": "سيُسجَّل لـ{label}"
   },
   "calendar": {
     "title": "التقويم",
-    "loadFailed": "تعذر تحميل التقويم"
+    "loadFailed": "تعذر تحميل التقويم",
+    "saveFailed": "تعذر حفظ الحدث",
+    "deleteFailed": "تعذر حذف الحدث",
+    "editEvent": "تعديل الحدث",
+    "newEvent": "حدث جديد",
+    "allClassesHint": "(بدون تحديد = كل الفصول)",
+    "allDay": "طوال اليوم"
   },
   "units": {
     "title": "الوحدات التعليمية",
@@ -559,7 +680,14 @@
     "archive": "أرشفة",
     "hideFiles": "إخفاء الملفات",
     "files": "الملفات",
-    "newUnit": "وحدة جديدة"
+    "newUnit": "وحدة جديدة",
+    "loadFilesFailed": "تعذر تحميل الملفات",
+    "uploadFileFailed": "تعذر رفع الملف",
+    "deleteFileFailed": "تعذر حذف الملف",
+    "noFiles": "لا توجد ملفات",
+    "addFile": "+ إضافة ملف",
+    "classCount": "{n} فصل",
+    "new": "وحدة جديدة"
   },
   "shifts": {
     "title": "المناوبات",
@@ -645,7 +773,18 @@
     "view": "عرض",
     "download": "تنزيل",
     "confirmDeleteExpense": "هل تريد حذف هذا المصروف نهائياً؟ لن يظهر في أي تقارير مستقبلية",
-    "searchByName": "بحث بالاسم..."
+    "searchByName": "بحث بالاسم...",
+    "csvHeader": "البند,التاريخ,المبلغ (ر.س)",
+    "monthlySubscription": "اشتراك شهري",
+    "onePayment": "دفعة مستقلة",
+    "summary": "الملخص المالي",
+    "viewAllRevenue": "عرض جميع الإيرادات",
+    "viewAllPayments": "عرض جميع المدفوعات",
+    "viewAllExpenses": "عرض جميع المصروفات",
+    "stopPayment": "إيقاف الدفع",
+    "pendingCount": "بانتظار الدفع ({n} طالب)",
+    "lateCount": "متأخر ({n} طالب)",
+    "reportFilename": "التقرير-المالي-{period}.xlsx"
   },
   "fields": {
     "fullName": "الاسم الكامل",
@@ -728,7 +867,11 @@
     "hide": "إخفاء",
     "retry": "إعادة المحاولة",
     "now": "الآن",
-    "chooseFile": "اختر ملفاً"
+    "chooseFile": "اختر ملفاً",
+    "password": "كلمة المرور",
+    "child": "الطفل",
+    "employee": "الموظف",
+    "endDate": "تاريخ الانتهاء"
   },
   "teacherProfile": {
     "lateFeeRemoved": "تم حذف رسوم التأخير",
@@ -750,7 +893,15 @@
     "removeLateFee": "حذف رسوم التأخير؟",
     "removeLateFeeAsk": "هل أنت متأكد من حذف رسوم التأخير لهذا المعلم؟",
     "invoice": "الفاتورة",
-    "netSalary": "صافي الراتب"
+    "netSalary": "صافي الراتب",
+    "salaryDetails": "تفاصيل الراتب",
+    "netSalaryColon": "صافي الراتب:",
+    "addQualification": "+ إضافة مؤهل",
+    "sendPaymentReminder": "ارسال تذكير بالدفع",
+    "repeatedLateness": "تأخير متكرر",
+    "retentionNotice": "تُحفظ بيانات الموظف الشخصية لمدة الاحتفاظ المعتمدة ابتداءً من هذا التاريخ، ثم تُزال تلقائياً مع بقاء سجل الرواتب والإحصاءات كاملاً.",
+    "trashNotice": "سيتم نقل ملف {name} إلى سلة المحذوفات.\nيمكنك استعادته خلال 30 يوماً.",
+    "sentTo": "تم الإرسال إلى {to}"
   },
   "careForm": {
     "photoUploadFailed": "تعذر رفع الصورة",
@@ -782,7 +933,8 @@
     "addPhoto": "إضافة صورة",
     "saving": "جارٍ الحفظ…",
     "submit": "إبلاغ",
-    "remove": "إزالة"
+    "remove": "إزالة",
+    "recordedFor": "تم تسجيل التقرير لـ{n} طفل"
   },
   "importFields": {
     "full_name": "اسم الطالب",
@@ -856,7 +1008,16 @@
     "skippedCount": "تم تخطيهم",
     "warningRows": "صفوف بتحذيرات",
     "duplicateGuardians": "أولياء أمور مكررون تم ربطهم",
-    "skippedRowsTitle": "الصفوف التي تم تخطيها:"
+    "skippedRowsTitle": "الصفوف التي تم تخطيها:",
+    "failedCount": "· فشل:",
+    "addedCount": "تمت الإضافة:",
+    "backToStudents": "العودة إلى قائمة الطلاب",
+    "backToTeachers": "العودة إلى قائمة المعلمين",
+    "backAStep": "العودة للخطوة السابقة",
+    "backToReview": "العودة للمراجعة",
+    "downloadErrors": "تنزيل تقرير الأخطاء",
+    "uploadAnother": "رفع ملف آخر",
+    "nothingPartiallySaved": "لم يُحفظ شيء ناقص — يمكنك إعادة المحاولة أو العودة للمراجعة."
   },
   "invoiceForm": {
     "ariaTitle": "نافذة إصدار فاتورة للطالب",
@@ -886,7 +1047,10 @@
     "cancelledStatus": "ملغي",
     "suspendedStatus": "موقف",
     "paidStatus": "مدفوع",
-    "pendingStatus": "بانتظار الدفع"
+    "pendingStatus": "بانتظار الدفع",
+    "addRow": "+ إضافة صف",
+    "addDiscount": "إضافة خصم",
+    "noActivities": "لا توجد فعاليات هذا الشهر"
   },
   "permissions": {
     "title": "الصلاحيات وحسابات الموظفين",
@@ -906,7 +1070,13 @@
     "createFailed": "تعذر إنشاء الحساب",
     "newAccount": "حساب موظف جديد",
     "passwordHint": "(اتركها فارغة لتوليدها وإرسالها بالبريد)",
-    "creating": "جارٍ الإنشاء…"
+    "creating": "جارٍ الإنشاء…",
+    "addAccount": "إضافة حساب",
+    "accountCreated": "تم إنشاء الحساب وإرسال البيانات إلى {email}",
+    "accountCreatedNoEmail": "تم إنشاء الحساب — لكن تعذّر إرسال البريد إلى {email}",
+    "roleUpdated": "تم تحديث دور {name}",
+    "roleSaved": "تم حفظ صلاحيات \"{role}\"",
+    "ownerRoleLocked": "دور المدير يملك كل الصلاحيات ولا يمكن تعديله — تعديله قد يُخرج الحضانة من إعداداتها بلا طريقة للرجوع."
   },
   "studentProfile": {
     "saved": "تم حفظ التغييرات",
@@ -935,7 +1105,13 @@
     "replaceFile": "استبدال الملف؟",
     "deleteEvaluation": "حذف ملف التقييم؟",
     "saveStudent": "حفظ وإضافة الطالب",
-    "addStudentTitle": "إضافة طالب جديد"
+    "addStudentTitle": "إضافة طالب جديد",
+    "deleteEvalConfirm": "سيتم حذف \"{name}\" نهائياً.",
+    "guardianLinked": "تم ربط ولي الأمر الموجود",
+    "retentionNotice": "تُحفظ بيانات الطالب الشخصية لمدة الاحتفاظ المعتمدة ابتداءً من هذا التاريخ، ثم تُزال تلقائياً مع بقاء السجل المالي والإحصائي كاملاً.",
+    "trashNotice": "سيتم نقل ملف {name} إلى سلة المحذوفات.\nيمكنك استعادته خلال 30 يوماً.",
+    "replaceEvalConfirm": "هل ترغب باستبدال الملف \"{name}\"؟\nسيتم حذف الملف الحالي نهائياً.",
+    "invoiceFilename": "فاتورة-{n}.pdf"
   },
   "attendanceTypes": {
     "REGULAR": "دوام منتظم",
@@ -951,6 +1127,73 @@
     "loading": "جاري التحميل...",
     "empty": "لا توجد سجلات",
     "exportFailed": "فشل تصدير السجل",
-    "signIn": "تسجيل الدخول"
+    "signIn": "تسجيل الدخول",
+    "pdfFilename": "سجل-التغييرات.pdf"
+  },
+  "passwordRules": {
+    "lowercase": "حرف إنجليزي صغير",
+    "uppercase": "حرف إنجليزي كبير",
+    "digit": "رقم واحد على الأقل",
+    "symbol": "رمز مثل ! أو @ أو #",
+    "length": "{n} أحرف على الأقل"
+  },
+  "reviewForm": {
+    "accepting": "جاري القبول...",
+    "acceptAndActivate": "قبول وتفعيل"
+  },
+  "storage": {
+    "loadFailed": "تعذر تحميل بيانات التخزين",
+    "purgeFailed": "تعذر إفراغ المساحة",
+    "title": "مساحة التخزين",
+    "breakdown": "تفصيل الاستهلاك",
+    "purge": "إفراغ المساحة المتاحة",
+    "noLimit": "لا يوجد حد للمساحة على خطتك الحالية.",
+    "overQuota": "تم تجاوز المساحة المتاحة — الرفع متوقف حتى تحرير مساحة أو ترقية الخطة.",
+    "purgeHint": "يحذف ملفات PDF المحفوظة للفواتير. الفاتورة نفسها وأرقامها تبقى كاملة، ويمكن إعادة إصدار الملف في أي وقت.",
+    "protectedHint": "ملفات الأطفال وصور التقارير لا تُحذف هنا — لا يمكن إنشاؤها من جديد، فحذفها قرار لكل ملف على حدة.",
+    "purged": "تم حذف {count} ملف فاتورة وتحرير {size}"
+  },
+  "attendance": {
+    "loadFailed": "تعذر تحميل الحضور",
+    "updateFailed": "تعذر تحديث الحضور",
+    "overCapacity": " — تجاوز السعة",
+    "capacity": "السعة:",
+    "present": "حاضر",
+    "noChildren": "لا يوجد أطفال",
+    "loadDataFailed": "تعذر تحميل البيانات. تحقق من الاتصال وحاول مجدداً.",
+    "checkInFailed": "حدث خطأ أثناء تسجيل الحضور",
+    "checkOutFailed": "حدث خطأ أثناء تسجيل الانصراف",
+    "downloadQrCode": "تنزيل QR Code",
+    "downloadQr": "تنزيل QR",
+    "nobodyToShow": "لا يوجد أحد لعرضه",
+    "checkInLabel": "دخول:",
+    "checkOutLabel": "خروج:",
+    "dayEnded": "انتهى الدوام",
+    "previousWeek": "الأسبوع السابق",
+    "thisWeek": "هذا الأسبوع"
+  },
+  "activities": {
+    "loadFailed": "تعذر تحميل بيانات الفعالية كاملة",
+    "notifyGuardians": "إرسال إشعار لأولياء الأمور بالتعديل",
+    "notifyHint": "بدون التفعيل يُحفظ التعديل دون إرسال أي رسالة",
+    "modalLabel": "نافذة إضافة أو تعديل نشاط"
+  },
+  "notifications": {
+    "adminMessages": "رسائل الإدارة",
+    "noMessages": "لا توجد رسائل",
+    "minutes": "{n} د",
+    "hours": "{n} س",
+    "days": "{n} ي",
+    "markAllRead": "تحديد الكل كمقروء"
+  },
+  "alerts": {
+    "subscriptionEnding": "انتهاء اشتراك الطلاب",
+    "suspendedStudents": "تنبيه — طلاب موقوفون",
+    "viewStudentFile": "عرض ملف الطالب",
+    "viewChildFile": "عرض ملف الطفل"
+  },
+  "layout": {
+    "schoolLogo": "شعار المدرسة",
+    "kioskPage": "صفحة تسجيل الدخول والخروج"
   }
 }

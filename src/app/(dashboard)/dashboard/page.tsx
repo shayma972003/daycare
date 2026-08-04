@@ -97,7 +97,7 @@ export default function HomePage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { fetchActivities(); }, [fetchActivities]);
   useEffect(() => { fetchLogs(0, false); }, [fetchLogs]);
@@ -163,7 +163,7 @@ export default function HomePage() {
               >
                 {deletingId ? "..." : t("common.delete")}
               </button>
-              <button onClick={() => setConfirmDeleteId(null)} className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm">إلغاء</button>
+              <button onClick={() => setConfirmDeleteId(null)} className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm">{t("common.cancel")}</button>
             </div>
           </div>
         </div>
@@ -183,7 +183,7 @@ export default function HomePage() {
               >
                 {deletingBulk ? "..." : t("home.clearAll")}
               </button>
-              <button onClick={() => setConfirmBulkDelete(false)} className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm">إلغاء</button>
+              <button onClick={() => setConfirmBulkDelete(false)} className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm">{t("common.cancel")}</button>
             </div>
           </div>
         </div>
@@ -294,7 +294,7 @@ export default function HomePage() {
                       onClick={() => setConfirmBulkDelete(true)}
                       className="px-3 py-1.5 text-sm border border-red-300 text-red-600 rounded-xl hover:bg-red-50 transition-all"
                     >
-                      مسح الكل
+                      {t("common.clearAll")}
                     </button>
                   )}
                 </div>

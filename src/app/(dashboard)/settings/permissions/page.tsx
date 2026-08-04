@@ -68,7 +68,7 @@ export default function PermissionsPage() {
     } catch (err) {
       setError(describeApiError(err, t("permissions.loadFailed")));
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     let cancelled = false;
@@ -88,7 +88,7 @@ export default function PermissionsPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [t]);
 
   const selectedRole = data?.roles.find((r) => r.id === selectedRoleId) ?? null;
   const isOwnerRole = selectedRole?.permissions.includes(OWNER_WILDCARD) ?? false;
@@ -107,7 +107,7 @@ export default function PermissionsPage() {
     setError(null);
     try {
       await axios.put(`/api/staff-accounts/${user.id}`, { roleId });
-      setNotice(`تم تحديث دور ${user.name}`);
+      setNotice(t("permissions.roleUpdated", { name: user.name }));
       await load();
     } catch (err) {
       setError(describeApiError(err, t("permissions.roleChangeFailed")));
@@ -149,7 +149,7 @@ export default function PermissionsPage() {
                   onClick={() => setShowInvite(true)}
                   className="px-4 py-2 bg-[#2F96A6] text-white rounded-xl text-sm font-medium hover:bg-[#26808e]"
                 >
-                  إضافة حساب
+                  {t("permissions.addAccount")}
                 </button>
               </div>
 
@@ -157,7 +157,7 @@ export default function PermissionsPage() {
                 <table className="w-full text-sm min-w-[620px]">
                   <thead>
                     <tr className="border-b border-gray-100 text-gray-500">
-                      {["الاسم", "البريد", "الدور", "الحالة", ""].map((h) => (
+                      {[t("students.columns.name"), t("fields.mail"), t("fields.role"), t("home.status"), ""].map((h) => (
                         <th key={h} className="px-3 py-2 text-right font-medium">{h}</th>
                       ))}
                     </tr>
@@ -167,7 +167,7 @@ export default function PermissionsPage() {
                       <tr key={user.id}>
                         <td className="px-3 py-3 text-[#111111]">
                           {user.name}
-                          {user.isSelf && <span className="text-xs text-gray-400"> (أنت)</span>}
+                          {user.isSelf && <span className="text-xs text-gray-400"> {t("fields.you")}</span>}
                         </td>
                         <td className="px-3 py-3 text-gray-600" dir="ltr">{user.email}</td>
                         <td className="px-3 py-3">
@@ -202,7 +202,7 @@ export default function PermissionsPage() {
                               onClick={() => setDisabled(user, !user.disabled)}
                               className="text-xs text-[#2F96A6] hover:underline"
                             >
-                              {user.disabled ? "تفعيل" : "تعطيل"}
+                              {user.disabled ? t("permissions.enable") : t("permissions.disable")}
                             </button>
                           )}
                         </td>
@@ -236,8 +236,7 @@ export default function PermissionsPage() {
 
               {isOwnerRole ? (
                 <p className="text-sm text-gray-500 bg-gray-50 rounded-xl p-4">
-                  دور المدير يملك كل الصلاحيات ولا يمكن تعديله — تعديله قد يُخرج الحضانة من
-                  إعداداتها بلا طريقة للرجوع.
+                  {t("permissions.ownerRoleLocked")}
                 </p>
               ) : selectedRole ? (
                 /* Keyed on the role id so switching roles remounts the editor
@@ -311,7 +310,7 @@ function RolePermissionEditor({
     setSaving(true);
     try {
       await axios.put(`/api/roles/${role.id}`, { permissions: draft });
-      await onSaved(`تم حفظ صلاحيات "${role.nameAr}"`);
+      await onSaved(t("permissions.roleSaved", { role: role.nameAr }));
     } catch (err) {
       onError(describeApiError(err, t("permissions.saveFailed")));
     } finally {
@@ -354,7 +353,7 @@ function RolePermissionEditor({
         disabled={saving}
         className="mt-5 px-6 py-2 bg-[#2F96A6] text-white rounded-xl text-sm font-medium hover:bg-[#26808e] disabled:opacity-60"
       >
-        {saving ? "جارٍ الحفظ…" : "حفظ الصلاحيات"}
+        {saving ? t("careForm.saving") : t("permissions.savePermissions")}
       </button>
     </>
   );
@@ -393,8 +392,8 @@ function InviteStaffModal({
       });
       onCreated(
         res.data.invitationSent
-          ? `تم إنشاء الحساب وإرسال البيانات إلى ${email}`
-          : `تم إنشاء الحساب — لكن تعذّر إرسال البريد إلى ${email}`
+          ? t("permissions.accountCreated", { email })
+          : t("permissions.accountCreatedNoEmail", { email })
       );
     } catch (err) {
       setError(describeApiError(err, t("permissions.createFailed")));
@@ -448,7 +447,7 @@ function InviteStaffModal({
 
         <div>
           <label className="block text-xs text-gray-500 mb-1">
-            كلمة المرور <span className="text-gray-400">{t("permissions.passwordHint")}</span>
+            {t("fields.password")} <span className="text-gray-400">{t("permissions.passwordHint")}</span>
           </label>
           <input
             value={password}
@@ -465,14 +464,14 @@ function InviteStaffModal({
             onClick={onClose}
             className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm"
           >
-            إلغاء
+            {t("common.cancel")}
           </button>
           <button
             onClick={submit}
             disabled={saving || !name || !email || !roleId || !passwordOk}
             className="px-5 py-2 bg-[#2F96A6] text-white rounded-xl text-sm font-medium hover:bg-[#26808e] disabled:opacity-60"
           >
-            {saving ? "جارٍ الإنشاء…" : "إنشاء"}
+            {saving ? t("permissions.creating") : t("common.create")}
           </button>
         </div>
       </div>

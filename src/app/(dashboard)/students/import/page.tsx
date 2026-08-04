@@ -168,7 +168,7 @@ export default function StudentsImportPage() {
     } finally {
       setLoading(false);
     }
-  }, [sessionId]);
+  }, [sessionId, t]);
 
   // Step 5: auto-run confirm.
   //
@@ -351,7 +351,7 @@ export default function StudentsImportPage() {
                 onClick={handleCancel}
                 className="px-4 py-2 border border-red-300 text-red-600 rounded-xl text-sm hover:bg-red-50 transition-colors"
               >
-                إلغاء
+                {t("common.cancel")}
               </button>
             </div>
           </div>
@@ -373,7 +373,7 @@ export default function StudentsImportPage() {
                   onClick={handleCancelAndReset}
                   className="px-4 py-2 border border-gray-300 text-gray-600 rounded-xl text-sm hover:bg-gray-50 transition-colors"
                 >
-                  رفع ملف آخر
+                  {t("importer.uploadAnother")}
                 </button>
                 <button
                   onClick={handleDetectMapping}
@@ -387,7 +387,7 @@ export default function StudentsImportPage() {
                   onClick={handleCancel}
                   className="px-4 py-2 border border-red-300 text-red-600 rounded-xl text-sm hover:bg-red-50 transition-colors"
                 >
-                  إلغاء
+                  {t("common.cancel")}
                 </button>
               </div>
             </div>
@@ -444,7 +444,7 @@ export default function StudentsImportPage() {
                   onClick={handleCancel}
                   className="px-4 py-2 border border-red-300 text-red-600 rounded-xl text-sm hover:bg-red-50 transition-colors"
                 >
-                  إلغاء
+                  {t("common.cancel")}
                 </button>
               </div>
             </div>
@@ -560,13 +560,13 @@ export default function StudentsImportPage() {
                 onClick={handleCancel}
                 className="px-4 py-2 border border-red-300 text-red-600 rounded-xl text-sm hover:bg-red-50 transition-colors"
               >
-                إلغاء
+                {t("common.cancel")}
               </button>
               <button
                 onClick={() => setStep(3)}
                 className="px-5 py-2 border border-gray-300 text-gray-600 rounded-xl text-sm hover:bg-gray-50 transition-colors"
               >
-                العودة للمراجعة
+                {t("importer.backToReview")}
               </button>
               {sessionData.valid_rows > 0 && (
                 <button
@@ -604,7 +604,7 @@ export default function StudentsImportPage() {
               <p className="text-xl font-bold text-[#111111]">{t("importer.couldNotFinish")}</p>
               <p role="alert" className="text-sm text-red-600">{error}</p>
               <p className="text-xs text-gray-500">
-                لم يُحفظ شيء ناقص — يمكنك إعادة المحاولة أو العودة للمراجعة.
+                {t("importer.nothingPartiallySaved")}
               </p>
             </div>
             <div className="flex gap-3">
@@ -619,13 +619,13 @@ export default function StudentsImportPage() {
                 onClick={() => { confirmCalledRef.current = false; setError(null); setStep(4); }}
                 className="px-5 py-2 border border-gray-300 text-gray-600 rounded-xl text-sm hover:bg-gray-50 transition-colors"
               >
-                العودة للخطوة السابقة
+                {t("importer.backAStep")}
               </button>
               <button
                 onClick={() => router.push("/students")}
                 className="px-5 py-2 border border-gray-300 text-gray-600 rounded-xl text-sm hover:bg-gray-50 transition-colors"
               >
-                إنهاء
+                {t("common.finish")}
               </button>
             </div>
           </div>
@@ -702,14 +702,14 @@ export default function StudentsImportPage() {
                   )}
                   className="px-4 py-2 border border-gray-300 text-gray-600 rounded-xl text-sm hover:bg-gray-50 transition-colors"
                 >
-                  تنزيل تقرير الأخطاء
+                  {t("importer.downloadErrors")}
                 </button>
               )}
               <button
                 onClick={() => router.push("/students")}
                 className="px-5 py-2 bg-[#111111] text-white rounded-xl text-sm font-medium hover:bg-[#243060] transition-colors"
               >
-                العودة إلى قائمة الطلاب
+                {t("importer.backToStudents")}
               </button>
             </div>
           </div>

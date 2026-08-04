@@ -65,7 +65,7 @@ export default function CarePage() {
     } catch (err) {
       setError(describeApiError(err, t("care.loadTodayFailed")));
     }
-  }, [today]);
+  }, [today, t]);
 
   useEffect(() => {
     let cancelled = false;
@@ -94,7 +94,7 @@ export default function CarePage() {
     return () => {
       cancelled = true;
     };
-  }, [today]);
+  }, [today, t]);
 
   const visible = classFilter
     ? students.filter((student) => student.classId === classFilter)
@@ -117,7 +117,7 @@ export default function CarePage() {
   const selectedLabel =
     selectedIds.length === 1
       ? (students.find((s) => s.id === selectedIds[0])?.name ?? "")
-      : `${selectedIds.length} أطفال`;
+      : t("care.selectedChildren", { n: String(selectedIds.length) });
 
   return (
     <div dir="rtl" className="min-h-screen bg-brand-bg">
@@ -159,14 +159,14 @@ export default function CarePage() {
                 onClick={selectAllVisible}
                 className="px-3 py-2 text-sm text-[#2F96A6] hover:underline"
               >
-                تحديد الكل
+                {t("common.selectAll")}
               </button>
               {selected.size > 0 && (
                 <button
                   onClick={() => setSelected(new Set())}
                   className="px-3 py-2 text-sm text-gray-500 hover:underline"
                 >
-                  إلغاء التحديد
+                  {t("common.clearSelection")}
                 </button>
               )}
             </div>
@@ -213,7 +213,7 @@ export default function CarePage() {
           <p className="text-xs text-gray-500 mb-4">
             {selected.size === 0
               ? t("care.pickOneFirst")
-              : `سيُسجَّل لـ${selectedLabel}`}
+              : t("care.willRecordFor", { label: selectedLabel })}
           </p>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

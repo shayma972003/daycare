@@ -107,7 +107,7 @@ export function CalendarEventModal({
       }
       onSaved();
     } catch (err) {
-      setError(describeApiError(err, "تعذر حفظ الحدث"));
+      setError(describeApiError(err, t("calendar.saveFailed")));
       setSaving(false);
     }
   }
@@ -120,7 +120,7 @@ export function CalendarEventModal({
       await axios.delete(`/api/calendar/${event.id}`);
       onSaved();
     } catch (err) {
-      setError(describeApiError(err, "تعذر حذف الحدث"));
+      setError(describeApiError(err, t("calendar.deleteFailed")));
       setDeleting(false);
     }
   }
@@ -133,7 +133,7 @@ export function CalendarEventModal({
       >
         <div className="sticky top-0 bg-white border-b border-gray-100 px-5 py-4 flex items-center">
           <h3 className="font-bold text-[#111111] flex-1">
-            {isEdit ? "تعديل الحدث" : "حدث جديد"}
+            {isEdit ? t("calendar.editEvent") : t("calendar.newEvent")}
           </h3>
           <button onClick={onClose} className="text-gray-400 text-xl leading-none px-2">
             ×
@@ -174,7 +174,7 @@ export function CalendarEventModal({
 
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1.5">
-              {isAnnouncement ? "التاريخ" : "من"}
+              {isAnnouncement ? t("finance.date") : t("common.from")}
             </label>
             <input
               type="datetime-local"
@@ -194,7 +194,7 @@ export function CalendarEventModal({
                   onChange={(e) => setAllDay(e.target.checked)}
                   className="accent-[#2F96A6]"
                 />
-                طوال اليوم
+                {t("calendar.allDay")}
               </label>
 
               {!allDay && (
@@ -217,7 +217,7 @@ export function CalendarEventModal({
                   onChange={(e) => setTeacherId(e.target.value)}
                   className={inputCls}
                 >
-                  <option value="">بدون</option>
+                  <option value="">{t("common.none")}</option>
                   {teachers.map((teacher) => (
                     <option key={teacher.id} value={teacher.id}>{teacher.name}</option>
                   ))}
@@ -226,7 +226,7 @@ export function CalendarEventModal({
 
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1.5">
-                  الفصول <span className="text-gray-400">(بدون تحديد = كل الفصول)</span>
+                  {t("nav.classes")} <span className="text-gray-400">{t("calendar.allClassesHint")}</span>
                 </label>
                 <div className="flex flex-wrap gap-2">
                   {classes.map((item) => (
@@ -274,7 +274,7 @@ export function CalendarEventModal({
             disabled={saving || !title.trim() || !startAt}
             className="flex-1 px-5 py-3 bg-[#2F96A6] text-white rounded-xl text-sm font-bold hover:bg-[#26808e] disabled:opacity-60"
           >
-            {saving ? "جارٍ الحفظ…" : "حفظ"}
+            {saving ? t("careForm.saving") : t("common.save")}
           </button>
           {isEdit && (
             <button
@@ -282,14 +282,14 @@ export function CalendarEventModal({
               disabled={deleting}
               className="px-5 py-3 border border-red-200 text-red-600 rounded-xl text-sm hover:bg-red-50 disabled:opacity-60"
             >
-              {deleting ? "..." : "حذف"}
+              {deleting ? "..." : t("common.delete")}
             </button>
           )}
           <button
             onClick={onClose}
             className="px-5 py-3 border border-gray-200 text-gray-600 rounded-xl text-sm"
           >
-            إلغاء
+            {t("common.cancel")}
           </button>
         </div>
       </div>

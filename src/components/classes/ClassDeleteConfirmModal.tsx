@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { useT } from "@/lib/i18n-provider";
 
 interface Props {
   isOpen: boolean;
@@ -21,6 +22,7 @@ export function ClassDeleteConfirmModal({
   onConfirm,
   onCancel,
 }: Props) {
+  const t = useT();
   useEffect(() => {
     if (!isOpen) return;
     document.body.style.overflow = "hidden";
@@ -60,12 +62,12 @@ export function ClassDeleteConfirmModal({
               هذا الفصل يحتوي على {assignedStudentsCount} طلاب.
             </h2>
             <p className="text-sm text-gray-600 whitespace-pre-line">
-              {"عند الحذف سيبقى هؤلاء الطلاب بدون فصل محدد\nوسيظهر تنبيه عليهم حتى يتم التعيين."}
+              {t("classes.deleteWarning")}
             </p>
           </>
         ) : (
           <h2 id="class-delete-confirm-title" className="text-sm font-medium text-[#111111]">
-            {`سيتم نقل فصل "${className}" إلى سلة المحذوفات. يمكنك استعادته خلال 30 يوماً.`}
+            {t("classes.trashNotice", { name: className })}
           </h2>
         )}
 
@@ -85,7 +87,7 @@ export function ClassDeleteConfirmModal({
             disabled={deleting}
             className="px-5 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {deleting ? "..." : "حذف"}
+            {deleting ? "..." : t("common.delete")}
           </button>
           <button
             type="button"
@@ -96,7 +98,7 @@ export function ClassDeleteConfirmModal({
             disabled={deleting}
             className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm hover:bg-gray-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            إلغاء
+            {t("common.cancel")}
           </button>
         </div>
       </div>

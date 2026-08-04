@@ -1,6 +1,8 @@
 {
   "app": {
-    "name": "Daycare Management System"
+    "name": "Daycare Management System",
+    "title": "Nursery Management System",
+    "description": "A complete system for running a nursery"
   },
   "nav": {
     "home": "Home",
@@ -12,18 +14,19 @@
     "care": "Care Reports",
     "calendar": "Calendar",
     "units": "Units",
-    "shifts": "Shifts"
+    "shifts": "Shifts",
+    "attendance": "Attendance"
   },
   "common": {
-    "save": "Save Changes",
+    "save": "Save",
     "cancel": "Cancel",
     "delete": "Delete",
     "edit": "Edit",
     "add": "Add",
     "search": "Search",
     "filter": "Filter",
-    "loading": "Loading...",
-    "error": "An error occurred",
+    "loading": "Loading…",
+    "error": "Error",
     "success": "Success",
     "confirm": "Confirm",
     "close": "Close",
@@ -68,7 +71,39 @@
     "to": "To",
     "create": "Create",
     "newestFirst": "Newest first",
-    "oldestFirst": "Oldest first"
+    "oldestFirst": "Oldest first",
+    "none": "None",
+    "uploadFailed": "Image upload failed",
+    "working": "Working…",
+    "required": "This field is required",
+    "preview": "Preview",
+    "fileTooLarge": "File is too large — the maximum allowed size is 100 MB",
+    "confirmDelete": "Confirm deletion",
+    "now": "now",
+    "language": "Language",
+    "view": "View",
+    "next": "Next",
+    "previous": "Previous",
+    "today": "Today",
+    "week": "Week",
+    "clearAll": "Clear all",
+    "selectAll": "Select all",
+    "clearSelection": "Clear selection",
+    "restore": "Restore",
+    "restoreAll": "Restore all",
+    "deletePermanently": "Delete permanently",
+    "retry": "Try again",
+    "recalculate": "Recalculate",
+    "ok": "OK",
+    "remove": "Remove",
+    "replace": "Replace",
+    "run": "Run",
+    "finish": "Finish",
+    "imagePlaceholder": "[image]",
+    "irreversibleConfirm": "Are you sure? This cannot be undone.",
+    "deleteImage": "Delete image",
+    "removeImage": "Remove image",
+    "back": "Back"
   },
   "auth": {
     "login": "Login",
@@ -91,7 +126,40 @@
     "codeSentTo": "The code was sent to",
     "didNotGetIt": "Didn’t get it? Send it again",
     "signInTitle": "Sign in",
-    "signIn": "Sign in"
+    "signIn": "Sign in",
+    "enterEmailOrPhone": "Enter your email or mobile number",
+    "passwordsDiffer": "The password and its confirmation do not match",
+    "genericError": "Something went wrong. Please try again.",
+    "genericErrorAlt": "Something went wrong. Please try again.",
+    "setNewPassword": "Set a new password",
+    "code": "Verification code",
+    "newPassword": "New password",
+    "confirmPassword": "Confirm the password",
+    "setPassword": "Set the password",
+    "resendCode": "Send the code again",
+    "registerTitle": "Create an account",
+    "createAccount": "Create the account",
+    "schoolNameRequired": "The nursery name is required",
+    "invalidEmail": "That email address is not valid",
+    "confirmRequired": "Please confirm the password",
+    "forgotTitle": "Forgotten your password?",
+    "identifierHint": "admin@school.com or 05xxxxxxxx",
+    "sendCode": "Send the code",
+    "sent": "Sent",
+    "schoolNamePlaceholder": "Al-Noor Nursery",
+    "schoolName": "Nursery name",
+    "verifying": "Verifying…",
+    "signingIn": "Signing in…",
+    "registering": "Registering…",
+    "updating": "Updating…",
+    "sending": "Sending…",
+    "backToSignIn": "Back to sign in",
+    "emailOrPhone": "Email or mobile number",
+    "enterCode": "Enter the verification code",
+    "forgotHint": "Enter your registered email or mobile number and we will send you a verification code.",
+    "resetHint": "Enter the code you received, then choose a new password.",
+    "codeSentNotice": "If the account exists, a code will arrive by email within a few minutes. It is valid for 15 minutes.",
+    "resendIn": "Didn't get the code? Resend ({n})"
   },
   "home": {
     "title": "Home",
@@ -260,7 +328,19 @@
     "teacher": "Teacher",
     "children": "children",
     "group": "Group",
-    "period": "Period"
+    "period": "Period",
+    "moveToTrash": "Move to trash",
+    "info": "Class information",
+    "addStudents": "Add children to the class",
+    "enrolledHere": "Children enrolled in this class",
+    "noAvailableStudents": "No children available to add",
+    "uploadHint": "Click to upload an image (jpg, png)",
+    "periodMismatch": "The child is registered as {student} but the class is {class}",
+    "selectedCount": "{count} selected",
+    "noHeadTeacher": "This class has no lead teacher",
+    "deleteWarning": "After deletion these children will have no class,\nand a warning will show on them until one is assigned.",
+    "edit": "Edit class",
+    "trashNotice": "The class \"{name}\" will be moved to the trash. You can restore it within 30 days."
   },
   "teachers": {
     "title": "Teachers",
@@ -312,7 +392,20 @@
         "lateDeduction": "Late Deduction",
         "netSalary": "Net Salary"
       }
-    }
+    },
+    "emptyTitle": "No teachers yet",
+    "emptyHint": "Add your first teacher to see them here",
+    "checkedOut": "✓ Out",
+    "addNew": "Add a new teacher",
+    "data": "Teacher details",
+    "nationalId": "National ID / Iqama",
+    "joinDate": "Join date",
+    "contractEnd": "Contract end date",
+    "lateDeductionRate": "Late deduction rate (%)",
+    "saveAndAdd": "Save and add the teacher",
+    "deleteWarning": "After deletion these classes will have no lead teacher,\nand a warning will show on them until one is assigned.",
+    "addNewShort": "Add a new teacher",
+    "uploadFile": "Upload the teachers file"
   },
   "statistics": {
     "title": "Statistics",
@@ -464,7 +557,22 @@
     "restoreAll": "Restore all",
     "deleteForever": "Delete permanently",
     "confirmClearLogs": "Delete every notification record? This cannot be undone.",
-    "confirmDeleteLog": "Delete this record?"
+    "confirmDeleteLog": "Delete this record?",
+    "permissionsLink": "Permissions and staff accounts →",
+    "logsLink": "View the change log →",
+    "storageLink": "Storage →",
+    "backToSettings": "← Back to settings",
+    "passwordChanged": "Password changed successfully",
+    "twoFactorHint": "Protect your account with an extra layer: a code sent to your phone at every sign-in.",
+    "variablesHint": "Write the variable in the message and it is replaced with the real value when sent.",
+    "needsReassignment": "\n{n} children need a class assigned",
+    "restoredStudents": "{n} children restored",
+    "restoredClasses": "{n} classes restored",
+    "restoredTeachers": "{n} teachers restored",
+    "showMore": "Show more ({n} remaining)",
+    "restoreAllStudents": "Restore all deleted children? ({n})",
+    "restoreAllClasses": "Restore all deleted classes? ({n})",
+    "restoreAllTeachers": "Restore all deleted teachers? ({n})"
   },
   "periods": {
     "MORNING": "Morning",
@@ -514,7 +622,10 @@
     "checkinDesc": "Check-in time from settings",
     "checkoutDesc": "Check-out time from settings",
     "dueDateDesc": "Subscription end date",
-    "activityNameDesc": "Activity name"
+    "activityNameDesc": "Activity name",
+    "checkInTime": "Student check-in time",
+    "checkOutTime": "Student check-out time",
+    "activityDate": "Activity date"
   },
   "invoices": {
     "invoice": "Invoice",
@@ -539,11 +650,21 @@
     "reportType": "Report type",
     "pickOneFirst": "Choose at least one child first",
     "todayReports": "Today’s reports",
-    "noneYet": "No reports yet"
+    "noneYet": "No reports yet",
+    "loadFailed": "Could not load the reports",
+    "noReports": "No care reports yet",
+    "selectedChildren": "{n} children",
+    "willRecordFor": "Will be recorded for {label}"
   },
   "calendar": {
     "title": "Calendar",
-    "loadFailed": "Could not load the calendar"
+    "loadFailed": "Could not load the calendar",
+    "saveFailed": "Could not save the event",
+    "deleteFailed": "Could not delete the event",
+    "editEvent": "Edit event",
+    "newEvent": "New event",
+    "allClassesHint": "(leave empty = all classes)",
+    "allDay": "All day"
   },
   "units": {
     "title": "Teaching units",
@@ -559,7 +680,14 @@
     "archive": "Archive",
     "hideFiles": "Hide files",
     "files": "Files",
-    "newUnit": "New unit"
+    "newUnit": "New unit",
+    "loadFilesFailed": "Could not load the files",
+    "uploadFileFailed": "Could not upload the file",
+    "deleteFileFailed": "Could not delete the file",
+    "noFiles": "No files",
+    "addFile": "+ Add file",
+    "classCount": "{n} classes",
+    "new": "New unit"
   },
   "shifts": {
     "title": "Shifts",
@@ -645,7 +773,18 @@
     "view": "View",
     "download": "Download",
     "confirmDeleteExpense": "Delete this expense permanently? It will not appear in any future report.",
-    "searchByName": "Search by name…"
+    "searchByName": "Search by name…",
+    "csvHeader": "Item,Date,Amount (SAR)",
+    "monthlySubscription": "Monthly subscription",
+    "onePayment": "One-off payment",
+    "summary": "Financial summary",
+    "viewAllRevenue": "View all revenue",
+    "viewAllPayments": "View all payments",
+    "viewAllExpenses": "View all expenses",
+    "stopPayment": "Stop payment",
+    "pendingCount": "Awaiting payment ({n})",
+    "lateCount": "Late ({n})",
+    "reportFilename": "financial-report-{period}.xlsx"
   },
   "fields": {
     "fullName": "Full name",
@@ -728,7 +867,11 @@
     "hide": "Hide",
     "retry": "Try again",
     "now": "Now",
-    "chooseFile": "Choose a file"
+    "chooseFile": "Choose a file",
+    "password": "Password",
+    "child": "Child",
+    "employee": "Employee",
+    "endDate": "End date"
   },
   "teacherProfile": {
     "lateFeeRemoved": "The late fee was removed",
@@ -750,7 +893,15 @@
     "removeLateFee": "Remove the late fee?",
     "removeLateFeeAsk": "Remove this staff member’s late fee?",
     "invoice": "Invoice",
-    "netSalary": "Net salary"
+    "netSalary": "Net salary",
+    "salaryDetails": "Salary details",
+    "netSalaryColon": "Net salary:",
+    "addQualification": "+ Add a qualification",
+    "sendPaymentReminder": "Send a payment reminder",
+    "repeatedLateness": "Repeated lateness",
+    "retentionNotice": "The employee's personal data is kept for the approved retention period starting from this date, then removed automatically — the payroll and statistics record stays complete.",
+    "trashNotice": "{name}'s file will be moved to the trash.\nYou can restore it within 30 days.",
+    "sentTo": "Sent to {to}"
   },
   "careForm": {
     "photoUploadFailed": "Could not upload the photo",
@@ -782,7 +933,8 @@
     "addPhoto": "Add a photo",
     "saving": "Saving…",
     "submit": "File it",
-    "remove": "Remove"
+    "remove": "Remove",
+    "recordedFor": "Report recorded for {n} children"
   },
   "importFields": {
     "full_name": "Child name",
@@ -856,7 +1008,16 @@
     "skippedCount": "Skipped",
     "warningRows": "Rows with warnings",
     "duplicateGuardians": "Duplicate guardians linked",
-    "skippedRowsTitle": "Rows that were skipped:"
+    "skippedRowsTitle": "Rows that were skipped:",
+    "failedCount": "· failed:",
+    "addedCount": "Added:",
+    "backToStudents": "Back to the children list",
+    "backToTeachers": "Back to the teachers list",
+    "backAStep": "Back a step",
+    "backToReview": "Back to review",
+    "downloadErrors": "Download the error report",
+    "uploadAnother": "Upload another file",
+    "nothingPartiallySaved": "Nothing was partially saved — you can retry or go back to review."
   },
   "invoiceForm": {
     "ariaTitle": "Issue an invoice for this child",
@@ -886,7 +1047,10 @@
     "cancelledStatus": "Cancelled",
     "suspendedStatus": "Suspended",
     "paidStatus": "Paid",
-    "pendingStatus": "Awaiting payment"
+    "pendingStatus": "Awaiting payment",
+    "addRow": "+ Add row",
+    "addDiscount": "Add a discount",
+    "noActivities": "No activities this month"
   },
   "permissions": {
     "title": "Permissions and staff accounts",
@@ -906,7 +1070,13 @@
     "createFailed": "Could not create the account",
     "newAccount": "New staff account",
     "passwordHint": "(leave empty to generate one and email it)",
-    "creating": "Creating…"
+    "creating": "Creating…",
+    "addAccount": "Add account",
+    "accountCreated": "Account created and the details were sent to {email}",
+    "accountCreatedNoEmail": "Account created — but the email to {email} could not be sent",
+    "roleUpdated": "{name}'s role was updated",
+    "roleSaved": "Permissions for \"{role}\" were saved",
+    "ownerRoleLocked": "The owner role holds every permission and cannot be edited — changing it could lock the nursery out of its own settings with no way back."
   },
   "studentProfile": {
     "saved": "Changes saved",
@@ -935,7 +1105,13 @@
     "replaceFile": "Replace the file?",
     "deleteEvaluation": "Delete the evaluation file?",
     "saveStudent": "Save and add the child",
-    "addStudentTitle": "Add a child"
+    "addStudentTitle": "Add a child",
+    "deleteEvalConfirm": "\"{name}\" will be permanently deleted.",
+    "guardianLinked": "Existing guardian linked",
+    "retentionNotice": "The child's personal data is kept for the approved retention period starting from this date, then removed automatically — the financial and statistical record stays complete.",
+    "trashNotice": "{name}'s file will be moved to the trash.\nYou can restore it within 30 days.",
+    "replaceEvalConfirm": "Replace the file \"{name}\"?\nThe current file will be permanently deleted.",
+    "invoiceFilename": "invoice-{n}.pdf"
   },
   "attendanceTypes": {
     "REGULAR": "Regular",
@@ -951,6 +1127,73 @@
     "loading": "Loading…",
     "empty": "No records",
     "exportFailed": "Could not export the log",
-    "signIn": "Sign-in"
+    "signIn": "Sign-in",
+    "pdfFilename": "change-log.pdf"
+  },
+  "passwordRules": {
+    "lowercase": "A lower-case letter",
+    "uppercase": "An upper-case letter",
+    "digit": "At least one digit",
+    "symbol": "A symbol such as ! @ #",
+    "length": "At least {n} characters"
+  },
+  "reviewForm": {
+    "accepting": "Accepting…",
+    "acceptAndActivate": "Accept and activate"
+  },
+  "storage": {
+    "loadFailed": "Could not load storage data",
+    "purgeFailed": "Could not free the space",
+    "title": "Storage",
+    "breakdown": "Usage breakdown",
+    "purge": "Free reclaimable space",
+    "noLimit": "Your current plan has no storage limit.",
+    "overQuota": "Storage limit exceeded — uploads are paused until space is freed or the plan is upgraded.",
+    "purgeHint": "Deletes the stored invoice PDFs. The invoices and their numbers stay intact, and a file can be reissued at any time.",
+    "protectedHint": "Children's files and report photos are not deleted here — they cannot be recreated, so each one is a separate decision.",
+    "purged": "Deleted {count} invoice files and freed {size}"
+  },
+  "attendance": {
+    "loadFailed": "Could not load attendance",
+    "updateFailed": "Could not update attendance",
+    "overCapacity": " — over capacity",
+    "capacity": "Capacity:",
+    "present": "present",
+    "noChildren": "No children",
+    "loadDataFailed": "Could not load the data. Check your connection and try again.",
+    "checkInFailed": "Something went wrong recording the check-in",
+    "checkOutFailed": "Something went wrong recording the check-out",
+    "downloadQrCode": "Download QR code",
+    "downloadQr": "Download QR",
+    "nobodyToShow": "Nobody to show",
+    "checkInLabel": "In:",
+    "checkOutLabel": "Out:",
+    "dayEnded": "Day ended",
+    "previousWeek": "Previous week",
+    "thisWeek": "This week"
+  },
+  "activities": {
+    "loadFailed": "Could not load the full activity details",
+    "notifyGuardians": "Notify guardians of the change",
+    "notifyHint": "Left off, the change is saved without sending any message.",
+    "modalLabel": "Add or edit an activity"
+  },
+  "notifications": {
+    "adminMessages": "Messages from admin",
+    "noMessages": "No messages",
+    "minutes": "{n}m",
+    "hours": "{n}h",
+    "days": "{n}d",
+    "markAllRead": "Mark all as read"
+  },
+  "alerts": {
+    "subscriptionEnding": "Children's subscriptions ending",
+    "suspendedStudents": "Alert — suspended children",
+    "viewStudentFile": "Open the child's file",
+    "viewChildFile": "Open the child's file"
+  },
+  "layout": {
+    "schoolLogo": "School logo",
+    "kioskPage": "Check-in / check-out page"
   }
 }

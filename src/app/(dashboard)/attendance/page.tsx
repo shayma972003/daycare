@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import axios from "axios";
 import { AttendanceBoard } from "@/components/attendance/AttendanceBoard";
 import { WeeklyAttendanceGrid } from "@/components/attendance/WeeklyAttendanceGrid";
+import { useT } from "@/lib/i18n-provider";
 
 interface ClassItem {
   id: string;
@@ -21,6 +22,7 @@ interface ClassItem {
  * trying to serve both.
  */
 export default function AttendancePage() {
+  const t = useT();
   const { data: session, status } = useSession();
   const schoolName = (session?.user as { schoolName?: string } | undefined)?.schoolName;
 
@@ -62,7 +64,7 @@ export default function AttendancePage() {
               tab === "today" ? "bg-white shadow text-[#111111]" : "text-gray-500"
             }`}
           >
-            اليوم
+            {t("common.today")}
           </button>
           <button
             onClick={() => setTab("week")}
@@ -70,7 +72,7 @@ export default function AttendancePage() {
               tab === "week" ? "bg-white shadow text-[#111111]" : "text-gray-500"
             }`}
           >
-            الأسبوع
+            {t("common.week")}
           </button>
         </div>
 
@@ -80,7 +82,7 @@ export default function AttendancePage() {
             onChange={(e) => setClassFilter(e.target.value)}
             className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
           >
-            <option value="">كل الفصول</option>
+            <option value="">{t("common.allClasses")}</option>
             {classes.map((item) => (
               <option key={item.id} value={item.id}>
                 {item.name}

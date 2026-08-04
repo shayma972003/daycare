@@ -89,6 +89,9 @@ export function TeacherInvoiceModal({ open, teacherId, onClose, onIssued }: Teac
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [issuedAt, setIssuedAt] = useState("");
   const [dueDate, setDueDate] = useState("");
+    // The Arabic literal, not t("paymentStatus.PAID"): this value is posted to
+  // the API and matched against the <option value="…"> list below, both of
+  // which are Arabic. Translating it would write "Paid" into the column.
   const [invoiceStatus, setInvoiceStatus] = useState("مدفوع");
 
   // Teacher fields
@@ -128,7 +131,7 @@ export function TeacherInvoiceModal({ open, teacherId, onClose, onIssued }: Teac
 
         const salaryRow: TeacherLineItem = {
           id: "salary",
-          description: "الراتب الشهري",
+          description: t("teachers.profile.monthlySalary"),
           lateHours: "",
           price: d.teacher.monthly_salary,
           isDeduction: false,
@@ -136,7 +139,7 @@ export function TeacherInvoiceModal({ open, teacherId, onClose, onIssued }: Teac
         };
         const deductionRow: TeacherLineItem = {
           id: "deduction",
-          description: "خصم التأخير",
+          description: t("teachers.profile.salaryCalc.lateDeduction"),
           lateHours: d.teacher.total_late_hours_this_month,
           price: d.teacher.late_deduction_rate,
           isDeduction: true,
@@ -146,7 +149,7 @@ export function TeacherInvoiceModal({ open, teacherId, onClose, onIssued }: Teac
       })
       .catch(() => setError(t("common.loadFailed")))
       .finally(() => setLoading(false));
-  }, [open, teacherId]);
+  }, [open, teacherId, t]);
 
   function updateItem(id: string, field: keyof TeacherLineItem, value: unknown) {
     setLineItems((prev) => prev.map((r) => (r.id === id ? { ...r, [field]: value } : r)));
@@ -353,13 +356,13 @@ export function TeacherInvoiceModal({ open, teacherId, onClose, onIssued }: Teac
 
               {/* Line items table */}
               <div>
-                <h3 className="text-sm font-bold text-[#111111] mb-3">تفاصيل الراتب</h3>
+                <h3 className="text-sm font-bold text-[#111111] mb-3">{t("teacherProfile.salaryDetails")}</h3>
                 <div className="border border-gray-200 rounded-xl overflow-hidden">
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 border-b border-gray-100 text-gray-500">
                       <tr>
                         <th className="px-3 py-2 text-right">{t("fields.description")}</th>
-                        <th className="px-3 py-2 text-right w-28">ساعات التأخير</th>
+                        <th className="px-3 py-2 text-right w-28">{t("students.profile.lateHours")}</th>
                         <th className="px-3 py-2 text-right w-24">{t("finance.price")}</th>
                         <th className="px-3 py-2 text-right w-28">{t("fields.total")}</th>
                         <th className="px-3 py-2 w-8"></th>
@@ -432,10 +435,10 @@ export function TeacherInvoiceModal({ open, teacherId, onClose, onIssued }: Teac
                       onClick={addLineItem}
                       className="text-sm text-[#F64651] hover:underline font-medium"
                     >
-                      + إضافة صف
+                      {t("invoiceForm.addRow")}
                     </button>
                     <span className="text-sm font-bold text-[#111111]">
-                      صافي الراتب: {netSalary.toFixed(2)} ر.س
+                      {t("teacherProfile.netSalaryColon")} {netSalary.toFixed(2)} ر.س
                     </span>
                   </div>
                 </div>
@@ -444,7 +447,7 @@ export function TeacherInvoiceModal({ open, teacherId, onClose, onIssued }: Teac
               {/* Net salary summary */}
               <div className="flex justify-end">
                 <div className="bg-gray-50 border border-gray-100 rounded-xl px-6 py-3">
-                  <span className="text-sm text-gray-500">صافي الراتب: </span>
+                  <span className="text-sm text-gray-500">{t("teacherProfile.netSalaryColon")} </span>
                   <span className="text-lg font-bold text-coral">{netSalary.toFixed(2)} ر.س</span>
                 </div>
               </div>
@@ -457,14 +460,14 @@ export function TeacherInvoiceModal({ open, teacherId, onClose, onIssued }: Teac
                   disabled={generating}
                   className="flex-1 py-2.5 bg-[#F64651] text-white rounded-xl font-bold text-sm hover:bg-[#D93A44] transition-colors disabled:opacity-60"
                 >
-                  {generating ? "جاري الإصدار..." : "اصدر فاتورة"}
+                  {generating ? t("invoiceForm.issuing") : t("invoiceForm.issueAction")}
                 </button>
                 <button
                   type="button"
                   onClick={onClose}
                   className="px-5 py-2.5 border border-red-300 text-red-600 rounded-xl text-sm hover:bg-red-50 transition-colors"
                 >
-                  إلغاء
+                  {t("common.cancel")}
                 </button>
               </div>
             </div>

@@ -229,7 +229,7 @@ export default function SettingsPage() {
       })
       .catch(() => setSettingsError(t("settings.loadFailed")))
       .finally(() => setLoadingSettings(false));
-  }, []);
+  }, [t]);
 
   // Fetch initial notification logs (reminders + other, exclude activity logs).
   // Starts true in useState — see the note on the settings fetch above.
@@ -490,17 +490,17 @@ export default function SettingsPage() {
         const res = await axios.post<{ restored: number; needsReassignment: number }>(
           "/api/trash/restore-all/students"
         );
-        let msg = `تم استعادة ${res.data.restored} طالب`;
+        let msg = t("settings.restoredStudents", { n: String(res.data.restored) });
         if (res.data.needsReassignment > 0) {
-          msg += `\nيحتاج ${res.data.needsReassignment} طالب إلى تعيين فصل`;
+          msg += t("settings.needsReassignment", { n: String(res.data.needsReassignment) });
         }
         setRestoreAllMsg(msg);
       } else if (trashTab === "teachers") {
         const res = await axios.post<{ restored: number }>("/api/trash/restore-all/teachers");
-        setRestoreAllMsg(`تم استعادة ${res.data.restored} معلم`);
+        setRestoreAllMsg(t("settings.restoredTeachers", { n: String(res.data.restored) }));
       } else {
         const res = await axios.post<{ restored: number }>("/api/trash/restore-all/classes");
-        setRestoreAllMsg(`تم استعادة ${res.data.restored} فصل`);
+        setRestoreAllMsg(t("settings.restoredClasses", { n: String(res.data.restored) }));
       }
       await loadTrash(trashTab);
     } catch {
@@ -578,7 +578,7 @@ export default function SettingsPage() {
       { id: "message-template", title: t("settings.messageTemplate.title") },
       { id: "notification-log", title: t("settings.notificationLog.title") },
     ],
-    []
+    [t]
   );
 
   const filteredSections = useMemo(() => {
@@ -647,7 +647,7 @@ export default function SettingsPage() {
                     onClick={() => setShowActivateModal(false)}
                     className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm"
                   >
-                    إلغاء
+                    {t("common.cancel")}
                   </button>
                 </div>
               </>
@@ -679,7 +679,7 @@ export default function SettingsPage() {
                     onClick={() => setShowActivateModal(false)}
                     className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm"
                   >
-                    إلغاء
+                    {t("common.cancel")}
                   </button>
                 </div>
               </>
@@ -718,7 +718,7 @@ export default function SettingsPage() {
                 onClick={() => setShowDeactivateModal(false)}
                 className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm"
               >
-                إلغاء
+                {t("common.cancel")}
               </button>
             </div>
           </div>
@@ -730,7 +730,7 @@ export default function SettingsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl shadow-xl p-6 w-96 text-center space-y-4">
             <p className="text-sm font-medium text-[#111111]">
-              هل أنت متأكد؟ لا يمكن التراجع عن هذا الإجراء
+              {t("common.irreversibleConfirm")}
             </p>
             <div className="flex gap-3 justify-center">
               <button
@@ -744,7 +744,7 @@ export default function SettingsPage() {
                 onClick={() => setConfirmPermanentDelete(null)}
                 className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm"
               >
-                إلغاء
+                {t("common.cancel")}
               </button>
             </div>
           </div>
@@ -757,10 +757,10 @@ export default function SettingsPage() {
           <div className="bg-white rounded-2xl shadow-xl p-6 w-96 text-center space-y-4">
             <p className="text-sm font-medium text-[#111111]">
               {trashTab === "students"
-                ? `هل تريد استعادة جميع الطلاب المحذوفين؟ (${trashStudents.length} طلاب)`
+                ? t("settings.restoreAllStudents", { n: String(trashStudents.length) })
                 : trashTab === "teachers"
-                ? `هل تريد استعادة جميع المعلمين المحذوفين؟ (${trashTeachers.length} معلمين)`
-                : `هل تريد استعادة جميع الفصول المحذوفة؟ (${trashClasses.length} فصول)`}
+                ? t("settings.restoreAllTeachers", { n: String(trashTeachers.length) })
+                : t("settings.restoreAllClasses", { n: String(trashClasses.length) })}
             </p>
             <div className="flex gap-3 justify-center">
               <button
@@ -774,7 +774,7 @@ export default function SettingsPage() {
                 onClick={() => setShowRestoreAllConfirm(false)}
                 className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm"
               >
-                إلغاء
+                {t("common.cancel")}
               </button>
             </div>
           </div>
@@ -1015,7 +1015,7 @@ export default function SettingsPage() {
                 )}
                 {passwordSuccess && (
                   <p className="text-success-text text-sm">
-                    تم تغيير كلمة المرور بنجاح
+                    {t("settings.passwordChanged")}
                   </p>
                 )}
 
@@ -1036,7 +1036,7 @@ export default function SettingsPage() {
                   <div>
                     <p className="text-sm font-medium text-[#111111]">{t("settings.twoFa.title")}</p>
                     <p className="text-xs text-gray-500 mt-1">
-                      حماية حسابك بطبقة أمان إضافية عبر رمز يُرسل إلى جوالك عند كل تسجيل دخول
+                      {t("settings.twoFactorHint")}
                     </p>
                   </div>
                   <button
@@ -1070,7 +1070,7 @@ export default function SettingsPage() {
                   onClick={() => router.push("/settings/logs")}
                   className="w-full px-5 py-2.5 rounded-md bg-white border border-[#666666] text-[#666666] text-sm font-medium hover:border-[#2F96A6] hover:text-[#2F96A6] hover:bg-[#E0F7FA] transition-all text-right"
                 >
-                  عرض سجل التغييرات ←
+                  {t("settings.logsLink")}
                 </button>
 
                 <button
@@ -1078,7 +1078,7 @@ export default function SettingsPage() {
                   onClick={() => router.push("/settings/permissions")}
                   className="w-full px-5 py-2.5 rounded-md bg-white border border-[#666666] text-[#666666] text-sm font-medium hover:border-[#2F96A6] hover:text-[#2F96A6] hover:bg-[#E0F7FA] transition-all text-right"
                 >
-                  الصلاحيات وحسابات الموظفين ←
+                  {t("settings.permissionsLink")}
                 </button>
 
                 <button
@@ -1086,7 +1086,7 @@ export default function SettingsPage() {
                   onClick={() => router.push("/settings/storage")}
                   className="w-full px-5 py-2.5 rounded-md bg-white border border-[#666666] text-[#666666] text-sm font-medium hover:border-[#2F96A6] hover:text-[#2F96A6] hover:bg-[#E0F7FA] transition-all text-right"
                 >
-                  مساحة التخزين ←
+                  {t("settings.storageLink")}
                 </button>
               </SettingsSection>
             )}
@@ -1117,7 +1117,7 @@ export default function SettingsPage() {
                       onClick={() => setShowRestoreAllConfirm(true)}
                       className="px-4 py-1.5 border-2 border-[#F64651] text-[#D93A44] rounded-full text-sm font-medium hover:bg-success-bg transition-all"
                     >
-                      استعادة الكل
+                      {t("common.restoreAll")}
                     </button>
                   )}
                 </div>
@@ -1156,14 +1156,14 @@ export default function SettingsPage() {
                                   disabled={trashActionId === item.id}
                                   className="px-3 py-1.5 text-xs border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-60"
                                 >
-                                  استعادة
+                                  {t("common.restore")}
                                 </button>
                                 <button
                                   onClick={() => setConfirmPermanentDelete({ type: trashTypeSingular[trashTab], id: item.id })}
                                   disabled={trashActionId === item.id}
                                   className="px-3 py-1.5 text-xs border border-red-300 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-60"
                                 >
-                                  حذف نهائي
+                                  {t("common.deletePermanently")}
                                 </button>
                               </div>
                             </td>
@@ -1305,7 +1305,7 @@ export default function SettingsPage() {
                     ))}
                   </div>
                   <p className="text-xs text-gray-400 mt-3">
-                    اكتب المتغير في نص الرسالة وسيتم استبداله تلقائياً بالقيمة الفعلية عند الإرسال.
+                    {t("settings.variablesHint")}
                   </p>
                 </div>
               </SettingsSection>
@@ -1349,7 +1349,7 @@ export default function SettingsPage() {
                         onClick={() => setConfirmBulkDeleteLog(true)}
                         className="px-3 py-1.5 text-sm border border-red-300 text-red-600 rounded-xl hover:bg-red-50 transition-all"
                       >
-                        مسح الكل
+                        {t("common.clearAll")}
                       </button>
                     </div>
 
@@ -1403,7 +1403,7 @@ export default function SettingsPage() {
                           disabled={loadingMoreLogs}
                           className="px-6 py-2 border border-gray-300 text-gray-600 hover:bg-gray-50 rounded-xl text-sm font-medium transition-all disabled:opacity-60"
                         >
-                          {loadingMoreLogs ? t("common.loading") : `عرض المزيد (${logsTotal - logs.length} متبقي)`}
+                          {loadingMoreLogs ? t("common.loading") : t("settings.showMore", { n: String(logsTotal - logs.length) })}
                         </button>
                       </div>
                     )}

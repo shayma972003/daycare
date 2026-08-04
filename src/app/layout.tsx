@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Tajawal } from "next/font/google";
 import { cookies } from "next/headers";
-import { LOCALE_COOKIE, DEFAULT_LOCALE, directionFor, isLocale } from "@/lib/i18n";
+import { LOCALE_COOKIE, DEFAULT_LOCALE, directionFor, isLocale, translate } from "@/lib/i18n";
 import { LocaleProvider } from "@/lib/i18n-provider";
 import "./globals.css";
 
@@ -12,10 +12,20 @@ const tajawal = Tajawal({
   display: "swap",
 });
 
-export const metadata: Metadata = {
-  title: "نظام إدارة الروضة",
-  description: "نظام متكامل لإدارة روضة الأطفال",
-};
+/**
+ * A function, not a constant: the browser tab title is the one piece of UI that
+ * renders before any component does, so it has to read the same cookie the
+ * layout below reads rather than the client-side locale.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const cookieStore = await cookies();
+  const preferred = cookieStore.get(LOCALE_COOKIE)?.value;
+  const locale = isLocale(preferred) ? preferred : DEFAULT_LOCALE;
+  return {
+    title: translate(locale, "app.title"),
+    description: translate(locale, "app.description"),
+  };
+}
 
 /**
  * Reads the language from a cookie so the very first paint is already in the

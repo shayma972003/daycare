@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import axios from "axios";
+import { useT } from "@/lib/i18n-provider";
 
 interface AdminMsg {
   recipientId: string;
@@ -17,18 +18,24 @@ interface NotifData {
   messages: AdminMsg[];
 }
 
-function timeAgo(dateStr: string | null) {
+/**
+ * Takes `t` as an argument rather than calling a hook: this runs outside a
+ * component, and a module-level lookup would freeze the units to whichever
+ * language happened to load first.
+ */
+function timeAgo(dateStr: string | null, t: (key: string, vars?: Record<string, string>) => string) {
   if (!dateStr) return "";
   const diff = Date.now() - new Date(dateStr).getTime();
   const m = Math.floor(diff / 60000);
-  if (m < 1) return "الآن";
-  if (m < 60) return `${m} د`;
+  if (m < 1) return t("common.now");
+  if (m < 60) return t("notifications.minutes", { n: String(m) });
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h} س`;
-  return `${Math.floor(h / 24)} ي`;
+  if (h < 24) return t("notifications.hours", { n: String(h) });
+  return t("notifications.days", { n: String(Math.floor(h / 24)) });
 }
 
 export default function AdminNotificationBell() {
+  const t = useT();
   const [data, setData] = useState<NotifData>({ unreadCount: 0, messages: [] });
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -82,7 +89,7 @@ export default function AdminNotificationBell() {
       <button
         onClick={() => { setOpen((v) => !v); if (!open) load(); }}
         className="relative w-9 h-9 flex items-center justify-center rounded-xl hover:bg-gray-100 transition-colors"
-        title="رسائل الإدارة"
+        title={t("notifications.adminMessages")}
       >
         <span className="text-lg text-gray-500">🔔</span>
         {data.unreadCount > 0 && (
@@ -95,17 +102,17 @@ export default function AdminNotificationBell() {
       {open && (
         <div className="absolute left-0 top-11 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 overflow-hidden" dir="rtl">
           <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-            <span className="font-bold text-gray-800 text-sm">رسائل الإدارة</span>
+            <span className="font-bold text-gray-800 text-sm">{t("notifications.adminMessages")}</span>
             {data.unreadCount > 0 && (
               <button onClick={markAllRead} className="text-xs text-indigo-600 hover:text-indigo-700">
-                تحديد الكل كمقروء
+                {t("notifications.markAllRead")}
               </button>
             )}
           </div>
 
           <div className="max-h-72 overflow-y-auto divide-y divide-gray-50">
             {data.messages.length === 0 && (
-              <div className="px-4 py-6 text-center text-gray-400 text-sm">لا توجد رسائل</div>
+              <div className="px-4 py-6 text-center text-gray-400 text-sm">{t("notifications.noMessages")}</div>
             )}
             {data.messages.slice(0, 5).map((m) => (
               <div
@@ -121,7 +128,7 @@ export default function AdminNotificationBell() {
                     <div className="text-xs text-gray-500 mt-0.5 line-clamp-2">{m.preview}</div>
                   </div>
                   <div className="flex flex-col items-end gap-1 shrink-0">
-                    <span className="text-xs text-gray-400">{timeAgo(m.sent_at)}</span>
+                    <span className="text-xs text-gray-400">{timeAgo(m.sent_at, t)}</span>
                     {!m.read_at && <span className="w-2 h-2 bg-indigo-500 rounded-full" />}
                   </div>
                 </div>

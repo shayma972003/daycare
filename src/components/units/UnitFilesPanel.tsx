@@ -15,6 +15,7 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import { describeApiError } from "@/lib/api-error";
 import { formatBytes } from "@/lib/storage-format";
+import { useT } from "@/lib/i18n-provider";
 
 interface UnitFile {
   id: string;
@@ -28,6 +29,7 @@ export function UnitFilesPanel({ unitId, onCountChange }: {
   unitId: string;
   onCountChange?: (count: number) => void;
 }) {
+  const t = useT();
   const [files, setFiles] = useState<UnitFile[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,7 +53,7 @@ export function UnitFilesPanel({ unitId, onCountChange }: {
         onCountChange?.((response.data.files ?? []).length);
       })
       .catch((err) => {
-        if (!cancelled) setError(describeApiError(err, "تعذر تحميل الملفات"));
+        if (!cancelled) setError(describeApiError(err, t("units.loadFilesFailed")));
       });
     return () => {
       cancelled = true;
@@ -70,7 +72,7 @@ export function UnitFilesPanel({ unitId, onCountChange }: {
       const response = await axios.post<UnitFile>(`/api/units/${unitId}/files`, form);
       report([...(files ?? []), response.data]);
     } catch (err) {
-      setError(describeApiError(err, "تعذر رفع الملف"));
+      setError(describeApiError(err, t("units.uploadFileFailed")));
     } finally {
       setBusy(false);
     }
@@ -83,7 +85,7 @@ export function UnitFilesPanel({ unitId, onCountChange }: {
       await axios.delete(`/api/units/${unitId}/files/${fileId}`);
       report((files ?? []).filter((file) => file.id !== fileId));
     } catch (err) {
-      setError(describeApiError(err, "تعذر حذف الملف"));
+      setError(describeApiError(err, t("units.deleteFileFailed")));
     } finally {
       setBusy(false);
     }
@@ -94,9 +96,9 @@ export function UnitFilesPanel({ unitId, onCountChange }: {
       {error && <p className="text-xs text-red-600 mb-2">{error}</p>}
 
       {files === null ? (
-        <p className="text-xs text-gray-400">جارٍ التحميل…</p>
+        <p className="text-xs text-gray-400">{t("common.loading")}</p>
       ) : files.length === 0 ? (
-        <p className="text-xs text-gray-400">لا توجد ملفات</p>
+        <p className="text-xs text-gray-400">{t("units.noFiles")}</p>
       ) : (
         <ul className="space-y-1.5 mb-2">
           {files.map((file) => (
@@ -116,7 +118,7 @@ export function UnitFilesPanel({ unitId, onCountChange }: {
                 disabled={busy}
                 className="text-red-500 hover:text-red-700 disabled:opacity-50 shrink-0"
               >
-                حذف
+                {t("common.delete")}
               </button>
             </li>
           ))}
@@ -139,7 +141,7 @@ export function UnitFilesPanel({ unitId, onCountChange }: {
             if (file) void upload(file);
           }}
         />
-        {busy ? "جارٍ…" : "+ إضافة ملف"}
+        {busy ? t("common.working") : t("units.addFile")}
       </label>
     </div>
   );

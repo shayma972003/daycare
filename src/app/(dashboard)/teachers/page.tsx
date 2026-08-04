@@ -88,7 +88,7 @@ export default function TeachersPage() {
     } finally {
       setLoading(false);
     }
-  }, [search]);
+  }, [search, t]);
 
   useEffect(() => {
     fetchTeachers();
@@ -171,7 +171,7 @@ export default function TeachersPage() {
       setXlsxResult(res.data);
       fetchTeachers();
     } catch (err) {
-      setXlsxResult({ added: 0, failed: 1, errors: [axios.isAxiosError(err) ? err.response?.data?.error ?? "خطأ" : "خطأ"] });
+      setXlsxResult({ added: 0, failed: 1, errors: [axios.isAxiosError(err) ? err.response?.data?.error ?? t("common.error") : t("common.error")] });
     } finally {
       setXlsxUploading(false);
       if (xlsxInputRef.current) xlsxInputRef.current.value = "";
@@ -205,15 +205,15 @@ export default function TeachersPage() {
                 className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111111]"
               >
                 <option value="">{t("students.bulkAction")}</option>
-                <option value="checkin">تسجيل الدخول</option>
-                <option value="checkout">تسجيل الخروج</option>
+                <option value="checkin">{t("auth.login")}</option>
+                <option value="checkout">{t("auth.logout")}</option>
               </select>
               <button
                 onClick={applyBulk}
                 disabled={!bulkAction || selected.size === 0 || bulkLoading}
                 className="px-3 py-2 bg-[#111111] text-white rounded-lg text-sm disabled:opacity-40"
               >
-                تنفيذ
+                {t("common.run")}
               </button>
             </div>
 
@@ -232,13 +232,13 @@ export default function TeachersPage() {
                     onClick={() => { setDropdownOpen(false); router.push("/teachers/new"); }}
                     className="w-full text-right px-4 py-3 text-sm text-[#111111] hover:bg-gray-50 transition-colors border-b border-gray-50"
                   >
-                    أضف معلم جديد
+                    {t("teachers.addNewShort")}
                   </button>
                   <button
                     onClick={() => { setDropdownOpen(false); router.push("/teachers/import"); }}
                     className="w-full text-right px-4 py-3 text-sm text-[#111111] hover:bg-gray-50 transition-colors"
                   >
-                    ارفع ملف المعلمين
+                    {t("teachers.uploadFile")}
                   </button>
                 </div>
               )}
@@ -249,13 +249,13 @@ export default function TeachersPage() {
         <input ref={xlsxInputRef} type="file" accept=".xlsx" className="hidden" onChange={handleXlsxUpload} />
 
         {xlsxUploading && (
-          <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">جاري معالجة الملف...</div>
+          <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">{t("common.processing")}</div>
         )}
         {xlsxResult && (
           <div className={`p-4 rounded-lg text-sm border ${xlsxResult.failed > 0 ? "bg-orange-50 border-orange-200" : "bg-success-bg border-success-text/20"}`}>
             <p className="font-medium mb-1">
-              تمت الإضافة: <span className="text-success-text">{xlsxResult.added} معلم</span>
-              {xlsxResult.failed > 0 && <> · فشل: <span className="text-red-600">{xlsxResult.failed} صف</span></>}
+              {t("importer.addedCount")} <span className="text-success-text">{xlsxResult.added} معلم</span>
+              {xlsxResult.failed > 0 && <> {t("importer.failedCount")} <span className="text-red-600">{xlsxResult.failed} صف</span></>}
             </p>
             {xlsxResult.errors.length > 0 && (
               <ul className="text-xs text-red-600 mt-1 space-y-0.5">
@@ -274,7 +274,7 @@ export default function TeachersPage() {
           {loading ? (
             <div className="flex items-center justify-center py-20 text-gray-400 text-sm">{t("common.loading")}</div>
           ) : teachers.length === 0 ? (
-            <EmptyState title="لا يوجد معلمون بعد" description="ابدأ بإضافة أول معلم لعرضه هنا" />
+            <EmptyState title={t("teachers.emptyTitle")} description={t("teachers.emptyHint")} />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -365,7 +365,7 @@ export default function TeachersPage() {
                                 {actionLoading === teacher.id + ":checkout" ? "..." : t("teachers.actions.checkout")}
                               </button>
                             ) : (
-                              <span className="text-xs text-gray-400 px-3 py-1.5">✓ خرج</span>
+                              <span className="text-xs text-gray-400 px-3 py-1.5">{t("teachers.checkedOut")}</span>
                             )}
                           </div>
                         </td>

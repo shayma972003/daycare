@@ -45,7 +45,7 @@ export default function NewClassPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 100 * 1024 * 1024) {
-      setImageError("حجم الملف كبير جدا، الحجم المسموح للملف هو 100 MB أو أقل");
+      setImageError(t("common.fileTooLarge"));
       e.target.value = "";
       return;
     }
@@ -60,7 +60,7 @@ export default function NewClassPage() {
       const res = await axios.post<{ url: string }>("/api/upload", fd);
       setImageUrl(res.data.url);
     } catch {
-      setError("فشل رفع الصورة");
+      setError(t("common.uploadFailed"));
     } finally {
       setUploadingImage(false);
     }
@@ -68,7 +68,7 @@ export default function NewClassPage() {
 
   async function handleSave() {
     if (!form.name.trim()) {
-      setError("هذا الحقل مطلوب");
+      setError(t("common.required"));
       return;
     }
     setSaving(true);
@@ -113,11 +113,11 @@ export default function NewClassPage() {
               onClick={() => fileInputRef.current?.click()}
             >
               {imagePreview ? (
-                <img src={imagePreview} alt="معاينة" className="w-full h-40 object-cover" />
+                <img src={imagePreview} alt={t("common.preview")} className="w-full h-40 object-cover" />
               ) : (
                 <div className="h-32 flex flex-col items-center justify-center gap-2 text-gray-400">
                   <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center text-xl">🖼</div>
-                  <span className="text-xs">انقر لرفع صورة (jpg, png)</span>
+                  <span className="text-xs">{t("classes.uploadHint")}</span>
                 </div>
               )}
             </div>
@@ -125,10 +125,10 @@ export default function NewClassPage() {
             {imageError && (
               <p className="text-xs mt-1 text-right" style={{ color: "#F64651" }}>{imageError}</p>
             )}
-            {uploadingImage && <p className="text-xs text-gray-400 mt-1">جاري الرفع...</p>}
+            {uploadingImage && <p className="text-xs text-gray-400 mt-1">{t("studentProfile.uploading")}</p>}
             {imagePreview && (
               <button type="button" onClick={() => { setImageUrl(null); setImagePreview(null); }} className="text-xs text-red-500 hover:underline mt-1">
-                حذف الصورة
+                {t("common.deleteImage")}
               </button>
             )}
           </div>

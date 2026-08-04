@@ -158,7 +158,7 @@ export function ActivityFormModal({
           );
         })
         .catch(() => {
-          if (!cancelled) setError("تعذر تحميل بيانات الفعالية كاملة");
+          if (!cancelled) setError(t("activities.loadFailed"));
         })
         .finally(() => {
           if (!cancelled) setLoadingDetails(false);
@@ -182,7 +182,7 @@ export function ActivityFormModal({
       setImageUrl(null);
       setImagePreview(null);
     }
-  }, [open, activity, reset, setValue]);
+  }, [open, activity, reset, setValue, t]);
 
   const toggleClass = (id: string) => {
     const current = selectedClassIds.includes(id)
@@ -208,7 +208,7 @@ export function ActivityFormModal({
       const res = await axios.post<{ url: string }>("/api/upload", fd);
       setImageUrl(res.data.url);
     } catch {
-      setError("فشل رفع الصورة");
+      setError(t("common.uploadFailed"));
     } finally {
       setUploadingImage(false);
     }
@@ -269,7 +269,7 @@ export function ActivityFormModal({
           className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-white rounded-2xl shadow-modal w-full max-w-xl max-h-[90vh] overflow-y-auto p-6 focus:outline-none animate-scale-in"
         >
           <Dialog.Description className="sr-only">
-            نافذة إضافة أو تعديل نشاط
+            {t("activities.modalLabel")}
           </Dialog.Description>
           <div className="flex items-center justify-between mb-5">
             <Dialog.Title className="text-lg font-bold text-[#111111]">
@@ -429,7 +429,7 @@ export function ActivityFormModal({
                 {imagePreview ? (
                   <img
                     src={imagePreview}
-                    alt="معاينة"
+                    alt={t("common.preview")}
                     className="w-full h-40 object-cover"
                   />
                 ) : (
@@ -437,7 +437,7 @@ export function ActivityFormModal({
                     <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center text-xl">
                       🖼
                     </div>
-                    <span className="text-xs">انقر لرفع صورة (jpg, png)</span>
+                    <span className="text-xs">{t("classes.uploadHint")}</span>
                   </div>
                 )}
               </div>
@@ -449,7 +449,7 @@ export function ActivityFormModal({
                 onChange={handleImageChange}
               />
               {uploadingImage && (
-                <p className="text-xs text-gray-400 mt-1">جاري الرفع...</p>
+                <p className="text-xs text-gray-400 mt-1">{t("studentProfile.uploading")}</p>
               )}
               {imagePreview && (
                 <button
@@ -457,7 +457,7 @@ export function ActivityFormModal({
                   onClick={() => { setImageUrl(null); setImagePreview(null); }}
                   className="text-xs text-red-500 hover:underline mt-1"
                 >
-                  حذف الصورة
+                  {t("common.deleteImage")}
                 </button>
               )}
             </div>
@@ -515,9 +515,9 @@ export function ActivityFormModal({
                   className="accent-[#F64651] mt-0.5"
                 />
                 <span>
-                  إرسال إشعار لأولياء الأمور بالتعديل
+                  {t("activities.notifyGuardians")}
                   <span className="block text-xs text-gray-400">
-                    بدون التفعيل يُحفظ التعديل دون إرسال أي رسالة
+                    {t("activities.notifyHint")}
                   </span>
                 </span>
               </label>

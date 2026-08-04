@@ -196,7 +196,7 @@ export default function StudentProfilePage({
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [id, reset]);
+  }, [id, reset, t]);
 
   const periodVal = watch("period");
 
@@ -330,7 +330,7 @@ export default function StudentProfilePage({
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 100 * 1024 * 1024) {
-      setAvatarError("حجم الملف كبير جدا، الحجم المسموح للملف هو 100 MB أو أقل");
+      setAvatarError(t("common.fileTooLarge"));
       e.target.value = "";
       return;
     }
@@ -381,7 +381,7 @@ export default function StudentProfilePage({
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 100 * 1024 * 1024) {
-      setEvaluationError("حجم الملف كبير جدا، الحجم المسموح للملف هو 100 MB أو أقل");
+      setEvaluationError(t("common.fileTooLarge"));
       e.target.value = "";
       return;
     }
@@ -558,7 +558,7 @@ export default function StudentProfilePage({
                       onClick={handleRemoveAvatar}
                       className="text-xs text-red-500 mt-1"
                     >
-                      إزالة الصورة
+                      {t("common.removeImage")}
                     </button>
                   )}
                 </div>
@@ -664,7 +664,7 @@ export default function StudentProfilePage({
                         }}
                         className="px-2.5 py-1 text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
                       >
-                        عرض
+                        {t("common.view")}
                       </button>
                       <button
                         type="button"
@@ -679,7 +679,7 @@ export default function StudentProfilePage({
                         onClick={() => setShowDeleteEvalConfirm(true)}
                         className="px-2.5 py-1 text-xs border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors"
                       >
-                        حذف
+                        {t("common.delete")}
                       </button>
                     </div>
                   ) : (
@@ -716,7 +716,7 @@ export default function StudentProfilePage({
                   <h2 className="text-base font-bold text-[#111111]">{t("studentProfile.guardianInfo")}</h2>
                   {guardianLinked && (
                     <span className="text-xs bg-success-bg text-success-text border border-success-text/20 px-3 py-1 rounded-full font-medium">
-                      تم ربط ولي الأمر الموجود
+                      {t("studentProfile.guardianLinked")}
                     </span>
                   )}
                 </div>
@@ -974,7 +974,7 @@ export default function StudentProfilePage({
                                hover:border-[#F64651] hover:text-[#F64651] hover:bg-[#FFE8EA]
                                active:scale-[0.98] transition-all"
                   >
-                    نقل إلى سلة المحذوفات
+                    {t("classes.moveToTrash")}
                   </button>
                 </div>
               </div>
@@ -1015,8 +1015,7 @@ export default function StudentProfilePage({
               {/* Stated up front: this date is what the erasure schedule counts
                   from, and it is not obvious from a form labelled "cancel". */}
               <p className="text-xs text-gray-500 leading-relaxed">
-                تُحفظ بيانات الطالب الشخصية لمدة الاحتفاظ المعتمدة ابتداءً من هذا التاريخ، ثم تُزال
-                تلقائياً مع بقاء السجل المالي والإحصائي كاملاً.
+                {t("studentProfile.retentionNotice")}
               </p>
 
               <div className="flex gap-3 justify-center pt-1">
@@ -1031,7 +1030,7 @@ export default function StudentProfilePage({
                   onClick={() => setShowDepartureModal(false)}
                   className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm"
                 >
-                  إلغاء
+                  {t("common.cancel")}
                 </button>
               </div>
             </div>
@@ -1043,7 +1042,7 @@ export default function StudentProfilePage({
             <div className="bg-white rounded-2xl shadow-xl p-6 w-96 text-center space-y-4">
               <p className="text-base font-bold text-[#111111]">{t("studentProfile.moveToTrash")}</p>
               <p className="text-sm text-gray-600 whitespace-pre-line">
-                {`سيتم نقل ملف ${student?.name ?? ""} إلى سلة المحذوفات.\nيمكنك استعادته خلال 30 يوماً.`}
+                {t("studentProfile.trashNotice", { name: student?.name ?? "" })}
               </p>
               <div className="flex gap-3 justify-center">
                 <button
@@ -1057,7 +1056,7 @@ export default function StudentProfilePage({
                   onClick={() => setShowTrashModal(false)}
                   className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm"
                 >
-                  إلغاء
+                  {t("common.cancel")}
                 </button>
               </div>
             </div>
@@ -1074,13 +1073,13 @@ export default function StudentProfilePage({
                   onClick={confirmDeleteLateFee}
                   className="px-5 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600"
                 >
-                  حذف
+                  {t("common.delete")}
                 </button>
                 <button
                   onClick={() => setShowLateFeeConfirm(false)}
                   className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm"
                 >
-                  إلغاء
+                  {t("common.cancel")}
                 </button>
               </div>
             </div>
@@ -1092,20 +1091,20 @@ export default function StudentProfilePage({
             <div className="bg-white rounded-2xl shadow-xl p-6 w-96 text-center space-y-4">
               <p className="text-base font-bold text-[#111111]">{t("studentProfile.replaceFile")}</p>
               <p className="text-sm text-gray-600 whitespace-pre-line">
-                {`هل ترغب باستبدال الملف "${evalFileName}"؟\nسيتم حذف الملف الحالي نهائياً.`}
+                {t("studentProfile.replaceEvalConfirm", { name: evalFileName ?? "" })}
               </p>
               <div className="flex gap-3 justify-center">
                 <button
                   onClick={confirmReplaceEvalFile}
                   className="px-5 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600"
                 >
-                  استبدال
+                  {t("common.replace")}
                 </button>
                 <button
                   onClick={cancelReplaceEvalFile}
                   className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm"
                 >
-                  إلغاء
+                  {t("common.cancel")}
                 </button>
               </div>
             </div>
@@ -1116,19 +1115,19 @@ export default function StudentProfilePage({
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
             <div className="bg-white rounded-2xl shadow-xl p-6 w-96 text-center space-y-4">
               <p className="text-base font-bold text-[#111111]">{t("studentProfile.deleteEvaluation")}</p>
-              <p className="text-sm text-gray-600">{`سيتم حذف "${evalFileName}" نهائياً.`}</p>
+              <p className="text-sm text-gray-600">{t("studentProfile.deleteEvalConfirm", { name: evalFileName ?? "" })}</p>
               <div className="flex gap-3 justify-center">
                 <button
                   onClick={deleteEvalFile}
                   className="px-5 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600"
                 >
-                  حذف
+                  {t("common.delete")}
                 </button>
                 <button
                   onClick={() => setShowDeleteEvalConfirm(false)}
                   className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm"
                 >
-                  إلغاء
+                  {t("common.cancel")}
                 </button>
               </div>
             </div>
@@ -1186,7 +1185,7 @@ export default function StudentProfilePage({
                               onClick={() => {
                                 const link = document.createElement("a");
                                 link.href = inv.pdfUrl!;
-                                link.download = `فاتورة-${i + 1}.pdf`;
+                                link.download = t("studentProfile.invoiceFilename", { n: String(i + 1) });
                                 document.body.appendChild(link);
                                 link.click();
                                 document.body.removeChild(link);

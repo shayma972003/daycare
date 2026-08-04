@@ -63,7 +63,7 @@ export function Sidebar({ schoolName: schoolNameProp, schoolLogo }: SidebarProps
       <div className="relative flex items-center gap-3 p-5 mb-2">
         <div className="w-11 h-11 rounded-full overflow-hidden border-2 border-white/10 bg-white/5 flex-shrink-0 flex items-center justify-center">
           {schoolLogo ? (
-            <img src={schoolLogo} alt={schoolName ?? "شعار المدرسة"} className="w-full h-full object-contain" />
+            <img src={schoolLogo} alt={schoolName ?? t("layout.schoolLogo")} className="w-full h-full object-contain" />
           ) : (
             <span className="text-white/20 text-xs">✦</span>
           )}

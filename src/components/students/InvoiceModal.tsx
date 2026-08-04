@@ -75,6 +75,9 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [issuedAt, setIssuedAt] = useState("");
   const [dueDate, setDueDate] = useState("");
+    // The Arabic literal, not t("paymentStatus.PAID"): this value is posted to
+  // the API and matched against the <option value="…"> list below, both of
+  // which are Arabic. Translating it would write "Paid" into the column.
   const [invoiceStatus, setInvoiceStatus] = useState("مدفوع");
 
   const [studentName, setStudentName] = useState("");
@@ -94,6 +97,7 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
   const [noActivities, setNoActivities] = useState(false);
 
   const [hasDiscount, setHasDiscount] = useState(false);
+  // Stored on the invoice line, so it stays in the document language.
   const [discountLabel, setDiscountLabel] = useState("التخفيض");
   const [discountPercent, setDiscountPercent] = useState(15);
 
@@ -107,7 +111,7 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
     setActivityItems([]);
     setLineItems([{ id: "1", description: "", qty: 1, price: 0 }]);
     setHasDiscount(false);
-    setDiscountLabel("التخفيض");
+    setDiscountLabel(t("fields.discount"));
     setDiscountPercent(15);
     setHasVat(false);
     axios
@@ -135,7 +139,7 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
       })
       .catch(() => setError(t("common.loadFailed")))
       .finally(() => setLoading(false));
-  }, [open, studentId]);
+  }, [open, studentId, t]);
 
   useEffect(() => {
     if (!prefill) return;
@@ -510,7 +514,7 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
                       onClick={addLineItem}
                       className="text-sm text-[#F64651] hover:underline font-medium"
                     >
-                      + إضافة صف
+                      {t("invoiceForm.addRow")}
                     </button>
                     <span className="text-sm font-bold text-[#111111]">
                       الإجمالي: {calcTotal(lineItems).toFixed(2)} ر.س
@@ -521,7 +525,7 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
                 {/* Discount checkbox */}
                 <div className="flex items-center gap-3 justify-end mt-3">
                   <label className="text-sm text-gray-700 font-medium cursor-pointer" htmlFor="discount-checkbox">
-                    إضافة خصم
+                    {t("invoiceForm.addDiscount")}
                   </label>
                   <input
                     id="discount-checkbox"
@@ -530,7 +534,7 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
                     onChange={(e) => {
                       setHasDiscount(e.target.checked);
                       if (!e.target.checked) {
-                        setDiscountLabel("التخفيض");
+                        setDiscountLabel(t("fields.discount"));
                         setDiscountPercent(15);
                       }
                     }}
@@ -541,7 +545,7 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
                 {/* VAT checkbox */}
                 <div className="flex items-center gap-3 justify-end mt-2">
                   <label className="text-sm text-gray-700 font-medium cursor-pointer" htmlFor="vat-checkbox">
-                    القيمة المضافة (15%)
+                    {t("invoiceForm.vat")}
                   </label>
                   <input
                     id="vat-checkbox"
@@ -569,7 +573,7 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
                   <div className="mt-3">
                     {noActivities ? (
                       <p className="text-sm text-gray-400 py-3 text-center border border-gray-100 rounded-xl">
-                        لا توجد فعاليات هذا الشهر
+                        {t("invoiceForm.noActivities")}
                       </p>
                     ) : (
                       <div className="border border-gray-200 rounded-xl overflow-hidden">
@@ -674,14 +678,14 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
                   disabled={generating}
                   className="flex-1 py-2.5 bg-[#F64651] text-white rounded-xl font-bold text-sm hover:bg-[#D93A44] transition-colors disabled:opacity-60"
                 >
-                  {generating ? "جاري الإصدار..." : "اصدر فاتورة"}
+                  {generating ? t("invoiceForm.issuing") : t("invoiceForm.issueAction")}
                 </button>
                 <button
                   type="button"
                   onClick={onClose}
                   className="px-5 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-colors"
                 >
-                  إلغاء
+                  {t("common.cancel")}
                 </button>
               </div>
             </div>

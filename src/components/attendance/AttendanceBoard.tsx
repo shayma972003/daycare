@@ -41,9 +41,9 @@ export function AttendanceBoard({ token, isPublic, schoolName }: AttendanceBoard
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchData()
       .then(() => setError(null))
-      .catch(() => setError("تعذر تحميل البيانات. تحقق من الاتصال وحاول مجدداً."))
+      .catch(() => setError(t("attendance.loadDataFailed")))
       .finally(() => setLoading(false));
-  }, [fetchData]);
+  }, [fetchData, t]);
 
   const filteredPeople = useMemo(() => {
     const people = activeTab === "students" ? students : teachers;
@@ -81,7 +81,7 @@ export function AttendanceBoard({ token, isPublic, schoolName }: AttendanceBoard
       setError(null);
     } catch (err) {
       const fallback =
-        action === "checkin" ? "حدث خطأ أثناء تسجيل الحضور" : "حدث خطأ أثناء تسجيل الانصراف";
+        action === "checkin" ? t("attendance.checkInFailed") : t("attendance.checkOutFailed");
       setError(
         axios.isAxiosError(err) ? (err.response?.data?.error ?? fallback) : fallback
       );
@@ -122,7 +122,7 @@ export function AttendanceBoard({ token, isPublic, schoolName }: AttendanceBoard
             selectedClass === "all" ? "bg-coral text-white" : "text-gray-600 hover:bg-gray-50"
           )}
         >
-          الكل
+          {t("common.all")}
         </button>
 
         {classes.map((cls) => (
@@ -147,10 +147,10 @@ export function AttendanceBoard({ token, isPublic, schoolName }: AttendanceBoard
             <button
               onClick={handleDownloadQR}
               className="flex items-center gap-2 px-3 py-2 rounded-md border border-gray-200 text-gray-600 text-sm hover:border-teal hover:text-teal hover:bg-teal-light transition-all"
-              title="تنزيل QR Code"
+              title={t("attendance.downloadQrCode")}
             >
               <div className="w-5 h-5 bg-gray-300 rounded" />
-              <span className="text-xs">تنزيل QR</span>
+              <span className="text-xs">{t("attendance.downloadQr")}</span>
             </button>
           </div>
 
@@ -162,7 +162,7 @@ export function AttendanceBoard({ token, isPublic, schoolName }: AttendanceBoard
                 activeTab === "students" ? "bg-white text-navy shadow-sm" : "text-gray-500"
               )}
             >
-              الطلاب
+              {t("nav.students")}
             </button>
             <button
               onClick={() => setActiveTab("teachers")}
@@ -171,7 +171,7 @@ export function AttendanceBoard({ token, isPublic, schoolName }: AttendanceBoard
                 activeTab === "teachers" ? "bg-white text-navy shadow-sm" : "text-gray-500"
               )}
             >
-              المعلم
+              {t("fields.teacher")}
             </button>
           </div>
 
@@ -192,7 +192,7 @@ export function AttendanceBoard({ token, isPublic, schoolName }: AttendanceBoard
               <div className="w-7 h-7 border-2 border-gray-200 border-t-coral rounded-full animate-spin" />
             </div>
           ) : filteredPeople.length === 0 ? (
-            <p className="text-center text-gray-400 py-20 text-sm">لا يوجد أحد لعرضه</p>
+            <p className="text-center text-gray-400 py-20 text-sm">{t("attendance.nobodyToShow")}</p>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
               {filteredPeople.map((person) => (

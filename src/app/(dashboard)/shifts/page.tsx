@@ -62,7 +62,7 @@ export default function ShiftsPage() {
     } catch (err) {
       setError(describeApiError(err, t("shifts.loadFailed")));
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     let cancelled = false;
@@ -77,7 +77,7 @@ export default function ShiftsPage() {
     return () => {
       cancelled = true;
     };
-  }, [weekStart]);
+  }, [weekStart, t]);
 
   function shiftFor(teacherId: string, date: string): Shift | undefined {
     return data?.shifts.find(
@@ -141,13 +141,13 @@ export default function ShiftsPage() {
 
         <div className="bg-white rounded-2xl shadow-sm p-4 flex items-center gap-2 flex-wrap">
           <button onClick={() => shiftWeek(-7)} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm hover:bg-gray-50">
-            الأسبوع السابق
+            {t("attendance.previousWeek")}
           </button>
           <button onClick={() => setWeekStart(null)} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm hover:bg-gray-50">
-            هذا الأسبوع
+            {t("attendance.thisWeek")}
           </button>
           <button onClick={() => shiftWeek(7)} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm hover:bg-gray-50">
-            التالي
+            {t("common.next")}
           </button>
           {data && <span className="text-sm text-gray-500">من {data.weekStart}</span>}
         </div>
@@ -162,7 +162,7 @@ export default function ShiftsPage() {
               <thead>
                 <tr>
                   <th className="sticky right-0 bg-white px-3 py-2 text-right text-gray-500 font-medium border-b border-gray-100">
-                    الموظف
+                    {t("fields.employee")}
                   </th>
                   {data.days.map((date) => (
                     <th key={date} className="px-2 py-2 text-center border-b border-gray-100">
@@ -251,14 +251,14 @@ export default function ShiftsPage() {
                   disabled={saving}
                   className="px-4 py-2.5 border border-red-200 text-red-600 rounded-xl text-sm hover:bg-red-50"
                 >
-                  حذف
+                  {t("common.delete")}
                 </button>
               )}
               <button
                 onClick={() => setEditing(null)}
                 className="px-4 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm"
               >
-                إلغاء
+                {t("common.cancel")}
               </button>
             </div>
           </div>

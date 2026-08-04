@@ -6,8 +6,10 @@ import { useRouter } from "next/navigation";
 import axios from "axios";
 import { PasswordRules, meetsRequiredRules } from "@/components/ui/PasswordRules";
 import { PASSWORD_MIN_MESSAGE } from "@/lib/password-policy";
+import { useT } from "@/lib/i18n-provider";
 
 export default function ResetPasswordPage() {
+  const t = useT();
   const router = useRouter();
   const [identifier, setIdentifier] = useState("");
   const [otp, setOtp] = useState("");
@@ -30,11 +32,11 @@ export default function ResetPasswordPage() {
     setError("");
 
     if (!identifier.trim()) {
-      setError("أدخل البريد الإلكتروني أو رقم الجوال");
+      setError(t("auth.enterEmailOrPhone"));
       return;
     }
     if (newPassword !== confirmPassword) {
-      setError("كلمة المرور وتأكيدها غير متطابقتين");
+      setError(t("auth.passwordsDiffer"));
       return;
     }
     // One source for the rule and its wording — see src/lib/password-policy.ts.
@@ -55,8 +57,8 @@ export default function ResetPasswordPage() {
     } catch (err) {
       setError(
         axios.isAxiosError(err)
-          ? err.response?.data?.error ?? "حدث خطأ"
-          : "حدث خطأ"
+          ? err.response?.data?.error ?? t("common.somethingWentWrong")
+          : t("common.somethingWentWrong")
       );
     } finally {
       setLoading(false);
@@ -68,19 +70,19 @@ export default function ResetPasswordPage() {
       <div className="w-full max-w-md">
         <div className="flex flex-col items-center mb-8 gap-3">
           <div className="w-16 h-16 bg-white/10 rounded-2xl border-2 border-white/20" />
-          <h1 className="text-white text-xl font-bold tracking-wide">نظام إدارة الروضة</h1>
+          <h1 className="text-white text-xl font-bold tracking-wide">{t("auth.appName")}</h1>
         </div>
 
         <div className="bg-white rounded-2xl shadow-2xl p-8">
-          <h2 className="text-lg font-bold text-[#1a2340] mb-2 text-center">تعيين كلمة مرور جديدة</h2>
+          <h2 className="text-lg font-bold text-[#1a2340] mb-2 text-center">{t("auth.setNewPassword")}</h2>
           <p className="text-sm text-gray-500 text-center mb-6">
-            أدخل رمز التحقق المرسل إليك ثم اختر كلمة مرور جديدة
+            {t("auth.resetHint")}
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                البريد الإلكتروني أو رقم الجوال
+                {t("auth.emailOrPhone")}
               </label>
               <input
                 type="text"
@@ -94,7 +96,7 @@ export default function ResetPasswordPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">رمز التحقق</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t("auth.code")}</label>
               <input
                 type="text"
                 value={otp}
@@ -108,7 +110,7 @@ export default function ResetPasswordPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">كلمة المرور الجديدة</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t("auth.newPassword")}</label>
               <div className="relative">
                 <input
                   type={showPassword ? "text" : "password"}
@@ -124,7 +126,7 @@ export default function ResetPasswordPage() {
                   onClick={() => setShowPassword((v) => !v)}
                   className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs font-medium"
                 >
-                  {showPassword ? "إخفاء" : "إظهار"}
+                  {showPassword ? t("fields.hide") : t("fields.show")}
                 </button>
               </div>
               {/* Live rules, so the policy is visible while there is still time
@@ -133,7 +135,7 @@ export default function ResetPasswordPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">تأكيد كلمة المرور</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t("auth.confirmPassword")}</label>
               <input
                 type={showPassword ? "text" : "password"}
                 value={confirmPassword}
@@ -159,14 +161,14 @@ export default function ResetPasswordPage() {
               {loading ? (
                 <span className="flex items-center justify-center gap-2">
                   <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                  جارٍ التحديث…
+                  {t("auth.updating")}
                 </span>
-              ) : "تعيين كلمة المرور"}
+              ) : t("auth.setPassword")}
             </button>
 
             <div className="flex justify-between text-sm text-gray-500 pt-1">
-              <Link href="/forgot-password" className="hover:text-[#1a2340]">إعادة إرسال الرمز</Link>
-              <Link href="/login" className="hover:text-[#1a2340]">تسجيل الدخول</Link>
+              <Link href="/forgot-password" className="hover:text-[#1a2340]">{t("auth.resendCode")}</Link>
+              <Link href="/login" className="hover:text-[#1a2340]">{t("auth.signInTitle")}</Link>
             </div>
           </form>
         </div>

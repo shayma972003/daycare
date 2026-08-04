@@ -59,7 +59,7 @@ export default function UnitsPage() {
     } finally {
       setLoading(false);
     }
-  }, [status, sort, search]);
+  }, [status, sort, search, t]);
 
   useEffect(() => {
     let cancelled = false;
@@ -87,7 +87,7 @@ export default function UnitsPage() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [status, sort, search]);
+  }, [status, sort, search, t]);
 
   async function createUnit() {
     setSaving(true);
@@ -160,7 +160,7 @@ export default function UnitsPage() {
             onClick={() => setCreating(true)}
             className="mr-auto px-4 py-2 bg-[#2F96A6] text-white rounded-xl text-sm font-medium hover:bg-[#26808e]"
           >
-            وحدة جديدة
+            {t("units.new")}
           </button>
         </div>
 
@@ -217,7 +217,7 @@ export default function UnitsPage() {
                   )}
                   <p>
                     {unit.lessonCount} درس · {unit.fileCount} ملف ·{" "}
-                    {unit.classIds.length === 0 ? "كل الفصول" : `${unit.classIds.length} فصل`}
+                    {unit.classIds.length === 0 ? t("common.allClasses") : t("units.classCount", { n: String(unit.classIds.length) })}
                   </p>
                 </div>
 

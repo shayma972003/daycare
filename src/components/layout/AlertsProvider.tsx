@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
+import { useT } from "@/lib/i18n-provider";
 
 interface ExpiredStudent {
   id: string;
@@ -35,6 +36,7 @@ function AlertModal({
 }
 
 export function AlertsProvider({ children }: { children: React.ReactNode }) {
+  const t = useT();
   const router = useRouter();
   const [expiredAlert, setExpiredAlert] = useState<ExpiredStudent[]>([]);
   const [suspendedAlert, setSuspendedAlert] = useState<SuspendedStudent[]>([]);
@@ -62,7 +64,7 @@ export function AlertsProvider({ children }: { children: React.ReactNode }) {
       {children}
 
       {expiredAlert.length > 0 && (
-        <AlertModal title="انتهاء اشتراك الطلاب" onClose={() => setExpiredAlert([])}>
+        <AlertModal title={t("alerts.subscriptionEnding")} onClose={() => setExpiredAlert([])}>
           <div className="space-y-2 max-h-60 overflow-y-auto">
             {expiredAlert.map((s) => (
               <div key={s.id} className="flex items-center justify-between py-2 border-b border-gray-100">
@@ -80,7 +82,7 @@ export function AlertsProvider({ children }: { children: React.ReactNode }) {
               onClick={() => setExpiredAlert([])}
               className="px-4 py-2 rounded-md border border-gray-200 text-sm text-gray-600 hover:bg-gray-50"
             >
-              موافق
+              {t("common.ok")}
             </button>
             {expiredAlert.length === 1 && (
               <button
@@ -90,7 +92,7 @@ export function AlertsProvider({ children }: { children: React.ReactNode }) {
                 }}
                 className="px-4 py-2 rounded-md bg-coral text-white text-sm hover:bg-coral-dark"
               >
-                عرض ملف الطالب
+                {t("alerts.viewStudentFile")}
               </button>
             )}
           </div>
@@ -98,7 +100,7 @@ export function AlertsProvider({ children }: { children: React.ReactNode }) {
       )}
 
       {suspendedAlert.length > 0 && (
-        <AlertModal title="تنبيه — طلاب موقوفون" onClose={() => setSuspendedAlert([])}>
+        <AlertModal title={t("alerts.suspendedStudents")} onClose={() => setSuspendedAlert([])}>
           <div className="space-y-1 max-h-60 overflow-y-auto">
             {suspendedAlert.map((s) => (
               <p key={s.id} className="text-sm text-gray-700 py-1 border-b border-gray-50">
@@ -111,7 +113,7 @@ export function AlertsProvider({ children }: { children: React.ReactNode }) {
               onClick={() => setSuspendedAlert([])}
               className="px-4 py-2 rounded-md border border-gray-200 text-sm text-gray-600 hover:bg-gray-50"
             >
-              موافق
+              {t("common.ok")}
             </button>
             {suspendedAlert.length === 1 && (
               <button
@@ -121,7 +123,7 @@ export function AlertsProvider({ children }: { children: React.ReactNode }) {
                 }}
                 className="px-4 py-2 rounded-md bg-coral text-white text-sm"
               >
-                عرض ملف الطفل
+                {t("alerts.viewChildFile")}
               </button>
             )}
           </div>

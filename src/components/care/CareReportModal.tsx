@@ -132,7 +132,7 @@ export function CareReportModal({
       onSaved(
         studentIds.length === 1
           ? t("careForm.saved")
-          : `تم تسجيل التقرير لـ${response.data.created} طفل`
+          : t("careForm.recordedFor", { n: String(response.data.created) })
       );
     } catch (err) {
       setError(describeApiError(err, t("careForm.saveFailed")));
@@ -376,7 +376,7 @@ export function CareReportModal({
                     onClick={() => setPhotoUrl(null)}
                     className="px-3 py-2 text-xs border border-red-200 text-red-600 rounded-lg hover:bg-red-50"
                   >
-                    إزالة
+                    {t("common.remove")}
                   </button>
                 </div>
               ) : (
@@ -418,7 +418,7 @@ export function CareReportModal({
             onClick={onClose}
             className="px-5 py-3 border border-gray-200 text-gray-600 rounded-xl text-sm"
           >
-            إلغاء
+            {t("common.cancel")}
           </button>
         </div>
       </div>

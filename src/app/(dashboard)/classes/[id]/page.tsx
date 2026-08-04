@@ -163,7 +163,7 @@ export default function ClassProfilePage({
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 100 * 1024 * 1024) {
-      setImageError("حجم الملف كبير جدا، الحجم المسموح للملف هو 100 MB أو أقل");
+      setImageError(t("common.fileTooLarge"));
       e.target.value = "";
       return;
     }
@@ -178,7 +178,7 @@ export default function ClassProfilePage({
       const res = await axios.post<{ url: string }>("/api/upload", fd);
       setImageUrl(res.data.url);
     } catch {
-      setError("فشل رفع الصورة");
+      setError(t("common.uploadFailed"));
     } finally {
       setUploadingImage(false);
     }
@@ -289,7 +289,7 @@ export default function ClassProfilePage({
                 onClick={startEditing}
                 className="px-4 py-2 border border-[#111111] text-[#111111] rounded-lg text-sm font-medium hover:bg-[#111111] hover:text-white transition-colors"
               >
-                تعديل الفصل
+                {t("classes.edit")}
               </button>
             ) : (
               <>
@@ -314,7 +314,7 @@ export default function ClassProfilePage({
               disabled={checkingDelete}
               className="px-4 py-2 border border-red-500 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 disabled:opacity-60 transition-colors"
             >
-              {checkingDelete ? t("common.loading") : "نقل إلى سلة المحذوفات"}
+              {checkingDelete ? t("common.loading") : t("classes.moveToTrash")}
             </button>
           </div>
         </div>
@@ -338,7 +338,7 @@ export default function ClassProfilePage({
                 ) : (
                   <div className="h-32 flex flex-col items-center justify-center gap-2 text-gray-400">
                     <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center text-xl">🖼</div>
-                    <span className="text-xs">انقر لرفع صورة (jpg, png)</span>
+                    <span className="text-xs">{t("classes.uploadHint")}</span>
                   </div>
                 )}
               </div>
@@ -346,14 +346,14 @@ export default function ClassProfilePage({
               {imageError && (
                 <p className="text-xs mt-1 text-right" style={{ color: "#F64651" }}>{imageError}</p>
               )}
-              {uploadingImage && <p className="text-xs text-gray-400 mt-1">جاري الرفع...</p>}
+              {uploadingImage && <p className="text-xs text-gray-400 mt-1">{t("studentProfile.uploading")}</p>}
               {imagePreview && (
                 <button
                   type="button"
                   onClick={() => { setImageUrl(null); setImagePreview(null); }}
                   className="text-xs text-red-500 hover:underline mt-1"
                 >
-                  حذف الصورة
+                  {t("common.deleteImage")}
                 </button>
               )}
             </div>
@@ -368,7 +368,7 @@ export default function ClassProfilePage({
 
         {/* Info card */}
         <div className="bg-white rounded-xl shadow-md p-6">
-          <h2 className="text-base font-bold text-[#111111] mb-5">معلومات الفصل</h2>
+          <h2 className="text-base font-bold text-[#111111] mb-5">{t("classes.info")}</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">{t("classes.form.name")}</label>
@@ -489,18 +489,18 @@ export default function ClassProfilePage({
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setShowAddStudentsModal(true)}
-                title="إضافة طلاب للفصل"
+                title={t("classes.addStudents")}
                 className="w-8 h-8 rounded-full bg-[#F64651] text-white flex items-center justify-center text-lg font-bold hover:bg-[#D93A44] transition-colors"
               >
                 +
               </button>
-              <h2 className="text-base font-bold text-[#111111]">الأطفال المسجلين في هذا الفصل</h2>
+              <h2 className="text-base font-bold text-[#111111]">{t("classes.enrolledHere")}</h2>
             </div>
             <div className="flex items-center gap-3">
               <span className="text-xs text-gray-400">{cls.students.length} طالب</span>
               <input
                 type="text"
-                placeholder="بحث بالاسم..."
+                placeholder={t("finance.searchByName")}
                 value={studentSearch}
                 onChange={(e) => setStudentSearch(e.target.value)}
                 className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#111111]"
@@ -523,7 +523,7 @@ export default function ClassProfilePage({
                       <img src={student.avatarUrl} alt={student.name} className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">
-                        [صورة]
+                        {t("common.imagePlaceholder")}
                       </div>
                     )}
                   </div>
@@ -531,7 +531,10 @@ export default function ClassProfilePage({
                     {student.name}
                     {cls.period && student.period !== cls.period && (
                       <span
-                        title={`الطالب مسجل كـ ${student.period === "MORNING" ? t("periods.MORNING") : t("periods.EVENING")} لكن الفصل ${cls.period === "MORNING" ? t("periods.MORNING") : t("periods.EVENING")}`}
+                        title={t("classes.periodMismatch", {
+                          student: student.period === "MORNING" ? t("periods.MORNING") : t("periods.EVENING"),
+                          class: cls.period === "MORNING" ? t("periods.MORNING") : t("periods.EVENING"),
+                        })}
                         className="text-yellow text-xs shrink-0"
                       >
                         ⚠
@@ -580,7 +583,7 @@ export default function ClassProfilePage({
               >
                 ×
               </button>
-              <h3 className="font-bold text-[#111111]">إضافة طلاب للفصل</h3>
+              <h3 className="font-bold text-[#111111]">{t("classes.addStudents")}</h3>
             </div>
 
             <p className="text-xs text-gray-400 text-right px-5 pt-3">
@@ -594,7 +597,7 @@ export default function ClassProfilePage({
                   <div className="w-6 h-6 border-2 border-gray-200 border-t-[#F64651] rounded-full animate-spin" />
                 </div>
               ) : availableStudents.length === 0 ? (
-                <p className="text-center text-gray-400 py-8 text-sm">لا يوجد طلاب متاحون للإضافة</p>
+                <p className="text-center text-gray-400 py-8 text-sm">{t("classes.noAvailableStudents")}</p>
               ) : (
                 availableStudents.map((s) => (
                   <label
@@ -612,7 +615,7 @@ export default function ClassProfilePage({
                         <img src={s.avatarUrl} alt={s.name} className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">
-                          [صورة]
+                          {t("common.imagePlaceholder")}
                         </div>
                       )}
                     </div>
@@ -631,9 +634,9 @@ export default function ClassProfilePage({
                 disabled={selectedStudentIds.length === 0 || isAdding}
                 className="px-5 py-2.5 rounded-md bg-[#F64651] text-white text-sm font-medium hover:bg-[#D93A44] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                {isAdding ? "جاري الإضافة..." : `إضافة${selectedStudentIds.length > 0 ? ` (${selectedStudentIds.length})` : ""}`}
+                {isAdding ? t("finance.adding") : `${t("common.add")}${selectedStudentIds.length > 0 ? ` (${selectedStudentIds.length})` : ""}`}
               </button>
-              <p className="text-xs text-gray-400">{selectedStudentIds.length} طالب محدد</p>
+              <p className="text-xs text-gray-400">{t("classes.selectedCount", { count: String(selectedStudentIds.length) })}</p>
             </div>
           </div>
         </div>

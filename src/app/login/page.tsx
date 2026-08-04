@@ -159,7 +159,7 @@ function LoginForm() {
             <form onSubmit={handleVerifyOtp} className="space-y-4" noValidate>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  رمز التحقق
+                  {t("auth.code")}
                 </label>
                 <input
                   type="text"
@@ -188,7 +188,7 @@ function LoginForm() {
                 {otpLoading ? (
                   <span className="flex items-center justify-center gap-2">
                     <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                    جارٍ التحقق…
+                    {t("auth.verifying")}
                   </span>
                 ) : (
                   t("common.confirm")
@@ -203,7 +203,7 @@ function LoginForm() {
                   className="text-sm text-gray-500 hover:text-[#1a2340] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {resendCooldown > 0
-                    ? `لم تستلم الرمز؟ إعادة الإرسال (${resendCooldown})`
+                    ? t("auth.resendIn", { n: String(resendCooldown) })
                     : t("auth.didNotGetIt")}
                 </button>
               </div>
@@ -218,7 +218,7 @@ function LoginForm() {
                   }}
                   className="text-xs text-gray-400 hover:text-[#1a2340] transition-colors"
                 >
-                  الرجوع
+                  {t("common.back")}
                 </button>
               </div>
             </form>
@@ -245,7 +245,7 @@ function LoginForm() {
             {/* Email */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                البريد الإلكتروني
+                {t("fields.email")}
               </label>
               <input
                 type="email"
@@ -261,7 +261,7 @@ function LoginForm() {
             {/* Password with show/hide */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                كلمة المرور
+                {t("fields.password")}
               </label>
               <div className="relative">
                 <input
@@ -303,7 +303,7 @@ function LoginForm() {
               {loading ? (
                 <span className="flex items-center justify-center gap-2">
                   <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                  جارٍ الدخول…
+                  {t("auth.signingIn")}
                 </span>
               ) : (
                 t("auth.signIn")
@@ -312,7 +312,7 @@ function LoginForm() {
 
             <div className="text-center mt-3">
               <Link href="/forgot-password" className="text-sm text-gray-500 hover:text-[#1a2340] transition-colors">
-                نسيت كلمة المرور؟
+                {t("auth.forgotTitle")}
               </Link>
             </div>
           </form>

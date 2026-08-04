@@ -18,6 +18,7 @@ import { CARE_REPORT_TYPES, CARE_TYPE_LABELS, CARE_TYPE_COLORS } from "@/lib/car
 import { Icon, CARE_TYPE_ICON_NAMES } from "@/components/ui/Icon";
 import { formatAst } from "@/lib/datetime";
 import type { CareReportType } from "@/generated/prisma/enums";
+import { useT } from "@/lib/i18n-provider";
 
 interface ClassItem {
   id: string;
@@ -43,6 +44,8 @@ interface ReportRow {
 }
 
 export default function CarePage() {
+  // Locale-aware translation — see src/lib/i18n.ts.
+  const t = useT();
   const [classes, setClasses] = useState<ClassItem[]>([]);
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [reports, setReports] = useState<ReportRow[]>([]);
@@ -60,7 +63,7 @@ export default function CarePage() {
       const response = await axios.get<ReportRow[]>(`/api/care-reports?date=${today}`);
       setReports(response.data);
     } catch (err) {
-      setError(describeApiError(err, "تعذر تحميل تقارير اليوم"));
+      setError(describeApiError(err, t("care.loadTodayFailed")));
     }
   }, [today]);
 
@@ -85,7 +88,7 @@ export default function CarePage() {
       })
       .catch((err) => {
         if (cancelled) return;
-        setError(describeApiError(err, "تعذر تحميل البيانات"));
+        setError(describeApiError(err, t("common.loadFailed")));
         setLoading(false);
       });
     return () => {
@@ -118,7 +121,7 @@ export default function CarePage() {
 
   return (
     <div dir="rtl" className="min-h-screen bg-brand-bg">
-      <Topbar title="تقارير الرعاية اليومية" />
+      <Topbar title={t("care.title")} />
 
       <div className="p-6 space-y-6">
         {error && (
@@ -135,7 +138,7 @@ export default function CarePage() {
         {/* ── Children ──────────────────────────────────────────────────── */}
         <section className="bg-white rounded-2xl shadow-sm p-5">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-            <h2 className="font-bold text-[#111111]">اختاري الأطفال</h2>
+            <h2 className="font-bold text-[#111111]">{t("care.pickChildren")}</h2>
             <div className="flex items-center gap-2">
               <select
                 value={classFilter}
@@ -147,7 +150,7 @@ export default function CarePage() {
                 }}
                 className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
               >
-                <option value="">كل الفصول</option>
+                <option value="">{t("common.allClasses")}</option>
                 {classes.map((item) => (
                   <option key={item.id} value={item.id}>{item.name}</option>
                 ))}
@@ -170,9 +173,9 @@ export default function CarePage() {
           </div>
 
           {loading ? (
-            <p className="text-sm text-gray-400 py-6 text-center">جارٍ التحميل…</p>
+            <p className="text-sm text-gray-400 py-6 text-center">{t("common.loadingDots")}</p>
           ) : visible.length === 0 ? (
-            <p className="text-sm text-gray-400 py-6 text-center">لا يوجد أطفال</p>
+            <p className="text-sm text-gray-400 py-6 text-center">{t("care.noChildren")}</p>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
               {visible.map((student) => {
@@ -206,10 +209,10 @@ export default function CarePage() {
 
         {/* ── The eight types ───────────────────────────────────────────── */}
         <section className="bg-white rounded-2xl shadow-sm p-5">
-          <h2 className="font-bold text-[#111111] mb-1">نوع التقرير</h2>
+          <h2 className="font-bold text-[#111111] mb-1">{t("care.reportType")}</h2>
           <p className="text-xs text-gray-500 mb-4">
             {selected.size === 0
-              ? "اختاري طفلاً واحداً على الأقل أولاً"
+              ? t("care.pickOneFirst")
               : `سيُسجَّل لـ${selectedLabel}`}
           </p>
 
@@ -236,9 +239,9 @@ export default function CarePage() {
 
         {/* ── Today's feed ──────────────────────────────────────────────── */}
         <section className="bg-white rounded-2xl shadow-sm p-5">
-          <h2 className="font-bold text-[#111111] mb-4">تقارير اليوم</h2>
+          <h2 className="font-bold text-[#111111] mb-4">{t("care.todayReports")}</h2>
           {reports.length === 0 ? (
-            <p className="text-sm text-gray-400 py-6 text-center">لا توجد تقارير بعد</p>
+            <p className="text-sm text-gray-400 py-6 text-center">{t("care.noneYet")}</p>
           ) : (
             <ul className="divide-y divide-gray-50">
               {reports.map((report) => (

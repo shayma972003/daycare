@@ -13,6 +13,7 @@ import axios from "axios";
 import { Topbar } from "@/components/layout/Topbar";
 import { describeApiError } from "@/lib/api-error";
 import { WEEKDAY_LABELS } from "@/lib/attendance-schedule";
+import { useT } from "@/lib/i18n-provider";
 
 interface Teacher {
   id: string;
@@ -41,6 +42,8 @@ const DEFAULT_START = "07:00";
 const DEFAULT_END = "15:00";
 
 export default function ShiftsPage() {
+  // Locale-aware translation — see src/lib/i18n.ts.
+  const t = useT();
   const [data, setData] = useState<ShiftsResponse | null>(null);
   const [weekStart, setWeekStart] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -57,7 +60,7 @@ export default function ShiftsPage() {
       setData(response.data);
       setError(null);
     } catch (err) {
-      setError(describeApiError(err, "تعذر تحميل المناوبات"));
+      setError(describeApiError(err, t("shifts.loadFailed")));
     }
   }, []);
 
@@ -69,7 +72,7 @@ export default function ShiftsPage() {
         if (!cancelled) setData(response.data);
       })
       .catch((err) => {
-        if (!cancelled) setError(describeApiError(err, "تعذر تحميل المناوبات"));
+        if (!cancelled) setError(describeApiError(err, t("shifts.loadFailed")));
       });
     return () => {
       cancelled = true;
@@ -98,7 +101,7 @@ export default function ShiftsPage() {
       setEditing(null);
       await load(data?.weekStart);
     } catch (err) {
-      setError(describeApiError(err, "تعذر حفظ المناوبة"));
+      setError(describeApiError(err, t("shifts.saveFailed")));
     } finally {
       setSaving(false);
     }
@@ -112,7 +115,7 @@ export default function ShiftsPage() {
       setEditing(null);
       await load(data?.weekStart);
     } catch (err) {
-      setError(describeApiError(err, "تعذر حذف المناوبة"));
+      setError(describeApiError(err, t("shifts.deleteFailed")));
     } finally {
       setSaving(false);
     }
@@ -127,7 +130,7 @@ export default function ShiftsPage() {
 
   return (
     <div dir="rtl" className="min-h-screen bg-brand-bg">
-      <Topbar title="المناوبات" />
+      <Topbar title={t("shifts.title")} />
 
       <div className="p-6 space-y-4">
         {error && (
@@ -151,9 +154,9 @@ export default function ShiftsPage() {
 
         <div className="bg-white rounded-2xl shadow-sm p-4 overflow-x-auto">
           {!data ? (
-            <p className="text-sm text-gray-400 py-8 text-center">جارٍ التحميل…</p>
+            <p className="text-sm text-gray-400 py-8 text-center">{t("common.loadingDots")}</p>
           ) : data.teachers.length === 0 ? (
-            <p className="text-sm text-gray-400 py-8 text-center">لا يوجد طاقم نشط</p>
+            <p className="text-sm text-gray-400 py-8 text-center">{t("shifts.noActiveStaff")}</p>
           ) : (
             <table className="w-full text-sm min-w-[760px] border-separate border-spacing-0">
               <thead>
@@ -211,7 +214,7 @@ export default function ShiftsPage() {
             </h3>
 
             <div>
-              <label className="block text-xs text-gray-500 mb-1">من</label>
+              <label className="block text-xs text-gray-500 mb-1">{t("common.from")}</label>
               {/* `type="time"` gives the platform's own picker on a phone, which
                   is better than anything hand-built — see the note on task 2.15. */}
               <input
@@ -224,7 +227,7 @@ export default function ShiftsPage() {
             </div>
 
             <div>
-              <label className="block text-xs text-gray-500 mb-1">إلى</label>
+              <label className="block text-xs text-gray-500 mb-1">{t("common.to")}</label>
               <input
                 type="time"
                 value={endTime}
@@ -240,7 +243,7 @@ export default function ShiftsPage() {
                 disabled={saving}
                 className="flex-1 px-4 py-2.5 bg-[#2F96A6] text-white rounded-xl text-sm font-medium hover:bg-[#26808e] disabled:opacity-60"
               >
-                {saving ? "..." : "حفظ"}
+                {saving ? "..." : t("common.save")}
               </button>
               {shiftFor(editing.teacherId, editing.date) && (
                 <button

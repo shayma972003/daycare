@@ -227,7 +227,7 @@ export default function SettingsPage() {
         setTwoFaEnabled(d.twoFaEnabled ?? false);
         setSettingsError("");
       })
-      .catch(() => setSettingsError("فشل تحميل الإعدادات"))
+      .catch(() => setSettingsError(t("settings.loadFailed")))
       .finally(() => setLoadingSettings(false));
   }, []);
 
@@ -313,7 +313,7 @@ export default function SettingsPage() {
       setSettingsSaved(true);
       setTimeout(() => setSettingsSaved(false), 3000);
     } catch {
-      alert("فشل حفظ الإعدادات");
+      alert(t("settings.saveFailed"));
     } finally {
       setSavingSettings(false);
     }
@@ -324,11 +324,11 @@ export default function SettingsPage() {
     setPasswordSuccess(false);
 
     if (!currentPassword || !newPassword || !confirmPassword) {
-      setPasswordError("يرجى ملء جميع الحقول");
+      setPasswordError(t("settings.fillAllFields"));
       return;
     }
     if (newPassword !== confirmPassword) {
-      setPasswordError("كلمة المرور الجديدة وتأكيدها غير متطابقتين");
+      setPasswordError(t("settings.passwordsDiffer"));
       return;
     }
     // Same rule and same wording as the server — a form that accepts 6 and a
@@ -353,9 +353,9 @@ export default function SettingsPage() {
         axios.isAxiosError(err) &&
         err.response?.data?.error === "Current password is incorrect"
       ) {
-        setPasswordError("كلمة المرور الحالية غير صحيحة");
+        setPasswordError(t("settings.currentPasswordWrong"));
       } else {
-        setPasswordError("فشل تغيير كلمة المرور");
+        setPasswordError(t("settings.passwordChangeFailed"));
       }
     } finally {
       setSavingPassword(false);
@@ -372,7 +372,7 @@ export default function SettingsPage() {
       return;
     }
     if (!phoneNumber) {
-      setPhoneWarning("يجب إضافة رقم الجوال في معلومات المنشأة أولاً قبل تفعيل التحقق بخطوتين");
+      setPhoneWarning(t("settings.twoFa.needPhone"));
       return;
     }
     setPhoneWarning("");
@@ -390,7 +390,7 @@ export default function SettingsPage() {
       setActivateSessionId(res.data.twoFaSessionId);
       setActivateStep("otp");
     } catch {
-      setActivateError("تعذر إرسال رمز التحقق");
+      setActivateError(t("settings.twoFa.sendFailed"));
     } finally {
       setActivateLoading(false);
     }
@@ -406,13 +406,13 @@ export default function SettingsPage() {
       });
       setShowActivateModal(false);
       setTwoFaEnabled(true);
-      setTwoFaSuccessMsg("تم تفعيل التحقق بخطوتين ✓");
+      setTwoFaSuccessMsg(t("settings.twoFa.enabled"));
       setTimeout(() => setTwoFaSuccessMsg(""), 4000);
     } catch (err: unknown) {
       if (axios.isAxiosError(err) && err.response?.data?.error) {
         setActivateError(err.response.data.error);
       } else {
-        setActivateError("رمز التحقق غير صحيح");
+        setActivateError(t("settings.twoFa.wrongCode"));
       }
     } finally {
       setActivateLoading(false);
@@ -430,7 +430,7 @@ export default function SettingsPage() {
       if (axios.isAxiosError(err) && err.response?.data?.error) {
         setDeactivateError(err.response.data.error);
       } else {
-        setDeactivateError("حدث خطأ، الرجاء المحاولة مرة أخرى");
+        setDeactivateError(t("settings.genericError"));
       }
     } finally {
       setDeactivateLoading(false);
@@ -476,7 +476,7 @@ export default function SettingsPage() {
       await axios.post(`/api/trash/restore/${trashTypeSingular[type]}/${id}`);
       await loadTrash(type);
     } catch {
-      alert("فشل الاستعادة");
+      alert(t("settings.restoreFailed"));
     } finally {
       setTrashActionId(null);
     }
@@ -504,7 +504,7 @@ export default function SettingsPage() {
       }
       await loadTrash(trashTab);
     } catch {
-      alert("فشل الاستعادة");
+      alert(t("settings.restoreFailed"));
     } finally {
       setRestoringAll(false);
       setShowRestoreAllConfirm(false);
@@ -519,7 +519,7 @@ export default function SettingsPage() {
       await axios.delete(`/api/trash/permanent/${type}/${id}`);
       await loadTrash(trashTab);
     } catch {
-      alert("فشل الحذف النهائي");
+      alert(t("settings.permanentDeleteFailed"));
     } finally {
       setTrashActionId(null);
       setConfirmPermanentDelete(null);
@@ -556,7 +556,7 @@ export default function SettingsPage() {
       setLogoUrl(res.data.logoUrl);
       router.refresh();
     } catch {
-      alert("فشل رفع الشعار");
+      alert(t("settings.logoUploadFailed"));
     } finally {
       setLogoUploading(false);
       e.target.value = "";
@@ -567,11 +567,11 @@ export default function SettingsPage() {
 
   const sections = useMemo(
     () => [
-      { id: "school-info", title: "معلومات المنشأة" },
-      { id: "school-hours", title: "ساعات الدوام" },
+      { id: "school-info", title: t("settings.schoolInfo") },
+      { id: "school-hours", title: t("settings.schoolHours") },
       { id: "password", title: t("settings.changePassword") },
-      { id: "security", title: "الأمان والخصوصية" },
-      { id: "trash", title: "سلة المحذوفات" },
+      { id: "security", title: t("settings.securityPrivacy") },
+      { id: "trash", title: t("settings.trash") },
       { id: "subscription", title: t("settings.subscription.title") },
       { id: "fees", title: t("settings.fees.title") },
       { id: "academic-stages", title: t("settings.stages.title") },
@@ -596,9 +596,9 @@ export default function SettingsPage() {
   // ── Plan label ────────────────────────────────────────────────────────────
 
   const planLabels: Record<string, string> = {
-    basic: "أساسية",
-    pro: "احترافية",
-    enterprise: "مؤسسية",
+    basic: t("plans.basic"),
+    pro: t("plans.pro"),
+    enterprise: t("plans.enterprise"),
   };
   const planLabel = planLabels[settingsData?.plan ?? ""] ?? settingsData?.plan ?? "—";
 
@@ -612,10 +612,10 @@ export default function SettingsPage() {
       {confirmDeleteLogId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl shadow-xl p-6 w-80 text-center space-y-4">
-            <p className="text-sm font-medium text-[#111111]">هل تريد حذف هذا السجل؟</p>
+            <p className="text-sm font-medium text-[#111111]">{t("settings.confirmDeleteLog")}</p>
             <div className="flex gap-3 justify-center">
-              <button onClick={() => handleDeleteOneLog(confirmDeleteLogId)} disabled={!!deletingLogId} className="px-5 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 disabled:opacity-60">{deletingLogId ? "..." : "حذف"}</button>
-              <button onClick={() => setConfirmDeleteLogId(null)} className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm">إلغاء</button>
+              <button onClick={() => handleDeleteOneLog(confirmDeleteLogId)} disabled={!!deletingLogId} className="px-5 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 disabled:opacity-60">{deletingLogId ? "..." : t("common.delete")}</button>
+              <button onClick={() => setConfirmDeleteLogId(null)} className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm">{t("common.cancel")}</button>
             </div>
           </div>
         </div>
@@ -625,7 +625,7 @@ export default function SettingsPage() {
       {showActivateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl shadow-xl p-6 w-96 space-y-4">
-            <h3 className="text-base font-bold text-[#111111] text-center">تفعيل التحقق بخطوتين</h3>
+            <h3 className="text-base font-bold text-[#111111] text-center">{t("settings.twoFa.enable")}</h3>
 
             {activateStep === "confirm" ? (
               <>
@@ -641,7 +641,7 @@ export default function SettingsPage() {
                     disabled={activateLoading}
                     className="px-5 py-2 bg-[#F64651] hover:bg-[#D93A44] text-white rounded-xl text-sm font-medium disabled:opacity-60"
                   >
-                    {activateLoading ? "..." : "إرسال رمز التحقق"}
+                    {activateLoading ? "..." : t("settings.twoFa.sendCode")}
                   </button>
                   <button
                     onClick={() => setShowActivateModal(false)}
@@ -653,7 +653,7 @@ export default function SettingsPage() {
               </>
             ) : (
               <>
-                <FormField label="رمز التحقق">
+                <FormField label={t("settings.twoFa.code")}>
                   <input
                     type="text"
                     inputMode="numeric"
@@ -673,7 +673,7 @@ export default function SettingsPage() {
                     disabled={activateLoading || activateOtp.length !== 6}
                     className="px-5 py-2 bg-[#F64651] hover:bg-[#D93A44] text-white rounded-xl text-sm font-medium disabled:opacity-60"
                   >
-                    {activateLoading ? "..." : "تأكيد"}
+                    {activateLoading ? "..." : t("common.confirm")}
                   </button>
                   <button
                     onClick={() => setShowActivateModal(false)}
@@ -692,8 +692,8 @@ export default function SettingsPage() {
       {showDeactivateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl shadow-xl p-6 w-96 space-y-4">
-            <h3 className="text-base font-bold text-[#111111] text-center">إيقاف التحقق بخطوتين</h3>
-            <FormField label="كلمة المرور الحالية">
+            <h3 className="text-base font-bold text-[#111111] text-center">{t("settings.twoFa.disable")}</h3>
+            <FormField label={t("settings.currentPassword")}>
               <input
                 type="password"
                 value={deactivatePassword}
@@ -712,7 +712,7 @@ export default function SettingsPage() {
                 disabled={deactivateLoading || !deactivatePassword}
                 className="px-5 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl text-sm font-medium disabled:opacity-60"
               >
-                {deactivateLoading ? "..." : "إيقاف التحقق"}
+                {deactivateLoading ? "..." : t("settings.twoFa.disableAction")}
               </button>
               <button
                 onClick={() => setShowDeactivateModal(false)}
@@ -738,7 +738,7 @@ export default function SettingsPage() {
                 disabled={!!trashActionId}
                 className="px-5 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 disabled:opacity-60"
               >
-                {trashActionId ? "..." : "حذف نهائي"}
+                {trashActionId ? "..." : t("settings.deleteForever")}
               </button>
               <button
                 onClick={() => setConfirmPermanentDelete(null)}
@@ -768,7 +768,7 @@ export default function SettingsPage() {
                 disabled={restoringAll}
                 className="px-5 py-2 bg-[#F64651] text-white rounded-xl text-sm font-medium hover:bg-[#D93A44] disabled:opacity-60"
               >
-                {restoringAll ? "..." : "استعادة الكل"}
+                {restoringAll ? "..." : t("settings.restoreAll")}
               </button>
               <button
                 onClick={() => setShowRestoreAllConfirm(false)}
@@ -785,10 +785,10 @@ export default function SettingsPage() {
       {confirmBulkDeleteLog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl shadow-xl p-6 w-96 text-center space-y-4">
-            <p className="text-sm font-medium text-[#111111]">هل تريد حذف جميع سجلات الإشعارات؟ لا يمكن التراجع عن هذا الإجراء</p>
+            <p className="text-sm font-medium text-[#111111]">{t("settings.confirmClearLogs")}</p>
             <div className="flex gap-3 justify-center">
-              <button onClick={handleDeleteBulkLog} disabled={deletingBulkLog} className="px-5 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 disabled:opacity-60">{deletingBulkLog ? "..." : "مسح الكل"}</button>
-              <button onClick={() => setConfirmBulkDeleteLog(false)} className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm">إلغاء</button>
+              <button onClick={handleDeleteBulkLog} disabled={deletingBulkLog} className="px-5 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 disabled:opacity-60">{deletingBulkLog ? "..." : t("home.clearAll")}</button>
+              <button onClick={() => setConfirmBulkDeleteLog(false)} className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm">{t("common.cancel")}</button>
             </div>
           </div>
         </div>
@@ -823,21 +823,21 @@ export default function SettingsPage() {
           <>
             {/* ── School Info (merged with Legal Info) ──────────────── */}
             {showSection("school-info") && (
-              <SettingsSection id="school-info" title="معلومات المنشأة">
+              <SettingsSection id="school-info" title={t("settings.schoolInfo")}>
                 {/* Logo */}
                 <FormField label={t("settings.logo")}>
                   <div className="flex items-center gap-4">
                     <div className="w-16 h-16 bg-gray-100 border border-gray-200 rounded-xl overflow-hidden flex items-center justify-center shrink-0">
                       {logoUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={logoUrl} alt="شعار المنشأة" className="w-full h-full object-contain" />
+                        <img src={logoUrl} alt={t("settings.logoTitle")} className="w-full h-full object-contain" />
                       ) : (
                         <span className="text-2xl">🏫</span>
                       )}
                     </div>
                     <div>
                       <label className={`cursor-pointer px-4 py-2 border border-gray-300 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-all inline-block ${logoUploading ? "opacity-50 pointer-events-none" : ""}`}>
-                        {logoUploading ? "جارٍ الرفع…" : t("common.upload")}
+                        {logoUploading ? t("settings.uploading") : t("common.upload")}
                         <input
                           ref={logoInputRef}
                           type="file"
@@ -846,7 +846,7 @@ export default function SettingsPage() {
                           onChange={handleLogoUpload}
                         />
                       </label>
-                      <p className="text-xs text-gray-400 mt-1.5">الحجم الموصى به للصور هو 400×400 px</p>
+                      <p className="text-xs text-gray-400 mt-1.5">{t("settings.logoHint")}</p>
                     </div>
                   </div>
                 </FormField>
@@ -869,7 +869,7 @@ export default function SettingsPage() {
                       className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                     />
                   </FormField>
-                  <FormField label="رقم السجل التجاري">
+                  <FormField label={t("settings.commercialReg")}>
                     <input
                       type="text"
                       value={commercialRegistration}
@@ -877,7 +877,7 @@ export default function SettingsPage() {
                       className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                     />
                   </FormField>
-                  <FormField label="الرقم الضريبي VAT">
+                  <FormField label={t("settings.vatNumber")}>
                     <input
                       type="text"
                       value={vatNumber}
@@ -886,7 +886,7 @@ export default function SettingsPage() {
                       className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                     />
                   </FormField>
-                  <FormField label="رقم التواصل">
+                  <FormField label={t("settings.contactNumber")}>
                     <input
                       type="text"
                       value={contactNumber}
@@ -895,7 +895,7 @@ export default function SettingsPage() {
                       className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                     />
                   </FormField>
-                  <FormField label="العنوان">
+                  <FormField label={t("settings.address")}>
                     <input
                       type="text"
                       value={address}
@@ -903,7 +903,7 @@ export default function SettingsPage() {
                       className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                     />
                   </FormField>
-                  <FormField label="رقم الجوال">
+                  <FormField label={t("settings.phoneNumber")}>
                     <input
                       type="text"
                       value={phoneNumber}
@@ -919,13 +919,13 @@ export default function SettingsPage() {
 
             {/* ── School Hours ──────────────────────────────────────── */}
             {showSection("school-hours") && (
-              <SettingsSection id="school-hours" title="ساعات الدوام">
+              <SettingsSection id="school-hours" title={t("settings.schoolHours")}>
                 <div className="space-y-4">
-                  <p className="text-xs text-gray-500">تُستخدم هذه الأوقات لحساب ساعات التأخير تلقائياً</p>
+                  <p className="text-xs text-gray-500">{t("settings.hoursHint")}</p>
                   <div>
-                    <h3 className="text-sm font-semibold text-[#111111] mb-3">المعلمون</h3>
+                    <h3 className="text-sm font-semibold text-[#111111] mb-3">{t("settings.teachersLabel")}</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <FormField label="وقت الدخول">
+                      <FormField label={t("settings.checkinTime")}>
                         <input
                           type="time"
                           value={teacherCheckinTime}
@@ -934,7 +934,7 @@ export default function SettingsPage() {
                           className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                         />
                       </FormField>
-                      <FormField label="وقت الخروج">
+                      <FormField label={t("settings.checkoutTime")}>
                         <input
                           type="time"
                           value={teacherCheckoutTime}
@@ -946,9 +946,9 @@ export default function SettingsPage() {
                     </div>
                   </div>
                   <div>
-                    <h3 className="text-sm font-semibold text-[#111111] mb-3">الطلاب</h3>
+                    <h3 className="text-sm font-semibold text-[#111111] mb-3">{t("settings.studentsLabel")}</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <FormField label="وقت الدخول">
+                      <FormField label={t("settings.checkinTime")}>
                         <input
                           type="time"
                           value={studentCheckinTime}
@@ -957,7 +957,7 @@ export default function SettingsPage() {
                           className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                         />
                       </FormField>
-                      <FormField label="وقت الخروج">
+                      <FormField label={t("settings.checkoutTime")}>
                         <input
                           type="time"
                           value={studentCheckoutTime}
@@ -1024,17 +1024,17 @@ export default function SettingsPage() {
                   disabled={savingPassword}
                   className="px-6 py-2.5 bg-[#111111] hover:bg-[#253055] text-white rounded-xl font-bold text-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  {savingPassword ? t("common.loading") : "تغيير كلمة المرور"}
+                  {savingPassword ? t("common.loading") : t("settings.changePassword")}
                 </button>
               </SettingsSection>
             )}
 
             {/* ── Security & Privacy ────────────────────────────────── */}
             {showSection("security") && (
-              <SettingsSection id="security" title="الأمان والخصوصية">
+              <SettingsSection id="security" title={t("settings.securityPrivacy")}>
                 <div className="flex items-center justify-between gap-4">
                   <div>
-                    <p className="text-sm font-medium text-[#111111]">التحقق بخطوتين</p>
+                    <p className="text-sm font-medium text-[#111111]">{t("settings.twoFa.title")}</p>
                     <p className="text-xs text-gray-500 mt-1">
                       حماية حسابك بطبقة أمان إضافية عبر رمز يُرسل إلى جوالك عند كل تسجيل دخول
                     </p>
@@ -1095,7 +1095,7 @@ export default function SettingsPage() {
             {showSection("trash") && (() => {
               const currentTrashList = trashTab === "students" ? trashStudents : trashTab === "teachers" ? trashTeachers : trashClasses;
               return (
-              <SettingsSection id="trash" title="سلة المحذوفات">
+              <SettingsSection id="trash" title={t("settings.trash")}>
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div className="flex gap-2">
                     {(["students", "teachers", "classes"] as const).map((tab) => (
@@ -1108,7 +1108,7 @@ export default function SettingsPage() {
                             : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                         }`}
                       >
-                        {tab === "students" ? "طلاب" : tab === "teachers" ? "معلمون" : "فصول"}
+                        {t(`settings.trashTabs.${tab}`)}
                       </button>
                     ))}
                   </div>
@@ -1136,11 +1136,11 @@ export default function SettingsPage() {
                       <thead>
                         <tr className="border-b border-gray-100">
                           <th className="text-right py-3 px-2 font-semibold text-gray-600">
-                            {trashTab === "students" ? "اسم الطالب" : trashTab === "teachers" ? "اسم المعلم" : "اسم الفصل"}
+                            {trashTab === "students" ? t("settings.trashColumns.studentName") : trashTab === "teachers" ? t("settings.trashColumns.teacherName") : t("settings.trashColumns.className")}
                           </th>
-                          <th className="text-right py-3 px-2 font-semibold text-gray-600">تاريخ الحذف</th>
-                          <th className="text-right py-3 px-2 font-semibold text-gray-600">يُحذف نهائياً في</th>
-                          <th className="text-right py-3 px-2 font-semibold text-gray-600">الإجراءات</th>
+                          <th className="text-right py-3 px-2 font-semibold text-gray-600">{t("settings.trashColumns.deletedAt")}</th>
+                          <th className="text-right py-3 px-2 font-semibold text-gray-600">{t("settings.trashColumns.purgesOn")}</th>
+                          <th className="text-right py-3 px-2 font-semibold text-gray-600">{t("common.actions")}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1193,7 +1193,7 @@ export default function SettingsPage() {
                     {planLabel}
                   </span>
                   <button
-                    onClick={() => alert("سيتم التواصل معكم لتحديث الخطة")}
+                    onClick={() => alert(t("settings.planUpdateNote"))}
                     className="px-5 py-2 border-2 border-[#111111] text-[#111111] hover:bg-[#111111] hover:text-white rounded-xl font-medium text-sm transition-all"
                   >
                     {t("settings.subscription.update")}
@@ -1281,20 +1281,20 @@ export default function SettingsPage() {
                   />
                 </FormField>
                 <div className="mt-3 p-4 bg-gray-50 rounded-xl text-right">
-                  <p className="text-sm font-bold text-gray-700 mb-3">المتغيرات المتاحة:</p>
+                  <p className="text-sm font-bold text-gray-700 mb-3">{t("variables.title")}:</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {[
-                      { key: "child_name", desc: "اسم الطفل" },
-                      { key: "guardian_name", desc: "اسم ولي الأمر الأول" },
-                      { key: "guardian_2_name", desc: "اسم ولي الأمر الثاني" },
-                      { key: "school_name", desc: "اسم المنشأة" },
-                      { key: "checkin_time", desc: "وقت الدخول من الإعدادات" },
-                      { key: "checkout_time", desc: "وقت الخروج من الإعدادات" },
-                      { key: "subscription_fee", desc: "رسوم التسجيل من ملف الطالب" },
-                      { key: "due_date", desc: "تاريخ انتهاء الاشتراك" },
-                      { key: "activity_name", desc: "اسم الفعالية" },
-                      { key: "activity_fee", desc: "رسوم الفعالية" },
-                      { key: "activity_date", desc: "من (تاريخ البدء) إلى (تاريخ الانتهاء)" },
+                      { key: "child_name", desc: t("variables.childNameDesc") },
+                      { key: "guardian_name", desc: t("variables.guardianNameDesc") },
+                      { key: "guardian_2_name", desc: t("variables.guardian_2_name") },
+                      { key: "school_name", desc: t("variables.schoolNameDesc") },
+                      { key: "checkin_time", desc: t("variables.checkinDesc") },
+                      { key: "checkout_time", desc: t("variables.checkoutDesc") },
+                      { key: "subscription_fee", desc: t("variables.subscription_fee") },
+                      { key: "due_date", desc: t("variables.dueDateDesc") },
+                      { key: "activity_name", desc: t("variables.activityNameDesc") },
+                      { key: "activity_fee", desc: t("variables.activity_fee") },
+                      { key: "activity_date", desc: t("variables.activity_date") },
                     ].map(({ key, desc }) => (
                       <div key={key} className="flex items-center gap-2">
                         <code className="text-xs bg-white border border-gray-200 rounded px-2 py-1 text-success-text font-mono">
@@ -1385,7 +1385,7 @@ export default function SettingsPage() {
                                 <button
                                   onClick={() => setConfirmDeleteLogId(log.id)}
                                   className="text-gray-400 hover:text-red-500 transition-colors text-base"
-                                  title="حذف"
+                                  title={t("common.delete")}
                                 >
                                   🗑
                                 </button>

@@ -48,6 +48,7 @@ interface Report {
 }
 
 function DetailList({ rows, emptyText }: { rows: { label: string; date: string; amount: number }[]; emptyText: string }) {
+  const t = useT();
   if (rows.length === 0) return <p className="text-sm text-gray-400 text-center py-6">{emptyText}</p>;
   const sorted = [...rows].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   return (
@@ -55,9 +56,9 @@ function DetailList({ rows, emptyText }: { rows: { label: string; date: string; 
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-gray-100 bg-gray-50">
-            <th className="px-4 py-2 text-right font-medium text-gray-600">البند</th>
-            <th className="px-4 py-2 text-right font-medium text-gray-600">التاريخ</th>
-            <th className="px-4 py-2 text-right font-medium text-gray-600">المبلغ</th>
+            <th className="px-4 py-2 text-right font-medium text-gray-600">{t("finance.item")}</th>
+            <th className="px-4 py-2 text-right font-medium text-gray-600">{t("finance.date")}</th>
+            <th className="px-4 py-2 text-right font-medium text-gray-600">{t("finance.amount")}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-50">
@@ -93,6 +94,7 @@ function KpiCard({ label, value, colorClass, bgClass }: { label: string; value: 
 // ── Add Expense Form ──────────────────────────────────────────────────────────
 
 function AddExpenseForm({ onSaved, onCancel }: { onSaved: (e: Expense) => void; onCancel: () => void }) {
+  const t = useT();
   const [type, setType] = useState<"one_time" | "monthly">("one_time");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -104,7 +106,7 @@ function AddExpenseForm({ onSaved, onCancel }: { onSaved: (e: Expense) => void; 
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!title || !amount || !startDate) { setError("يرجى تعبئة جميع الحقول المطلوبة"); return; }
+    if (!title || !amount || !startDate) { setError(t("finance.fillRequired")); return; }
     setSaving(true);
     try {
       const res = await axios.post<Expense>("/api/expenses", {
@@ -114,7 +116,7 @@ function AddExpenseForm({ onSaved, onCancel }: { onSaved: (e: Expense) => void; 
       });
       onSaved(res.data);
     } catch (err) {
-      setError(axios.isAxiosError(err) ? err.response?.data?.error ?? "فشل الحفظ" : "فشل الحفظ");
+      setError(axios.isAxiosError(err) ? err.response?.data?.error ?? t("finance.saveFailed") : t("finance.saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -122,52 +124,52 @@ function AddExpenseForm({ onSaved, onCancel }: { onSaved: (e: Expense) => void; 
 
   return (
     <form onSubmit={handleSubmit} className="bg-blue-50 border border-blue-200 rounded-xl p-5 mb-4 space-y-3">
-      <h3 className="text-sm font-bold text-[#111111]">إضافة مصروف جديد</h3>
+      <h3 className="text-sm font-bold text-[#111111]">{t("finance.addExpense")}</h3>
       {error && <p className="text-xs text-red-600">{error}</p>}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">النوع *</label>
+          <label className="block text-xs font-medium text-gray-600 mb-1">{t("finance.type")} *</label>
           <select value={type} onChange={(e) => setType(e.target.value as "one_time" | "monthly")}
             className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651]">
-            <option value="one_time">دفعة مستقلة</option>
-            <option value="monthly">اشتراك شهري</option>
+            <option value="one_time">{t("finance.oneOff")}</option>
+            <option value="monthly">{t("finance.recurring")}</option>
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">عنوان المصروف *</label>
+          <label className="block text-xs font-medium text-gray-600 mb-1">{t("finance.title")} *</label>
           <input value={title} onChange={(e) => setTitle(e.target.value)} required
             className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651]" />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">الوصف</label>
+          <label className="block text-xs font-medium text-gray-600 mb-1">{t("finance.description")}</label>
           <input value={description} onChange={(e) => setDescription(e.target.value)}
             className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651]" />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">السعر (ر.س) *</label>
+          <label className="block text-xs font-medium text-gray-600 mb-1">{t("finance.priceSar")} *</label>
           <input type="number" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} required
             className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651]" />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">تاريخ البداية *</label>
+          <label className="block text-xs font-medium text-gray-600 mb-1">{t("finance.startDate")} *</label>
           <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} required dir="ltr"
             className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651]" />
         </div>
         {type === "monthly" && (
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">
-              تاريخ الانتهاء <span className="text-gray-400">(اختياري)</span>
+              تاريخ الانتهاء <span className="text-gray-400">{t("finance.optional")}</span>
             </label>
             <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} dir="ltr"
               className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651]" />
-            <p className="text-xs text-gray-400 mt-1">في حال تركه فارغاً يستمر المصروف حتى الإيقاف اليدوي</p>
+            <p className="text-xs text-gray-400 mt-1">{t("finance.openEndedHint")}</p>
           </div>
         )}
       </div>
       <div className="flex gap-2 pt-1">
         <button type="submit" disabled={saving}
           className="px-5 py-2 bg-[#F64651] text-white rounded-xl text-sm font-medium hover:bg-[#D93A44] disabled:opacity-60">
-          {saving ? "جاري الإضافة..." : "إضافة"}
+          {saving ? t("finance.adding") : t("common.add")}
         </button>
         <button type="button" onClick={onCancel}
           className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm hover:bg-gray-50">
@@ -181,6 +183,7 @@ function AddExpenseForm({ onSaved, onCancel }: { onSaved: (e: Expense) => void; 
 // ── Edit Expense Row ──────────────────────────────────────────────────────────
 
 function EditExpenseRow({ expense, onSaved, onCancel }: { expense: Expense; onSaved: (e: Expense) => void; onCancel: () => void }) {
+  const t = useT();
   const [title, setTitle] = useState(expense.title);
   const [description, setDescription] = useState(expense.description ?? "");
   const [amount, setAmount] = useState(String(expense.amount));
@@ -217,7 +220,7 @@ function EditExpenseRow({ expense, onSaved, onCancel }: { expense: Expense; onSa
         <input value={title} onChange={(e) => setTitle(e.target.value)}
           className="w-full px-2 py-1 text-sm rounded border border-gray-200 focus:outline-none focus:ring-1 focus:ring-[#F64651]" />
       </td>
-      <td className="px-4 py-2 text-xs text-gray-500">{expense.type === "monthly" ? "اشتراك شهري" : "دفعة مستقلة"}</td>
+      <td className="px-4 py-2 text-xs text-gray-500">{expense.type === "monthly" ? t("finance.recurring") : t("finance.oneOff")}</td>
       <td className="px-4 py-2">
         <input type="number" min="0" value={amount} onChange={(e) => setAmount(e.target.value)}
           className="w-28 px-2 py-1 text-sm rounded border border-gray-200 focus:outline-none" />
@@ -229,7 +232,7 @@ function EditExpenseRow({ expense, onSaved, onCancel }: { expense: Expense; onSa
       <td className="px-4 py-2">
         {expense.type === "monthly" && (
           <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} dir="ltr"
-            placeholder="تاريخ الانتهاء"
+            placeholder={t("finance.endDate")}
             className="px-2 py-1 text-sm rounded border border-gray-200 focus:outline-none" />
         )}
       </td>
@@ -237,7 +240,7 @@ function EditExpenseRow({ expense, onSaved, onCancel }: { expense: Expense; onSa
         <div className="flex gap-1.5 flex-wrap">
           <button onClick={handleSave} disabled={saving}
             className="px-3 py-1 bg-[#F64651] text-white rounded-lg text-xs font-medium hover:bg-[#D93A44] disabled:opacity-60">
-            {saving ? "..." : "حفظ"}
+            {saving ? "..." : t("common.save")}
           </button>
           <button onClick={onCancel}
             className="px-3 py-1 border border-gray-200 text-gray-600 rounded-lg text-xs hover:bg-gray-50">
@@ -248,10 +251,10 @@ function EditExpenseRow({ expense, onSaved, onCancel }: { expense: Expense; onSa
               <>
                 <button onClick={handleStop} disabled={stopping}
                   className="px-3 py-1 bg-orange-500 text-white rounded-lg text-xs font-medium hover:bg-orange-600 disabled:opacity-60">
-                  {stopping ? "..." : "تأكيد الإيقاف"}
+                  {stopping ? "..." : t("finance.confirmStop")}
                 </button>
                 <button onClick={() => setConfirmStop(false)}
-                  className="px-2 py-1 text-xs text-gray-500 hover:underline">لا</button>
+                  className="px-2 py-1 text-xs text-gray-500 hover:underline">{t("finance.no")}</button>
               </>
             ) : (
               <button onClick={() => setConfirmStop(true)}
@@ -268,14 +271,20 @@ function EditExpenseRow({ expense, onSaved, onCancel }: { expense: Expense; onSa
 
 // ── TAB 1: Financial Summary ──────────────────────────────────────────────────
 
-const PERIOD_TABS: { key: ReportPeriodType; label: string }[] = [
-  { key: "monthly", label: "شهري" },
-  { key: "semi_annual", label: "نصف سنوي" },
-  { key: "annual", label: "سنوي" },
+/**
+ * Keys only. Resolving them here would freeze every label to whatever language
+ * was active when this module first loaded — switching language would change the
+ * whole screen except these three tabs.
+ */
+const PERIOD_TABS: { key: ReportPeriodType; labelKey: string }[] = [
+  { key: "monthly", labelKey: "finance.monthly" },
+  { key: "semi_annual", labelKey: "finance.semiAnnual" },
+  { key: "annual", labelKey: "finance.annual" },
 ];
 
-function pctBadge(pct: number | null) {
-  if (pct === null) return <span className="text-gray-400 text-xs">لا تتوفر بيانات للمقارنة</span>;
+/** Takes the translator: this sits outside any component, so it has no hook. */
+function pctBadge(pct: number | null, t: (key: string) => string) {
+  if (pct === null) return <span className="text-gray-400 text-xs">{t("finance.noComparison")}</span>;
   const up = pct >= 0;
   return (
     <span className={`text-xs font-bold ${up ? "text-emerald-600" : "text-red-500"}`}>
@@ -353,7 +362,7 @@ function SummaryTab() {
         setError(null);
       })
       .catch((err) => {
-        if (!cancelled) setError(describeApiError(err, "تعذر تحميل الإحصائيات"));
+        if (!cancelled) setError(describeApiError(err, t("finance.loadFailed")));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -374,7 +383,8 @@ function SummaryTab() {
   async function handleExportReport() {
     setGeneratingReport(true);
     try {
-      const label = PERIOD_TABS.find((p) => p.key === periodType)?.label ?? periodType;
+      const tab = PERIOD_TABS.find((p) => p.key === periodType);
+      const label = tab ? t(tab.labelKey) : periodType;
       const res = await axios.post<Report>("/api/financial-reports/generate", { type: periodType, period_label: label });
       setReports((prev) => [res.data, ...prev]);
       const b64 = res.data.file_url.split(",")[1];
@@ -382,7 +392,7 @@ function SummaryTab() {
         const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
         window.open(URL.createObjectURL(new Blob([bytes], { type: "application/pdf" })), "_blank");
       }
-    } catch { alert("فشل إنشاء التقرير"); }
+    } catch { alert(t("finance.reportFailed")); }
     finally { setGeneratingReport(false); }
   }
 
@@ -399,7 +409,7 @@ function SummaryTab() {
       link.click();
       document.body.removeChild(link);
     } catch {
-      alert("فشل تصدير Excel");
+      alert(t("finance.excelFailed"));
     } finally {
       setExportingExcel(false);
     }
@@ -412,7 +422,7 @@ function SummaryTab() {
     return (
       <div className="py-20 text-center space-y-4">
         <p role="alert" className="text-sm text-red-500">
-          {error ?? "تعذر تحميل الإحصائيات"}
+          {error ?? t("finance.loadFailed")}
         </p>
         <button
           type="button"
@@ -426,9 +436,12 @@ function SummaryTab() {
   }
 
   const combinedPayments = [
-    ...summary.details.revenue.map((r) => ({ ...r, kind: "إيراد" as const })),
-    ...summary.details.salaries.map((r) => ({ ...r, kind: "راتب" as const })),
-    ...summary.details.manualExpenses.map((r) => ({ ...r, kind: "مصروف" as const })),
+    // `kind` stays an untranslated marker: it decides the sign and the colour,
+    // and a value that changes with the interface language cannot be compared
+    // against. The label beside it is translated at the point of display.
+    ...summary.details.revenue.map((r) => ({ ...r, kind: "revenue" as const })),
+    ...summary.details.salaries.map((r) => ({ ...r, kind: "salary" as const })),
+    ...summary.details.manualExpenses.map((r) => ({ ...r, kind: "expense" as const })),
   ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   return (
@@ -438,62 +451,62 @@ function SummaryTab() {
         {PERIOD_TABS.map((p) => (
           <button key={p.key} onClick={() => setPeriodType(p.key)}
             className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${periodType === p.key ? "bg-white shadow text-[#111111]" : "text-gray-500 hover:text-gray-700"}`}>
-            {p.label}
+            {t(p.labelKey)}
           </button>
         ))}
       </div>
 
       {/* المالية — top KPI cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard label="الإيرادات" value={formatCurrency(summary.revenue.total)} colorClass="text-emerald-600" bgClass="bg-emerald-50" />
-        <KpiCard label="المصروفات" value={formatCurrency(summary.expenses.total)} colorClass="text-orange-500" bgClass="bg-orange-50" />
-        <KpiCard label="صافي الدخل" value={formatCurrency(summary.netIncome)} colorClass={summary.netIncome >= 0 ? "text-emerald-600" : "text-red-500"} bgClass={summary.netIncome >= 0 ? "bg-emerald-50" : "bg-red-50"} />
-        <KpiCard label="المبالغ المستحقة" value={formatCurrency(summary.amountDue)} colorClass="text-purple-600" bgClass="bg-purple-50" />
+        <KpiCard label={t("finance.revenues")} value={formatCurrency(summary.revenue.total)} colorClass="text-emerald-600" bgClass="bg-emerald-50" />
+        <KpiCard label={t("finance.expenses")} value={formatCurrency(summary.expenses.total)} colorClass="text-orange-500" bgClass="bg-orange-50" />
+        <KpiCard label={t("finance.netIncome")} value={formatCurrency(summary.netIncome)} colorClass={summary.netIncome >= 0 ? "text-emerald-600" : "text-red-500"} bgClass={summary.netIncome >= 0 ? "bg-emerald-50" : "bg-red-50"} />
+        <KpiCard label={t("finance.outstanding")} value={formatCurrency(summary.amountDue)} colorClass="text-purple-600" bgClass="bg-purple-50" />
       </div>
 
       {/* الأداء المالي */}
-      <SectionCard title="الأداء المالي">
-        <SummaryRow label="الإيرادات" value={formatCurrency(summary.revenue.total)} valueClass="text-emerald-600" />
-        <SummaryRow label="المصروفات" value={formatCurrency(summary.expenses.total)} valueClass="text-orange-500" />
-        <SummaryRow label="صافي الدخل" value={formatCurrency(summary.netIncome)} valueClass={summary.netIncome >= 0 ? "text-emerald-600" : "text-red-500"} />
+      <SectionCard title={t("finance.performance")}>
+        <SummaryRow label={t("finance.revenues")} value={formatCurrency(summary.revenue.total)} valueClass="text-emerald-600" />
+        <SummaryRow label={t("finance.expenses")} value={formatCurrency(summary.expenses.total)} valueClass="text-orange-500" />
+        <SummaryRow label={t("finance.netIncome")} value={formatCurrency(summary.netIncome)} valueClass={summary.netIncome >= 0 ? "text-emerald-600" : "text-red-500"} />
         <div className="pt-3 border-t border-gray-100 space-y-2">
-          <p className="text-xs text-gray-400">مقارنة بالفترة السابقة</p>
+          <p className="text-xs text-gray-400">{t("finance.vsPrevious")}</p>
           <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-500">الإيرادات</span>
-            {pctBadge(summary.comparison.revenuePct)}
+            <span className="text-gray-500">{t("finance.revenues")}</span>
+            {pctBadge(summary.comparison.revenuePct, t)}
           </div>
           <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-500">المصروفات</span>
-            {pctBadge(summary.comparison.expensesPct)}
+            <span className="text-gray-500">{t("finance.expenses")}</span>
+            {pctBadge(summary.comparison.expensesPct, t)}
           </div>
         </div>
       </SectionCard>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* الإيرادات breakdown */}
-        <SectionCard title="الإيرادات">
-          <SummaryRow label="الرسوم الشهرية" value={formatCurrency(summary.revenue.monthlyFees)} />
-          <SummaryRow label="غرامات التأخير" value={formatCurrency(summary.revenue.lateFees)} />
-          <SummaryRow label="رسوم التسجيل المحصّلة" value={formatCurrency(summary.revenue.registrationFeesCollected)} />
-          <SummaryRow label="رسوم الفعاليات" value={formatCurrency(summary.revenue.activities)} />
-          <SummaryRow label="ضريبة القيمة المضافة المحصَّلة" value={formatCurrency(summary.revenue.vatCollected)} />
+        <SectionCard title={t("finance.revenues")}>
+          <SummaryRow label={t("finance.monthlyFees")} value={formatCurrency(summary.revenue.monthlyFees)} />
+          <SummaryRow label={t("finance.lateFees")} value={formatCurrency(summary.revenue.lateFees)} />
+          <SummaryRow label={t("finance.registrationCollected")} value={formatCurrency(summary.revenue.registrationFeesCollected)} />
+          <SummaryRow label={t("finance.activityFees")} value={formatCurrency(summary.revenue.activities)} />
+          <SummaryRow label={t("finance.vatCollected")} value={formatCurrency(summary.revenue.vatCollected)} />
           <div className="pt-2 border-t border-gray-100">
-            <SummaryRow label="إجمالي الإيرادات" value={formatCurrency(summary.revenue.total)} valueClass="text-emerald-600" />
+            <SummaryRow label={t("finance.totalRevenue")} value={formatCurrency(summary.revenue.total)} valueClass="text-emerald-600" />
           </div>
         </SectionCard>
 
         {/* التحصيل */}
-        <SectionCard title="التحصيل (حسب حالة دفع الطلاب النشطين)">
+        <SectionCard title={t("finance.collection")}>
           <div className="flex items-start justify-between py-1">
             <div className="text-left">
               <div className="flex flex-col gap-0.5">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-bold text-emerald-600">{formatCurrency(summary.collection.paid)}</span>
-                  <span className="text-xs text-gray-400">الإجمالي الصافي</span>
+                  <span className="text-xs text-gray-400">{t("finance.netTotal")}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-bold text-emerald-600">{formatCurrency(summary.collection.paidWithVat)}</span>
-                  <span className="text-xs text-gray-400">شامل الضريبة</span>
+                  <span className="text-xs text-gray-400">{t("finance.vatIncluded")}</span>
                 </div>
               </div>
             </div>
@@ -506,40 +519,40 @@ function SummaryTab() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* المصروفات breakdown */}
-        <SectionCard title="المصروفات">
-          <SummaryRow label="الرواتب" value={formatCurrency(summary.expenses.salaries)} />
+        <SectionCard title={t("finance.expenses")}>
+          <SummaryRow label={t("finance.salaries")} value={formatCurrency(summary.expenses.salaries)} />
           {summary.expenses.manual.length === 0 ? (
-            <p className="text-xs text-gray-400 py-2">لا توجد مصاريف مضافة يدويًا خلال هذه الفترة</p>
+            <p className="text-xs text-gray-400 py-2">{t("finance.noManualExpenses")}</p>
           ) : (
             summary.expenses.manual.map((e, i) => <SummaryRow key={i} label={e.title} value={formatCurrency(e.amount)} />)
           )}
           <div className="pt-2 border-t border-gray-100">
-            <SummaryRow label="إجمالي المصروفات" value={formatCurrency(summary.expenses.total)} valueClass="text-orange-500" />
+            <SummaryRow label={t("finance.totalExpenses")} value={formatCurrency(summary.expenses.total)} valueClass="text-orange-500" />
           </div>
         </SectionCard>
 
         {/* الرواتب */}
-        <SectionCard title="الرواتب">
-          <SummaryRow label="إجمالي الرواتب (حسب عقود المعلمين النشطين)" value={formatCurrency(summary.salaries.totalBudgeted)} />
-          <SummaryRow label="مصروف" value={formatCurrency(summary.salaries.paid)} valueClass="text-emerald-600" />
-          <SummaryRow label="متبقي" value={formatCurrency(summary.salaries.remaining)} valueClass="text-amber-500" />
+        <SectionCard title={t("finance.salaries")}>
+          <SummaryRow label={t("finance.totalSalaries")} value={formatCurrency(summary.salaries.totalBudgeted)} />
+          <SummaryRow label={t("finance.expenseRow")} value={formatCurrency(summary.salaries.paid)} valueClass="text-emerald-600" />
+          <SummaryRow label={t("finance.remaining")} value={formatCurrency(summary.salaries.remaining)} valueClass="text-amber-500" />
         </SectionCard>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* التدفق النقدي */}
-        <SectionCard title="التدفق النقدي">
-          <SummaryRow label="الرصيد الافتتاحي" value={formatCurrency(summary.cashFlow.openingBalance)} />
-          <SummaryRow label="المتحصلات" value={`+ ${formatCurrency(summary.cashFlow.inflows)}`} valueClass="text-emerald-600" />
-          <SummaryRow label="المصروفات" value={`- ${formatCurrency(summary.cashFlow.outflows)}`} valueClass="text-red-500" />
+        <SectionCard title={t("finance.cashFlow")}>
+          <SummaryRow label={t("finance.openingBalance")} value={formatCurrency(summary.cashFlow.openingBalance)} />
+          <SummaryRow label={t("finance.receipts")} value={`+ ${formatCurrency(summary.cashFlow.inflows)}`} valueClass="text-emerald-600" />
+          <SummaryRow label={t("finance.expenses")} value={`- ${formatCurrency(summary.cashFlow.outflows)}`} valueClass="text-red-500" />
           <div className="pt-2 border-t border-gray-100">
-            <SummaryRow label="الرصيد الحالي" value={formatCurrency(summary.cashFlow.closingBalance)} valueClass={summary.cashFlow.closingBalance >= 0 ? "text-emerald-600" : "text-red-500"} />
+            <SummaryRow label={t("finance.currentBalance")} value={formatCurrency(summary.cashFlow.closingBalance)} valueClass={summary.cashFlow.closingBalance >= 0 ? "text-emerald-600" : "text-red-500"} />
           </div>
         </SectionCard>
       </div>
 
       {/* التفاصيل */}
-      <SectionCard title="التفاصيل">
+      <SectionCard title={t("finance.details")}>
         <div className="flex flex-wrap gap-3">
           <button onClick={() => setOpenPanel(openPanel === "revenue" ? null : "revenue")}
             className="px-4 py-2 text-sm border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
@@ -555,45 +568,45 @@ function SummaryTab() {
           </button>
           <button onClick={handleExportReport} disabled={generatingReport}
             className="px-4 py-2 text-sm bg-[#111111] text-white rounded-xl hover:bg-gray-800 transition-colors disabled:opacity-60">
-            {generatingReport ? "⏳ جارٍ التصدير…" : "⬇ تصدير PDF"}
+            {generatingReport ? t("finance.exporting") : t("finance.exportPdf")}
           </button>
           <button onClick={handleExportExcel} disabled={exportingExcel}
             className="px-4 py-2 text-sm border-2 border-[#111111] text-[#111111] rounded-xl hover:bg-[#111111] hover:text-white transition-colors disabled:opacity-60">
-            {exportingExcel ? "⏳ جارٍ التصدير…" : "⬇ تصدير Excel"}
+            {exportingExcel ? t("finance.exporting") : t("finance.exportExcel")}
           </button>
         </div>
 
         {openPanel === "revenue" && (
-          <DetailList rows={summary.details.revenue.map((r) => ({ label: r.label, date: r.date, amount: r.amount }))} emptyText="لا توجد إيرادات خلال هذه الفترة" />
+          <DetailList rows={summary.details.revenue.map((r) => ({ label: r.label, date: r.date, amount: r.amount }))} emptyText={t("finance.noRevenue")} />
         )}
         {openPanel === "expenses" && (
           <DetailList
             rows={[...summary.details.salaries, ...summary.details.manualExpenses].map((r) => ({ label: r.label, date: r.date, amount: r.amount }))}
-            emptyText="لا توجد مصروفات خلال هذه الفترة"
+            emptyText={t("finance.noExpenses")}
           />
         )}
         {openPanel === "payments" && (
           <div className="mt-3 overflow-x-auto">
             {combinedPayments.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-6">لا توجد حركات مالية خلال هذه الفترة</p>
+              <p className="text-sm text-gray-400 text-center py-6">{t("finance.noMovements")}</p>
             ) : (
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50">
-                    <th className="px-4 py-2 text-right font-medium text-gray-600">النوع</th>
-                    <th className="px-4 py-2 text-right font-medium text-gray-600">البند</th>
-                    <th className="px-4 py-2 text-right font-medium text-gray-600">التاريخ</th>
-                    <th className="px-4 py-2 text-right font-medium text-gray-600">المبلغ</th>
+                    <th className="px-4 py-2 text-right font-medium text-gray-600">{t("finance.type")}</th>
+                    <th className="px-4 py-2 text-right font-medium text-gray-600">{t("finance.item")}</th>
+                    <th className="px-4 py-2 text-right font-medium text-gray-600">{t("finance.date")}</th>
+                    <th className="px-4 py-2 text-right font-medium text-gray-600">{t("finance.amount")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {combinedPayments.map((r) => (
                     <tr key={`${r.kind}-${r.id}`}>
-                      <td className="px-4 py-2 text-gray-500">{r.kind}</td>
+                      <td className="px-4 py-2 text-gray-500">{t(`finance.${r.kind}Row`)}</td>
                       <td className="px-4 py-2 text-gray-800">{r.label}</td>
                       <td className="px-4 py-2 text-gray-500">{new Date(r.date).toLocaleDateString("ar-SA")}</td>
-                      <td className={`px-4 py-2 font-bold ${r.kind === "إيراد" ? "text-emerald-600" : "text-red-500"}`}>
-                        {r.kind === "إيراد" ? "+" : "-"} {formatCurrency(r.amount)}
+                      <td className={`px-4 py-2 font-bold ${r.kind === "revenue" ? "text-emerald-600" : "text-red-500"}`}>
+                        {r.kind === "revenue" ? "+" : "-"} {formatCurrency(r.amount)}
                       </td>
                     </tr>
                   ))}
@@ -607,7 +620,7 @@ function SummaryTab() {
       {/* Exported reports */}
       <div className="bg-white rounded-xl shadow-md overflow-hidden">
         <div className="px-5 py-3 border-b border-gray-100 bg-gray-50">
-          <h3 className="text-sm font-bold text-[#111111]">التقارير المصدرة</h3>
+          <h3 className="text-sm font-bold text-[#111111]">{t("finance.exportedReports")}</h3>
         </div>
         {loadingReports ? (
           <div className="p-6 text-sm text-gray-400 text-center">{t("common.loading")}</div>
@@ -617,10 +630,10 @@ function SummaryTab() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50">
-                <th className="px-5 py-3 text-right font-medium text-gray-600">اسم الملف</th>
-                <th className="px-5 py-3 text-right font-medium text-gray-600">الفترة</th>
-                <th className="px-5 py-3 text-right font-medium text-gray-600">تاريخ الإصدار</th>
-                <th className="px-5 py-3 text-right font-medium text-gray-600">إجراءات</th>
+                <th className="px-5 py-3 text-right font-medium text-gray-600">{t("finance.fileName")}</th>
+                <th className="px-5 py-3 text-right font-medium text-gray-600">{t("finance.period")}</th>
+                <th className="px-5 py-3 text-right font-medium text-gray-600">{t("finance.issuedOn")}</th>
+                <th className="px-5 py-3 text-right font-medium text-gray-600">{t("common.actions")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -632,9 +645,9 @@ function SummaryTab() {
                   <td className="px-5 py-3">
                     <div className="flex gap-2">
                       <button onClick={() => { const b64=r.file_url.split(",")[1]; const bytes=Uint8Array.from(atob(b64),(c)=>c.charCodeAt(0)); window.open(URL.createObjectURL(new Blob([bytes],{type:"application/pdf"})),"_blank"); }}
-                        className="px-2.5 py-1 text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100">عرض</button>
+                        className="px-2.5 py-1 text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100">{t("finance.view")}</button>
                       <button onClick={() => { const a=document.createElement("a"); a.href=r.file_url; a.download=`${r.name}.pdf`; document.body.appendChild(a); a.click(); document.body.removeChild(a); }}
-                        className="px-2.5 py-1 text-xs bg-gray-50 text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-100">تنزيل</button>
+                        className="px-2.5 py-1 text-xs bg-gray-50 text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-100">{t("finance.download")}</button>
                     </div>
                   </td>
                 </tr>
@@ -702,13 +715,13 @@ function ExpensesTab() {
       {confirmDeleteId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl shadow-xl p-6 w-96 text-center space-y-4">
-            <p className="text-sm font-medium text-[#111111]">هل تريد حذف هذا المصروف نهائياً؟ لن يظهر في أي تقارير مستقبلية</p>
+            <p className="text-sm font-medium text-[#111111]">{t("finance.confirmDeleteExpense")}</p>
             <div className="flex gap-3 justify-center">
               <button onClick={() => handleDelete(confirmDeleteId)} disabled={!!deletingId}
                 className="px-5 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 disabled:opacity-60">
-                {deletingId ? "..." : "حذف"}
+                {deletingId ? "..." : t("common.delete")}
               </button>
-              <button onClick={() => setConfirmDeleteId(null)} className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm">إلغاء</button>
+              <button onClick={() => setConfirmDeleteId(null)} className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm">{t("common.cancel")}</button>
             </div>
           </div>
         </div>
@@ -717,13 +730,13 @@ function ExpensesTab() {
       {/* Controls */}
       <div className="flex flex-wrap items-center gap-3 justify-between">
         <div className="flex gap-2 flex-wrap">
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="بحث بالاسم..."
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("finance.searchByName")}
             className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651] bg-white" />
           <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}
             className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651] bg-white">
-            <option value="">الكل</option>
-            <option value="monthly">اشتراك شهري</option>
-            <option value="one_time">دفعة مستقلة</option>
+            <option value="">{t("common.all")}</option>
+            <option value="monthly">{t("finance.recurring")}</option>
+            <option value="one_time">{t("finance.oneOff")}</option>
           </select>
         </div>
         <button onClick={() => setShowAddForm(true)}
@@ -746,12 +759,12 @@ function ExpensesTab() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50">
-                  <th className="px-4 py-3 text-right font-medium text-gray-600">العنوان</th>
-                  <th className="px-4 py-3 text-right font-medium text-gray-600">النوع</th>
-                  <th className="px-4 py-3 text-right font-medium text-gray-600">السعر</th>
-                  <th className="px-4 py-3 text-right font-medium text-gray-600">تاريخ البداية</th>
-                  <th className="px-4 py-3 text-right font-medium text-gray-600">الحالة</th>
-                  <th className="px-4 py-3 text-right font-medium text-gray-600">الإجراءات</th>
+                  <th className="px-4 py-3 text-right font-medium text-gray-600">{t("finance.title")}</th>
+                  <th className="px-4 py-3 text-right font-medium text-gray-600">{t("finance.type")}</th>
+                  <th className="px-4 py-3 text-right font-medium text-gray-600">{t("finance.price")}</th>
+                  <th className="px-4 py-3 text-right font-medium text-gray-600">{t("finance.startDate")}</th>
+                  <th className="px-4 py-3 text-right font-medium text-gray-600">{t("finance.status")}</th>
+                  <th className="px-4 py-3 text-right font-medium text-gray-600">{t("common.actions")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -775,8 +788,8 @@ function ExpensesTab() {
                         {exp.type === "monthly" ? (
                           <div className="flex flex-col gap-1 items-start">
                             {exp.is_active
-                              ? <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-success-bg text-success-text">نشط</span>
-                              : <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">موقوف</span>
+                              ? <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-success-bg text-success-text">{t("finance.active")}</span>
+                              : <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">{t("finance.stopped")}</span>
                             }
                             {exp.end_date && (
                               <span className="text-xs text-gray-400">

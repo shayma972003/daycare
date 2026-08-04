@@ -29,6 +29,7 @@ import {
 } from "@/lib/calendar";
 import { CalendarEventModal } from "@/components/calendar/CalendarEventModal";
 import type { CalendarEventType } from "@/generated/prisma/enums";
+import { useT } from "@/lib/i18n-provider";
 
 interface EventRow {
   id: string;
@@ -50,6 +51,8 @@ interface Option {
 }
 
 export default function CalendarPage() {
+  // Locale-aware translation — see src/lib/i18n.ts.
+  const t = useT();
   const [view, setView] = useState<CalendarView>("week");
   const [anchor, setAnchor] = useState(() => new Date());
   const [events, setEvents] = useState<EventRow[]>([]);
@@ -76,7 +79,7 @@ export default function CalendarPage() {
       setEvents(response.data);
       setError(null);
     } catch (err) {
-      setError(describeApiError(err, "تعذر تحميل التقويم"));
+      setError(describeApiError(err, t("calendar.loadFailed")));
     }
   }, [range.from, range.to, classFilter, teacherFilter]);
 
@@ -95,7 +98,7 @@ export default function CalendarPage() {
         if (!cancelled) setEvents(response.data);
       })
       .catch((err) => {
-        if (!cancelled) setError(describeApiError(err, "تعذر تحميل التقويم"));
+        if (!cancelled) setError(describeApiError(err, t("calendar.loadFailed")));
       });
 
     return () => {
@@ -144,7 +147,7 @@ export default function CalendarPage() {
 
   return (
     <div dir="rtl" className="min-h-screen bg-brand-bg">
-      <Topbar title="التقويم" />
+      <Topbar title={t("calendar.title")} />
 
       <div className="p-6 space-y-4">
         {error && (
@@ -197,7 +200,7 @@ export default function CalendarPage() {
               onChange={(e) => setClassFilter(e.target.value)}
               className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
             >
-              <option value="">كل الفصول</option>
+              <option value="">{t("common.allClasses")}</option>
               {classes.map((item) => (
                 <option key={item.id} value={item.id}>{item.name}</option>
               ))}
@@ -207,7 +210,7 @@ export default function CalendarPage() {
               onChange={(e) => setTeacherFilter(e.target.value)}
               className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
             >
-              <option value="">كل المعلمات</option>
+              <option value="">{t("common.allTeachers")}</option>
               {teachers.map((item) => (
                 <option key={item.id} value={item.id}>{item.name}</option>
               ))}

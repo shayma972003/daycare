@@ -14,6 +14,7 @@ import { Topbar } from "@/components/layout/Topbar";
 import { describeApiError } from "@/lib/api-error";
 import { formatAst } from "@/lib/datetime";
 import { UnitFilesPanel } from "@/components/units/UnitFilesPanel";
+import { useT } from "@/lib/i18n-provider";
 
 interface UnitRow {
   id: string;
@@ -32,6 +33,8 @@ const inputCls =
   "border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2F96A6]";
 
 export default function UnitsPage() {
+  // Locale-aware translation — see src/lib/i18n.ts.
+  const t = useT();
   const [units, setUnits] = useState<UnitRow[]>([]);
   const [status, setStatus] = useState<"active" | "archived">("active");
   const [sort, setSort] = useState<"newest" | "oldest">("newest");
@@ -52,7 +55,7 @@ export default function UnitsPage() {
       setUnits(response.data);
       setError(null);
     } catch (err) {
-      setError(describeApiError(err, "تعذر تحميل الوحدات"));
+      setError(describeApiError(err, t("units.loadFailed")));
     } finally {
       setLoading(false);
     }
@@ -75,7 +78,7 @@ export default function UnitsPage() {
         })
         .catch((err) => {
           if (cancelled) return;
-          setError(describeApiError(err, "تعذر تحميل الوحدات"));
+          setError(describeApiError(err, t("units.loadFailed")));
           setLoading(false);
         });
     }, 250);
@@ -95,7 +98,7 @@ export default function UnitsPage() {
       setCreating(false);
       await load();
     } catch (err) {
-      setError(describeApiError(err, "تعذر إنشاء الوحدة"));
+      setError(describeApiError(err, t("units.createFailed")));
     } finally {
       setSaving(false);
     }
@@ -107,13 +110,13 @@ export default function UnitsPage() {
       await axios.put(`/api/units/${unit.id}`, { archived });
       await load();
     } catch (err) {
-      setError(describeApiError(err, "تعذر تحديث الوحدة"));
+      setError(describeApiError(err, t("units.updateFailed")));
     }
   }
 
   return (
     <div dir="rtl" className="min-h-screen bg-brand-bg">
-      <Topbar title="الوحدات التعليمية" />
+      <Topbar title={t("units.title")} />
 
       <div className="p-6 space-y-4">
         {error && (
@@ -132,7 +135,7 @@ export default function UnitsPage() {
                   status === option ? "bg-white shadow text-[#111111]" : "text-gray-500"
                 }`}
               >
-                {option === "active" ? "نشطة" : "مؤرشفة"}
+                {option === "active" ? t("units.active") : t("units.archived")}
               </button>
             ))}
           </div>
@@ -140,7 +143,7 @@ export default function UnitsPage() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="بحث…"
+            placeholder={t("common.searchDots")}
             className={inputCls}
           />
 
@@ -149,8 +152,8 @@ export default function UnitsPage() {
             onChange={(e) => setSort(e.target.value as "newest" | "oldest")}
             className={inputCls}
           >
-            <option value="newest">الأحدث أولاً</option>
-            <option value="oldest">الأقدم أولاً</option>
+            <option value="newest">{t("common.newestFirst")}</option>
+            <option value="oldest">{t("common.oldestFirst")}</option>
           </select>
 
           <button
@@ -166,7 +169,7 @@ export default function UnitsPage() {
             <input
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              placeholder="اسم الوحدة"
+              placeholder={t("units.unitName")}
               className={`${inputCls} flex-1 min-w-[220px]`}
               autoFocus
             />
@@ -175,7 +178,7 @@ export default function UnitsPage() {
               disabled={saving || !newName.trim()}
               className="px-5 py-2 bg-[#2F96A6] text-white rounded-xl text-sm font-medium hover:bg-[#26808e] disabled:opacity-60"
             >
-              {saving ? "..." : "إنشاء"}
+              {saving ? "..." : t("common.create")}
             </button>
             <button
               onClick={() => {
@@ -184,16 +187,16 @@ export default function UnitsPage() {
               }}
               className="px-4 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm"
             >
-              إلغاء
+              {t("common.cancel")}
             </button>
           </div>
         )}
 
         {loading ? (
-          <p className="text-sm text-gray-400 py-10 text-center">جارٍ التحميل…</p>
+          <p className="text-sm text-gray-400 py-10 text-center">{t("common.loadingDots")}</p>
         ) : units.length === 0 ? (
           <p className="text-sm text-gray-400 py-10 text-center">
-            {status === "active" ? "لا توجد وحدات نشطة" : "لا توجد وحدات مؤرشفة"}
+            {status === "active" ? t("units.noneActive") : t("units.noneArchived")}
           </p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -223,7 +226,7 @@ export default function UnitsPage() {
                     onClick={() => setArchived(unit, !unit.archivedAt)}
                     className="text-xs text-[#2F96A6] hover:underline"
                   >
-                    {unit.archivedAt ? "إلغاء الأرشفة" : "أرشفة"}
+                    {unit.archivedAt ? t("units.unarchive") : t("units.archive")}
                   </button>
                   <button
                     onClick={() =>
@@ -231,7 +234,7 @@ export default function UnitsPage() {
                     }
                     className="text-xs text-gray-500 hover:underline"
                   >
-                    {openFilesFor === unit.id ? "إخفاء الملفات" : "الملفات"}
+                    {openFilesFor === unit.id ? t("units.hideFiles") : t("units.files")}
                   </button>
                 </div>
 

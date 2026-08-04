@@ -20,8 +20,9 @@ const rowSchema = z.object({
   qualification1: z.string().optional(),
   paymentMethod: z.enum(["CASH", "TRANSFER", "CARD"]).default("CASH"),
   joinDate: z.string().optional(),
-  monthlySalary: z.number().default(0),
-  lateDeductionRate: z.number().default(0),
+  // An imported spreadsheet is the least trustworthy source in the product.
+  monthlySalary: z.number().min(0).max(1_000_000).default(0),
+  lateDeductionRate: z.number().min(0).max(100).default(0),
 });
 
 function mapRow(raw: Record<string, unknown>) {

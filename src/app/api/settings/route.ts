@@ -41,7 +41,22 @@ export async function GET(_request: Request) {
     prisma.school.findUnique({ where: { id: schoolId } }),
   ]);
 
-  return Response.json({
+  /**
+   * Two tiers in one response.
+   *
+   * The route is readable by every signed-in member of the school, because the
+   * fee settings and the school's hours are needed on almost every screen and a
+   * teacher who cannot read them sees an empty timetable. That is why the
+   * permission table lists `GET: null`.
+   *
+   * It was returning the whole `School` row with it: the commercial
+   * registration, the VAT number, the postal address and whether two-factor is
+   * switched on. None of that is needed to render a timetable — the first two
+   * belong on tax documents, and the last is a fact about the account's
+   * defences. They are now gated behind `settings.manage`, the same permission
+   * that lets someone change them.
+   */
+  const operational = {
     settings: settings ?? {
       schoolId,
       hourlyLateFee: 0,
@@ -53,18 +68,29 @@ export async function GET(_request: Request) {
     schoolName: school?.name ?? "",
     logoUrl: school?.logoUrl ?? null,
     plan: school?.plan ?? "basic",
-    schoolEmail: school?.email ?? "",
     teacherCheckinTime: school?.teacherCheckinTime ?? "",
     teacherCheckoutTime: school?.teacherCheckoutTime ?? "",
     studentCheckinTime: school?.studentCheckinTime ?? "",
     studentCheckoutTime: school?.studentCheckoutTime ?? "",
-    commercialRegistration: school?.commercialRegistration ?? "",
-    vatNumber: school?.vatNumber ?? "",
-    contactNumber: school?.contactNumber ?? "",
-    address: school?.address ?? "",
-    phoneNumber: school?.phoneNumber ?? "",
-    twoFaEnabled: school?.twoFaEnabled ?? false,
-  }, { status: 200 });
+  };
+
+  if (!session.can("settings.manage")) {
+    return Response.json(operational, { status: 200 });
+  }
+
+  return Response.json(
+    {
+      ...operational,
+      schoolEmail: school?.email ?? "",
+      commercialRegistration: school?.commercialRegistration ?? "",
+      vatNumber: school?.vatNumber ?? "",
+      contactNumber: school?.contactNumber ?? "",
+      address: school?.address ?? "",
+      phoneNumber: school?.phoneNumber ?? "",
+      twoFaEnabled: school?.twoFaEnabled ?? false,
+    },
+    { status: 200 }
+  );
 }
 
 export async function PUT(request: Request) {

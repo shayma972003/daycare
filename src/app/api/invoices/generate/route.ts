@@ -75,8 +75,11 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
 
 const lineItemSchema = z.object({
   description: z.string(),
-  qty: z.number(),
-  price: z.number(),
+  // A tax document cannot carry a negative line: it would reduce the total and
+  // the VAT with it, producing a smaller, plausible-looking invoice. Credits are
+  // a separate document, not a minus sign in a quantity box.
+  qty: z.number().min(0).max(10_000),
+  price: z.number().min(0).max(10_000_000),
   total: z.number(),
 });
 
@@ -167,8 +170,33 @@ export async function POST(request: Request) {
     return Response.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  // Branch: full invoice data from modal
+  /**
+   * Two shapes arrive here: a full invoice built in the modal, and a bare
+   * `{ studentId }` asking the server to generate a default one.
+   *
+   * The branch used to be "try the full shape; if it does not parse, fall
+   * through". That made every validation failure silent: a payload with a
+   * negative line, a missing field or a mistyped number failed the first schema,
+   * matched the second (which needs only `studentId`), and produced a
+   * *different* invoice — for the standard fee rather than the figures the user
+   * entered — returning 200. The user is told an invoice was issued; the
+   * document says something else.
+   *
+   * So the intent is decided first, by the presence of `invoiceData`, and a
+   * malformed full invoice is refused rather than quietly replaced.
+   */
+  const looksFull =
+    typeof body === "object" && body !== null && "invoiceData" in body;
+
   const fullParsed = fullInvoiceSchema.safeParse(body);
+
+  if (looksFull && !fullParsed.success) {
+    return Response.json(
+      { error: fullParsed.error.flatten(), message: "بيانات الفاتورة غير صالحة" },
+      { status: 422 }
+    );
+  }
+
   if (fullParsed.success) {
     const { studentId, invoiceData: rawInv } = fullParsed.data;
 

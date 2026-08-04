@@ -71,7 +71,8 @@ const styles = StyleSheet.create({
 const lineItemSchema = z.object({
   description: z.string(),
   quantity: z.number(),
-  price: z.number(),
+  // Never negative — see the note in the student invoice route.
+  price: z.number().min(0).max(10_000_000),
   vat: z.number(),
   total: z.number(),
 });
@@ -99,7 +100,7 @@ const generateSchema = z.object({
   school_address: z.string().nullish(),
 
   line_items: z.array(lineItemSchema),
-  total_amount: z.number(),
+  total_amount: z.number().min(0).max(100_000_000),
 });
 
 function savePdf(buffer: Buffer): string {

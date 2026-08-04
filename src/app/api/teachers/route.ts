@@ -14,8 +14,18 @@ const createTeacherSchema = z.object({
   phone2: z.string().optional(),
   paymentMethod: z.enum(["CASH", "TRANSFER", "CARD"]).optional(),
   joinDate: z.string().optional(),
-  monthlySalary: z.number().optional(),
-  lateDeductionRate: z.number().optional(),
+  /**
+   * Money, so bounded on both sides.
+   *
+   * `z.number()` alone accepted a negative salary, which the payroll totals then
+   * added — a staff member with −5000 quietly reduced the month's wage bill by
+   * five thousand riyals, and nothing in the interface would have shown why the
+   * figure was wrong. The upper bound is a typo guard: a salary of 10,000,000 is
+   * a slipped decimal point, not a contract.
+   */
+  monthlySalary: z.number().min(0).max(1_000_000).optional(),
+  /** A percentage. Above 100 would deduct more than the hour is worth. */
+  lateDeductionRate: z.number().min(0).max(100).optional(),
   qualification1: z.string().optional(),
   qualification2: z.string().optional(),
   qualification3: z.string().optional(),

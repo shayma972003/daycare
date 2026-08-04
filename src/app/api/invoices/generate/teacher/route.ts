@@ -51,7 +51,8 @@ const styles = StyleSheet.create({
 const lineItemSchema = z.object({
   description: z.string(),
   lateHours: z.union([z.number(), z.literal("")]),
-  price: z.number(),
+  // Never negative — see the note in the student invoice route.
+  price: z.number().min(0).max(10_000_000),
   total: z.number(),
 });
 

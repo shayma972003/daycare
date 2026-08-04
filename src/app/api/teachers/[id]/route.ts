@@ -23,8 +23,10 @@ const updateTeacherSchema = z.object({
   phone2: z.string().nullish(),
   paymentMethod: z.enum(["CASH", "TRANSFER", "CARD"]).nullish(),
   joinDate: z.string().nullish(),
-  monthlySalary: z.number().nullish(),
-  lateDeductionRate: z.number().nullish(),
+  // Bounded like the create route: a negative salary is subtracted from the
+  // month's wage bill, and nothing on screen explains the shortfall.
+  monthlySalary: z.number().min(0).max(1_000_000).nullish(),
+  lateDeductionRate: z.number().min(0).max(100).nullish(),
   qualification1: z.string().nullish(),
   qualification2: z.string().nullish(),
   qualification3: z.string().nullish(),

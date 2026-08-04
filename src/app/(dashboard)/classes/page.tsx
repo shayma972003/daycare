@@ -6,12 +6,13 @@ import { useRouter } from "next/navigation";
 import { Topbar } from "@/components/layout/Topbar";
 import { PeriodBadge } from "@/components/ui/StatusBadge";
 import { useT } from "@/lib/i18n-provider";
+import { useAcademicStages, useStageName } from "@/lib/use-academic-stages";
 
 
 interface ClassItem {
   id: string;
   name: string;
-  group?: string | null;
+  stage?: { id: string; nameAr: string; nameEn: string | null } | null;
   period?: "MORNING" | "EVENING" | null;
   registrationDate?: string | null;
   notes?: string | null;
@@ -31,7 +32,10 @@ export default function ClassesPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [periodFilter, setPeriodFilter] = useState<"MORNING" | "EVENING" | "all">("all");
-  const [groupFilter, setGroupFilter] = useState<"kg1" | "kg2" | "kg3" | "nursery" | "all">("all");
+  // The school's own stages now, not four hard-coded ones (task 2.44).
+  const [stageFilter, setStageFilter] = useState<string>("all");
+  const { stages } = useAcademicStages();
+  const stageName = useStageName();
 
   async function fetchClasses() {
     setLoading(true);
@@ -39,7 +43,7 @@ export default function ClassesPage() {
     try {
       const params: Record<string, string> = {};
       if (periodFilter !== "all") params.period = periodFilter;
-      if (groupFilter !== "all") params.group = groupFilter;
+      if (stageFilter !== "all") params.stageId = stageFilter;
 
       const res = await axios.get<ClassItem[]>("/api/classes", { params });
       setClasses(res.data);
@@ -53,7 +57,7 @@ export default function ClassesPage() {
   useEffect(() => {
     fetchClasses();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [periodFilter, groupFilter]);
+  }, [periodFilter, stageFilter]);
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -82,21 +86,21 @@ export default function ClassesPage() {
             </div>
           </div>
 
-          {/* Group filter */}
+          {/* Academic stage filter */}
           <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-500">{t("classes.filterByStage")}:</span>
+            <span className="text-sm text-gray-500">{t("common.filterByStage")}:</span>
             <div className="flex rounded-xl overflow-hidden border border-gray-200 bg-white shadow-sm">
-              {(["all", "kg1", "kg2", "kg3", "nursery"] as const).map((g) => (
+              {[{ id: "all", label: t("common.all") }, ...stages.map((s) => ({ id: s.id, label: stageName(s) }))].map((g) => (
                 <button
-                  key={g}
-                  onClick={() => setGroupFilter(g)}
+                  key={g.id}
+                  onClick={() => setStageFilter(g.id)}
                   className={`px-3 py-1.5 text-xs font-medium transition-all ${
-                    groupFilter === g
+                    stageFilter === g.id
                       ? "bg-[#F64651] text-white"
                       : "text-gray-600 hover:bg-gray-50"
                   }`}
                 >
-                  {g === "all" ? t("common.all") : t(`groups.${g}`)}
+                  {g.label}
                 </button>
               ))}
             </div>
@@ -172,9 +176,9 @@ export default function ClassesPage() {
                   )}
 
                   <div className="flex flex-wrap gap-1.5">
-                    {cls.group && (
+                    {cls.stage && (
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700">
-                        {t(`groups.${cls.group}`)}
+                        {stageName(cls.stage)}
                       </span>
                     )}
                     {cls.period && <PeriodBadge period={cls.period} />}

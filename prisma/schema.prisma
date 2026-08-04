@@ -42,7 +42,10 @@ enum AttendanceType {
   TEMPORARY
 }
 
-/// Age band of the child. Was a free-text String.
+/// DEPRECATED — superseded by the `AcademicStage` table (task 2.44).
+///
+/// Read only by the migration that fills that table. New code must use
+/// `Student.stageId`.
 enum AcademicStage {
   NURSERY
   KG1
@@ -50,7 +53,13 @@ enum AcademicStage {
   KG3
 }
 
-/// Class grouping. Was a free-text String defaulting to "kg1".
+/// DEPRECATED — superseded by the `AcademicStage` table (task 2.44).
+///
+/// It described the same thing as the enum above under a second name, with a
+/// second set of Arabic labels, which is why the interface called it "المجموعة"
+/// in one place and "المرحلة الدراسية" in another. Both were frozen: a nursery
+/// running a pre-KG room had no way to add one. New code must use
+/// `Class.stageId`.
 enum ClassGroup {
   NURSERY
   KG1
@@ -650,6 +659,49 @@ model StorageUsage {
   computedAt  DateTime @default(now())
 }
 
+/// The school's academic stages, editable by the school (task 2.44).
+///
+/// Replaces two frozen enums — `AcademicStage` on the child and `ClassGroup` on
+/// the room — which held the same four values under different names and were
+/// labelled differently in different screens. A nursery running a pre-KG room,
+/// or a school with a fourth year, had nowhere to put it.
+///
+/// Per school rather than global: "تمهيدي" is not the same stage everywhere, and
+/// one nursery renaming a stage must not rename it for every other tenant.
+///
+/// Deleting is deliberately not offered. A stage that children were enrolled in
+/// is part of their history, and removing it would leave rows pointing at
+/// nothing; `archivedAt` hides it from the pickers while the records that used
+/// it keep reading.
+model AcademicStageOption {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id])
+
+  nameAr String
+  /// Optional: a school that never switches to English need not fill this in,
+  /// and the Arabic name is shown when it is absent.
+  nameEn String?
+
+  /// Display order. Explicit because stages are a sequence — nursery before KG1
+  /// before KG2 — and neither alphabetical nor creation order reproduces it.
+  sortOrder Int @default(0)
+
+  /// The four seeded on creation. They can be renamed and archived like any
+  /// other; the flag exists so the seed can avoid duplicating them.
+  isSystem   Boolean   @default(false)
+  archivedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  classes  Class[]
+  students Student[]
+
+  @@unique([schoolId, nameAr])
+  @@index([schoolId, archivedAt])
+}
+
 /// One row per object in R2 (task 0.34).
 ///
 /// The object store is the only place that knows an object's real size, and it
@@ -882,6 +934,7 @@ model School {
   shifts                  Shift[]
   storage_usage           StorageUsage?
   stored_files            StoredFile[]
+  academic_stages         AcademicStageOption[]
 }
 
 model PaymentCycle {
@@ -1226,10 +1279,13 @@ model Class {
   school           School   @relation(fields: [schoolId], references: [id])
   teacherId        String?
   teacher          Teacher? @relation(fields: [teacherId], references: [id])
-  /// Legacy school-style stage. Kept because existing rows, imports and the
-  /// activities screen still carry it; `ageGroups` is what a nursery actually
-  /// uses. Do not read this for new features.
+  /// DEPRECATED — read `stage` instead. Kept until the last reader is gone.
   group            ClassGroup @default(KG1)
+  /// The school's own academic stage. Nullable because a room need not have one
+  /// — and because making it required would have meant guessing for every
+  /// existing row rather than carrying its old value across.
+  stageId          String?
+  stage            AcademicStageOption? @relation(fields: [stageId], references: [id])
   /// Age bands this room takes. An array because a small nursery runs one room
   /// for 1–3 year olds and must be able to say so, rather than being forced to
   /// pick the band that fits worst.
@@ -1455,7 +1511,11 @@ model Student {
   allergies       String?
 
   /// Operational
+  /// DEPRECATED — read `stage` instead.
   academicStage AcademicStage?
+  /// The school's own academic stage (task 2.44).
+  stageId       String?
+  stage         AcademicStageOption? @relation(fields: [stageId], references: [id])
   period        Period         @default(MORNING)
 
   /// Sensitive — national ID. See Teacher.idNumberHash for why this is an HMAC.

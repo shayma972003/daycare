@@ -9,7 +9,10 @@ import { z } from "zod";
 const createClassSchema = z.object({
   name: z.string().min(1),
   teacherId: z.string().optional(),
+  /** DEPRECATED — still accepted so older clients keep working. */
   group: z.string().optional(),
+  /** The school's own academic stage (task 2.44). */
+  stageId: z.string().optional(),
   period: z.enum(["MORNING", "EVENING"]).optional(),
   registrationDate: z.string().optional(),
   notes: z.string().optional(),
@@ -32,6 +35,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const period = searchParams.get("period");
   const group = searchParams.get("group");
+  const stageId = searchParams.get("stageId");
 
   const where: Record<string, unknown> = { schoolId, deletedAt: null };
 
@@ -41,6 +45,11 @@ export async function GET(request: Request) {
   if (group) {
     where.group = group;
   }
+  // The stage filter supersedes `group`; both are accepted while older
+  // clients are still in the wild.
+  if (stageId) {
+    where.stageId = stageId;
+  }
 
   const classes = await prisma.class.findMany({
     where,
@@ -48,6 +57,7 @@ export async function GET(request: Request) {
       id: true,
       name: true,
       group: true,
+      stage: { select: { id: true, nameAr: true, nameEn: true } },
       period: true,
       registrationDate: true,
       notes: true,
@@ -90,7 +100,22 @@ export async function POST(request: Request) {
     return Response.json({ error: parsed.error.flatten() }, { status: 422 });
   }
 
-  const { name, teacherId, group, period, registrationDate, notes, imageUrl } = parsed.data;
+  const { name, teacherId, group, stageId, period, registrationDate, notes, imageUrl } = parsed.data;
+
+  // Proven to belong to this school before it is stored: the id comes from the
+  // client, and a room pointing at another tenant's stage would render that
+  // tenant's wording on this school's screens.
+  let ownedStageId: string | null = null;
+  if (stageId) {
+    const stage = await prisma.academicStageOption.findFirst({
+      where: { id: stageId, schoolId },
+      select: { id: true },
+    });
+    if (!stage) {
+      return Response.json({ error: "المرحلة الدراسية غير صالحة" }, { status: 422 });
+    }
+    ownedStageId = stage.id;
+  }
 
   // Unchecked, this let a class be assigned another school's teacher — and the
   // list query includes `teacher: { name }`, leaking it straight back out.
@@ -112,6 +137,7 @@ export async function POST(request: Request) {
       name,
       ...(ownedTeacherId !== null && { teacherId: ownedTeacherId }),
       ...(group !== undefined && { group: parseClassGroup(group) ?? "KG1" }),
+      ...(ownedStageId !== null && { stageId: ownedStageId }),
       ...(period !== undefined && { period }),
       ...(registrationDate !== undefined && { registrationDate: new Date(registrationDate) }),
       ...(notes !== undefined && { notes }),

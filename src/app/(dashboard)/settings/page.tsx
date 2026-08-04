@@ -9,6 +9,7 @@ import { DeliveryStatusBadge } from "@/components/ui/StatusBadge";
 import { isPasswordAcceptable, PASSWORD_MIN_MESSAGE } from "@/lib/password-policy";
 import { PasswordRules } from "@/components/ui/PasswordRules";
 import { useT } from "@/lib/i18n-provider";
+import { AcademicStagesPanel } from "@/components/settings/AcademicStagesPanel";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -573,6 +574,7 @@ export default function SettingsPage() {
       { id: "trash", title: "سلة المحذوفات" },
       { id: "subscription", title: t("settings.subscription.title") },
       { id: "fees", title: t("settings.fees.title") },
+      { id: "academic-stages", title: t("settings.stages.title") },
       { id: "message-template", title: t("settings.messageTemplate.title") },
       { id: "notification-log", title: t("settings.notificationLog.title") },
     ],
@@ -1253,6 +1255,13 @@ export default function SettingsPage() {
                     </div>
                   </FormField>
                 </div>
+              </SettingsSection>
+            )}
+
+            {/* ── Academic stages (task 2.44) ───────────────────────── */}
+            {showSection("academic-stages") && (
+              <SettingsSection id="academic-stages" title={t("settings.stages.title")}>
+                <AcademicStagesPanel />
               </SettingsSection>
             )}
 

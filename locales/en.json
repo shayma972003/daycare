@@ -54,7 +54,11 @@
     "apply": "Apply",
     "boys": "Boys",
     "girls": "Girls",
-    "email": "Email"
+    "email": "Email",
+    "academicStage": "Academic stage",
+    "allStages": "All stages",
+    "filterByStage": "Filter by academic stage",
+    "noStage": "No stage"
   },
   "auth": {
     "login": "Login",
@@ -363,7 +367,22 @@
       "sentAt": "Sent At",
       "status": "Status"
     },
-    "save": "Save Settings"
+    "save": "Save Settings",
+    "stages": {
+      "title": "Academic stages",
+      "hint": "The stages this nursery uses. They appear on classes, child profiles and activities.",
+      "nameAr": "Arabic name",
+      "nameEn": "English name",
+      "add": "Add a stage",
+      "archive": "Archive",
+      "restore": "Restore",
+      "archivedTitle": "Archived stages",
+      "usage": "{classes} classes · {students} children",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "addFailed": "Could not add the stage",
+      "saveFailed": "Could not save"
+    }
   },
   "periods": {
     "MORNING": "Morning",

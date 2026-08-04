@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import axios from "axios";
 import { Topbar } from "@/components/layout/Topbar";
 import { useT } from "@/lib/i18n-provider";
+import { useAcademicStages, useStageName } from "@/lib/use-academic-stages";
 
 
 type Teacher = { id: string; name: string };
@@ -12,6 +13,8 @@ type Teacher = { id: string; name: string };
 export default function NewClassPage() {
   // Locale-aware translation — see src/lib/i18n.tsx.
   const t = useT();
+  const { stages } = useAcademicStages();
+  const stageName = useStageName();
   const router = useRouter();
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [saving, setSaving] = useState(false);
@@ -25,7 +28,7 @@ export default function NewClassPage() {
   const [form, setForm] = useState({
     name: "",
     teacherId: "",
-    group: "",
+    stageId: "",
     period: "" as "" | "MORNING" | "EVENING",
     registrationDate: "",
     notes: "",
@@ -74,7 +77,7 @@ export default function NewClassPage() {
       const res = await axios.post<{ id: string }>("/api/classes", {
         name: form.name,
         ...(form.teacherId && { teacherId: form.teacherId }),
-        ...(form.group && { group: form.group }),
+        ...(form.stageId && { stageId: form.stageId }),
         ...(form.period && { period: form.period }),
         ...(form.registrationDate && { registrationDate: form.registrationDate }),
         ...(form.notes && { notes: form.notes }),
@@ -155,17 +158,18 @@ export default function NewClassPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">{t("classes.form.group")}</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">{t("common.academicStage")}</label>
             <select
-              value={form.group}
-              onChange={(e) => setForm((f) => ({ ...f, group: e.target.value }))}
+              value={form.stageId}
+              onChange={(e) => setForm((f) => ({ ...f, stageId: e.target.value }))}
               className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#F64651] text-sm bg-white"
             >
               <option value="">{t("common.select")}</option>
-              <option value="kg1">{t("groups.kg1")}</option>
-              <option value="kg2">{t("groups.kg2")}</option>
-              <option value="kg3">{t("groups.kg3")}</option>
-              <option value="nursery">{t("groups.nursery")}</option>
+              {stages.map((stage) => (
+                <option key={stage.id} value={stage.id}>
+                  {stageName(stage)}
+                </option>
+              ))}
             </select>
           </div>
 

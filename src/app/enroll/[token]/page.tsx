@@ -195,20 +195,52 @@ function EnrollmentForm({
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [evaluationFile, setEvaluationFile] = useState<File | null>(null);
+  const [evaluationFile, setEvaluationFile] = useState<{ name: string; url: string } | null>(null);
   const [evaluationError, setEvaluationError] = useState("");
+  const [evaluationUploading, setEvaluationUploading] = useState(false);
 
   function set(key: string, val: string) {
     setForm((prev) => ({ ...prev, [key]: val }));
   }
 
-  function fileToBase64(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
+  /**
+   * Uploaded on selection, not folded into the submitted JSON.
+   *
+   * It used to be read as a base64 data URI and sent inside the form body. That
+   * inflates the file by a third, and Vercel rejects any body over 4.5 MB before
+   * our code runs — so an ordinary 4 MB scan produced a platform error page and
+   * no explanation, after the form had accepted the file as valid. Uploading
+   * separately keeps the submitted body small no matter how large the file is.
+   */
+  async function uploadEvaluation(file: File) {
+    setEvaluationError("");
+
+    // Checked here as well as on the server, so the parent is told immediately
+    // rather than after filling in the rest of the form.
+    if (file.size > 4 * 1024 * 1024) {
+      setEvaluationError("حجم الملف كبير. الحد الأقصى 4 ميجابايت.");
+      return;
+    }
+
+    setEvaluationUploading(true);
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      body.append("token", token);
+      const res = await axios.post<{ url: string; name: string }>(
+        "/api/enrollment/upload",
+        body
+      );
+      setEvaluationFile({ name: res.data.name, url: res.data.url });
+    } catch (err) {
+      setEvaluationError(
+        axios.isAxiosError(err)
+          ? (err.response?.data?.error ?? "تعذر رفع الملف. حاول مرة أخرى.")
+          : "تعذر رفع الملف. حاول مرة أخرى."
+      );
+    } finally {
+      setEvaluationUploading(false);
+    }
   }
 
   async function handleSubmit(e: React.SyntheticEvent) {
@@ -220,8 +252,9 @@ function EnrollmentForm({
     setSubmitting(true);
     setError(null);
     try {
+      // Already uploaded — only its URL travels with the form.
       const evaluationPayload = evaluationFile
-        ? { evaluation_file_url: await fileToBase64(evaluationFile), evaluation_file_name: evaluationFile.name }
+        ? { evaluation_file_url: evaluationFile.url, evaluation_file_name: evaluationFile.name }
         : {};
       // `form` already carries `enrollment_date`, which used to be overwritten
       // here with the moment of submission — so whatever the parent chose was
@@ -298,22 +331,24 @@ function EnrollmentForm({
           <input
             type="file"
             accept=".pdf,.png,.jpg,.jpeg"
+            disabled={evaluationUploading}
             onChange={(e) => {
               const file = e.target.files?.[0];
-              if (!file) return;
-              if (file.size > 100 * 1024 * 1024) {
-                setEvaluationError("حجم الملف كبير جدا، الحجم المسموح للملف هو 100 MB أو أقل");
-                e.target.value = "";
-                return;
-              }
-              setEvaluationError("");
-              setEvaluationFile(file);
+              e.target.value = "";
+              if (file) void uploadEvaluation(file);
             }}
             className={inputCls}
           />
+          {evaluationUploading && (
+            <p className="text-xs text-gray-500 text-right">جارٍ رفع الملف…</p>
+          )}
+          {evaluationFile && !evaluationUploading && (
+            <p className="text-xs text-green-700 text-right">تم إرفاق: {evaluationFile.name}</p>
+          )}
           {evaluationError && (
             <p className="text-xs text-red-600 text-right">{evaluationError}</p>
           )}
+          <p className="text-xs text-gray-400 text-right">PDF أو صورة · حتى 4 ميجابايت</p>
         </div>
       </Card>
 

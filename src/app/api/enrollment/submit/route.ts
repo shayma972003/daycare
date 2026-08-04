@@ -4,6 +4,7 @@ import { z } from "zod";
 // implementation, one set of rules.
 import { normalizePhone } from "@/lib/phone-normalizer";
 import { astDayStart } from "@/lib/datetime";
+import { keyFromUrl, schoolIdFromKey } from "@/lib/r2";
 
 const schema = z.object({
   token: z.string().min(1),
@@ -56,6 +57,22 @@ export async function POST(request: Request) {
       error: `لقد وصلت إلى الحد الأقصى المسموح به (${rec.max_submissions} أطفال)`,
       limit_reached: true,
     }, { status: 429 });
+  }
+
+  /**
+   * The evaluation file must be one this endpoint's sibling just stored.
+   *
+   * It arrives as a URL from a form with no session behind it, so left
+   * unchecked the field is a way to write any string into a school's record —
+   * a link to somewhere else, or a path into another tenant's files. Only a key
+   * inside this school's own prefix is accepted; anything else, including the
+   * base64 data URIs older links used to send, is refused.
+   */
+  if (formData.evaluation_file_url) {
+    const key = keyFromUrl(formData.evaluation_file_url);
+    if (!key || schoolIdFromKey(key) !== rec.school_id) {
+      return Response.json({ error: "ملف التقييم غير صالح" }, { status: 422 });
+    }
   }
 
   const newCount = rec.submissions_count + 1;

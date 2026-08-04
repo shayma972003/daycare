@@ -13,6 +13,19 @@ import type { FileCategory } from "@/lib/r2";
 
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 export const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
+
+/**
+ * Lower than the others, and not by preference.
+ *
+ * Vercel refuses any request body over 4.5 MB at the edge, before our code runs
+ * — so a limit above that is a promise the platform will not keep, and the
+ * parent gets an unexplained error page instead of a message. 4 MB leaves room
+ * for the multipart framing.
+ *
+ * Raising it means uploading straight to R2 with a presigned URL, so the bytes
+ * never pass through a function at all.
+ */
+export const MAX_ENROLLMENT_FILE_BYTES = 4 * 1024 * 1024;
 export const MAX_SPREADSHEET_BYTES = 10 * 1024 * 1024;
 
 /** Leading bytes that identify a format regardless of the declared MIME type. */

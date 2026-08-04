@@ -23,6 +23,20 @@ export function astDayEnd(at: Date = new Date()): Date {
 }
 
 /**
+ * Today's AST calendar date as `yyyy-mm-dd` — what `<input type="date">` wants.
+ *
+ * Exists because the obvious spelling is wrong in a way nothing catches.
+ * `astDayStart()` returns the *instant* the AST day begins, which is 21:00 UTC
+ * on the previous date, so `astDayStart().toISOString().slice(0, 10)` yields
+ * **yesterday** — every hour of every day, not only near midnight. Two screens
+ * had that as the default departure date, and the departure date is what the
+ * five-year retention clock is measured from.
+ */
+export function astDateInputValue(at: Date = new Date()): string {
+  return astDateOnly(at).toISOString().slice(0, 10);
+}
+
+/**
  * The `date` value stored on attendance rows (`@db.Date`). Postgres keeps a bare
  * calendar date, so this is midnight UTC of the AST day — comparable by equality.
  */

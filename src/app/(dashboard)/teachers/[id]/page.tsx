@@ -10,7 +10,7 @@ import { describeApiError } from "@/lib/api-error";
 import { formatDate, formatCurrency } from "@/lib/utils";
 import { TeacherInvoiceModal } from "@/components/teachers/TeacherInvoiceModal";
 import { useT } from "@/lib/i18n-provider";
-import { astDayStart } from "@/lib/datetime";
+import { astDateInputValue } from "@/lib/datetime";
 import { EMPLOYMENT_STATUS_LABELS } from "@/lib/enum-labels";
 import type { EmploymentStatus } from "@/generated/prisma/enums";
 
@@ -81,11 +81,8 @@ export default function TeacherProfilePage() {
   const [showDepartureModal, setShowDepartureModal] = useState(false);
   const [departureStatus, setDepartureStatus] =
     useState<TeacherDepartureStatus>("CONTRACT_ENDED");
-  // Today in Riyadh terms, in the `yyyy-mm-dd` an <input type="date"> expects —
-  // matching the student screen, and never the host's UTC date.
-  const [departureDate, setDepartureDate] = useState(() =>
-    astDayStart().toISOString().slice(0, 10)
-  );
+  // Today in Riyadh terms — see the note on `astDateInputValue`.
+  const [departureDate, setDepartureDate] = useState(() => astDateInputValue());
 
   // Extra qualifications (4–10) stored as array of strings
   const [extraQuals, setExtraQuals] = useState<string[]>([]);

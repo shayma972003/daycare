@@ -9,6 +9,36 @@ import { astDayStart, astDayEnd, astDateOnly, astParts, astTimeOnDay } from "@/l
  * That produced attendance rows on the wrong day and is the single most
  * repeated defect in this codebase's history.
  */
+describe("astDateInputValue", () => {
+  it("gives today's Riyadh date, not yesterday's", async () => {
+    const { astDateInputValue } = await import("@/lib/datetime");
+
+    // Noon in Riyadh — nowhere near a boundary, and the case that was wrong.
+    expect(astDateInputValue(new Date("2026-08-04T09:00:00.000Z"))).toBe("2026-08-04");
+  });
+
+  it("rolls over at Riyadh midnight, not UTC midnight", async () => {
+    const { astDateInputValue } = await import("@/lib/datetime");
+
+    // 20:59 UTC is still 23:59 on the 4th in Riyadh.
+    expect(astDateInputValue(new Date("2026-08-04T20:59:00.000Z"))).toBe("2026-08-04");
+    // 21:00 UTC is 00:00 on the 5th.
+    expect(astDateInputValue(new Date("2026-08-04T21:00:00.000Z"))).toBe("2026-08-05");
+  });
+
+  it("is not the same as slicing astDayStart, which is the bug this replaced", async () => {
+    const { astDateInputValue, astDayStart } = await import("@/lib/datetime");
+
+    const noon = new Date("2026-08-04T09:00:00.000Z");
+    // `astDayStart` is an *instant* — 21:00 UTC the previous date — so slicing
+    // its ISO string yields the day before. Two screens defaulted a departure
+    // date that way, and the departure date starts the five-year retention
+    // clock.
+    expect(astDayStart(noon).toISOString().slice(0, 10)).toBe("2026-08-03");
+    expect(astDateInputValue(noon)).toBe("2026-08-04");
+  });
+});
+
 describe("astDayStart", () => {
   it("anchors to Riyadh midnight, not UTC midnight", () => {
     // 2026-08-03 22:30 UTC is 2026-08-04 01:30 in Riyadh — the case that broke.

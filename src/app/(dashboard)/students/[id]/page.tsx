@@ -12,7 +12,7 @@ import { InvoiceModal } from "@/components/students/InvoiceModal";
 import { StudentCareFeed } from "@/components/care/StudentCareFeed";
 import { STUDENT_STATUS_LABELS, PAYMENT_STATUS_LABELS } from "@/lib/enum-labels";
 import { PAYMENT_STATUSES } from "@/lib/payment-status";
-import { astDayStart } from "@/lib/datetime";
+import { astDateInputValue } from "@/lib/datetime";
 import { useT } from "@/lib/i18n-provider";
 
 /** ACTIVE is excluded: this is the set of reasons a child *leaves*. */
@@ -121,9 +121,7 @@ export default function StudentProfilePage({
   // an <input type="date"> expects — and drives the retention clock.
   const [showDepartureModal, setShowDepartureModal] = useState(false);
   const [departureStatus, setDepartureStatus] = useState<StudentDepartureStatus>("WITHDRAWN");
-  const [departureDate, setDepartureDate] = useState(() =>
-    astDayStart().toISOString().slice(0, 10)
-  );
+  const [departureDate, setDepartureDate] = useState(() => astDateInputValue());
   const [departing, setDeparting] = useState(false);
   const [showLateFeeConfirm, setShowLateFeeConfirm] = useState(false);
   const [evalFileUrl, setEvalFileUrl] = useState<string | null>(null);

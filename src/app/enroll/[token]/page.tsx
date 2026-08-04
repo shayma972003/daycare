@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
 import axios from "axios";
+import { astDateInputValue } from "@/lib/datetime";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -168,6 +169,20 @@ function EnrollmentForm({
     health_condition: "",
     allergies: "",
     attendance_type: "",
+    /**
+     * Defaults to today and stays editable.
+     *
+     * It used to be a read-only box showing the moment the form was opened, and
+     * the submission always sent `new Date()` regardless. That is wrong whenever
+     * the form is not filled in on the first day: a child starting next Sunday,
+     * or a parent completing the paperwork a week after the child began. The
+     * date matters — it is what the subscription is billed from, and, five years
+     * after departure, what the retention clock is measured against.
+     *
+     * Today in Riyadh terms, not the device's clock: a phone set to another zone
+     * would otherwise default to yesterday or tomorrow.
+     */
+    enrollment_date: astDateInputValue(),
     payment_method: "",
     guardian_name: initialGuardian.guardian_name ?? "",
     guardian_phone_1: initialGuardian.guardian_phone_1 ?? "",
@@ -182,7 +197,6 @@ function EnrollmentForm({
   const [error, setError] = useState<string | null>(null);
   const [evaluationFile, setEvaluationFile] = useState<File | null>(null);
   const [evaluationError, setEvaluationError] = useState("");
-  const enrollmentDate = useState(() => new Date().toLocaleDateString("ar-SA"))[0];
 
   function set(key: string, val: string) {
     setForm((prev) => ({ ...prev, [key]: val }));
@@ -209,10 +223,13 @@ function EnrollmentForm({
       const evaluationPayload = evaluationFile
         ? { evaluation_file_url: await fileToBase64(evaluationFile), evaluation_file_name: evaluationFile.name }
         : {};
+      // `form` already carries `enrollment_date`, which used to be overwritten
+      // here with the moment of submission — so whatever the parent chose was
+      // discarded. Sent as a plain `yyyy-mm-dd`; the server anchors it to the
+      // Riyadh business day.
       const res = await axios.post<{ success: boolean; submissions_count: number }>("/api/enrollment/submit", {
         token,
         ...form,
-        enrollment_date: new Date().toISOString(),
         ...evaluationPayload,
       });
       const guardian: GuardianPrefill = {
@@ -338,7 +355,15 @@ function EnrollmentForm({
 
       <Card title="معلومات التسجيل">
         <Field label="تاريخ الانضمام">
-          <input type="text" value={enrollmentDate} readOnly className={`${inputCls} bg-gray-50 text-gray-500 cursor-not-allowed`} />
+          <input
+            type="date"
+            // LTR because a date input's own segments read left to right in
+            // every locale; the label beside it stays right-aligned.
+            dir="ltr"
+            value={form.enrollment_date}
+            onChange={(e) => set("enrollment_date", e.target.value)}
+            className={inputCls}
+          />
         </Field>
         <Field label="طبيعة الدوام">
           <select className={selectCls} value={form.attendance_type} onChange={(e) => set("attendance_type", e.target.value)}>

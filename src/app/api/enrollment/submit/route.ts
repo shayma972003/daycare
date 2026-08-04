@@ -3,6 +3,7 @@ import { z } from "zod";
 // Was a second, laxer copy of this that turned "12" into "+96612". One
 // implementation, one set of rules.
 import { normalizePhone } from "@/lib/phone-normalizer";
+import { astDayStart } from "@/lib/datetime";
 
 const schema = z.object({
   token: z.string().min(1),
@@ -74,7 +75,17 @@ export async function POST(request: Request) {
       allergies: formData.allergies ?? null,
       attendance_type: formData.attendance_type ?? null,
       payment_method: formData.payment_method ?? null,
-      enrollment_date: formData.enrollment_date ? new Date(formData.enrollment_date) : new Date(),
+      /**
+       * Anchored to the Riyadh business day the parent picked.
+       *
+       * The form now sends a bare `yyyy-mm-dd`, and `new Date("2026-08-04")`
+       * would parse it as midnight UTC — a different instant from the one the
+       * rest of the system means by that date. `astDayStart` puts it on the same
+       * boundary attendance rows and the retention clock use.
+       */
+      enrollment_date: astDayStart(
+        formData.enrollment_date ? new Date(`${formData.enrollment_date}T12:00:00+03:00`) : new Date()
+      ),
       evaluation_file_url: formData.evaluation_file_url ?? null,
       evaluation_file_name: formData.evaluation_file_name ?? null,
       guardian_name: formData.guardian_name ?? null,

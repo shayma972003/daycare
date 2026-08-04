@@ -10,27 +10,20 @@ import { useT } from "@/lib/i18n-provider";
 // All possible field names from STUDENT_FIELD_ALIASES
 const ALL_STUDENT_FIELDS = Object.keys(STUDENT_FIELD_ALIASES);
 
-const FIELD_LABELS: Record<string, string> = {
-  full_name: "اسم الطالب",
-  date_of_birth: "تاريخ الميلاد",
-  gender: "الجنس",
-  nationality: "الجنسية",
-  id_number: "رقم الهوية/الإقامة",
-  health_condition: "الحالة الصحية",
-  allergies: "الحساسية والتنبيهات",
-  academic_stage: "المرحلة الدراسية",
-  period: "الفترة",
-  registration_date: "تاريخ التسجيل",
-  enrollment_date: "تاريخ الإنضمام",
-  enrollment_end_date: "تاريخ انتهاء الاشتراك",
-  payment_method: "طريقة الدفع",
-  attendance_type: "طبيعة الدوام",
-  payment_status: "حالة الدفع",
-  guardian_name: "اسم ولي الأمر",
-  guardian_phone_1: "رقم الجوال 1",
-  guardian_phone_2: "رقم الجوال 2",
-  guardian_email: "البريد الإلكتروني",
-};
+/**
+ * Column labels resolved at render, not here.
+ *
+ * A map built at module scope freezes every label to whichever language
+ * happened to load the file first — the rest of the screen would switch and
+ * the column names would not.
+ */
+function fieldLabel(field: string, t: (key: string) => string): string {
+  const key = field === "full_name" ? "full_name" : field;
+  const label = t(`importFields.${key}`);
+  // `translate` returns the key itself when nothing matches; showing the raw
+  // column name is more use than showing `importFields.foo`.
+  return label.startsWith("importFields.") ? field : label;
+}
 
 type MappingEntry = {
   uploadedColumn: string;
@@ -63,19 +56,21 @@ type ImportSession = {
   rows: ImportRow[];
 };
 
-const STEPS = [
-  "رفع الملف",
-  "المعاينة",
-  "تعيين الأعمدة",
-  "المراجعة",
-  "التأكيد",
-  "التقرير",
+/** Keys, resolved at render — see the note on `fieldLabel`. */
+const STEP_KEYS = [
+  "importer.stepUpload",
+  "importer.stepPreview",
+  "importer.stepMap",
+  "importer.stepReview",
+  "importer.stepConfirm",
+  "importer.stepReport",
 ];
 
 function StepIndicator({ currentStep }: { currentStep: number }) {
+  const t = useT();
   return (
     <div className="flex items-center justify-center gap-0 mb-8 flex-wrap">
-      {STEPS.map((label, i) => {
+      {STEP_KEYS.map((stepKey, i) => {
         const stepNum = i + 1;
         const isCompleted = stepNum < currentStep;
         const isCurrent = stepNum === currentStep;
@@ -98,10 +93,10 @@ function StepIndicator({ currentStep }: { currentStep: number }) {
                   isCurrent ? "text-[#111111] font-semibold" : isCompleted ? "text-success-text" : "text-gray-400"
                 }`}
               >
-                {label}
+                {t(stepKey)}
               </span>
             </div>
-            {i < STEPS.length - 1 && (
+            {i < STEP_KEYS.length - 1 && (
               <div
                 className={`w-10 h-0.5 mx-1 mb-4 ${
                   stepNum < currentStep ? "bg-success-text" : "bg-gray-200"
@@ -118,6 +113,8 @@ function StepIndicator({ currentStep }: { currentStep: number }) {
 function downloadErrorCsv(rows: ImportRow[], fileLanguage: string) {
   const isAr = fileLanguage === "ar";
   const headers = isAr
+    // Deliberately not the interface language: this file is handed back to
+    // whoever produced the upload, and its headers should match theirs.
     ? ["رقم الصف", "اسم الطالب", "رسالة الخطأ"]
     : ["Row Number", "Student Name", "Error Message"];
   const lines = [headers.join(",")];
@@ -167,7 +164,7 @@ export default function StudentsImportPage() {
       setSessionData(res.data);
       setStep(6);
     } catch (err) {
-      setError(axios.isAxiosError(err) ? err.response?.data?.error ?? "فشل الاستيراد" : "فشل الاستيراد");
+      setError(axios.isAxiosError(err) ? err.response?.data?.error ?? t("importer.importFailed") : t("importer.importFailed"));
     } finally {
       setLoading(false);
     }
@@ -206,7 +203,7 @@ export default function StudentsImportPage() {
       });
       setStep(2);
     } catch (err) {
-      setError(axios.isAxiosError(err) ? err.response?.data?.error ?? "فشل رفع الملف" : "فشل رفع الملف");
+      setError(axios.isAxiosError(err) ? err.response?.data?.error ?? t("importer.uploadFailed") : t("importer.uploadFailed"));
     } finally {
       setLoading(false);
     }
@@ -241,7 +238,7 @@ export default function StudentsImportPage() {
       setMapping(res.data.mapping);
       setStep(3);
     } catch (err) {
-      setError(axios.isAxiosError(err) ? err.response?.data?.error ?? "فشل تحليل الأعمدة" : "فشل تحليل الأعمدة");
+      setError(axios.isAxiosError(err) ? err.response?.data?.error ?? t("importer.mappingFailed") : t("importer.mappingFailed"));
     } finally {
       setLoading(false);
     }
@@ -284,7 +281,7 @@ export default function StudentsImportPage() {
       if (sesRes.data.column_mapping) setMapping(sesRes.data.column_mapping);
       setStep(4);
     } catch (err) {
-      setError(axios.isAxiosError(err) ? err.response?.data?.error ?? "فشل التحقق" : "فشل التحقق");
+      setError(axios.isAxiosError(err) ? err.response?.data?.error ?? t("importer.validateFailed") : t("importer.validateFailed"));
     } finally {
       setLoading(false);
     }
@@ -301,7 +298,7 @@ export default function StudentsImportPage() {
   // Render steps
   return (
     <div dir="rtl" className="min-h-screen bg-brand-bg">
-      <Topbar title="استيراد الطلاب من ملف" />
+      <Topbar title={t("importer.studentsTitle")} />
       <div className="p-6 max-w-5xl mx-auto">
         <StepIndicator currentStep={step} />
 
@@ -314,8 +311,8 @@ export default function StudentsImportPage() {
         {/* STEP 1: Upload */}
         {step === 1 && (
           <div className="bg-white rounded-2xl shadow-md p-8">
-            <h2 className="text-xl font-bold text-[#111111] mb-2">رفع ملف الطلاب</h2>
-            <p className="text-sm text-gray-500 mb-6">يدعم النظام ملفات .xlsx و .csv</p>
+            <h2 className="text-xl font-bold text-[#111111] mb-2">{t("importer.uploadStudents")}</h2>
+            <p className="text-sm text-gray-500 mb-6">{t("importer.supports")}</p>
             <div
               className={`border-2 border-dashed rounded-2xl p-12 text-center transition-colors cursor-pointer ${
                 dragOver ? "border-[#F64651] bg-success-bg" : "border-gray-200 hover:border-[#111111]"
@@ -328,8 +325,8 @@ export default function StudentsImportPage() {
               <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <span className="text-3xl">📄</span>
               </div>
-              <p className="text-[#111111] font-semibold mb-1">اسحب الملف هنا أو انقر للاختيار</p>
-              <p className="text-xs text-gray-400">الصيغ المدعومة: .xlsx, .csv</p>
+              <p className="text-[#111111] font-semibold mb-1">{t("importer.dropHere")}</p>
+              <p className="text-xs text-gray-400">{t("importer.formats")}</p>
               {selectedFile && (
                 <p className="mt-3 text-sm text-success-text font-medium">
                   تم اختيار: {selectedFile.name}
@@ -346,7 +343,7 @@ export default function StudentsImportPage() {
             {loading && (
               <div className="mt-6 flex items-center justify-center gap-3 text-[#111111]">
                 <div className="w-5 h-5 border-2 border-gray-200 border-t-[#111111] rounded-full animate-spin" />
-                <span className="text-sm">جاري رفع الملف...</span>
+                <span className="text-sm">{t("importer.uploading")}</span>
               </div>
             )}
             <div className="mt-4 flex justify-end">
@@ -365,7 +362,7 @@ export default function StudentsImportPage() {
           <div className="bg-white rounded-2xl shadow-md p-6">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-xl font-bold text-[#111111]">معاينة الملف</h2>
+                <h2 className="text-xl font-bold text-[#111111]">{t("importer.filePreview")}</h2>
                 <p className="text-sm text-gray-500 mt-1">
                   إجمالي الصفوف المكتشفة:{" "}
                   <span className="font-bold text-[#111111]">{previewData.total_rows} صف</span>
@@ -431,8 +428,8 @@ export default function StudentsImportPage() {
           <div className="bg-white rounded-2xl shadow-md p-6">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-xl font-bold text-[#111111]">تعيين الأعمدة</h2>
-                <p className="text-sm text-gray-500 mt-1">تحقق من تعيين كل عمود للحقل الصحيح</p>
+                <h2 className="text-xl font-bold text-[#111111]">{t("importer.stepMap")}</h2>
+                <p className="text-sm text-gray-500 mt-1">{t("importer.checkMapping")}</p>
               </div>
               <div className="flex gap-2">
                 <button
@@ -455,9 +452,9 @@ export default function StudentsImportPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-200">
-                    <th className="px-4 py-3 text-right font-medium text-gray-600">عمود الملف</th>
-                    <th className="px-4 py-3 text-right font-medium text-gray-600">الحقل المعيّن</th>
-                    <th className="px-4 py-3 text-right font-medium text-gray-600">الثقة</th>
+                    <th className="px-4 py-3 text-right font-medium text-gray-600">{t("importer.fileColumn")}</th>
+                    <th className="px-4 py-3 text-right font-medium text-gray-600">{t("importer.mappedField")}</th>
+                    <th className="px-4 py-3 text-right font-medium text-gray-600">{t("importer.confidence")}</th>
                     <th className="px-4 py-3 text-right font-medium text-gray-600">{t("finance.status")}</th>
                   </tr>
                 </thead>
@@ -478,10 +475,10 @@ export default function StudentsImportPage() {
                           onChange={(e) => updateMappingField(index, e.target.value || null)}
                           className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#111111] w-full"
                         >
-                          <option value="">تجاهل هذا العمود</option>
+                          <option value="">{t("importer.ignoreColumn")}</option>
                           {ALL_STUDENT_FIELDS.map((field) => (
                             <option key={field} value={field}>
-                              {FIELD_LABELS[field] ?? field}
+                              {fieldLabel(field, t)}
                             </option>
                           ))}
                         </select>
@@ -497,9 +494,9 @@ export default function StudentsImportPage() {
                         {entry.mappedField && entry.confidence >= 0.7 ? (
                           <span className="text-success-text text-lg">✓</span>
                         ) : entry.mappedField ? (
-                          <span className="text-blue-500 text-xs bg-blue-50 px-2 py-0.5 rounded-full">مراجعة</span>
+                          <span className="text-blue-500 text-xs bg-blue-50 px-2 py-0.5 rounded-full">{t("importer.review")}</span>
                         ) : (
-                          <span className="text-yellow-600 text-xs bg-yellow-50 px-2 py-0.5 rounded-full">غير محدد</span>
+                          <span className="text-yellow-600 text-xs bg-yellow-50 px-2 py-0.5 rounded-full">{t("importer.unset")}</span>
                         )}
                       </td>
                     </tr>
@@ -513,28 +510,28 @@ export default function StudentsImportPage() {
         {/* STEP 4: Review */}
         {step === 4 && sessionData && (
           <div className="bg-white rounded-2xl shadow-md p-6">
-            <h2 className="text-xl font-bold text-[#111111] mb-4">مراجعة البيانات</h2>
+            <h2 className="text-xl font-bold text-[#111111] mb-4">{t("importer.reviewData")}</h2>
 
             {/* Summary cards */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
               <div className="bg-gray-50 rounded-xl p-4 text-center border border-gray-100">
                 <div className="text-3xl font-bold text-[#111111]">{sessionData.total_rows}</div>
-                <div className="text-sm text-gray-500 mt-1">إجمالي الصفوف المكتشفة</div>
+                <div className="text-sm text-gray-500 mt-1">{t("importer.rowsFound")}</div>
               </div>
               <div className="bg-success-bg rounded-xl p-4 text-center border border-success-text/15">
                 <div className="text-3xl font-bold text-success-text">{sessionData.valid_rows}</div>
-                <div className="text-sm text-gray-500 mt-1">صفوف صحيحة جاهزة للاستيراد</div>
+                <div className="text-sm text-gray-500 mt-1">{t("importer.rowsValid")}</div>
               </div>
               <div className="bg-red-50 rounded-xl p-4 text-center border border-red-100">
                 <div className="text-3xl font-bold text-red-600">{sessionData.error_rows}</div>
-                <div className="text-sm text-gray-500 mt-1">صفوف تحتوي على أخطاء</div>
+                <div className="text-sm text-gray-500 mt-1">{t("importer.rowsWithErrors")}</div>
               </div>
             </div>
 
             {/* Error rows list */}
             {sessionData.error_rows > 0 && (
               <div className="mb-6">
-                <h3 className="text-sm font-semibold text-red-700 mb-2">الصفوف التي تحتوي على أخطاء:</h3>
+                <h3 className="text-sm font-semibold text-red-700 mb-2">{t("importer.errorRowsTitle")}</h3>
                 <div className="border border-red-100 rounded-xl overflow-hidden max-h-64 overflow-y-auto">
                   {sessionData.rows
                     .filter((r) => r.status === "error")
@@ -592,8 +589,8 @@ export default function StudentsImportPage() {
           <div className="bg-white rounded-2xl shadow-md p-12 flex flex-col items-center justify-center gap-6">
             <div className="w-16 h-16 border-4 border-gray-100 border-t-[#F64651] rounded-full animate-spin" />
             <div className="text-center">
-              <p className="text-xl font-bold text-[#111111]">جاري الاستيراد...</p>
-              <p className="text-sm text-gray-500 mt-1">يرجى الانتظار، لا تغلق الصفحة</p>
+              <p className="text-xl font-bold text-[#111111]">{t("importer.importing")}</p>
+              <p className="text-sm text-gray-500 mt-1">{t("importer.doNotClose")}</p>
             </div>
           </div>
         )}
@@ -604,7 +601,7 @@ export default function StudentsImportPage() {
               !
             </div>
             <div className="text-center space-y-1">
-              <p className="text-xl font-bold text-[#111111]">تعذّر إتمام الاستيراد</p>
+              <p className="text-xl font-bold text-[#111111]">{t("importer.couldNotFinish")}</p>
               <p role="alert" className="text-sm text-red-600">{error}</p>
               <p className="text-xs text-gray-500">
                 لم يُحفظ شيء ناقص — يمكنك إعادة المحاولة أو العودة للمراجعة.
@@ -616,7 +613,7 @@ export default function StudentsImportPage() {
                 disabled={loading}
                 className="px-6 py-2 bg-[#F64651] text-white rounded-xl text-sm font-bold hover:bg-[#D93A44] transition-colors disabled:opacity-60"
               >
-                {loading ? "جارٍ المحاولة..." : "إعادة المحاولة"}
+                {loading ? t("importer.retrying") : t("fields.retry")}
               </button>
               <button
                 onClick={() => { confirmCalledRef.current = false; setError(null); setStep(4); }}
@@ -641,7 +638,7 @@ export default function StudentsImportPage() {
               <div className="w-16 h-16 bg-success-bg rounded-full flex items-center justify-center mx-auto mb-3">
                 <span className="text-3xl">✓</span>
               </div>
-              <h2 className="text-xl font-bold text-[#111111]">تم الاستيراد بنجاح</h2>
+              <h2 className="text-xl font-bold text-[#111111]">{t("importer.imported")}</h2>
             </div>
 
             {/* Report summary */}
@@ -650,32 +647,32 @@ export default function StudentsImportPage() {
                 <div className="text-2xl font-bold text-success-text">
                   {sessionData.rows.filter((r) => r.status === "imported").length}
                 </div>
-                <div className="text-xs text-gray-500 mt-1">تم استيرادهم</div>
+                <div className="text-xs text-gray-500 mt-1">{t("importer.importedCount")}</div>
               </div>
               <div className="bg-red-50 rounded-xl p-4 text-center border border-red-100">
                 <div className="text-2xl font-bold text-red-600">
                   {sessionData.rows.filter((r) => r.status === "skipped").length}
                 </div>
-                <div className="text-xs text-gray-500 mt-1">تم تخطيهم</div>
+                <div className="text-xs text-gray-500 mt-1">{t("importer.skippedCount")}</div>
               </div>
               <div className="bg-yellow-50 rounded-xl p-4 text-center border border-yellow-100">
                 <div className="text-2xl font-bold text-yellow-600">
                   {sessionData.rows.filter((r) => (r.warnings?.length ?? 0) > 0).length}
                 </div>
-                <div className="text-xs text-gray-500 mt-1">صفوف بتحذيرات</div>
+                <div className="text-xs text-gray-500 mt-1">{t("importer.warningRows")}</div>
               </div>
               <div className="bg-blue-50 rounded-xl p-4 text-center border border-blue-100">
                 <div className="text-2xl font-bold text-blue-600">
                   {sessionData.duplicate_guardians_reused}
                 </div>
-                <div className="text-xs text-gray-500 mt-1">أولياء أمور مكررون تم ربطهم</div>
+                <div className="text-xs text-gray-500 mt-1">{t("importer.duplicateGuardians")}</div>
               </div>
             </div>
 
             {/* Skipped rows */}
             {sessionData.rows.filter((r) => r.status === "skipped").length > 0 && (
               <div className="mb-6">
-                <h3 className="text-sm font-semibold text-red-700 mb-2">الصفوف التي تم تخطيها:</h3>
+                <h3 className="text-sm font-semibold text-red-700 mb-2">{t("importer.skippedRowsTitle")}</h3>
                 <div className="border border-red-100 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
                   {sessionData.rows
                     .filter((r) => r.status === "skipped")

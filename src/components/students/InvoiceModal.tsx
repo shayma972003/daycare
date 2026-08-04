@@ -133,7 +133,7 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
         setGuardianEmail(d.guardian.email ?? "");
         setPaymentMethod(d.student.paymentMethod ?? "");
       })
-      .catch(() => setError("فشل تحميل البيانات"))
+      .catch(() => setError(t("common.loadFailed")))
       .finally(() => setLoading(false));
   }, [open, studentId]);
 
@@ -246,7 +246,7 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
       onClose();
     } catch (err) {
       setError(
-        axios.isAxiosError(err) ? err.response?.data?.error ?? "حدث خطأ" : "حدث خطأ"
+        axios.isAxiosError(err) ? err.response?.data?.error ?? t("common.somethingWentWrong") : t("common.somethingWentWrong")
       );
     } finally {
       setGenerating(false);
@@ -267,9 +267,9 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
           dir="rtl"
           className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-white rounded-2xl shadow-modal w-full max-w-3xl max-h-[92vh] overflow-y-auto p-6 focus:outline-none animate-scale-in"
         >
-          <Dialog.Description className="sr-only">نافذة إصدار فاتورة للطالب</Dialog.Description>
+          <Dialog.Description className="sr-only">{t("invoiceForm.ariaTitle")}</Dialog.Description>
           <div className="flex items-center justify-between mb-5">
-            <Dialog.Title className="text-lg font-bold text-[#111111]">إصدار فاتورة</Dialog.Title>
+            <Dialog.Title className="text-lg font-bold text-[#111111]">{t("invoiceForm.issue")}</Dialog.Title>
             <Dialog.Close asChild>
               <button className="text-gray-400 hover:text-gray-600 text-xl font-bold w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors">
                 ×
@@ -291,14 +291,14 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
 
               {/* School info */}
               <div className="bg-gray-50 rounded-xl p-4">
-                <h3 className="text-sm font-bold text-[#111111] mb-3">بيانات الحضانة</h3>
+                <h3 className="text-sm font-bold text-[#111111] mb-3">{t("invoiceForm.schoolDetails")}</h3>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs text-gray-500 block mb-1">اسم الحضانة</label>
+                    <label className="text-xs text-gray-500 block mb-1">{t("invoiceForm.schoolName")}</label>
                     <input value={schoolName} onChange={(e) => setSchoolName(e.target.value)} className={inputCls} />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500 block mb-1">رقم السجل التجاري</label>
+                    <label className="text-xs text-gray-500 block mb-1">{t("settings.commercialReg")}</label>
                     <input value={commercialReg} onChange={(e) => setCommercialReg(e.target.value)} className={inputCls} />
                   </div>
                   <div>
@@ -306,7 +306,7 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
                     <input value={vatNumber} onChange={(e) => setVatNumber(e.target.value)} className={inputCls} />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500 block mb-1">رقم التواصل</label>
+                    <label className="text-xs text-gray-500 block mb-1">{t("settings.contactNumber")}</label>
                     <input value={contactNumber} onChange={(e) => setContactNumber(e.target.value)} className={inputCls} />
                   </div>
                   <div>
@@ -322,18 +322,18 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
 
               {/* Invoice meta */}
               <div className="bg-gray-50 rounded-xl p-4">
-                <h3 className="text-sm font-bold text-[#111111] mb-3">بيانات الفاتورة</h3>
+                <h3 className="text-sm font-bold text-[#111111] mb-3">{t("invoiceForm.invoiceDetails")}</h3>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs text-gray-500 block mb-1">رقم الفاتورة</label>
+                    <label className="text-xs text-gray-500 block mb-1">{t("invoiceForm.invoiceNumber")}</label>
                     <input value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} className={inputCls} dir="ltr" />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500 block mb-1">تاريخ الإصدار</label>
+                    <label className="text-xs text-gray-500 block mb-1">{t("finance.issuedOn")}</label>
                     <input value={issuedAt} onChange={(e) => setIssuedAt(e.target.value)} className={inputCls} />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500 block mb-1">تاريخ الاستحقاق</label>
+                    <label className="text-xs text-gray-500 block mb-1">{t("invoiceForm.dueDate")}</label>
                     <input
                       type="date"
                       value={dueDate}
@@ -343,13 +343,13 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500 block mb-1">حالة الفاتورة</label>
+                    <label className="text-xs text-gray-500 block mb-1">{t("invoiceForm.invoiceStatus")}</label>
                     <select value={invoiceStatus} onChange={(e) => setInvoiceStatus(e.target.value)} className={inputCls}>
-                      <option value="مدفوع">مدفوع</option>
-                      <option value="متأخر">متأخر</option>
-                      <option value="ملغي">ملغي</option>
-                      <option value="موقف">موقف</option>
-                      <option value="بانتظار الدفع">بانتظار الدفع</option>
+                      <option value="مدفوع">{t("invoiceForm.paidStatus")}</option>
+                      <option value="متأخر">{t("invoiceForm.lateStatus")}</option>
+                      <option value="ملغي">{t("invoiceForm.cancelledStatus")}</option>
+                      <option value="موقف">{t("invoiceForm.suspendedStatus")}</option>
+                      <option value="بانتظار الدفع">{t("invoiceForm.pendingStatus")}</option>
                     </select>
                   </div>
                 </div>
@@ -357,7 +357,7 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
 
               {/* Student / Guardian */}
               <div className="bg-gray-50 rounded-xl p-4">
-                <h3 className="text-sm font-bold text-[#111111] mb-3">بيانات الطالب وولي الأمر</h3>
+                <h3 className="text-sm font-bold text-[#111111] mb-3">{t("invoiceForm.partyDetails")}</h3>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs text-gray-500 block mb-1">{t("fields.childName")}</label>
@@ -368,15 +368,15 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
                     <input value={studentIdNum} onChange={(e) => setStudentIdNum(e.target.value)} className={inputCls} />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500 block mb-1">الصف</label>
+                    <label className="text-xs text-gray-500 block mb-1">{t("invoiceForm.grade")}</label>
                     <input value={className} onChange={(e) => setClassName(e.target.value)} className={inputCls} />
                   </div>
                   <div>
                     <label className="text-xs text-gray-500 block mb-1">{t("fields.paymentMethod")}</label>
                     <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className={inputCls}>
-                      <option value="CASH">نقدي</option>
-                      <option value="TRANSFER">تحويل بنكي</option>
-                      <option value="CARD">بطاقة</option>
+                      <option value="CASH">{t("fields.cash")}</option>
+                      <option value="TRANSFER">{t("invoiceForm.bankTransfer")}</option>
+                      <option value="CARD">{t("invoiceForm.card")}</option>
                     </select>
                   </div>
                   <div>
@@ -384,7 +384,7 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
                     <input value={guardianName} onChange={(e) => setGuardianName(e.target.value)} className={inputCls} />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500 block mb-1">رقم الجوال</label>
+                    <label className="text-xs text-gray-500 block mb-1">{t("invoiceForm.mobile")}</label>
                     <input value={guardianPhone} onChange={(e) => setGuardianPhone(e.target.value)} className={inputCls} dir="ltr" />
                   </div>
                   <div className="col-span-2">
@@ -396,12 +396,12 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
 
               {/* Main line items */}
               <div>
-                <h3 className="text-sm font-bold text-[#111111] mb-3">بنود الفاتورة</h3>
+                <h3 className="text-sm font-bold text-[#111111] mb-3">{t("invoiceForm.lineItems")}</h3>
                 <div className="border border-gray-200 rounded-xl overflow-hidden">
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 border-b border-gray-100 text-gray-500">
                       <tr>
-                        <th className="px-3 py-2 text-right">الوصف</th>
+                        <th className="px-3 py-2 text-right">{t("fields.description")}</th>
                         <th className="px-3 py-2 text-right w-20">{t("careForm.amount")}</th>
                         <th className="px-3 py-2 text-right w-24">{t("finance.price")}</th>
                         <th className="px-3 py-2 text-right w-24">{t("fields.total")}</th>
@@ -416,7 +416,7 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
                               value={row.description}
                               onChange={(e) => updateLineItem(row.id, "description", e.target.value)}
                               className={tdInput}
-                              placeholder="الوصف"
+                              placeholder={t("fields.description")}
                             />
                           </td>
                           <td className="px-2 py-1.5">
@@ -491,7 +491,7 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
                       )}
                       {hasVat && (
                         <tr className="border-t border-dashed border-gray-200">
-                          <td className="px-3 py-2 text-right text-sm">ضريبة القيمة المضافة</td>
+                          <td className="px-3 py-2 text-right text-sm">{t("invoiceForm.vat")}</td>
                           <td className="px-3 py-2 text-center text-gray-300 text-sm">—</td>
                           <td className="px-3 py-2 text-center text-sm text-gray-500">15%</td>
                           <td className="px-3 py-2 text-center">
@@ -562,7 +562,7 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
                     onChange={(e) => setIncludeActivities(e.target.checked)}
                     className="w-4 h-4 accent-[#F64651]"
                   />
-                  <span className="text-sm font-medium text-[#111111]">أضف الفعاليات إلى الفاتورة</span>
+                  <span className="text-sm font-medium text-[#111111]">{t("invoiceForm.addActivities")}</span>
                 </label>
 
                 {includeActivities && (
@@ -579,7 +579,7 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
                         <table className="w-full text-sm">
                           <thead className="bg-gray-50 border-b border-gray-100 text-gray-500">
                             <tr>
-                              <th className="px-3 py-2 text-right">الوصف</th>
+                              <th className="px-3 py-2 text-right">{t("fields.description")}</th>
                               <th className="px-3 py-2 text-right w-20">{t("careForm.amount")}</th>
                               <th className="px-3 py-2 text-right w-24">{t("finance.price")}</th>
                               <th className="px-3 py-2 text-right w-24">{t("fields.total")}</th>
@@ -645,13 +645,13 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
                 {hasVat && (
                   <div className="flex justify-between text-sm text-gray-500">
                     <span>+{vatAmountView.toFixed(2)} ر.س</span>
-                    <span>ضريبة القيمة المضافة (15%)</span>
+                    <span>{t("invoiceForm.vatPercent")}</span>
                   </div>
                 )}
                 {includeActivities && !noActivities && (
                   <div className="flex justify-between text-sm text-gray-500">
                     <span>+{activitiesTotalView.toFixed(2)} ر.س</span>
-                    <span>رسوم الفعاليات</span>
+                    <span>{t("invoiceForm.activityFees")}</span>
                   </div>
                 )}
                 {hasDiscount && (

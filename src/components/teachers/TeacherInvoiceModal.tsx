@@ -144,7 +144,7 @@ export function TeacherInvoiceModal({ open, teacherId, onClose, onIssued }: Teac
         };
         setLineItems([salaryRow, deductionRow]);
       })
-      .catch(() => setError("فشل تحميل البيانات"))
+      .catch(() => setError(t("common.loadFailed")))
       .finally(() => setLoading(false));
   }, [open, teacherId]);
 
@@ -217,7 +217,7 @@ export function TeacherInvoiceModal({ open, teacherId, onClose, onIssued }: Teac
       onClose();
     } catch (err) {
       setError(
-        axios.isAxiosError(err) ? err.response?.data?.error ?? "حدث خطأ" : "حدث خطأ"
+        axios.isAxiosError(err) ? err.response?.data?.error ?? t("common.somethingWentWrong") : t("common.somethingWentWrong")
       );
     } finally {
       setGenerating(false);
@@ -232,10 +232,10 @@ export function TeacherInvoiceModal({ open, teacherId, onClose, onIssued }: Teac
           dir="rtl"
           className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-white rounded-2xl shadow-modal w-full max-w-3xl max-h-[92vh] overflow-y-auto p-6 focus:outline-none animate-scale-in"
         >
-          <Dialog.Description className="sr-only">نافذة إصدار فاتورة للمعلم</Dialog.Description>
+          <Dialog.Description className="sr-only">{t("invoiceForm.ariaTitleStaff")}</Dialog.Description>
 
           <div className="flex items-center justify-between mb-5">
-            <Dialog.Title className="text-lg font-bold text-[#111111]">إصدار فاتورة — معلم</Dialog.Title>
+            <Dialog.Title className="text-lg font-bold text-[#111111]">{t("invoiceForm.issueStaff")}</Dialog.Title>
             <Dialog.Close asChild>
               <button className="text-gray-400 hover:text-gray-600 text-xl font-bold w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors">
                 ×
@@ -257,14 +257,14 @@ export function TeacherInvoiceModal({ open, teacherId, onClose, onIssued }: Teac
 
               {/* School info */}
               <div className="bg-gray-50 rounded-xl p-4">
-                <h3 className="text-sm font-bold text-[#111111] mb-3">بيانات الحضانة</h3>
+                <h3 className="text-sm font-bold text-[#111111] mb-3">{t("invoiceForm.schoolDetails")}</h3>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs text-gray-500 block mb-1">اسم الحضانة</label>
+                    <label className="text-xs text-gray-500 block mb-1">{t("invoiceForm.schoolName")}</label>
                     <input value={schoolName} onChange={(e) => setSchoolName(e.target.value)} className={inputCls} />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500 block mb-1">رقم السجل التجاري</label>
+                    <label className="text-xs text-gray-500 block mb-1">{t("settings.commercialReg")}</label>
                     <input value={commercialReg} onChange={(e) => setCommercialReg(e.target.value)} className={inputCls} />
                   </div>
                   <div>
@@ -272,7 +272,7 @@ export function TeacherInvoiceModal({ open, teacherId, onClose, onIssued }: Teac
                     <input value={vatNumber} onChange={(e) => setVatNumber(e.target.value)} className={inputCls} />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500 block mb-1">رقم التواصل</label>
+                    <label className="text-xs text-gray-500 block mb-1">{t("settings.contactNumber")}</label>
                     <input value={contactNumber} onChange={(e) => setContactNumber(e.target.value)} className={inputCls} />
                   </div>
                   <div>
@@ -288,18 +288,18 @@ export function TeacherInvoiceModal({ open, teacherId, onClose, onIssued }: Teac
 
               {/* Invoice meta */}
               <div className="bg-gray-50 rounded-xl p-4">
-                <h3 className="text-sm font-bold text-[#111111] mb-3">بيانات الفاتورة</h3>
+                <h3 className="text-sm font-bold text-[#111111] mb-3">{t("invoiceForm.invoiceDetails")}</h3>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs text-gray-500 block mb-1">رقم الفاتورة</label>
+                    <label className="text-xs text-gray-500 block mb-1">{t("invoiceForm.invoiceNumber")}</label>
                     <input value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} className={inputCls} dir="ltr" />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500 block mb-1">تاريخ الإصدار</label>
+                    <label className="text-xs text-gray-500 block mb-1">{t("finance.issuedOn")}</label>
                     <input value={issuedAt} onChange={(e) => setIssuedAt(e.target.value)} className={inputCls} />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500 block mb-1">تاريخ الاستحقاق</label>
+                    <label className="text-xs text-gray-500 block mb-1">{t("invoiceForm.dueDate")}</label>
                     <input
                       type="date"
                       value={dueDate}
@@ -309,13 +309,13 @@ export function TeacherInvoiceModal({ open, teacherId, onClose, onIssued }: Teac
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500 block mb-1">حالة الفاتورة</label>
+                    <label className="text-xs text-gray-500 block mb-1">{t("invoiceForm.invoiceStatus")}</label>
                     <select value={invoiceStatus} onChange={(e) => setInvoiceStatus(e.target.value)} className={inputCls}>
-                      <option value="مدفوع">مدفوع</option>
-                      <option value="متأخر">متأخر</option>
-                      <option value="ملغي">ملغي</option>
-                      <option value="موقف">موقف</option>
-                      <option value="بانتظار الدفع">بانتظار الدفع</option>
+                      <option value="مدفوع">{t("invoiceForm.paidStatus")}</option>
+                      <option value="متأخر">{t("invoiceForm.lateStatus")}</option>
+                      <option value="ملغي">{t("invoiceForm.cancelledStatus")}</option>
+                      <option value="موقف">{t("invoiceForm.suspendedStatus")}</option>
+                      <option value="بانتظار الدفع">{t("invoiceForm.pendingStatus")}</option>
                     </select>
                   </div>
                 </div>
@@ -323,18 +323,18 @@ export function TeacherInvoiceModal({ open, teacherId, onClose, onIssued }: Teac
 
               {/* Teacher info */}
               <div className="bg-gray-50 rounded-xl p-4">
-                <h3 className="text-sm font-bold text-[#111111] mb-3">بيانات المعلم</h3>
+                <h3 className="text-sm font-bold text-[#111111] mb-3">{t("invoiceForm.staffDetails")}</h3>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs text-gray-500 block mb-1">{t("fields.teacherName")}</label>
                     <input value={teacherName} onChange={(e) => setTeacherName(e.target.value)} className={inputCls} />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500 block mb-1">الصف</label>
+                    <label className="text-xs text-gray-500 block mb-1">{t("invoiceForm.grade")}</label>
                     <input value={className} onChange={(e) => setClassName(e.target.value)} className={inputCls} />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500 block mb-1">رقم الجوال</label>
+                    <label className="text-xs text-gray-500 block mb-1">{t("invoiceForm.mobile")}</label>
                     <input value={teacherPhone} onChange={(e) => setTeacherPhone(e.target.value)} className={inputCls} dir="ltr" />
                   </div>
                   <div>
@@ -344,8 +344,8 @@ export function TeacherInvoiceModal({ open, teacherId, onClose, onIssued }: Teac
                   <div className="col-span-2">
                     <label className="text-xs text-gray-500 block mb-1">{t("fields.paymentMethod")}</label>
                     <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className={inputCls}>
-                      <option value="CASH">نقدي</option>
-                      <option value="TRANSFER">تحويل بنكي</option>
+                      <option value="CASH">{t("fields.cash")}</option>
+                      <option value="TRANSFER">{t("invoiceForm.bankTransfer")}</option>
                     </select>
                   </div>
                 </div>
@@ -358,7 +358,7 @@ export function TeacherInvoiceModal({ open, teacherId, onClose, onIssued }: Teac
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 border-b border-gray-100 text-gray-500">
                       <tr>
-                        <th className="px-3 py-2 text-right">الوصف</th>
+                        <th className="px-3 py-2 text-right">{t("fields.description")}</th>
                         <th className="px-3 py-2 text-right w-28">ساعات التأخير</th>
                         <th className="px-3 py-2 text-right w-24">{t("finance.price")}</th>
                         <th className="px-3 py-2 text-right w-28">{t("fields.total")}</th>
@@ -376,7 +376,7 @@ export function TeacherInvoiceModal({ open, teacherId, onClose, onIssued }: Teac
                                 value={item.description}
                                 onChange={(e) => updateItem(item.id, "description", e.target.value)}
                                 className={tdInput}
-                                placeholder="الوصف"
+                                placeholder={t("fields.description")}
                               />
                             </td>
                             <td className="px-2 py-1.5">

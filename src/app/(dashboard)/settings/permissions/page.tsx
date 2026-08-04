@@ -46,6 +46,7 @@ interface StaffRow {
 const OWNER_WILDCARD = "*";
 
 export default function PermissionsPage() {
+  const t = useT();
   const [data, setData] = useState<RolesResponse | null>(null);
   const [staff, setStaff] = useState<StaffRow[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -65,7 +66,7 @@ export default function PermissionsPage() {
       setError(null);
       setSelectedRoleId((current) => current ?? rolesRes.data.roles[0]?.id ?? null);
     } catch (err) {
-      setError(describeApiError(err, "تعذر تحميل الصلاحيات"));
+      setError(describeApiError(err, t("permissions.loadFailed")));
     }
   }, []);
 
@@ -82,7 +83,7 @@ export default function PermissionsPage() {
         setSelectedRoleId(rolesRes.data.roles[0]?.id ?? null);
       })
       .catch((err) => {
-        if (!cancelled) setError(describeApiError(err, "تعذر تحميل الصلاحيات"));
+        if (!cancelled) setError(describeApiError(err, t("permissions.loadFailed")));
       });
     return () => {
       cancelled = true;
@@ -98,7 +99,7 @@ export default function PermissionsPage() {
       await axios.put(`/api/staff-accounts/${user.id}`, { disabled });
       await load();
     } catch (err) {
-      setError(describeApiError(err, "تعذر تحديث الحساب"));
+      setError(describeApiError(err, t("permissions.updateFailed")));
     }
   }
 
@@ -109,7 +110,7 @@ export default function PermissionsPage() {
       setNotice(`تم تحديث دور ${user.name}`);
       await load();
     } catch (err) {
-      setError(describeApiError(err, "تعذر تغيير الدور"));
+      setError(describeApiError(err, t("permissions.roleChangeFailed")));
     }
   }
 
@@ -122,7 +123,7 @@ export default function PermissionsPage() {
 
   return (
     <div dir="rtl" className="min-h-screen bg-brand-bg">
-      <Topbar title="الصلاحيات وحسابات الموظفين" />
+      <Topbar title={t("permissions.title")} />
 
       <div className="p-6 space-y-6">
         {error && (
@@ -137,13 +138,13 @@ export default function PermissionsPage() {
         )}
 
         {!data ? (
-          <div className="py-20 text-center text-sm text-gray-400">جارٍ التحميل…</div>
+          <div className="py-20 text-center text-sm text-gray-400">{t("common.loadingDots")}</div>
         ) : (
           <>
             {/* ── Staff accounts ─────────────────────────────────────────── */}
             <section className="bg-white rounded-2xl shadow-sm p-6">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="font-bold text-[#111111]">حسابات الموظفين</h2>
+                <h2 className="font-bold text-[#111111]">{t("permissions.staffAccounts")}</h2>
                 <button
                   onClick={() => setShowInvite(true)}
                   className="px-4 py-2 bg-[#2F96A6] text-white rounded-xl text-sm font-medium hover:bg-[#26808e]"
@@ -179,7 +180,7 @@ export default function PermissionsPage() {
                               onChange={(e) => changeRole(user, e.target.value)}
                               className="border border-gray-200 rounded-lg px-2 py-1 text-sm"
                             >
-                              <option value="" disabled>بلا دور</option>
+                              <option value="" disabled>{t("permissions.noRole")}</option>
                               {data.roles
                                 .filter((role) => !role.permissions.includes(OWNER_WILDCARD))
                                 .map((role) => (
@@ -190,9 +191,9 @@ export default function PermissionsPage() {
                         </td>
                         <td className="px-3 py-3">
                           {user.disabled ? (
-                            <span className="text-red-500">معطَّل</span>
+                            <span className="text-red-500">{t("permissions.disabled")}</span>
                           ) : (
-                            <span className="text-emerald-600">نشط</span>
+                            <span className="text-emerald-600">{t("permissions.enabled")}</span>
                           )}
                         </td>
                         <td className="px-3 py-3">
@@ -214,7 +215,7 @@ export default function PermissionsPage() {
 
             {/* ── Roles ──────────────────────────────────────────────────── */}
             <section className="bg-white rounded-2xl shadow-sm p-6">
-              <h2 className="font-bold text-[#111111] mb-4">الأدوار والصلاحيات</h2>
+              <h2 className="font-bold text-[#111111] mb-4">{t("permissions.rolesTitle")}</h2>
 
               <div className="flex flex-wrap gap-2 mb-5">
                 {data.roles.map((role) => (
@@ -296,6 +297,7 @@ function RolePermissionEditor({
   onSaved: (message: string) => Promise<void> | void;
   onError: (message: string) => void;
 }) {
+  const t = useT();
   const [draft, setDraft] = useState<string[]>(role.permissions);
   const [saving, setSaving] = useState(false);
 
@@ -311,7 +313,7 @@ function RolePermissionEditor({
       await axios.put(`/api/roles/${role.id}`, { permissions: draft });
       await onSaved(`تم حفظ صلاحيات "${role.nameAr}"`);
     } catch (err) {
-      onError(describeApiError(err, "تعذر حفظ الصلاحيات"));
+      onError(describeApiError(err, t("permissions.saveFailed")));
     } finally {
       setSaving(false);
     }
@@ -395,7 +397,7 @@ function InviteStaffModal({
           : `تم إنشاء الحساب — لكن تعذّر إرسال البريد إلى ${email}`
       );
     } catch (err) {
-      setError(describeApiError(err, "تعذر إنشاء الحساب"));
+      setError(describeApiError(err, t("permissions.createFailed")));
       setSaving(false);
     }
   }
@@ -403,7 +405,7 @@ function InviteStaffModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md space-y-4" dir="rtl">
-        <h3 className="font-bold text-[#111111]">حساب موظف جديد</h3>
+        <h3 className="font-bold text-[#111111]">{t("permissions.newAccount")}</h3>
 
         {error && (
           <div role="alert" className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">
@@ -446,7 +448,7 @@ function InviteStaffModal({
 
         <div>
           <label className="block text-xs text-gray-500 mb-1">
-            كلمة المرور <span className="text-gray-400">(اتركها فارغة لتوليدها وإرسالها بالبريد)</span>
+            كلمة المرور <span className="text-gray-400">{t("permissions.passwordHint")}</span>
           </label>
           <input
             value={password}

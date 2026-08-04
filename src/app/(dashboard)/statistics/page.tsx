@@ -494,7 +494,7 @@ function SummaryTab() {
                 </div>
               </div>
             </div>
-            <span className="text-sm text-gray-500">مدفوع ({summary.collection.paidCount} طالب)</span>
+            <span className="text-sm text-gray-500">{t("finance.paidCount", { n: String(summary.collection.paidCount) })}</span>
           </div>
           <SummaryRow label={t("finance.lateCount", { n: String(summary.collection.lateCount) })} value={formatCurrency(summary.collection.late)} valueClass="text-red-500" />
           <SummaryRow label={t("finance.pendingCount", { n: String(summary.collection.pendingCount) })} value={formatCurrency(summary.collection.pending)} valueClass="text-amber-500" />
@@ -777,7 +777,7 @@ function ExpensesTab() {
                             }
                             {exp.end_date && (
                               <span className="text-xs text-gray-400">
-                                ينتهي: {new Date(exp.end_date).toLocaleDateString("ar-SA")}
+                                {t("finance.endsOnLabel")} {new Date(exp.end_date).toLocaleDateString("ar-SA")}
                               </span>
                             )}
                           </div>

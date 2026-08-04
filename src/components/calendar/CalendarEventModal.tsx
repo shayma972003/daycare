@@ -11,7 +11,7 @@
 import { useState } from "react";
 import axios from "axios";
 import { describeApiError } from "@/lib/api-error";
-import { EVENT_TYPE_LABELS } from "@/lib/calendar";
+import { EVENT_TYPE_LABEL_KEYS } from "@/lib/calendar";
 import type { CalendarEventType } from "@/generated/prisma/enums";
 import { useT } from "@/lib/i18n-provider";
 
@@ -150,7 +150,7 @@ export function CalendarEventModal({
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1.5">{t("finance.type")}</label>
             <div className="flex gap-2">
-              {(Object.keys(EVENT_TYPE_LABELS) as CalendarEventType[]).map((option) => (
+              {(Object.keys(EVENT_TYPE_LABEL_KEYS) as CalendarEventType[]).map((option) => (
                 <button
                   key={option}
                   type="button"
@@ -161,7 +161,7 @@ export function CalendarEventModal({
                       : "bg-gray-50 text-gray-700 hover:bg-gray-100"
                   }`}
                 >
-                  {EVENT_TYPE_LABELS[option]}
+                  {t(EVENT_TYPE_LABEL_KEYS[option])}
                 </button>
               ))}
             </div>

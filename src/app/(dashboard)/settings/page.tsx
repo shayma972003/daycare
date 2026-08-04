@@ -630,7 +630,7 @@ export default function SettingsPage() {
             {activateStep === "confirm" ? (
               <>
                 <p className="text-sm text-gray-600 text-center" dir="ltr">
-                  سيتم إرسال رمز تحقق إلى: +966{phoneNumber}
+                  {t("settings.codeWillBeSentTo", { phone: `+966${phoneNumber}` })}
                 </p>
                 {activateError && (
                   <p className="text-red-600 text-sm text-center">{activateError}</p>
@@ -1148,7 +1148,7 @@ export default function SettingsPage() {
                           <tr key={item.id} className="border-b border-gray-50 hover:bg-gray-50">
                             <td className="py-3 px-2 text-gray-800 font-medium">{item.name}</td>
                             <td className="py-3 px-2 text-gray-500">{formatDMY(item.deletedAt)}</td>
-                            <td className="py-3 px-2 text-gray-500">{daysRemaining(item.deletedAt)} يوم</td>
+                            <td className="py-3 px-2 text-gray-500">{t("settings.daysCount", { n: String(daysRemaining(item.deletedAt)) })}</td>
                             <td className="py-3 px-2">
                               <div className="flex items-center gap-2">
                                 <button

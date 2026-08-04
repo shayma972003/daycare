@@ -389,7 +389,7 @@ export default function TeacherProfilePage() {
               {/* ── بطاقة بيانات التوظيف ──────────────────────────── */}
               <div className="bg-white rounded-xl shadow-md p-6 space-y-4">
                 <h2 className="font-bold text-[#111111] text-base border-b border-gray-100 pb-3 flex items-center gap-2">
-                  بيانات التوظيف
+                  {t("teacherProfile.employmentData")}
                   {(teacher?.lateCountThisMonth ?? 0) >= 5 && (
                     <div className="relative inline-block group">
                       <span className="text-yellow text-lg cursor-default">⚠</span>
@@ -439,14 +439,14 @@ export default function TeacherProfilePage() {
                 <div className="space-y-3">
                   {([1, 2, 3] as const).map((n) => (
                     <div key={n}>
-                      <label className={labelCls}>المؤهل {n}</label>
+                      <label className={labelCls}>{t("teacherProfile.qualificationN", { n: String(n) })}</label>
                       <input {...register(`qualification${n}` as "qualification1" | "qualification2" | "qualification3")} className={inputCls} />
                     </div>
                   ))}
 
                   {extraQuals.map((val, idx) => (
                     <div key={idx + 4}>
-                      <label className={labelCls}>المؤهل {idx + 4}</label>
+                      <label className={labelCls}>{t("teacherProfile.qualificationN", { n: String(idx + 4) })}</label>
                       <input
                         value={val}
                         onChange={(e) => setExtraQuals((prev) => { const next = [...prev]; next[idx] = e.target.value; return next; })}

@@ -1167,7 +1167,7 @@ export default function StudentProfilePage({
                   <tr key={inv.id} className="border-b border-gray-50 hover:bg-gray-50">
                     <td className="py-2">{i + 1}</td>
                     <td className="py-2">{formatDate(inv.createdAt)}</td>
-                    <td className="py-2">{inv.amount.toLocaleString("ar-SA")} ر.س</td>
+                    <td className="py-2">{inv.amount.toLocaleString("ar-SA")} {t("finance.sar")}</td>
                     <td className="py-2">
                       <div className="flex gap-2">
                         {inv.pdfUrl && (

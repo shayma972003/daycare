@@ -72,7 +72,7 @@ export function AlertsProvider({ children }: { children: React.ReactNode }) {
                   {new Date(s.enrollment_end_date).toLocaleDateString("ar-SA")}
                 </span>
                 <span className="text-sm font-medium text-gray-900">
-                  اشتراك الطالب {s.full_name} قد انتهى في تاريخ
+                  {t("alerts.subscriptionExpiredOn", { name: s.full_name })}
                 </span>
               </div>
             ))}
@@ -104,7 +104,7 @@ export function AlertsProvider({ children }: { children: React.ReactNode }) {
           <div className="space-y-1 max-h-60 overflow-y-auto">
             {suspendedAlert.map((s) => (
               <p key={s.id} className="text-sm text-gray-700 py-1 border-b border-gray-50">
-                الطالب {s.full_name} قد تم تغيير حالته إلى موقف وذلك لتأخر الدفع
+                {t("alerts.suspendedForLatePayment", { name: s.full_name })}
               </p>
             ))}
           </div>

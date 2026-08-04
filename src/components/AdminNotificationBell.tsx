@@ -138,7 +138,7 @@ export default function AdminNotificationBell() {
 
           {data.messages.length > 5 && (
             <div className="px-4 py-2.5 border-t border-gray-100 text-center">
-              <span className="text-xs text-gray-400">عرض {data.messages.length} رسالة</span>
+              <span className="text-xs text-gray-400">{t("notifications.showingMessages", { n: String(data.messages.length) })}</span>
             </div>
           )}
         </div>

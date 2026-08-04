@@ -146,7 +146,7 @@ export default function StoragePage() {
                   </span>
                   {data.quotaBytes !== null && (
                     <span className="text-sm text-gray-500">
-                      {" "}من {formatBytes(data.quotaBytes)}
+                      {" "}{t("storage.ofQuota", { total: formatBytes(data.quotaBytes) })}
                     </span>
                   )}
                 </div>
@@ -190,7 +190,7 @@ export default function StoragePage() {
               )}
 
               <p className="text-xs text-gray-400">
-                آخر حساب: {data.computedAt ? formatAst(new Date(data.computedAt), {
+                {t("storage.lastComputedLabel")} {data.computedAt ? formatAst(new Date(data.computedAt), {
                   year: "numeric",
                   month: "long",
                   day: "numeric",
@@ -248,7 +248,7 @@ export default function StoragePage() {
                   disabled={busy || data.invoiceBytes === 0}
                   className="px-5 py-2 border border-gray-300 text-gray-700 rounded-xl text-sm hover:bg-gray-50 disabled:opacity-50"
                 >
-                  حذف ملفات الفواتير ({formatBytes(data.invoiceBytes)})
+                  {t("storage.purgeInvoiceFiles", { size: formatBytes(data.invoiceBytes) })}
                 </button>
               )}
             </section>

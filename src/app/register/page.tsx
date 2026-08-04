@@ -190,7 +190,7 @@ export default function RegisterPage() {
           </form>
 
           <p className="mt-5 text-center text-sm text-gray-500">
-            لديك حساب؟{" "}
+            {t("auth.haveAccount")}{" "}
             <Link href="/login" className="text-[#1a2340] font-bold hover:underline">
               {t("auth.signIn")}
             </Link>

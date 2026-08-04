@@ -438,7 +438,7 @@ export function TeacherInvoiceModal({ open, teacherId, onClose, onIssued }: Teac
                       {t("invoiceForm.addRow")}
                     </button>
                     <span className="text-sm font-bold text-[#111111]">
-                      {t("teacherProfile.netSalaryColon")} {netSalary.toFixed(2)} ر.س
+                      {t("teacherProfile.netSalaryColon")} {netSalary.toFixed(2)} {t("finance.sar")}
                     </span>
                   </div>
                 </div>
@@ -448,7 +448,7 @@ export function TeacherInvoiceModal({ open, teacherId, onClose, onIssued }: Teac
               <div className="flex justify-end">
                 <div className="bg-gray-50 border border-gray-100 rounded-xl px-6 py-3">
                   <span className="text-sm text-gray-500">{t("teacherProfile.netSalaryColon")} </span>
-                  <span className="text-lg font-bold text-coral">{netSalary.toFixed(2)} ر.س</span>
+                  <span className="text-lg font-bold text-coral">{netSalary.toFixed(2)} {t("finance.sar")}</span>
                 </div>
               </div>
 

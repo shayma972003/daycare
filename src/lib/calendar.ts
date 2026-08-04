@@ -17,10 +17,14 @@ export const CALENDAR_VIEW_LABELS: Record<CalendarView, string> = {
   month: "شهر",
 };
 
-export const EVENT_TYPE_LABELS: Record<CalendarEventType, string> = {
-  LESSON: "درس",
-  ACTIVITY: "نشاط",
-  ANNOUNCEMENT: "إعلان",
+/**
+ * Keys, not text. A resolved table here is read once at import and keeps the
+ * language it was first loaded in for the rest of the session.
+ */
+export const EVENT_TYPE_LABEL_KEYS: Record<CalendarEventType, string> = {
+  LESSON: "calendar.typeLESSON",
+  ACTIVITY: "calendar.typeACTIVITY",
+  ANNOUNCEMENT: "calendar.typeANNOUNCEMENT",
 };
 
 /**

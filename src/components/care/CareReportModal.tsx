@@ -472,13 +472,14 @@ function ChoiceRow({
 }
 
 function NapDuration({ start, end }: { start?: string; end?: string }) {
+  const t = useT();
   if (!start || !end) return null;
   const from = new Date(start).getTime();
   const to = new Date(end).getTime();
   if (Number.isNaN(from) || Number.isNaN(to) || to <= from) return null;
   return (
     <p className="text-xs text-[#2F96A6]">
-      المدة: {Math.round((to - from) / 60000)} دقيقة
+      {t("careForm.durationMinutes", { n: String(Math.round((to - from) / 60000)) })}
     </p>
   );
 }

@@ -244,7 +244,7 @@ export function WeeklyAttendanceGrid({ classId }: { classId?: string }) {
                   );
                 })}
                 <td className="px-3 py-2 border-b border-gray-50 text-center text-gray-600 whitespace-nowrap">
-                  {row.ratio.attended}/{row.ratio.expected} أيام
+                  {t("attendance.daysRatio", { attended: String(row.ratio.attended), expected: String(row.ratio.expected) })}
                 </td>
               </tr>
             ))}

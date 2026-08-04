@@ -254,8 +254,8 @@ export default function TeachersPage() {
         {xlsxResult && (
           <div className={`p-4 rounded-lg text-sm border ${xlsxResult.failed > 0 ? "bg-orange-50 border-orange-200" : "bg-success-bg border-success-text/20"}`}>
             <p className="font-medium mb-1">
-              {t("importer.addedCount")} <span className="text-success-text">{xlsxResult.added} معلم</span>
-              {xlsxResult.failed > 0 && <> {t("importer.failedCount")} <span className="text-red-600">{xlsxResult.failed} صف</span></>}
+              {t("importer.addedCount")} <span className="text-success-text">{t("importer.teacherCount", { n: String(xlsxResult.added) })}</span>
+              {xlsxResult.failed > 0 && <> {t("importer.failedCount")} <span className="text-red-600">{t("importer.rowCount", { n: String(xlsxResult.failed) })}</span></>}
             </p>
             {xlsxResult.errors.length > 0 && (
               <ul className="text-xs text-red-600 mt-1 space-y-0.5">
@@ -338,7 +338,7 @@ export default function TeachersPage() {
                           ) : checkedIn && checkedOut && att?.checkoutAt ? (
                             <div className="flex flex-col gap-0.5">
                               <span className="text-gray-500">{formatTime(att.checkinAt!)}</span>
-                              <span className="text-gray-400">خرج {formatTime(att.checkoutAt)}</span>
+                              <span className="text-gray-400">{t("teachers.leftAt", { time: formatTime(att.checkoutAt) })}</span>
                             </div>
                           ) : (
                             <span className="text-gray-400">—</span>

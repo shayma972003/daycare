@@ -59,7 +59,7 @@ export function ClassDeleteConfirmModal({
         {assignedStudentsCount > 0 ? (
           <>
             <h2 id="class-delete-confirm-title" className="text-sm font-medium text-[#111111]">
-              هذا الفصل يحتوي على {assignedStudentsCount} طلاب.
+              {t("classes.containsStudents", { n: String(assignedStudentsCount) })}
             </h2>
             <p className="text-sm text-gray-600 whitespace-pre-line">
               {t("classes.deleteWarning")}

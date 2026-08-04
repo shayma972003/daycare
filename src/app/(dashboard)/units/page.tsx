@@ -216,7 +216,7 @@ export default function UnitsPage() {
                     </p>
                   )}
                   <p>
-                    {unit.lessonCount} درس · {unit.fileCount} ملف ·{" "}
+                    {t("units.counts", { lessons: String(unit.lessonCount), files: String(unit.fileCount) })}{" "}
                     {unit.classIds.length === 0 ? t("common.allClasses") : t("units.classCount", { n: String(unit.classIds.length) })}
                   </p>
                 </div>

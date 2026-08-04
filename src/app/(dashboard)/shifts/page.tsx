@@ -149,7 +149,7 @@ export default function ShiftsPage() {
           <button onClick={() => shiftWeek(7)} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm hover:bg-gray-50">
             {t("common.next")}
           </button>
-          {data && <span className="text-sm text-gray-500">من {data.weekStart}</span>}
+          {data && <span className="text-sm text-gray-500">{t("attendance.weekFrom", { date: data.weekStart })}</span>}
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm p-4 overflow-x-auto">

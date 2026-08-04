@@ -487,7 +487,7 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
                           </td>
                           <td className="px-3 py-1.5 text-center">
                             <span className="text-sm font-medium" style={{ color: "#F64651" }}>
-                              -{((calcTotal(lineItems) * discountPercent) / 100).toFixed(2)} ر.س
+                              -{((calcTotal(lineItems) * discountPercent) / 100).toFixed(2)} {t("finance.sar")}
                             </span>
                           </td>
                           <td />
@@ -500,7 +500,7 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
                           <td className="px-3 py-2 text-center text-sm text-gray-500">15%</td>
                           <td className="px-3 py-2 text-center">
                             <span className="text-sm font-medium text-gray-700">
-                              +{((calcTotal(lineItems) * 15) / 100).toFixed(2)} ر.س
+                              +{((calcTotal(lineItems) * 15) / 100).toFixed(2)} {t("finance.sar")}
                             </span>
                           </td>
                           <td />
@@ -517,7 +517,7 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
                       {t("invoiceForm.addRow")}
                     </button>
                     <span className="text-sm font-bold text-[#111111]">
-                      الإجمالي: {calcTotal(lineItems).toFixed(2)} ر.س
+                      {t("finance.totalColon", { amount: calcTotal(lineItems).toFixed(2) })}
                     </span>
                   </div>
                 </div>
@@ -631,7 +631,7 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
                         </table>
                         <div className="px-3 py-2 bg-gray-50 flex justify-end">
                           <span className="text-sm font-bold text-[#111111]">
-                            إجمالي الفعاليات: {calcTotal(activityItems).toFixed(2)} ر.س
+                            {t("finance.activitiesTotal", { amount: calcTotal(activityItems).toFixed(2) })}
                           </span>
                         </div>
                       </div>
@@ -643,29 +643,29 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
               {/* Grand total */}
               <div className="text-right space-y-1 mt-3 pt-3 border-t border-gray-100">
                 <div className="flex justify-between text-sm text-gray-500">
-                  <span>{baseTotalView.toFixed(2)} ر.س</span>
+                  <span>{baseTotalView.toFixed(2)} {t("finance.sar")}</span>
                   <span>{t("fields.subtotal")}</span>
                 </div>
                 {hasVat && (
                   <div className="flex justify-between text-sm text-gray-500">
-                    <span>+{vatAmountView.toFixed(2)} ر.س</span>
+                    <span>+{vatAmountView.toFixed(2)} {t("finance.sar")}</span>
                     <span>{t("invoiceForm.vatPercent")}</span>
                   </div>
                 )}
                 {includeActivities && !noActivities && (
                   <div className="flex justify-between text-sm text-gray-500">
-                    <span>+{activitiesTotalView.toFixed(2)} ر.س</span>
+                    <span>+{activitiesTotalView.toFixed(2)} {t("finance.sar")}</span>
                     <span>{t("invoiceForm.activityFees")}</span>
                   </div>
                 )}
                 {hasDiscount && (
                   <div className="flex justify-between text-sm text-coral">
-                    <span>-{discountAmountView.toFixed(2)} ر.س</span>
-                    <span>خصم ({discountPercent}%)</span>
+                    <span>-{discountAmountView.toFixed(2)} {t("finance.sar")}</span>
+                    <span>{t("finance.discountPercent", { percent: String(discountPercent) })}</span>
                   </div>
                 )}
                 <div className="flex justify-between text-base font-bold text-gray-900 pt-1 border-t border-gray-200">
-                  <span>{grandTotal.toFixed(2)} ر.س</span>
+                  <span>{grandTotal.toFixed(2)} {t("finance.sar")}</span>
                   <span>{t("fields.grandTotal")}</span>
                 </div>
               </div>

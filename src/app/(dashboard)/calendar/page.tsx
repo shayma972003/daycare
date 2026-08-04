@@ -21,7 +21,7 @@ import {
   isSameAstDay,
   isSameAstMonth,
   CALENDAR_VIEW_LABELS,
-  EVENT_TYPE_LABELS,
+  EVENT_TYPE_LABEL_KEYS,
   EVENT_TYPE_STYLES,
   DAY_START_HOUR,
   DAY_END_HOUR,
@@ -359,6 +359,7 @@ function MonthGrid({
   eventsOn: (day: Date) => EventRow[];
   onSelect: (event: EventRow) => void;
 }) {
+  const t = useT();
   return (
     <div className="min-w-[640px]">
       <div className="grid grid-cols-7 border-b border-gray-100">
@@ -399,14 +400,14 @@ function MonthGrid({
                   className={`block w-full text-right text-[11px] leading-tight rounded-md border-r-2 px-1.5 py-0.5 mb-1 truncate ${
                     EVENT_TYPE_STYLES[event.type]
                   }`}
-                  title={`${EVENT_TYPE_LABELS[event.type]}: ${event.title}`}
+                  title={`${t(EVENT_TYPE_LABEL_KEYS[event.type])}: ${event.title}`}
                 >
                   {event.title}
                 </button>
               ))}
               {dayEvents.length > 3 && (
                 <span className="text-[10px] text-gray-400">
-                  +{dayEvents.length - 3} أخرى
+                  {t("calendar.moreEvents", { n: String(dayEvents.length - 3) })}
                 </span>
               )}
             </div>

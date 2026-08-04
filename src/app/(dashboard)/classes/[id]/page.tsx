@@ -497,7 +497,7 @@ export default function ClassProfilePage({
               <h2 className="text-base font-bold text-[#111111]">{t("classes.enrolledHere")}</h2>
             </div>
             <div className="flex items-center gap-3">
-              <span className="text-xs text-gray-400">{cls.students.length} طالب</span>
+              <span className="text-xs text-gray-400">{t("classes.studentCount", { n: String(cls.students.length) })}</span>
               <input
                 type="text"
                 placeholder={t("finance.searchByName")}
@@ -587,7 +587,7 @@ export default function ClassProfilePage({
             </div>
 
             <p className="text-xs text-gray-400 text-right px-5 pt-3">
-              يعرض فقط الطلاب بدون فصل محدد الذين يطابقون فترة هذا الفصل
+              {t("classes.availableFilterHint")}
               {cls.period && ` (${t(`periods.${cls.period}`)})`}
             </p>
 

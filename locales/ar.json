@@ -159,7 +159,8 @@
     "forgotHint": "أدخل بريدك الإلكتروني أو رقم الجوال المسجل وسنرسل لك رمز التحقق",
     "resetHint": "أدخل رمز التحقق المرسل إليك ثم اختر كلمة مرور جديدة",
     "codeSentNotice": "إذا كان الحساب موجوداً، سيصلك رمز التحقق عبر البريد الإلكتروني خلال دقائق. الرمز صالح لمدة 15 دقيقة.",
-    "resendIn": "لم تستلم الرمز؟ إعادة الإرسال ({n})"
+    "resendIn": "لم تستلم الرمز؟ إعادة الإرسال ({n})",
+    "haveAccount": "لديك حساب؟"
   },
   "home": {
     "title": "الرئيسية",
@@ -340,7 +341,10 @@
     "noHeadTeacher": "هذا الفصل بدون معلم مسؤول",
     "deleteWarning": "عند الحذف سيبقى هؤلاء الطلاب بدون فصل محدد\nوسيظهر تنبيه عليهم حتى يتم التعيين.",
     "edit": "تعديل الفصل",
-    "trashNotice": "سيتم نقل فصل \"{name}\" إلى سلة المحذوفات. يمكنك استعادته خلال 30 يوماً."
+    "trashNotice": "سيتم نقل فصل \"{name}\" إلى سلة المحذوفات. يمكنك استعادته خلال 30 يوماً.",
+    "studentCount": "{n} طالب",
+    "availableFilterHint": "يعرض فقط الطلاب بدون فصل محدد الذين يطابقون فترة هذا الفصل",
+    "containsStudents": "هذا الفصل يحتوي على {n} طلاب."
   },
   "teachers": {
     "title": "المعلم",
@@ -405,7 +409,8 @@
     "saveAndAdd": "حفظ وإضافة المعلم",
     "deleteWarning": "عند الحذف ستبقى هذه الفصول بدون معلم مسؤول\nوسيظهر تنبيه عليها حتى يتم التعيين.",
     "addNewShort": "أضف معلم جديد",
-    "uploadFile": "ارفع ملف المعلمين"
+    "uploadFile": "ارفع ملف المعلمين",
+    "leftAt": "خرج {time}"
   },
   "statistics": {
     "title": "الإحصائيات",
@@ -572,7 +577,9 @@
     "showMore": "عرض المزيد ({n} متبقي)",
     "restoreAllStudents": "هل تريد استعادة جميع الطلاب المحذوفين؟ ({n} طلاب)",
     "restoreAllClasses": "هل تريد استعادة جميع الفصول المحذوفة؟ ({n} فصول)",
-    "restoreAllTeachers": "هل تريد استعادة جميع المعلمين المحذوفين؟ ({n} معلمين)"
+    "restoreAllTeachers": "هل تريد استعادة جميع المعلمين المحذوفين؟ ({n} معلمين)",
+    "codeWillBeSentTo": "سيتم إرسال رمز تحقق إلى: {phone}",
+    "daysCount": "{n} يوم"
   },
   "periods": {
     "MORNING": "صباحية",
@@ -664,7 +671,11 @@
     "editEvent": "تعديل الحدث",
     "newEvent": "حدث جديد",
     "allClassesHint": "(بدون تحديد = كل الفصول)",
-    "allDay": "طوال اليوم"
+    "allDay": "طوال اليوم",
+    "typeLESSON": "درس",
+    "typeACTIVITY": "نشاط",
+    "typeANNOUNCEMENT": "إعلان",
+    "moreEvents": "+{n} أخرى"
   },
   "units": {
     "title": "الوحدات التعليمية",
@@ -687,7 +698,8 @@
     "noFiles": "لا توجد ملفات",
     "addFile": "+ إضافة ملف",
     "classCount": "{n} فصل",
-    "new": "وحدة جديدة"
+    "new": "وحدة جديدة",
+    "counts": "{lessons} درس · {files} ملف ·"
   },
   "shifts": {
     "title": "المناوبات",
@@ -784,7 +796,14 @@
     "stopPayment": "إيقاف الدفع",
     "pendingCount": "بانتظار الدفع ({n} طالب)",
     "lateCount": "متأخر ({n} طالب)",
-    "reportFilename": "التقرير-المالي-{period}.xlsx"
+    "reportFilename": "التقرير-المالي-{period}.xlsx",
+    "paidCount": "مدفوع ({n} طالب)",
+    "endsOn": "ينتهي: {date}",
+    "totalColon": "الإجمالي: {amount} ر.س",
+    "activitiesTotal": "إجمالي الفعاليات: {amount} ر.س",
+    "discountPercent": "خصم ({percent}%)",
+    "endsOnLabel": "ينتهي:",
+    "sar": "ر.س"
   },
   "fields": {
     "fullName": "الاسم الكامل",
@@ -901,7 +920,9 @@
     "repeatedLateness": "تأخير متكرر",
     "retentionNotice": "تُحفظ بيانات الموظف الشخصية لمدة الاحتفاظ المعتمدة ابتداءً من هذا التاريخ، ثم تُزال تلقائياً مع بقاء سجل الرواتب والإحصاءات كاملاً.",
     "trashNotice": "سيتم نقل ملف {name} إلى سلة المحذوفات.\nيمكنك استعادته خلال 30 يوماً.",
-    "sentTo": "تم الإرسال إلى {to}"
+    "sentTo": "تم الإرسال إلى {to}",
+    "employmentData": "بيانات التوظيف",
+    "qualificationN": "المؤهل {n}"
   },
   "careForm": {
     "photoUploadFailed": "تعذر رفع الصورة",
@@ -934,7 +955,8 @@
     "saving": "جارٍ الحفظ…",
     "submit": "إبلاغ",
     "remove": "إزالة",
-    "recordedFor": "تم تسجيل التقرير لـ{n} طفل"
+    "recordedFor": "تم تسجيل التقرير لـ{n} طفل",
+    "durationMinutes": "المدة: {n} دقيقة"
   },
   "importFields": {
     "full_name": "اسم الطالب",
@@ -1017,7 +1039,17 @@
     "backToReview": "العودة للمراجعة",
     "downloadErrors": "تنزيل تقرير الأخطاء",
     "uploadAnother": "رفع ملف آخر",
-    "nothingPartiallySaved": "لم يُحفظ شيء ناقص — يمكنك إعادة المحاولة أو العودة للمراجعة."
+    "nothingPartiallySaved": "لم يُحفظ شيء ناقص — يمكنك إعادة المحاولة أو العودة للمراجعة.",
+    "fileSelected": "تم اختيار: {name}",
+    "rowsDetected": "إجمالي الصفوف المكتشفة:",
+    "previewLimit": "يُعرض أول 10 صفوف فقط من أصل {total}",
+    "confirmMapping": "تأكيد التعيين والمتابعة",
+    "confirmStudentImport": "تأكيد الاستيراد ({n} طالب)",
+    "continueAction": "المتابعة",
+    "rowCount": "{n} صف",
+    "teacherCount": "{n} معلم",
+    "rowsSuffix": "صف",
+    "rowLabel": "صف {n}:"
   },
   "invoiceForm": {
     "ariaTitle": "نافذة إصدار فاتورة للطالب",
@@ -1151,7 +1183,11 @@
     "overQuota": "تم تجاوز المساحة المتاحة — الرفع متوقف حتى تحرير مساحة أو ترقية الخطة.",
     "purgeHint": "يحذف ملفات PDF المحفوظة للفواتير. الفاتورة نفسها وأرقامها تبقى كاملة، ويمكن إعادة إصدار الملف في أي وقت.",
     "protectedHint": "ملفات الأطفال وصور التقارير لا تُحذف هنا — لا يمكن إنشاؤها من جديد، فحذفها قرار لكل ملف على حدة.",
-    "purged": "تم حذف {count} ملف فاتورة وتحرير {size}"
+    "purged": "تم حذف {count} ملف فاتورة وتحرير {size}",
+    "lastComputed": "آخر حساب: {at}",
+    "purgeInvoiceFiles": "حذف ملفات الفواتير ({size})",
+    "lastComputedLabel": "آخر حساب:",
+    "ofQuota": "من {total}"
   },
   "attendance": {
     "loadFailed": "تعذر تحميل الحضور",
@@ -1170,7 +1206,9 @@
     "checkOutLabel": "خروج:",
     "dayEnded": "انتهى الدوام",
     "previousWeek": "الأسبوع السابق",
-    "thisWeek": "هذا الأسبوع"
+    "thisWeek": "هذا الأسبوع",
+    "daysRatio": "{attended}/{expected} أيام",
+    "weekFrom": "من {date}"
   },
   "activities": {
     "loadFailed": "تعذر تحميل بيانات الفعالية كاملة",
@@ -1184,13 +1222,17 @@
     "minutes": "{n} د",
     "hours": "{n} س",
     "days": "{n} ي",
-    "markAllRead": "تحديد الكل كمقروء"
+    "markAllRead": "تحديد الكل كمقروء",
+    "showingMessages": "عرض {n} رسالة"
   },
   "alerts": {
     "subscriptionEnding": "انتهاء اشتراك الطلاب",
     "suspendedStudents": "تنبيه — طلاب موقوفون",
     "viewStudentFile": "عرض ملف الطالب",
-    "viewChildFile": "عرض ملف الطفل"
+    "viewChildFile": "عرض ملف الطفل",
+    "subscriptionExpired": "اشتراك الطالب {name} قد انتهى في تاريخ",
+    "suspendedForLatePayment": "الطالب {name} قد تم تغيير حالته إلى موقف وذلك لتأخر الدفع",
+    "subscriptionExpiredOn": "اشتراك الطالب {name} قد انتهى في تاريخ"
   },
   "layout": {
     "schoolLogo": "شعار المدرسة",

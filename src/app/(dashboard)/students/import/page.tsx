@@ -329,7 +329,7 @@ export default function StudentsImportPage() {
               <p className="text-xs text-gray-400">{t("importer.formats")}</p>
               {selectedFile && (
                 <p className="mt-3 text-sm text-success-text font-medium">
-                  تم اختيار: {selectedFile.name}
+                  {t("importer.fileSelected", { name: selectedFile.name })}
                 </p>
               )}
             </div>
@@ -364,8 +364,8 @@ export default function StudentsImportPage() {
               <div>
                 <h2 className="text-xl font-bold text-[#111111]">{t("importer.filePreview")}</h2>
                 <p className="text-sm text-gray-500 mt-1">
-                  إجمالي الصفوف المكتشفة:{" "}
-                  <span className="font-bold text-[#111111]">{previewData.total_rows} صف</span>
+                  {t("importer.rowsDetected")}{" "}
+                  <span className="font-bold text-[#111111]">{t("importer.rowCount", { n: String(previewData.total_rows) })}</span>
                 </p>
               </div>
               <div className="flex gap-2">
@@ -381,7 +381,7 @@ export default function StudentsImportPage() {
                   className="px-5 py-2 bg-[#111111] text-white rounded-xl text-sm font-medium hover:bg-[#243060] transition-colors disabled:opacity-60 flex items-center gap-2"
                 >
                   {loading && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
-                  المتابعة
+                  {t("importer.continueAction")}
                 </button>
                 <button
                   onClick={handleCancel}
@@ -417,7 +417,7 @@ export default function StudentsImportPage() {
             </div>
             {previewData.total_rows > 10 && (
               <p className="text-xs text-gray-400 mt-2 text-center">
-                يُعرض أول 10 صفوف فقط من أصل {previewData.total_rows}
+                {t("importer.previewLimit", { total: String(previewData.total_rows) })}
               </p>
             )}
           </div>
@@ -438,7 +438,7 @@ export default function StudentsImportPage() {
                   className="px-5 py-2 bg-[#111111] text-white rounded-xl text-sm font-medium hover:bg-[#243060] transition-colors disabled:opacity-60 flex items-center gap-2"
                 >
                   {loading && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
-                  تأكيد التعيين والمتابعة
+                  {t("importer.confirmMapping")}
                 </button>
                 <button
                   onClick={handleCancel}
@@ -540,7 +540,7 @@ export default function StudentsImportPage() {
                         key={row.id}
                         className="px-4 py-2 border-b border-red-50 last:border-b-0 bg-red-50/50"
                       >
-                        <span className="text-xs font-medium text-gray-500">صف {row.row_number}: </span>
+                        <span className="text-xs font-medium text-gray-500">{t("importer.rowLabel", { n: String(row.row_number) })} </span>
                         <span className="text-xs text-[#111111] font-medium">
                           {String((row.mapped_data as Record<string, unknown>)?.full_name ?? (row.raw_data as Record<string, unknown>)?.[Object.keys(row.raw_data as Record<string, unknown>)[0]] ?? "")}
                         </span>
@@ -573,7 +573,7 @@ export default function StudentsImportPage() {
                   onClick={() => { confirmCalledRef.current = false; setStep(5); }}
                   className="px-6 py-2 bg-[#F64651] text-white rounded-xl text-sm font-bold hover:bg-[#D93A44] transition-colors"
                 >
-                  تأكيد الاستيراد ({sessionData.valid_rows} طالب)
+                  {t("importer.confirmStudentImport", { n: String(sessionData.valid_rows) })}
                 </button>
               )}
             </div>
@@ -678,7 +678,7 @@ export default function StudentsImportPage() {
                     .filter((r) => r.status === "skipped")
                     .map((row) => (
                       <div key={row.id} className="px-4 py-2 border-b border-red-50 last:border-b-0 bg-red-50/50">
-                        <span className="text-xs font-medium text-gray-500">صف {row.row_number}: </span>
+                        <span className="text-xs font-medium text-gray-500">{t("importer.rowLabel", { n: String(row.row_number) })} </span>
                         <span className="text-xs text-[#111111] font-medium">
                           {String((row.mapped_data as Record<string, unknown>)?.full_name ?? "")}
                         </span>

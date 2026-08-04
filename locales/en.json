@@ -159,7 +159,8 @@
     "forgotHint": "Enter your registered email or mobile number and we will send you a verification code.",
     "resetHint": "Enter the code you received, then choose a new password.",
     "codeSentNotice": "If the account exists, a code will arrive by email within a few minutes. It is valid for 15 minutes.",
-    "resendIn": "Didn't get the code? Resend ({n})"
+    "resendIn": "Didn't get the code? Resend ({n})",
+    "haveAccount": "Already have an account?"
   },
   "home": {
     "title": "Home",
@@ -340,7 +341,10 @@
     "noHeadTeacher": "This class has no lead teacher",
     "deleteWarning": "After deletion these children will have no class,\nand a warning will show on them until one is assigned.",
     "edit": "Edit class",
-    "trashNotice": "The class \"{name}\" will be moved to the trash. You can restore it within 30 days."
+    "trashNotice": "The class \"{name}\" will be moved to the trash. You can restore it within 30 days.",
+    "studentCount": "{n} children",
+    "availableFilterHint": "Shows only children without a class who match this class's period",
+    "containsStudents": "This class has {n} children."
   },
   "teachers": {
     "title": "Teachers",
@@ -405,7 +409,8 @@
     "saveAndAdd": "Save and add the teacher",
     "deleteWarning": "After deletion these classes will have no lead teacher,\nand a warning will show on them until one is assigned.",
     "addNewShort": "Add a new teacher",
-    "uploadFile": "Upload the teachers file"
+    "uploadFile": "Upload the teachers file",
+    "leftAt": "Out {time}"
   },
   "statistics": {
     "title": "Statistics",
@@ -572,7 +577,9 @@
     "showMore": "Show more ({n} remaining)",
     "restoreAllStudents": "Restore all deleted children? ({n})",
     "restoreAllClasses": "Restore all deleted classes? ({n})",
-    "restoreAllTeachers": "Restore all deleted teachers? ({n})"
+    "restoreAllTeachers": "Restore all deleted teachers? ({n})",
+    "codeWillBeSentTo": "A verification code will be sent to: {phone}",
+    "daysCount": "{n} days"
   },
   "periods": {
     "MORNING": "Morning",
@@ -664,7 +671,11 @@
     "editEvent": "Edit event",
     "newEvent": "New event",
     "allClassesHint": "(leave empty = all classes)",
-    "allDay": "All day"
+    "allDay": "All day",
+    "typeLESSON": "Lesson",
+    "typeACTIVITY": "Activity",
+    "typeANNOUNCEMENT": "Announcement",
+    "moreEvents": "+{n} more"
   },
   "units": {
     "title": "Teaching units",
@@ -687,7 +698,8 @@
     "noFiles": "No files",
     "addFile": "+ Add file",
     "classCount": "{n} classes",
-    "new": "New unit"
+    "new": "New unit",
+    "counts": "{lessons} lessons · {files} files ·"
   },
   "shifts": {
     "title": "Shifts",
@@ -784,7 +796,14 @@
     "stopPayment": "Stop payment",
     "pendingCount": "Awaiting payment ({n})",
     "lateCount": "Late ({n})",
-    "reportFilename": "financial-report-{period}.xlsx"
+    "reportFilename": "financial-report-{period}.xlsx",
+    "paidCount": "Paid ({n})",
+    "endsOn": "Ends: {date}",
+    "totalColon": "Total: {amount} SAR",
+    "activitiesTotal": "Activities total: {amount} SAR",
+    "discountPercent": "Discount ({percent}%)",
+    "endsOnLabel": "Ends:",
+    "sar": "SAR"
   },
   "fields": {
     "fullName": "Full name",
@@ -901,7 +920,9 @@
     "repeatedLateness": "Repeated lateness",
     "retentionNotice": "The employee's personal data is kept for the approved retention period starting from this date, then removed automatically — the payroll and statistics record stays complete.",
     "trashNotice": "{name}'s file will be moved to the trash.\nYou can restore it within 30 days.",
-    "sentTo": "Sent to {to}"
+    "sentTo": "Sent to {to}",
+    "employmentData": "Employment details",
+    "qualificationN": "Qualification {n}"
   },
   "careForm": {
     "photoUploadFailed": "Could not upload the photo",
@@ -934,7 +955,8 @@
     "saving": "Saving…",
     "submit": "File it",
     "remove": "Remove",
-    "recordedFor": "Report recorded for {n} children"
+    "recordedFor": "Report recorded for {n} children",
+    "durationMinutes": "Duration: {n} minutes"
   },
   "importFields": {
     "full_name": "Child name",
@@ -1017,7 +1039,17 @@
     "backToReview": "Back to review",
     "downloadErrors": "Download the error report",
     "uploadAnother": "Upload another file",
-    "nothingPartiallySaved": "Nothing was partially saved — you can retry or go back to review."
+    "nothingPartiallySaved": "Nothing was partially saved — you can retry or go back to review.",
+    "fileSelected": "Selected: {name}",
+    "rowsDetected": "Rows detected:",
+    "previewLimit": "Showing only the first 10 rows of {total}",
+    "confirmMapping": "Confirm the mapping and continue",
+    "confirmStudentImport": "Confirm the import ({n} children)",
+    "continueAction": "Continue",
+    "rowCount": "{n} rows",
+    "teacherCount": "{n} teachers",
+    "rowsSuffix": "rows",
+    "rowLabel": "Row {n}:"
   },
   "invoiceForm": {
     "ariaTitle": "Issue an invoice for this child",
@@ -1151,7 +1183,11 @@
     "overQuota": "Storage limit exceeded — uploads are paused until space is freed or the plan is upgraded.",
     "purgeHint": "Deletes the stored invoice PDFs. The invoices and their numbers stay intact, and a file can be reissued at any time.",
     "protectedHint": "Children's files and report photos are not deleted here — they cannot be recreated, so each one is a separate decision.",
-    "purged": "Deleted {count} invoice files and freed {size}"
+    "purged": "Deleted {count} invoice files and freed {size}",
+    "lastComputed": "Last computed: {at}",
+    "purgeInvoiceFiles": "Delete invoice files ({size})",
+    "lastComputedLabel": "Last computed:",
+    "ofQuota": "of {total}"
   },
   "attendance": {
     "loadFailed": "Could not load attendance",
@@ -1170,7 +1206,9 @@
     "checkOutLabel": "Out:",
     "dayEnded": "Day ended",
     "previousWeek": "Previous week",
-    "thisWeek": "This week"
+    "thisWeek": "This week",
+    "daysRatio": "{attended}/{expected} days",
+    "weekFrom": "From {date}"
   },
   "activities": {
     "loadFailed": "Could not load the full activity details",
@@ -1184,13 +1222,17 @@
     "minutes": "{n}m",
     "hours": "{n}h",
     "days": "{n}d",
-    "markAllRead": "Mark all as read"
+    "markAllRead": "Mark all as read",
+    "showingMessages": "Showing {n} messages"
   },
   "alerts": {
     "subscriptionEnding": "Children's subscriptions ending",
     "suspendedStudents": "Alert — suspended children",
     "viewStudentFile": "Open the child's file",
-    "viewChildFile": "Open the child's file"
+    "viewChildFile": "Open the child's file",
+    "subscriptionExpired": "{name}'s subscription expired on",
+    "suspendedForLatePayment": "{name} was moved to suspended because of a late payment",
+    "subscriptionExpiredOn": "{name}'s subscription expired on"
   },
   "layout": {
     "schoolLogo": "School logo",

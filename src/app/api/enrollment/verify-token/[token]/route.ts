@@ -26,7 +26,11 @@ export async function GET(
 
   // The code is delivered by email, so show a masked address — pointing at a
   // phone number would send the parent looking in the wrong place.
-  const maskedPhone = rec.sent_to_phone.slice(0, -4).replace(/\d/g, "X") + rec.sent_to_phone.slice(-4);
+  // Null on every link issued since the invite stopped asking for a number. The
+  // page falls back to the masked address, which is where the code was sent.
+  const maskedPhone = rec.sent_to_phone
+    ? rec.sent_to_phone.slice(0, -4).replace(/\d/g, "X") + rec.sent_to_phone.slice(-4)
+    : null;
   const maskedEmail = rec.sent_to_email
     ? `${rec.sent_to_email.slice(0, 2)}***@${rec.sent_to_email.split("@")[1] ?? ""}`
     : null;

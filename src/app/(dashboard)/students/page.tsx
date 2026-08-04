@@ -98,7 +98,6 @@ export default function StudentsPage() {
 
   // Enrollment
   const [enrollmentModalOpen, setEnrollmentModalOpen] = useState(false);
-  const [enrollPhone, setEnrollPhone] = useState("");
   const [enrollEmail, setEnrollEmail] = useState("");
   const [enrollSending, setEnrollSending] = useState(false);
   const [enrollSuccess, setEnrollSuccess] = useState<string | null>(null);
@@ -234,12 +233,11 @@ export default function StudentsPage() {
     setEnrollSuccess(null);
     setEnrollError(null);
     try {
-      const res = await axios.post<{ success: boolean; phone: string }>("/api/enrollment/create-token", {
-        phone: enrollPhone,
+      const res = await axios.post<{ success: boolean; email: string }>("/api/enrollment/create-token", {
         email: enrollEmail,
       });
-      setEnrollSuccess(res.data.phone);
-      setEnrollPhone("");
+      // The address, because that is where the link actually went.
+      setEnrollSuccess(res.data.email);
       setEnrollEmail("");
     } catch (err) {
       setEnrollError(axios.isAxiosError(err) ? err.response?.data?.error ?? "حدث خطأ" : "حدث خطأ");
@@ -517,7 +515,7 @@ export default function StudentsPage() {
                   onClick={() => { setDropdownOpen(false); setEnrollmentModalOpen(true); setEnrollSuccess(null); setEnrollError(null); }}
                   className="w-full text-right px-4 py-3 text-sm text-[#F64651] font-medium hover:bg-success-bg transition-colors"
                 >
-                  إنشاء نموذج جديد
+                  إرسال نموذج تسجيل
                 </button>
               </div>
             )}
@@ -753,20 +751,11 @@ export default function StudentsPage() {
               </div>
             ) : (
               <>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">رقم الجوال <span className="text-red-500">*</span></label>
-                  <div className="flex gap-2">
-                    <span className="flex items-center px-3 bg-gray-100 border border-gray-200 rounded-xl text-sm text-gray-500 font-mono">966+</span>
-                    <input
-                      type="tel"
-                      dir="ltr"
-                      value={enrollPhone}
-                      onChange={(e) => setEnrollPhone(e.target.value)}
-                      placeholder="5xxxxxxxx"
-                      className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651]"
-                    />
-                  </div>
-                </div>
+                {/* The phone field was removed: nothing sent a message to it,
+                    nothing copied it onto the guardian's record, and nothing
+                    prefilled it into the form. It was a required step that
+                    returned nothing. The parent still gives their number inside
+                    the form itself, which is unchanged. */}
                 <div className="mb-5">
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">البريد الإلكتروني <span className="text-red-500">*</span></label>
                   <input
@@ -787,7 +776,7 @@ export default function StudentsPage() {
                 <div className="flex gap-2">
                   <button
                     onClick={sendEnrollmentForm}
-                    disabled={enrollSending || !enrollPhone.trim() || !enrollEmail.trim()}
+                    disabled={enrollSending || !enrollEmail.trim()}
                     className="flex-1 py-2.5 bg-[#F64651] text-white rounded-xl text-sm font-medium hover:bg-[#D93A44] disabled:opacity-50 transition-colors"
                   >
                     {enrollSending ? "جاري الإرسال..." : "إرسال الرابط"}

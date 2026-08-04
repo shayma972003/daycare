@@ -16,7 +16,16 @@ import {
 import { z } from "zod";
 
 const schema = z.object({
-  phone: z.string().min(9),
+  /**
+   * Optional, and no longer asked for.
+   *
+   * The invite used to require a number that nothing then used: there is no SMS
+   * channel, it was never copied onto the guardian's record, and it was never
+   * prefilled into the form. A required field that does nothing is a step the
+   * user pays for and gets nothing back. Still accepted so older clients keep
+   * working.
+   */
+  phone: z.string().min(9).optional(),
   // Required: email is the only delivery channel, so a token with no address
   // would be created and then never reach anyone.
   email: z.string().email("البريد الإلكتروني غير صالح"),
@@ -72,10 +81,11 @@ export async function POST(request: Request) {
 
   const { phone, email } = parsed.data;
 
-  // Uses the shared normaliser rather than a second local copy that blindly
-  // prefixed +966 onto whatever digits it was given.
-  const normalizedPhone = normalizePhone(phone);
-  if (!normalizedPhone) {
+  // Only validated when one is sent. Uses the shared normaliser rather than a
+  // second local copy that blindly prefixed +966 onto whatever digits it was
+  // given.
+  const normalizedPhone = phone ? normalizePhone(phone) : null;
+  if (phone && !normalizedPhone) {
     return Response.json({ error: "رقم الجوال غير صالح" }, { status: 422 });
   }
 
@@ -129,5 +139,5 @@ export async function POST(request: Request) {
     request,
   });
 
-  return Response.json({ success: true, phone: normalizedPhone, email });
+  return Response.json({ success: true, email });
 }

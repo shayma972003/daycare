@@ -11,7 +11,9 @@ type TokenState =
   | { state: "loading" }
   | { state: "expired" }
   | { state: "limit_reached"; max: number }
-  | { state: "otp"; maskedPhone: string; school: SchoolInfo; otpVerified: boolean }
+  /// `sentTo` is the masked address the code went to. Named for what it means
+  /// rather than for the channel, because it used to be a phone number.
+  | { state: "otp"; sentTo: string; school: SchoolInfo; otpVerified: boolean }
   | { state: "form"; school: SchoolInfo; submissionsCount: number; maxSubmissions: number }
   | { state: "done"; childName: string; school: SchoolInfo; submissionsCount: number; maxSubmissions: number };
 
@@ -486,7 +488,7 @@ export default function EnrollPage() {
         const res = await axios.get<{
           valid: boolean;
           otpVerified: boolean;
-          maskedPhone: string;
+          maskedPhone: string | null;
           maskedEmail: string | null;
           submissionsCount: number;
           maxSubmissions: number;
@@ -508,9 +510,10 @@ export default function EnrollPage() {
 
         setPage({
           state: "otp",
-          // Falls back to the phone only for links created before delivery
-          // moved to email.
-          maskedPhone: res.data.maskedEmail ?? res.data.maskedPhone,
+          // The address, falling back to the phone only for links issued before
+          // delivery moved to email. Both are null only if a row predates both,
+          // which no live link does.
+          sentTo: res.data.maskedEmail ?? res.data.maskedPhone ?? "بريدك المسجَّل",
           school: res.data.school,
           otpVerified: res.data.otpVerified,
         });
@@ -645,7 +648,7 @@ export default function EnrollPage() {
             <p className="text-sm text-gray-500 text-center mb-6">
               تم إرسال رمز مكون من 6 أرقام إلى
               <br />
-              <span dir="ltr" className="font-mono font-medium text-[#1a2340]">{page.maskedPhone}</span>
+              <span dir="ltr" className="font-mono font-medium text-[#1a2340]">{page.sentTo}</span>
             </p>
 
             <div className="mb-6">

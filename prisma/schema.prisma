@@ -1768,7 +1768,12 @@ model EnrollmentToken {
   // child's enrolment form.
   token String @unique
 
-  sent_to_phone String
+  /// Nullable since the invite stopped asking for it.
+  ///
+  /// Delivery is by email, and the number was never used for anything else — not
+  /// messaged, not copied onto the guardian record, not prefilled into the form.
+  /// It survives only to mask the recipient on links issued before the change.
+  sent_to_phone String?
   sent_to_email String?
   status        String @default("pending") // "pending" | "active" | "completed" | "expired"
 

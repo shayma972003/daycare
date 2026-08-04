@@ -93,7 +93,7 @@ export async function POST(request: Request) {
 
   const existing = await prisma.academicStageOption.findFirst({
     where: { schoolId, nameAr: parsed.data.nameAr },
-    select: { id: true, archivedAt: true },
+    select: { id: true, archivedAt: true, nameAr: true, nameEn: true },
   });
 
   if (existing) {
@@ -107,7 +107,18 @@ export async function POST(request: Request) {
       });
       return Response.json(restored, { status: 200 });
     }
-    return Response.json({ error: "المرحلة موجودة بالفعل" }, { status: 409 });
+    // The conflicting stage is returned, not just the fact of the conflict. The
+    // four seeded stages carry an Arabic and an English name — "تمهيدي" is the
+    // one listed as "KG 3" — so "already exists" on its own reads as a bug to
+    // anyone looking at the English list.
+    return Response.json(
+      {
+        error: "المرحلة موجودة بالفعل",
+        code: "STAGE_EXISTS",
+        conflict: { nameAr: existing.nameAr, nameEn: existing.nameEn },
+      },
+      { status: 409 }
+    );
   }
 
   // Appended to the end unless placed explicitly — stages are a sequence, and a

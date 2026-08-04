@@ -505,7 +505,8 @@
       "moveUp": "Move up",
       "moveDown": "Move down",
       "addFailed": "Could not add the stage",
-      "saveFailed": "Could not save"
+      "saveFailed": "Could not save",
+      "exists": "The stage \"{name}\" already exists"
     },
     "schoolInfo": "School information",
     "schoolHours": "School hours",

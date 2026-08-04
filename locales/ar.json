@@ -505,7 +505,8 @@
       "moveUp": "نقل لأعلى",
       "moveDown": "نقل لأسفل",
       "addFailed": "تعذر إضافة المرحلة",
-      "saveFailed": "تعذر الحفظ"
+      "saveFailed": "تعذر الحفظ",
+      "exists": "المرحلة \"{name}\" موجودة بالفعل"
     },
     "schoolInfo": "معلومات المنشأة",
     "schoolHours": "ساعات الدوام",

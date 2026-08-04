@@ -12,13 +12,21 @@
 import { useState } from "react";
 import axios from "axios";
 import { describeApiError } from "@/lib/api-error";
-import { useT } from "@/lib/i18n-provider";
+import { useT, useLocale } from "@/lib/i18n-provider";
 import { useAcademicStages, useStageName, type AcademicStage } from "@/lib/use-academic-stages";
 
 export function AcademicStagesPanel() {
   const t = useT();
+  const { locale } = useLocale();
   const stageName = useStageName();
   const { stages, setStages, loading } = useAcademicStages({ includeArchived: true });
+
+  /** Whichever name `stageName` did not use, so both are visible here. */
+  function secondaryName(stage: AcademicStage): string | null {
+    const primary = stageName(stage);
+    const other = locale === "en" ? stage.nameAr : stage.nameEn;
+    return other && other !== primary ? other : null;
+  }
 
   const [newAr, setNewAr] = useState("");
   const [newEn, setNewEn] = useState("");
@@ -47,10 +55,29 @@ export function AcademicStagesPanel() {
       setNewEn("");
       refresh();
     } catch (err) {
-      setError(describeApiError(err, t("settings.stages.addFailed")));
+      setError(describeAddError(err));
     } finally {
       setBusy(false);
     }
+  }
+
+  /**
+   * Names the stage that was already there.
+   *
+   * "Already exists" alone is what sent this bug in: the seeded stage whose
+   * Arabic name is "تمهيدي" is listed in English as "KG 3", so the message
+   * pointed at a row the user could see no conflict with.
+   */
+  function describeAddError(err: unknown): string {
+    if (axios.isAxiosError(err)) {
+      const data = err.response?.data as
+        | { code?: string; conflict?: { nameAr: string; nameEn: string | null } }
+        | undefined;
+      if (data?.code === "STAGE_EXISTS" && data.conflict) {
+        return t("settings.stages.exists", { name: stageName(data.conflict) });
+      }
+    }
+    return describeApiError(err, t("settings.stages.addFailed"));
   }
 
   async function save(id: string) {
@@ -159,10 +186,17 @@ export function AcademicStagesPanel() {
                 <>
                   <span className="flex-1 min-w-[140px] text-sm text-[#111111]">
                     {stageName(stage)}
-                    {stage.nameEn && (
-                      <span className="text-xs text-gray-400" dir="ltr">
+                    {/* The *other* name, not always the English one. This screen
+                        is where a stage is added, and a stage is unique by its
+                        Arabic name — so an English reader shown "KG 3 · KG 3"
+                        cannot tell that adding "تمهيدي" will be refused. */}
+                    {secondaryName(stage) && (
+                      <span
+                        className="text-xs text-gray-400"
+                        dir={locale === "en" ? "rtl" : "ltr"}
+                      >
                         {" "}
-                        · {stage.nameEn}
+                        · {secondaryName(stage)}
                       </span>
                     )}
                   </span>

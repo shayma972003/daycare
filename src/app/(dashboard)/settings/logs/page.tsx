@@ -18,13 +18,17 @@ interface LogEntry {
   created_at: string;
 }
 
-const ENTITY_TYPE_LABELS: Record<string, string> = {
-  student: "الطلاب",
-  teacher: "المعلمون",
-  class: "الفصول",
-  invoice: "الفواتير",
-  settings: "الإعدادات",
-  auth: "تسجيل الدخول",
+/**
+ * Keys, not labels. A map built here resolves once when the module loads and
+ * then never changes language again.
+ */
+const ENTITY_TYPE_KEYS: Record<string, string> = {
+  student: "fields.students",
+  teacher: "fields.teachers",
+  class: "fields.classes",
+  invoice: "fields.invoices",
+  settings: "fields.settings",
+  auth: "logs.signIn",
 };
 
 const PAGE_SIZE = 50;
@@ -51,7 +55,7 @@ export default function ActivityLogsPage() {
       link.click();
       document.body.removeChild(link);
     } catch {
-      alert("فشل تصدير السجل");
+      alert(t("logs.exportFailed"));
     } finally {
       setExporting(false);
     }
@@ -94,7 +98,7 @@ export default function ActivityLogsPage() {
 
   return (
     <div dir="rtl" className="min-h-screen bg-brand-bg">
-      <Topbar title="سجل التغييرات والإجراءات" />
+      <Topbar title={t("logs.title")} />
       <div className="p-6">
         <div className="bg-white rounded-xl p-6 shadow-card">
           {/* Header */}
@@ -102,7 +106,7 @@ export default function ActivityLogsPage() {
             <button onClick={() => router.push("/settings")} className="text-sm text-gray-400 hover:text-gray-600">
               → العودة للإعدادات
             </button>
-            <h1 className="text-lg font-bold text-gray-900">سجل التغييرات والإجراءات</h1>
+            <h1 className="text-lg font-bold text-gray-900">{t("logs.title")}</h1>
           </div>
 
           {/* Filter bar */}
@@ -110,7 +114,7 @@ export default function ActivityLogsPage() {
             <input
               value={search}
               onChange={(e) => applyFilter(() => setSearch(e.target.value))}
-              placeholder="بحث في السجل..."
+              placeholder={t("logs.search")}
               className="flex-1 px-4 py-2 rounded-md border border-gray-200 text-sm text-right focus:outline-none focus:ring-2 focus:ring-teal/30 focus:border-teal"
             />
             <select
@@ -118,28 +122,28 @@ export default function ActivityLogsPage() {
               onChange={(e) => applyFilter(() => setEntityType(e.target.value))}
               className="px-3 py-2 rounded-md border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal/30 focus:border-teal"
             >
-              <option value="">جميع الإجراءات</option>
+              <option value="">{t("logs.allActions")}</option>
               <option value="student">{t("fields.students")}</option>
               <option value="teacher">{t("fields.teachers")}</option>
               <option value="class">{t("fields.classes")}</option>
               <option value="invoice">{t("fields.invoices")}</option>
               <option value="settings">{t("fields.settings")}</option>
-              <option value="auth">تسجيل الدخول</option>
+              <option value="auth">{t("logs.signIn")}</option>
             </select>
             <button
               onClick={handleExportLogs}
               disabled={exporting}
               className="px-4 py-2 rounded-md bg-white border border-[#666666] text-[#666666] text-sm hover:border-[#2F96A6] hover:text-[#2F96A6] hover:bg-[#E0F7FA] transition-all disabled:opacity-60 whitespace-nowrap"
             >
-              {exporting ? "جاري التصدير..." : "تنزيل السجل PDF"}
+              {exporting ? t("logs.exporting") : t("logs.downloadPdf")}
             </button>
           </div>
 
           {/* Log entries */}
           {loading ? (
-            <div className="py-12 text-center text-sm text-gray-400">جاري التحميل...</div>
+            <div className="py-12 text-center text-sm text-gray-400">{t("logs.loading")}</div>
           ) : logs.length === 0 ? (
-            <div className="py-12 text-center text-sm text-gray-400">لا توجد سجلات</div>
+            <div className="py-12 text-center text-sm text-gray-400">{t("logs.empty")}</div>
           ) : (
             <div className="space-y-0 font-mono text-sm">
               {logs.map((log, index) => (
@@ -154,7 +158,7 @@ export default function ActivityLogsPage() {
                       <p className="text-gray-900 font-medium text-sm">{log.action}</p>
                       {log.entity_name && (
                         <p className="text-gray-400 text-xs mt-0.5">
-                          {ENTITY_TYPE_LABELS[log.entity_type ?? ""] ?? log.entity_type} · {log.entity_name}
+                          {ENTITY_TYPE_KEYS[log.entity_type ?? ""] ? t(ENTITY_TYPE_KEYS[log.entity_type ?? ""]) : log.entity_type} · {log.entity_name}
                         </p>
                       )}
                     </div>

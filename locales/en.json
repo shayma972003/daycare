@@ -77,7 +77,21 @@
     "password": "Password",
     "loginButton": "Sign In",
     "loginTitle": "Welcome to Daycare Management System",
-    "loginSubtitle": "Sign in to continue"
+    "loginSubtitle": "Sign in to continue",
+    "passwordChanged": "Your password was changed. You can sign in now.",
+    "otpSendFailed": "We could not send the code to your address. Please contact support.",
+    "lockedOut": "The account is locked after several failed attempts. Try again in 15 minutes.",
+    "suspended": "This nursery’s subscription is suspended. Contact support to restore it.",
+    "expired": "This nursery’s subscription has ended. Renew it to continue.",
+    "badCredentials": "That email or password is not correct",
+    "badOtp": "That code is not correct",
+    "signInError": "Something went wrong signing in. Please try again.",
+    "resendFailed": "Could not send it again",
+    "appName": "Daycare Management System",
+    "codeSentTo": "The code was sent to",
+    "didNotGetIt": "Didn’t get it? Send it again",
+    "signInTitle": "Sign in",
+    "signIn": "Sign in"
   },
   "home": {
     "title": "Home",
@@ -893,5 +907,50 @@
     "newAccount": "New staff account",
     "passwordHint": "(leave empty to generate one and email it)",
     "creating": "Creating…"
+  },
+  "studentProfile": {
+    "saved": "Changes saved",
+    "sent": "Sent",
+    "lateFeeRemoved": "The late fee was removed",
+    "fileTooBig": "That file is too large",
+    "studentInfo": "Child information",
+    "guardianInfo": "Guardian information",
+    "enrollmentInfo": "Enrolment information",
+    "addPhoto": "Add a photo",
+    "change": "Change",
+    "addEvaluation": "Attach the child’s evaluation",
+    "uploading": "Uploading…",
+    "phone3": "Mobile 3",
+    "phone4": "Mobile 4",
+    "attendanceType": "Attendance type",
+    "paymentStatusLabel": "Payment status",
+    "registrationFee": "Registration fee",
+    "endEnrollment": "End this enrolment",
+    "departureReason": "Reason for leaving",
+    "departureDate": "Date of leaving",
+    "moveToTrash": "Move to the trash?",
+    "confirmMove": "Confirm the move",
+    "removeLateFee": "Remove the late fee?",
+    "removeLateFeeAsk": "Remove this child’s late fee? It will not be added to the invoice.",
+    "replaceFile": "Replace the file?",
+    "deleteEvaluation": "Delete the evaluation file?",
+    "saveStudent": "Save and add the child",
+    "addStudentTitle": "Add a child"
+  },
+  "attendanceTypes": {
+    "REGULAR": "Regular",
+    "SHIFTS": "Shifts",
+    "OTHER": "Other"
+  },
+  "logs": {
+    "title": "Change and action log",
+    "search": "Search the log…",
+    "allActions": "All actions",
+    "exporting": "Exporting…",
+    "downloadPdf": "Download the log as PDF",
+    "loading": "Loading…",
+    "empty": "No records",
+    "exportFailed": "Could not export the log",
+    "signIn": "Sign-in"
   }
 }

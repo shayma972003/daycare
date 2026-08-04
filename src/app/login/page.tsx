@@ -4,8 +4,10 @@ import { useState, useEffect, Suspense } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { useT } from "@/lib/i18n-provider";
 
 function LoginForm() {
+  const t = useT();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -23,7 +25,7 @@ function LoginForm() {
    */
   const success =
     searchParams.get("reset") === "1"
-      ? "تم تغيير كلمة المرور بنجاح. يمكنك تسجيل الدخول الآن."
+      ? t("auth.passwordChanged")
       : "";
   const [loading, setLoading] = useState(false);
 
@@ -64,15 +66,15 @@ function LoginForm() {
         setStep("otp");
         setResendCooldown(60);
       } else if (result.error === "2FA_DELIVERY_FAILED") {
-        setError("تعذر إرسال رمز التحقق إلى بريدك. تواصل مع الدعم.");
+        setError(t("auth.otpSendFailed"));
       } else if (result.error === "ACCOUNT_LOCKED") {
-        setError("تم قفل الحساب مؤقتاً بعد عدة محاولات فاشلة. حاول بعد 15 دقيقة.");
+        setError(t("auth.lockedOut"));
       } else if (result.error === "SUBSCRIPTION_SUSPENDED") {
-        setError("تم تعليق اشتراك المنشأة. يرجى التواصل مع الدعم لإعادة التفعيل.");
+        setError(t("auth.suspended"));
       } else if (result.error === "SUBSCRIPTION_EXPIRED") {
-        setError("انتهى اشتراك المنشأة. يرجى التجديد للمتابعة.");
+        setError(t("auth.expired"));
       } else {
-        setError("البريد الإلكتروني أو كلمة المرور غير صحيحة");
+        setError(t("auth.badCredentials"));
       }
     } else {
       router.push("/");
@@ -94,7 +96,7 @@ function LoginForm() {
       const data = await res.json();
 
       if (!res.ok || !data.success) {
-        setOtpError(data.error || "رمز التحقق غير صحيح");
+        setOtpError(data.error || t("auth.badOtp"));
         setOtpLoading(false);
         return;
       }
@@ -107,14 +109,14 @@ function LoginForm() {
       setOtpLoading(false);
 
       if (result?.error) {
-        setOtpError("حدث خطأ أثناء تسجيل الدخول، الرجاء المحاولة مرة أخرى");
+        setOtpError(t("auth.signInError"));
       } else {
         router.push("/");
         router.refresh();
       }
     } catch {
       setOtpLoading(false);
-      setOtpError("حدث خطأ، الرجاء المحاولة مرة أخرى");
+      setOtpError(t("settings.genericError"));
     }
   }
 
@@ -129,13 +131,13 @@ function LoginForm() {
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
-        setOtpError(data.error || "تعذر إعادة الإرسال");
+        setOtpError(data.error || t("auth.resendFailed"));
         return;
       }
       setTwoFaSessionId(data.twoFaSessionId);
       setResendCooldown(60);
     } catch {
-      setOtpError("تعذر إعادة الإرسال");
+      setOtpError(t("auth.resendFailed"));
     }
   }
 
@@ -145,11 +147,11 @@ function LoginForm() {
         <div className="w-full max-w-md">
           <div className="flex flex-col items-center mb-8 gap-3">
             <div className="w-16 h-16 bg-white/10 rounded-2xl border-2 border-white/20" />
-            <h1 className="text-white text-xl font-bold tracking-wide">نظام إدارة الروضة</h1>
+            <h1 className="text-white text-xl font-bold tracking-wide">{t("auth.appName")}</h1>
           </div>
 
           <div className="bg-white rounded-2xl shadow-2xl p-8">
-            <h2 className="text-lg font-bold text-[#1a2340] mb-2 text-center">تم إرسال رمز التحقق إلى</h2>
+            <h2 className="text-lg font-bold text-[#1a2340] mb-2 text-center">{t("auth.codeSentTo")}</h2>
             <p className="text-sm text-gray-500 mb-6 text-center" dir="ltr">
               {maskedTarget}
             </p>
@@ -189,7 +191,7 @@ function LoginForm() {
                     جارٍ التحقق…
                   </span>
                 ) : (
-                  "تأكيد"
+                  t("common.confirm")
                 )}
               </button>
 
@@ -202,7 +204,7 @@ function LoginForm() {
                 >
                   {resendCooldown > 0
                     ? `لم تستلم الرمز؟ إعادة الإرسال (${resendCooldown})`
-                    : "لم تستلم الرمز؟ إعادة الإرسال"}
+                    : t("auth.didNotGetIt")}
                 </button>
               </div>
 
@@ -232,12 +234,12 @@ function LoginForm() {
         {/* Logo + title */}
         <div className="flex flex-col items-center mb-8 gap-3">
           <div className="w-16 h-16 bg-white/10 rounded-2xl border-2 border-white/20" />
-          <h1 className="text-white text-xl font-bold tracking-wide">نظام إدارة الروضة</h1>
+          <h1 className="text-white text-xl font-bold tracking-wide">{t("auth.appName")}</h1>
         </div>
 
         {/* Card */}
         <div className="bg-white rounded-2xl shadow-2xl p-8">
-          <h2 className="text-lg font-bold text-[#1a2340] mb-6 text-center">تسجيل الدخول</h2>
+          <h2 className="text-lg font-bold text-[#1a2340] mb-6 text-center">{t("auth.signInTitle")}</h2>
 
           <form onSubmit={handleSubmit} className="space-y-4" noValidate>
             {/* Email */}
@@ -276,7 +278,7 @@ function LoginForm() {
                   onClick={() => setShowPassword((v) => !v)}
                   className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs font-medium transition-colors"
                 >
-                  {showPassword ? "إخفاء" : "إظهار"}
+                  {showPassword ? t("fields.hide") : t("fields.show")}
                 </button>
               </div>
             </div>
@@ -304,7 +306,7 @@ function LoginForm() {
                   جارٍ الدخول…
                 </span>
               ) : (
-                "دخول"
+                t("auth.signIn")
               )}
             </button>
 

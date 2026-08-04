@@ -187,7 +187,7 @@ export default function StudentProfilePage({
           guardianPhone4: s.guardian?.phone_4 ?? "",
           guardianEmail2: s.guardian?.email_2 ?? "",
           registrationFee: String(s.registration_fee ?? 0),
-          attendanceType: s.attendanceType ?? "دوام منتظم",
+          attendanceType: s.attendanceType ?? t("attendanceTypes.REGULAR"),
           paymentMethod: s.paymentMethod,
           enrollmentDate: s.enrollmentDate ? s.enrollmentDate.slice(0, 10) : "",
           enrollmentEndDate: s.enrollmentEndDate ? s.enrollmentEndDate.slice(0, 10) : "",
@@ -280,7 +280,7 @@ export default function StudentProfilePage({
         nationality: data.nationality || null,
         gender: data.gender,
         allergies: data.allergies || null,
-        attendanceType: data.attendanceType || "دوام منتظم",
+        attendanceType: data.attendanceType || t("attendanceTypes.REGULAR"),
         paymentMethod: data.paymentMethod,
         enrollmentDate: data.enrollmentDate || null,
         enrollmentEndDate: data.enrollmentEndDate || null,
@@ -302,7 +302,7 @@ export default function StudentProfilePage({
           ? undefined
           : parseFloat(data.registrationFee) || 0,
       });
-      alert("تم حفظ التغييرات");
+      alert(t("studentProfile.saved"));
     } catch {
       alert(t("common.error"));
     } finally {
@@ -312,12 +312,12 @@ export default function StudentProfilePage({
 
   async function sendReminder() {
     await axios.post(`/api/students/${id}/reminder`);
-    alert("تم الإرسال");
+    alert(t("common.sent"));
   }
 
   async function deleteLateFee() {
     await axios.delete(`/api/students/${id}/late-fee`);
-    alert("تم حذف رسوم التأخير");
+    alert(t("studentProfile.lateFeeRemoved"));
     window.location.reload();
   }
 
@@ -497,7 +497,7 @@ export default function StudentProfilePage({
               {/* Card 1: معلومات الطالب */}
               <div className="bg-white rounded-xl shadow-md p-6">
                 <div className="flex items-center justify-between mb-5">
-                  <h2 className="text-base font-bold text-[#111111]">معلومات الطالب</h2>
+                  <h2 className="text-base font-bold text-[#111111]">{t("studentProfile.studentInfo")}</h2>
                   {/* Siblings */}
                   {student?.siblings && student.siblings.length > 0 && (
                     <div className="flex items-center gap-2 flex-wrap">
@@ -531,11 +531,11 @@ export default function StudentProfilePage({
                       <img src={avatarUrl} alt={student?.name ?? ""} className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
-                        <span className="text-xs mt-1">إضافة صورة</span>
+                        <span className="text-xs mt-1">{t("studentProfile.addPhoto")}</span>
                       </div>
                     )}
                     <div className="absolute inset-0 bg-black/30 rounded-full hidden group-hover:flex items-center justify-center">
-                      <span className="text-white text-xs">{avatarUploading ? "..." : "تغيير"}</span>
+                      <span className="text-white text-xs">{avatarUploading ? "..." : t("studentProfile.change")}</span>
                     </div>
                   </div>
 
@@ -630,7 +630,7 @@ export default function StudentProfilePage({
 
                 {/* إضافة تقييم الطفل */}
                 <div className="mt-5 pt-5 border-t border-gray-100">
-                  <h3 className="text-sm font-bold text-[#111111] mb-3">إضافة تقييم الطفل</h3>
+                  <h3 className="text-sm font-bold text-[#111111] mb-3">{t("studentProfile.addEvaluation")}</h3>
                   <input
                     ref={evalFileInputRef}
                     type="file"
@@ -672,7 +672,7 @@ export default function StudentProfilePage({
                         disabled={evalUploading}
                         className="px-2.5 py-1 text-xs border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60"
                       >
-                        {evalUploading ? "جاري الرفع..." : "اختر ملفاً"}
+                        {evalUploading ? t("studentProfile.uploading") : t("fields.chooseFile")}
                       </button>
                       <button
                         type="button"
@@ -689,7 +689,7 @@ export default function StudentProfilePage({
                       disabled={evalUploading}
                       className="px-3 py-1.5 text-sm border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60"
                     >
-                      {evalUploading ? "جاري الرفع..." : "اختر ملفاً"}
+                      {evalUploading ? t("studentProfile.uploading") : t("fields.chooseFile")}
                     </button>
                   )}
                 </div>
@@ -713,7 +713,7 @@ export default function StudentProfilePage({
               {/* Card 3: معلومات ولي الأمر */}
               <div className="bg-white rounded-xl shadow-md p-6">
                 <div className="flex items-center justify-between mb-5">
-                  <h2 className="text-base font-bold text-[#111111]">معلومات ولي الأمر</h2>
+                  <h2 className="text-base font-bold text-[#111111]">{t("studentProfile.guardianInfo")}</h2>
                   {guardianLinked && (
                     <span className="text-xs bg-success-bg text-success-text border border-success-text/20 px-3 py-1 rounded-full font-medium">
                       تم ربط ولي الأمر الموجود
@@ -807,12 +807,12 @@ export default function StudentProfilePage({
                       onChange={(e) => { register("guardianName2").onChange(e); handleGuardian2FieldChange(e.target.value); }} />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">رقم الجوال 3</label>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">{t("studentProfile.phone3")}</label>
                     <input {...register("guardianPhone3")} type="tel" dir="ltr" className={inputCls}
                       onChange={(e) => { register("guardianPhone3").onChange(e); handleGuardian2FieldChange(e.target.value); }} />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">رقم الجوال 4</label>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">{t("studentProfile.phone4")}</label>
                     <input {...register("guardianPhone4")} type="tel" dir="ltr" className={inputCls}
                       onChange={(e) => { register("guardianPhone4").onChange(e); handleGuardian2FieldChange(e.target.value); }} />
                   </div>
@@ -826,14 +826,14 @@ export default function StudentProfilePage({
 
               {/* Card 4: معلومات التسجيل */}
               <div className="bg-white rounded-xl shadow-md p-6">
-                <h2 className="text-base font-bold text-[#111111] mb-5">معلومات التسجيل</h2>
+                <h2 className="text-base font-bold text-[#111111] mb-5">{t("studentProfile.enrollmentInfo")}</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">طبيعة الدوام</label>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">{t("studentProfile.attendanceType")}</label>
                     <select {...register("attendanceType")} className={inputCls}>
-                      <option value="دوام منتظم">دوام منتظم</option>
-                      <option value="شفتات">شفتات</option>
-                      <option value="غيره">غيره</option>
+                      <option value="دوام منتظم">{t("attendanceTypes.REGULAR")}</option>
+                      <option value="شفتات">{t("attendanceTypes.SHIFTS")}</option>
+                      <option value="غيره">{t("attendanceTypes.OTHER")}</option>
                     </select>
                   </div>
                   <div>
@@ -845,7 +845,7 @@ export default function StudentProfilePage({
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">حالة الدفع</label>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">{t("studentProfile.paymentStatusLabel")}</label>
                     {/* Generated from the enum — see the note on the create form. */}
                     <select {...register("paymentStatus")} className={inputCls}>
                       {PAYMENT_STATUSES.map((status) => (
@@ -856,7 +856,7 @@ export default function StudentProfilePage({
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">تاريخ الانضمام</label>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">{t("fields.joinDate")}</label>
                     <input {...register("enrollmentDate")} type="date" dir="ltr" className={inputCls} />
                   </div>
                   <div>
@@ -865,9 +865,9 @@ export default function StudentProfilePage({
                   </div>
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <label className="text-xs font-medium text-gray-500">رسوم التسجيل</label>
+                      <label className="text-xs font-medium text-gray-500">{t("studentProfile.registrationFee")}</label>
                       <span className="text-xs text-gray-400">
-                        {registrationFeeIsDefault ? "(مأخوذة من الإعدادات)" : "(مخصصة)"}
+                        {registrationFeeIsDefault ? t("fields.fromSettings") : t("fields.custom")}
                       </span>
                     </div>
                     <div className="relative">
@@ -883,7 +883,7 @@ export default function StudentProfilePage({
                           setRegistrationFeeIsDefault(false);
                         }}
                       />
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">ر.س</span>
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">{t("common.sar")}</span>
                     </div>
                   </div>
                 </div>
@@ -985,10 +985,10 @@ export default function StudentProfilePage({
         {showDepartureModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
             <div className="bg-white rounded-2xl shadow-xl p-6 w-96 space-y-4" dir="rtl">
-              <p className="text-base font-bold text-[#111111] text-center">إنهاء تسجيل الطالب</p>
+              <p className="text-base font-bold text-[#111111] text-center">{t("studentProfile.endEnrollment")}</p>
 
               <div>
-                <label className="block text-sm text-gray-600 mb-1">سبب المغادرة</label>
+                <label className="block text-sm text-gray-600 mb-1">{t("studentProfile.departureReason")}</label>
                 <select
                   value={departureStatus}
                   onChange={(e) => setDepartureStatus(e.target.value as StudentDepartureStatus)}
@@ -1003,7 +1003,7 @@ export default function StudentProfilePage({
               </div>
 
               <div>
-                <label className="block text-sm text-gray-600 mb-1">تاريخ المغادرة</label>
+                <label className="block text-sm text-gray-600 mb-1">{t("studentProfile.departureDate")}</label>
                 <input
                   type="date"
                   value={departureDate}
@@ -1025,7 +1025,7 @@ export default function StudentProfilePage({
                   disabled={departing || !departureDate}
                   className="px-5 py-2 bg-[#2F96A6] text-white rounded-xl text-sm font-medium hover:bg-[#26808e] disabled:opacity-60"
                 >
-                  {departing ? "..." : "تأكيد"}
+                  {departing ? "..." : t("common.confirm")}
                 </button>
                 <button
                   onClick={() => setShowDepartureModal(false)}
@@ -1041,7 +1041,7 @@ export default function StudentProfilePage({
         {showTrashModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
             <div className="bg-white rounded-2xl shadow-xl p-6 w-96 text-center space-y-4">
-              <p className="text-base font-bold text-[#111111]">نقل إلى سلة المحذوفات؟</p>
+              <p className="text-base font-bold text-[#111111]">{t("studentProfile.moveToTrash")}</p>
               <p className="text-sm text-gray-600 whitespace-pre-line">
                 {`سيتم نقل ملف ${student?.name ?? ""} إلى سلة المحذوفات.\nيمكنك استعادته خلال 30 يوماً.`}
               </p>
@@ -1051,7 +1051,7 @@ export default function StudentProfilePage({
                   disabled={trashing}
                   className="px-5 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 disabled:opacity-60"
                 >
-                  {trashing ? "..." : "تأكيد النقل"}
+                  {trashing ? "..." : t("studentProfile.confirmMove")}
                 </button>
                 <button
                   onClick={() => setShowTrashModal(false)}
@@ -1067,8 +1067,8 @@ export default function StudentProfilePage({
         {showLateFeeConfirm && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
             <div className="bg-white rounded-2xl shadow-xl p-6 w-96 text-center space-y-4">
-              <p className="text-base font-bold text-[#111111]">حذف رسوم التأخير؟</p>
-              <p className="text-sm text-gray-600">هل أنت متأكد من حذف رسوم التأخير لهذا الطالب؟ لن يتم إضافتها إلى الفاتورة.</p>
+              <p className="text-base font-bold text-[#111111]">{t("studentProfile.removeLateFee")}</p>
+              <p className="text-sm text-gray-600">{t("studentProfile.removeLateFeeAsk")}</p>
               <div className="flex gap-3 justify-center">
                 <button
                   onClick={confirmDeleteLateFee}
@@ -1090,7 +1090,7 @@ export default function StudentProfilePage({
         {showReplaceEvalConfirm && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
             <div className="bg-white rounded-2xl shadow-xl p-6 w-96 text-center space-y-4">
-              <p className="text-base font-bold text-[#111111]">استبدال الملف؟</p>
+              <p className="text-base font-bold text-[#111111]">{t("studentProfile.replaceFile")}</p>
               <p className="text-sm text-gray-600 whitespace-pre-line">
                 {`هل ترغب باستبدال الملف "${evalFileName}"؟\nسيتم حذف الملف الحالي نهائياً.`}
               </p>
@@ -1115,7 +1115,7 @@ export default function StudentProfilePage({
         {showDeleteEvalConfirm && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
             <div className="bg-white rounded-2xl shadow-xl p-6 w-96 text-center space-y-4">
-              <p className="text-base font-bold text-[#111111]">حذف ملف التقييم؟</p>
+              <p className="text-base font-bold text-[#111111]">{t("studentProfile.deleteEvaluation")}</p>
               <p className="text-sm text-gray-600">{`سيتم حذف "${evalFileName}" نهائياً.`}</p>
               <div className="flex gap-3 justify-center">
                 <button
@@ -1144,7 +1144,7 @@ export default function StudentProfilePage({
 
         {/* Daily care reports — grouped by day. */}
         <div className="mt-5 bg-white rounded-xl shadow-md p-6">
-          <h3 className="text-base font-bold text-[#111111] mb-4">تقارير الرعاية اليومية</h3>
+          <h3 className="text-base font-bold text-[#111111] mb-4">{t("care.title")}</h3>
           <StudentCareFeed studentId={id} />
         </div>
 
@@ -1181,7 +1181,7 @@ export default function StudentProfilePage({
                                 window.open(url, "_blank");
                               }}
                               className="px-2.5 py-1 text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
-                            >عرض</button>
+                            >{t("finance.view")}</button>
                             <button
                               onClick={() => {
                                 const link = document.createElement("a");
@@ -1192,7 +1192,7 @@ export default function StudentProfilePage({
                                 document.body.removeChild(link);
                               }}
                               className="px-2.5 py-1 text-xs bg-gray-50 text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors"
-                            >تنزيل</button>
+                            >{t("finance.download")}</button>
                           </>
                         )}
                       </div>

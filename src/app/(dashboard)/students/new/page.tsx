@@ -77,7 +77,7 @@ export default function NewStudentPage() {
     defaultValues: {
       gender: "MALE",
       period: "MORNING",
-      attendanceType: "دوام منتظم",
+      attendanceType: t("attendanceTypes.REGULAR"),
       paymentMethod: "CASH",
       paymentStatus: "PENDING",
     },
@@ -212,7 +212,7 @@ export default function NewStudentPage() {
 
   return (
     <div dir="rtl" className="min-h-screen bg-brand-bg">
-      <Topbar title="إضافة طالب جديد" />
+      <Topbar title={t("studentProfile.addStudentTitle")} />
       <div className="p-6">
         <button
           onClick={() => router.push("/students")}
@@ -230,7 +230,7 @@ export default function NewStudentPage() {
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
           {/* Card 1: معلومات الطالب */}
           <div className="bg-white rounded-xl shadow-md p-6">
-            <h2 className="text-base font-bold text-[#111111] mb-5">معلومات الطالب</h2>
+            <h2 className="text-base font-bold text-[#111111] mb-5">{t("studentProfile.studentInfo")}</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <Field label={t("students.profile.name")}>
                 <input {...register("name", { required: true })} type="text" className={`${inputCls} ${errors.name ? "border-red-400" : ""}`} />
@@ -301,7 +301,7 @@ export default function NewStudentPage() {
           {/* Card 3: معلومات ولي الأمر */}
           <div className="bg-white rounded-xl shadow-md p-6">
             <div className="flex items-center justify-between mb-5">
-              <h2 className="text-base font-bold text-[#111111]">معلومات ولي الأمر</h2>
+              <h2 className="text-base font-bold text-[#111111]">{t("studentProfile.guardianInfo")}</h2>
               {guardianLinked && (
                 <span className="text-xs bg-success-bg text-success-text border border-success-text/20 px-3 py-1 rounded-full font-medium">
                   تم ربط ولي الأمر الموجود
@@ -372,11 +372,11 @@ export default function NewStudentPage() {
                 <input {...register("guardianName2")} type="text" className={inputCls}
                   onChange={(e) => { register("guardianName2").onChange(e); handleGuardian2FieldChange(e.target.value); }} />
               </Field>
-              <Field label="رقم الجوال 3">
+              <Field label={t("studentProfile.phone3")}>
                 <input {...register("guardianPhone3")} type="tel" dir="ltr" className={inputCls}
                   onChange={(e) => { register("guardianPhone3").onChange(e); handleGuardian2FieldChange(e.target.value); }} />
               </Field>
-              <Field label="رقم الجوال 4">
+              <Field label={t("studentProfile.phone4")}>
                 <input {...register("guardianPhone4")} type="tel" dir="ltr" className={inputCls}
                   onChange={(e) => { register("guardianPhone4").onChange(e); handleGuardian2FieldChange(e.target.value); }} />
               </Field>
@@ -389,7 +389,7 @@ export default function NewStudentPage() {
 
           {/* Card 4: معلومات التسجيل */}
           <div className="bg-white rounded-xl shadow-md p-6">
-            <h2 className="text-base font-bold text-[#111111] mb-5">معلومات التسجيل</h2>
+            <h2 className="text-base font-bold text-[#111111] mb-5">{t("studentProfile.enrollmentInfo")}</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <Field label={t("students.profile.paymentMethod")}>
                 <select {...register("paymentMethod")} className={inputCls}>
@@ -398,16 +398,16 @@ export default function NewStudentPage() {
                   <option value="CARD">{t("paymentMethod.CARD")}</option>
                 </select>
               </Field>
-              <Field label="طبيعة الدوام">
+              <Field label={t("studentProfile.attendanceType")}>
                 <select {...register("attendanceType")} className={inputCls}>
-                  <option value="دوام منتظم">دوام منتظم</option>
-                  <option value="شفتات">شفتات</option>
-                  <option value="غيره">غيره</option>
+                  <option value="دوام منتظم">{t("attendanceTypes.REGULAR")}</option>
+                  <option value="شفتات">{t("attendanceTypes.SHIFTS")}</option>
+                  <option value="غيره">{t("attendanceTypes.OTHER")}</option>
                 </select>
               </Field>
-              <Field label="حالة الدفع">
+              <Field label={t("studentProfile.paymentStatusLabel")}>
                 {/* Options generated from the enum. Hand-written lists here were
-                    where the Arabic literal "بانتظار الدفع" entered the column
+                    where the Arabic literal t("paymentStatus.PENDING") entered the column
                     and split the state machine across two alphabets. */}
                 <select {...register("paymentStatus")} className={inputCls}>
                   {PAYMENT_STATUSES.map((status) => (
@@ -417,7 +417,7 @@ export default function NewStudentPage() {
                   ))}
                 </select>
               </Field>
-              <Field label="تاريخ الانضمام">
+              <Field label={t("fields.joinDate")}>
                 <input {...register("enrollmentDate")} type="date" dir="ltr" className={inputCls} />
               </Field>
               <Field label={t("students.profile.enrollmentEndDate")}>
@@ -425,9 +425,9 @@ export default function NewStudentPage() {
               </Field>
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-medium text-gray-500">رسوم التسجيل</label>
+                  <label className="text-xs font-medium text-gray-500">{t("studentProfile.registrationFee")}</label>
                   <span className="text-xs text-gray-400">
-                    {registrationFeeIsDefault ? "(مأخوذة من الإعدادات)" : "(مخصصة)"}
+                    {registrationFeeIsDefault ? t("fields.fromSettings") : t("fields.custom")}
                   </span>
                 </div>
                 <div className="relative">
@@ -443,7 +443,7 @@ export default function NewStudentPage() {
                       setRegistrationFeeIsDefault(false);
                     }}
                   />
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">ر.س</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">{t("common.sar")}</span>
                 </div>
               </div>
             </div>
@@ -455,7 +455,7 @@ export default function NewStudentPage() {
               disabled={saving}
               className="px-8 py-2.5 bg-[#F64651] text-white rounded-xl text-sm font-bold hover:bg-[#D93A44] transition-colors disabled:opacity-60"
             >
-              {saving ? t("common.loading") : "حفظ وإضافة الطالب"}
+              {saving ? t("common.loading") : t("studentProfile.saveStudent")}
             </button>
             <button
               type="button"

@@ -154,14 +154,14 @@ export default function HomePage() {
       {confirmDeleteId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl shadow-xl p-6 w-80 text-center space-y-4">
-            <p className="text-sm font-medium text-[#111111]">هل تريد حذف هذا السجل؟</p>
+            <p className="text-sm font-medium text-[#111111]">{t("home.confirmDeleteLog")}</p>
             <div className="flex gap-3 justify-center">
               <button
                 onClick={() => handleDeleteOne(confirmDeleteId)}
                 disabled={!!deletingId}
                 className="px-5 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 disabled:opacity-60"
               >
-                {deletingId ? "..." : "حذف"}
+                {deletingId ? "..." : t("common.delete")}
               </button>
               <button onClick={() => setConfirmDeleteId(null)} className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm">إلغاء</button>
             </div>
@@ -173,15 +173,15 @@ export default function HomePage() {
       {confirmBulkDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl shadow-xl p-6 w-96 text-center space-y-4">
-            <p className="text-sm font-medium text-[#111111]">هل تريد حذف جميع سجلات إشعارات الفعاليات؟</p>
-            <p className="text-xs text-red-500">لا يمكن التراجع عن هذا الإجراء</p>
+            <p className="text-sm font-medium text-[#111111]">{t("home.confirmClearLogs")}</p>
+            <p className="text-xs text-red-500">{t("home.cannotBeUndone")}</p>
             <div className="flex gap-3 justify-center">
               <button
                 onClick={handleDeleteBulk}
                 disabled={deletingBulk}
                 className="px-5 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 disabled:opacity-60"
               >
-                {deletingBulk ? "..." : "مسح الكل"}
+                {deletingBulk ? "..." : t("home.clearAll")}
               </button>
               <button onClick={() => setConfirmBulkDelete(false)} className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm">إلغاء</button>
             </div>
@@ -203,9 +203,9 @@ export default function HomePage() {
                   {pendingEnrollments.length}
                 </span>
                 <div>
-                  <p className="text-sm font-bold text-[#111111]">طلبات تسجيل جديدة تنتظر المراجعة</p>
+                  <p className="text-sm font-bold text-[#111111]">{t("home.pendingEnrollments")}</p>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    آخر طلب: {pendingEnrollments[0]?.full_name} —{" "}
+                    {t("home.latestRequest")}: {pendingEnrollments[0]?.full_name} —{" "}
                     {new Date(pendingEnrollments[0]?.submitted_at).toLocaleString("ar-SA", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
                   </p>
                 </div>
@@ -214,7 +214,7 @@ export default function HomePage() {
                 onClick={() => router.push("/students")}
                 className="px-4 py-2 bg-[#111111] text-white rounded-xl text-sm font-medium hover:bg-[#2a3460] transition-colors"
               >
-                مراجعة الطلبات
+                {t("home.reviewRequests")}
               </button>
             </div>
             {pendingEnrollments.length > 1 && (
@@ -228,7 +228,7 @@ export default function HomePage() {
                   </div>
                 ))}
                 {pendingEnrollments.length > 5 && (
-                  <p className="text-xs text-gray-400 text-center pt-1">و {pendingEnrollments.length - 5} طلبات أخرى...</p>
+                  <p className="text-xs text-gray-400 text-center pt-1">{t("home.andMoreRequests", { count: pendingEnrollments.length - 5 })}</p>
                 )}
               </div>
             )}
@@ -248,7 +248,7 @@ export default function HomePage() {
                 because "who is in the building" is the first question of the
                 day, every day. */}
             <section className="bg-white rounded-xl shadow-md p-6">
-              <h2 className="text-base font-bold text-[#111111] mb-2">حضور اليوم</h2>
+              <h2 className="text-base font-bold text-[#111111] mb-2">{t("home.todayAttendance")}</h2>
               <AttendanceDonut />
             </section>
 
@@ -269,25 +269,25 @@ export default function HomePage() {
             {/* ── سجل إشعارات الفعاليات ─────────────────────────────── */}
             <section>
               <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-                <h2 className="text-base font-bold text-[#111111]">سجل إشعارات الفعاليات</h2>
+                <h2 className="text-base font-bold text-[#111111]">{t("home.activityLog")}</h2>
                 <div className="flex flex-wrap gap-2 items-center">
                   <select
                     value={filterStatus}
                     onChange={(e) => setFilterStatus(e.target.value as "" | "SENT" | "FAILED")}
                     className="px-3 py-1.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none"
                   >
-                    <option value="">كل الحالات</option>
-                    <option value="SENT">تم الإرسال</option>
-                    <option value="FAILED">فشل</option>
+                    <option value="">{t("home.allStatuses")}</option>
+                    <option value="SENT">{t("home.sent")}</option>
+                    <option value="FAILED">{t("home.failed")}</option>
                   </select>
                   <select
                     value={filterType}
                     onChange={(e) => setFilterType(e.target.value as "" | "WHATSAPP" | "EMAIL")}
                     className="px-3 py-1.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none"
                   >
-                    <option value="">كل الأنواع</option>
-                    <option value="WHATSAPP">واتساب</option>
-                    <option value="EMAIL">بريد</option>
+                    <option value="">{t("home.allTypes")}</option>
+                    <option value="WHATSAPP">{t("home.whatsapp")}</option>
+                    <option value="EMAIL">{t("home.email")}</option>
                   </select>
                   {logs.length > 0 && (
                     <button
@@ -314,11 +314,11 @@ export default function HomePage() {
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="border-b border-gray-100 bg-gray-50">
-                            <th className="px-4 py-3 text-right font-medium text-gray-600">المستلم</th>
-                            <th className="px-4 py-3 text-right font-medium text-gray-600">النوع</th>
-                            <th className="px-4 py-3 text-right font-medium text-gray-600">المحتوى</th>
-                            <th className="px-4 py-3 text-right font-medium text-gray-600 whitespace-nowrap">وقت الإرسال</th>
-                            <th className="px-4 py-3 text-right font-medium text-gray-600">الحالة</th>
+                            <th className="px-4 py-3 text-right font-medium text-gray-600">{t("home.recipient")}</th>
+                            <th className="px-4 py-3 text-right font-medium text-gray-600">{t("home.type")}</th>
+                            <th className="px-4 py-3 text-right font-medium text-gray-600">{t("home.content")}</th>
+                            <th className="px-4 py-3 text-right font-medium text-gray-600 whitespace-nowrap">{t("home.sentAt")}</th>
+                            <th className="px-4 py-3 text-right font-medium text-gray-600">{t("home.status")}</th>
                             <th className="px-4 py-3 text-right font-medium text-gray-600"></th>
                           </tr>
                         </thead>
@@ -328,7 +328,7 @@ export default function HomePage() {
                               <td className="px-4 py-3 font-medium text-[#111111]">{log.recipientName}</td>
                               <td className="px-4 py-3">
                                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${log.type === "WHATSAPP" ? "bg-success-bg text-success-text" : "bg-blue-50 text-blue-700"}`}>
-                                  {log.type === "WHATSAPP" ? "واتساب" : "بريد"}
+                                  {log.type === "WHATSAPP" ? t("home.whatsapp") : t("home.email")}
                                 </span>
                               </td>
                               <td className="px-4 py-3 text-gray-600 max-w-xs">
@@ -342,7 +342,7 @@ export default function HomePage() {
                                 <button
                                   onClick={() => setConfirmDeleteId(log.id)}
                                   className="text-gray-400 hover:text-red-500 transition-colors text-base"
-                                  title="حذف"
+                                  title={t("common.delete")}
                                 >
                                   🗑
                                 </button>
@@ -359,7 +359,7 @@ export default function HomePage() {
                           disabled={loadingMoreLogs}
                           className="px-6 py-2 border border-gray-200 text-gray-600 hover:bg-gray-50 rounded-xl text-sm font-medium transition-all disabled:opacity-60"
                         >
-                          {loadingMoreLogs ? t("common.loading") : `عرض المزيد (${logsTotal - logs.length} متبقي)`}
+                          {loadingMoreLogs ? t("common.loading") : t("home.showMore", { count: logsTotal - logs.length })}
                         </button>
                       </div>
                     )}

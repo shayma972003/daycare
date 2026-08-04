@@ -83,12 +83,28 @@ export function astTimeOnDay(time: string, at: Date = new Date()): Date | null {
   return new Date(astDayStart(at).getTime() + (hours * 60 + minutes) * 60_000);
 }
 
-/** Formats an instant for display in AST, forcing the Gregorian calendar. */
+/**
+ * Formats an instant for display in AST, forcing the Gregorian calendar.
+ *
+ * `locale` follows the interface language. It matters for more than politeness:
+ * with the Arabic formatter, an afternoon time renders as `01:09 م` — an Arabic
+ * meridiem in the middle of an otherwise English screen. The default stays
+ * Arabic so every existing caller behaves exactly as before.
+ *
+ * The calendar and numbering system are pinned in both cases. `ar-SA` defaults
+ * to the Islamic calendar, which once put Hijri dates into an audit log
+ * silently (task 0.68), and to Arabic-Indic digits, which no other number in
+ * this product uses.
+ */
 export function formatAst(
   at: Date,
-  options: Intl.DateTimeFormatOptions = {}
+  options: Intl.DateTimeFormatOptions = {},
+  locale: "ar" | "en" = "ar"
 ): string {
-  return new Intl.DateTimeFormat("ar-SA-u-ca-gregory-nu-latn", {
+  const tag =
+    locale === "en" ? "en-GB-u-ca-gregory-nu-latn" : "ar-SA-u-ca-gregory-nu-latn";
+
+  return new Intl.DateTimeFormat(tag, {
     timeZone: "Asia/Riyadh",
     ...options,
   }).format(at);

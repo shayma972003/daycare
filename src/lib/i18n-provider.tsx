@@ -36,10 +36,13 @@ import {
   type Locale,
 } from "@/lib/i18n";
 
+/** Accepts placeholder values, so a sentence is one key rather than fragments. */
+type Translate = (key: string, vars?: Record<string, string | number>) => string;
+
 interface LocaleContextValue {
   locale: Locale;
   dir: "rtl" | "ltr";
-  t: (key: string) => string;
+  t: Translate;
   setLocale: (locale: Locale) => void;
 }
 
@@ -73,7 +76,7 @@ export function LocaleProvider({
     () => ({
       locale,
       dir: directionFor(locale),
-      t: (key: string) => translate(locale, key),
+      t: (key, vars) => translate(locale, key, vars),
       setLocale,
     }),
     [locale, setLocale]
@@ -89,10 +92,10 @@ export function LocaleProvider({
  * working — the migration can be done a file at a time rather than in one commit
  * that touches everything.
  */
-export function useT(): (key: string) => string {
+export function useT(): Translate {
   const context = useContext(LocaleContext);
   const locale = context?.locale ?? DEFAULT_LOCALE;
-  return useCallback((key: string) => translate(locale, key), [locale]);
+  return useCallback<Translate>((key, vars) => translate(locale, key, vars), [locale]);
 }
 
 export function useLocale(): LocaleContextValue {
@@ -102,7 +105,7 @@ export function useLocale(): LocaleContextValue {
   return {
     locale: DEFAULT_LOCALE,
     dir: directionFor(DEFAULT_LOCALE),
-    t: (key: string) => translate(DEFAULT_LOCALE, key),
+    t: (key, vars) => translate(DEFAULT_LOCALE, key, vars),
     setLocale: () => {},
   };
 }

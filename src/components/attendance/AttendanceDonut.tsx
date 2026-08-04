@@ -13,7 +13,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
-import { ATTENDANCE_STATUS_LABELS } from "@/lib/attendance-schedule";
+import { useT } from "@/lib/i18n-provider";
 import type { AttendanceStatus } from "@/generated/prisma/enums";
 
 interface WeekResponse {
@@ -41,6 +41,7 @@ const ORDER: AttendanceStatus[] = [
 ];
 
 export function AttendanceDonut({ classId }: { classId?: string }) {
+  const t = useT();
   const [counts, setCounts] = useState<Record<AttendanceStatus, number> | null>(null);
 
   useEffect(() => {
@@ -82,7 +83,7 @@ export function AttendanceDonut({ classId }: { classId?: string }) {
   if (!counts) return null;
 
   const data = ORDER.filter((status) => counts[status] > 0).map((status) => ({
-    name: ATTENDANCE_STATUS_LABELS[status],
+    name: t(`attendanceStatus.${status}`),
     value: counts[status],
     status,
   }));
@@ -91,7 +92,7 @@ export function AttendanceDonut({ classId }: { classId?: string }) {
   if (total === 0) {
     return (
       <p className="text-sm text-gray-400 text-center py-8">
-        لا يوجد أطفال متوقعون اليوم
+        {t("home.noneExpectedToday")}
       </p>
     );
   }
@@ -117,7 +118,7 @@ export function AttendanceDonut({ classId }: { classId?: string }) {
           {/* Recharts types the formatter's value as possibly undefined, so it
               is coerced here rather than asserted away. */}
           <Tooltip
-            formatter={(value, name) => [`${Number(value ?? 0)} طفل`, String(name ?? "")]}
+            formatter={(value, name) => [t("home.childrenCount", { count: Number(value ?? 0) }), String(name ?? "")]}
             contentStyle={{ direction: "rtl", fontSize: 12, borderRadius: 12 }}
           />
         </PieChart>
@@ -126,7 +127,7 @@ export function AttendanceDonut({ classId }: { classId?: string }) {
       {/* The figure anyone opening this screen is looking for. */}
       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
         <span className="text-2xl font-bold text-[#111111]">{present}</span>
-        <span className="text-xs text-gray-500">من {total} متوقع</span>
+        <span className="text-xs text-gray-500">{t("home.ofExpected", { total })}</span>
       </div>
 
       <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 mt-2">

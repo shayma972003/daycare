@@ -8,7 +8,11 @@
     "classes": "الفصول",
     "statistics": "المالية",
     "teachers": "المعلم",
-    "settings": "الإعدادات"
+    "settings": "الإعدادات",
+    "care": "تقارير الرعاية",
+    "calendar": "التقويم",
+    "units": "الوحدات",
+    "shifts": "المناوبات"
   },
   "common": {
     "save": "حفظ التغييرات",
@@ -38,7 +42,19 @@
     "minutes": "دقيقة",
     "day": "يوم",
     "month": "شهر",
-    "year": "سنة"
+    "year": "سنة",
+    "somethingWentWrong": "حدث خطأ",
+    "sent": "تم الإرسال",
+    "approve": "موافق",
+    "review": "مراجعة",
+    "reject": "رفض",
+    "updating": "جاري التحديث...",
+    "sending": "جاري الإرسال...",
+    "processing": "جاري معالجة الملف...",
+    "apply": "تنفيذ",
+    "boys": "بنين",
+    "girls": "بنات",
+    "email": "البريد الإلكتروني"
   },
   "auth": {
     "login": "تسجيل الدخول",
@@ -75,7 +91,32 @@
     "period": "الفترة",
     "children": "طفل",
     "from": "من",
-    "to": "إلى"
+    "to": "إلى",
+    "todayAttendance": "حضور اليوم",
+    "ofExpected": "من {total} متوقع",
+    "noneExpectedToday": "لا يوجد أطفال متوقعون اليوم",
+    "activityLog": "سجل إشعارات الفعاليات",
+    "pendingEnrollments": "طلبات تسجيل جديدة تنتظر المراجعة",
+    "latestRequest": "آخر طلب",
+    "reviewRequests": "مراجعة الطلبات",
+    "andMoreRequests": "و {count} طلبات أخرى...",
+    "recipient": "المستلم",
+    "type": "النوع",
+    "content": "المحتوى",
+    "sentAt": "وقت الإرسال",
+    "status": "الحالة",
+    "allStatuses": "كل الحالات",
+    "allTypes": "كل الأنواع",
+    "sent": "تم الإرسال",
+    "failed": "فشل",
+    "whatsapp": "واتساب",
+    "email": "بريد",
+    "clearAll": "مسح الكل",
+    "showMore": "عرض المزيد ({count} متبقي)",
+    "confirmDeleteLog": "هل تريد حذف هذا السجل؟",
+    "confirmClearLogs": "هل تريد حذف جميع سجلات إشعارات الفعاليات؟",
+    "cannotBeUndone": "لا يمكن التراجع عن هذا الإجراء",
+    "childrenCount": "{count} طفل"
   },
   "students": {
     "title": "الطلاب",
@@ -132,7 +173,41 @@
         "issueInvoice": "اصدار فاتورة"
       },
       "invoices": "الفواتير الصادرة"
-    }
+    },
+    "pendingRequests": "طلبات التسجيل المعلقة",
+    "newRequestsCount": "{count} طلبات جديدة",
+    "guardianName": "اسم ولي الأمر",
+    "guardianPhone": "رقم الجوال",
+    "attendanceType": "طبيعة الدوام",
+    "submittedAt": "وقت التقديم",
+    "setStatus": "تغيير الحالة: {status}",
+    "extendSubscription": "تمديد تاريخ الاشتراك",
+    "addStudentManually": "أضف طالب جديد",
+    "uploadStudentsFile": "ارفع ملف الطلاب",
+    "sendRegistrationForm": "إرسال نموذج تسجيل",
+    "imported": "تمت الإضافة: {count} طالب",
+    "importFailed": "فشل: {count} صف",
+    "andMoreErrors": "...و {count} أخطاء أخرى",
+    "attendanceColumn": "الحضور",
+    "noStudentsYet": "لا يوجد طلاب بعد",
+    "noStudentsHint": "ابدأ بإضافة أول طالب لعرضه هنا",
+    "checkedInAt": "دخل {time}",
+    "checkedOutAt": "خرج {time}",
+    "suspended": "موقوف",
+    "noClassAssigned": "هذا الطالب بدون فصل محدد",
+    "newEndDatePrompt": "أدخل تاريخ انتهاء الاشتراك الجديد",
+    "appliesToSelected": "سيتم تطبيقه على {count} طالب محدد",
+    "sendFormTitle": "إرسال نموذج التسجيل",
+    "linkSentTo": "تم إرسال الرابط إلى",
+    "formEmailHint": "يُرسل رابط النموذج ورمز التحقق إلى هذا البريد.",
+    "sendLink": "إرسال الرابط",
+    "reviewRequestTitle": "مراجعة طلب التسجيل",
+    "studentInfo": "معلومات الطالب",
+    "fullName": "الاسم الكامل",
+    "idNumber": "رقم الهوية",
+    "nationality": "الجنسية",
+    "academicStage": "المرحلة الدراسية",
+    "changeStatusFailed": "تعذر تغيير حالة الدفع"
   },
   "classes": {
     "title": "الفصول",
@@ -302,7 +377,8 @@
     "PAID": "مدفوع",
     "LATE": "متأخر",
     "CANCELLED": "ملغي",
-    "SUSPENDED": "موقف"
+    "SUSPENDED": "موقف",
+    "PENDING": "بانتظار الدفع"
   },
   "paymentMethod": {
     "CASH": "نقدي",
@@ -341,5 +417,12 @@
     "kg2": "كي جي 2",
     "kg3": "كي جي 3",
     "nursery": "الحضانة"
+  },
+  "attendanceStatus": {
+    "PRESENT": "حاضر",
+    "ABSENT": "غائب",
+    "LEAVE": "إجازة",
+    "CHECKED_OUT": "منصرف",
+    "NO_RECORD": "لا يوجد سجل"
   }
 }

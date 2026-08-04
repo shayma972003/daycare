@@ -10,7 +10,7 @@ import { Topbar } from "@/components/layout/Topbar";
 import { formatDate } from "@/lib/utils";
 import { InvoiceModal } from "@/components/students/InvoiceModal";
 import { StudentCareFeed } from "@/components/care/StudentCareFeed";
-import { STUDENT_STATUS_LABELS, PAYMENT_STATUS_LABELS } from "@/lib/enum-labels";
+import { STUDENT_STATUS_LABELS } from "@/lib/enum-labels";
 import { PAYMENT_STATUSES } from "@/lib/payment-status";
 import { astDateInputValue } from "@/lib/datetime";
 import { useT } from "@/lib/i18n-provider";
@@ -836,7 +836,7 @@ export default function StudentProfilePage({
                     <select {...register("paymentStatus")} className={inputCls}>
                       {PAYMENT_STATUSES.map((status) => (
                         <option key={status} value={status}>
-                          {PAYMENT_STATUS_LABELS[status]}
+                          {t(`paymentStatus.${status}`)}
                         </option>
                       ))}
                     </select>

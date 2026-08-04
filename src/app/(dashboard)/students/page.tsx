@@ -8,10 +8,9 @@ import { PaymentStatusBadge, PeriodBadge } from "@/components/ui/StatusBadge";
 import { AvatarPlaceholder } from "@/components/ui/IconPlaceholder";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { formatTime } from "@/lib/utils";
-import { PAYMENT_STATUS_LABELS } from "@/lib/enum-labels";
 import { PAYMENT_STATUSES } from "@/lib/payment-status";
 import { describeApiError } from "@/lib/api-error";
-import { useT } from "@/lib/i18n-provider";
+import { useT, useLocale } from "@/lib/i18n-provider";
 
 type Student = {
   id: string;
@@ -75,6 +74,7 @@ function LiveTimer({ from }: { from: string }) {
 export default function StudentsPage() {
   // Locale-aware translation — see src/lib/i18n.tsx.
   const t = useT();
+  const { locale } = useLocale();
   const router = useRouter();
   const [students, setStudents] = useState<Student[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
@@ -225,7 +225,7 @@ export default function StudentsPage() {
   }
   async function sendReminder(id: string) {
     await axios.post(`/api/students/${id}/reminder`);
-    alert("تم الإرسال");
+    alert(t("common.sent"));
   }
 
   async function sendEnrollmentForm() {
@@ -240,7 +240,7 @@ export default function StudentsPage() {
       setEnrollSuccess(res.data.email);
       setEnrollEmail("");
     } catch (err) {
-      setEnrollError(axios.isAxiosError(err) ? err.response?.data?.error ?? "حدث خطأ" : "حدث خطأ");
+      setEnrollError(axios.isAxiosError(err) ? err.response?.data?.error ?? t("common.somethingWentWrong") : t("common.somethingWentWrong"));
     } finally {
       setEnrollSending(false);
     }
@@ -262,7 +262,7 @@ export default function StudentsPage() {
       fetchSubmissions();
       fetchStudents();
     } catch (err) {
-      alert(axios.isAxiosError(err) ? err.response?.data?.error ?? "حدث خطأ" : "حدث خطأ");
+      alert(axios.isAxiosError(err) ? err.response?.data?.error ?? t("common.somethingWentWrong") : t("common.somethingWentWrong"));
     } finally {
       setReviewApproving(false);
     }
@@ -299,7 +299,7 @@ export default function StudentsPage() {
       try {
         await axios.put("/api/students/bulk-status", { ids, paymentStatus: bulkAction });
       } catch (err) {
-        alert(describeApiError(err, "تعذر تغيير حالة الدفع"));
+        alert(describeApiError(err, t("students.changeStatusFailed")));
       }
     }
 
@@ -321,7 +321,7 @@ export default function StudentsPage() {
       setBulkAction("");
       fetchStudents();
     } catch (err) {
-      alert(axios.isAxiosError(err) ? err.response?.data?.error ?? "حدث خطأ" : "حدث خطأ");
+      alert(axios.isAxiosError(err) ? err.response?.data?.error ?? t("common.somethingWentWrong") : t("common.somethingWentWrong"));
     } finally {
       setIsExtending(false);
     }
@@ -339,7 +339,7 @@ export default function StudentsPage() {
       setXlsxResult(res.data);
       fetchStudents();
     } catch (err) {
-      setXlsxResult({ added: 0, failed: 1, errors: [axios.isAxiosError(err) ? err.response?.data?.error ?? "خطأ" : "خطأ"] });
+      setXlsxResult({ added: 0, failed: 1, errors: [axios.isAxiosError(err) ? err.response?.data?.error ?? t("common.error") : t("common.error")] });
     } finally {
       setXlsxUploading(false);
       if (xlsxInputRef.current) xlsxInputRef.current.value = "";
@@ -359,9 +359,9 @@ export default function StudentsPage() {
               className="w-full flex items-center justify-between px-5 py-4 hover:bg-amber-50 transition-colors"
             >
               <div className="flex items-center gap-3">
-                <span className="text-sm font-bold text-[#111111]">طلبات التسجيل المعلقة</span>
+                <span className="text-sm font-bold text-[#111111]">{t("students.pendingRequests")}</span>
                 <span className="px-2.5 py-0.5 bg-amber-500 text-white text-xs font-bold rounded-full">
-                  {submissions.length} طلبات جديدة
+                  {t("students.newRequestsCount", { count: submissions.length })}
                 </span>
               </div>
               <span className="text-gray-400 text-xs">{submissionsExpanded ? "▲" : "▼"}</span>
@@ -371,12 +371,12 @@ export default function StudentsPage() {
                 <table className="w-full text-sm">
                   <thead className="bg-amber-50 text-right">
                     <tr>
-                      <th className="px-4 py-3 font-semibold text-gray-700">اسم الطالب</th>
-                      <th className="px-4 py-3 font-semibold text-gray-700">اسم ولي الأمر</th>
-                      <th className="px-4 py-3 font-semibold text-gray-700">رقم الجوال</th>
-                      <th className="px-4 py-3 font-semibold text-gray-700">طبيعة الدوام</th>
-                      <th className="px-4 py-3 font-semibold text-gray-700">وقت التقديم</th>
-                      <th className="px-4 py-3 font-semibold text-gray-700">الإجراءات</th>
+                      <th className="px-4 py-3 font-semibold text-gray-700">{t("students.fullName")}</th>
+                      <th className="px-4 py-3 font-semibold text-gray-700">{t("students.guardianName")}</th>
+                      <th className="px-4 py-3 font-semibold text-gray-700">{t("students.guardianPhone")}</th>
+                      <th className="px-4 py-3 font-semibold text-gray-700">{t("students.attendanceType")}</th>
+                      <th className="px-4 py-3 font-semibold text-gray-700">{t("students.submittedAt")}</th>
+                      <th className="px-4 py-3 font-semibold text-gray-700">{t("common.actions")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -395,14 +395,14 @@ export default function StudentsPage() {
                               onClick={() => openReviewModal(sub)}
                               className="px-3 py-1.5 text-xs bg-[#111111] text-white rounded-lg hover:bg-[#2a3460] transition-colors"
                             >
-                              مراجعة
+                              {t("common.review")}
                             </button>
                             <button
                               onClick={() => rejectSubmission(sub.id)}
                               disabled={reviewRejecting}
                               className="px-3 py-1.5 text-xs border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors"
                             >
-                              رفض
+                              {t("common.reject")}
                             </button>
                           </div>
                         </td>
@@ -446,16 +446,16 @@ export default function StudentsPage() {
             {/* Was `value="بانتظار الدفع"`. The column is an enum of English
                 identifiers, so the Arabic literal matched no row and the filter
                 silently returned nothing. */}
-            <option value="PENDING">{PAYMENT_STATUS_LABELS.PENDING}</option>
+            <option value="PENDING">{t("paymentStatus.PENDING")}</option>
           </select>
           <select
             value={genderFilter}
             onChange={(e) => setGenderFilter(e.target.value)}
             className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111111]"
           >
-            <option value="">الكل</option>
-            <option value="MALE">بنين</option>
-            <option value="FEMALE">بنات</option>
+            <option value="">{t("common.all")}</option>
+            <option value="MALE">{t("common.boys")}</option>
+            <option value="FEMALE">{t("common.girls")}</option>
           </select>
 
           {/* Bulk action */}
@@ -469,22 +469,22 @@ export default function StudentsPage() {
               <option value="checkin">{t("students.bulkCheckin")}</option>
               <option value="checkout">{t("students.bulkCheckout")}</option>
               <option value="reminder">{t("students.bulkReminder")}</option>
-              <option value="PAID">تغيير الحالة: مدفوع</option>
-              <option value="LATE">تغيير الحالة: متأخر</option>
-              <option value="CANCELLED">تغيير الحالة: ملغي</option>
+              <option value="PAID">{t("students.setStatus", { status: t("paymentStatus.PAID") })}</option>
+              <option value="LATE">{t("students.setStatus", { status: t("paymentStatus.LATE") })}</option>
+              <option value="CANCELLED">{t("students.setStatus", { status: t("paymentStatus.CANCELLED") })}</option>
               {/* Same fix: `bulk-status` validates against the enum, so the
                   Arabic value was rejected with a 422 that the `.catch(() => {})`
                   below swallowed — the action appeared to work and changed
                   nothing. */}
-              <option value="PENDING">تغيير الحالة: {PAYMENT_STATUS_LABELS.PENDING}</option>
-              <option value="extend_subscription">تمديد تاريخ الاشتراك</option>
+              <option value="PENDING">{t("students.setStatus", { status: t("paymentStatus.PENDING") })}</option>
+              <option value="extend_subscription">{t("students.extendSubscription")}</option>
             </select>
             <button
               onClick={applyBulk}
               disabled={!bulkAction || selected.size === 0}
               className="px-3 py-2 bg-[#111111] text-white rounded-lg text-sm disabled:opacity-40"
             >
-              تنفيذ
+              {t("common.apply")}
             </button>
           </div>
 
@@ -503,19 +503,19 @@ export default function StudentsPage() {
                   onClick={() => { setDropdownOpen(false); router.push("/students/new"); }}
                   className="w-full text-right px-4 py-3 text-sm text-[#111111] hover:bg-gray-50 transition-colors border-b border-gray-100"
                 >
-                  أضف طالب جديد
+                  {t("students.addStudentManually")}
                 </button>
                 <button
                   onClick={() => { setDropdownOpen(false); router.push("/students/import"); }}
                   className="w-full text-right px-4 py-3 text-sm text-[#111111] hover:bg-gray-50 transition-colors border-b border-gray-100"
                 >
-                  ارفع ملف الطلاب
+                  {t("students.uploadStudentsFile")}
                 </button>
                 <button
                   onClick={() => { setDropdownOpen(false); setEnrollmentModalOpen(true); setEnrollSuccess(null); setEnrollError(null); }}
                   className="w-full text-right px-4 py-3 text-sm text-[#F64651] font-medium hover:bg-success-bg transition-colors"
                 >
-                  إرسال نموذج تسجيل
+                  {t("students.sendRegistrationForm")}
                 </button>
               </div>
             )}
@@ -533,19 +533,19 @@ export default function StudentsPage() {
         {/* XLSX upload result */}
         {xlsxUploading && (
           <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
-            جاري معالجة الملف...
+            {t("common.processing")}
           </div>
         )}
         {xlsxResult && (
           <div className={`mb-4 p-4 rounded-lg text-sm border ${xlsxResult.failed > 0 ? "bg-orange-50 border-orange-200" : "bg-success-bg border-success-text/20"}`}>
             <p className="font-medium mb-1">
-              تمت الإضافة: <span className="text-success-text">{xlsxResult.added} طالب</span>
-              {xlsxResult.failed > 0 && <> · فشل: <span className="text-red-600">{xlsxResult.failed} صف</span></>}
+              <span className="text-success-text">{t("students.imported", { count: xlsxResult.added })}</span>
+              {xlsxResult.failed > 0 && <> · <span className="text-red-600">{t("students.importFailed", { count: xlsxResult.failed })}</span></>}
             </p>
             {xlsxResult.errors.length > 0 && (
               <ul className="text-xs text-red-600 mt-1 space-y-0.5">
                 {xlsxResult.errors.slice(0, 5).map((e, i) => <li key={i}>• {e}</li>)}
-                {xlsxResult.errors.length > 5 && <li>...و {xlsxResult.errors.length - 5} أخطاء أخرى</li>}
+                {xlsxResult.errors.length > 5 && <li>{t("students.andMoreErrors", { count: xlsxResult.errors.length - 5 })}</li>}
               </ul>
             )}
           </div>
@@ -569,7 +569,7 @@ export default function StudentsPage() {
                       className="w-4 h-4"
                     />
                   </th>
-                  <th className="px-3 py-3 w-40">الحضور</th>
+                  <th className="px-3 py-3 w-40">{t("students.attendanceColumn")}</th>
                   <th className="px-4 py-3">{t("students.columns.name")}</th>
                   <th className="px-4 py-3">{t("students.columns.paymentStatus")}</th>
                   <th className="px-4 py-3">{t("students.columns.period")}</th>
@@ -581,7 +581,7 @@ export default function StudentsPage() {
                 {students.length === 0 && (
                   <tr>
                     <td colSpan={7}>
-                      <EmptyState title="لا يوجد طلاب بعد" description="ابدأ بإضافة أول طالب لعرضه هنا" />
+                      <EmptyState title={t("students.noStudentsYet")} description={t("students.noStudentsHint")} />
                     </td>
                   </tr>
                 )}
@@ -609,13 +609,13 @@ export default function StudentsPage() {
                                 onClick={() => checkout(student.id)}
                                 className="px-2 py-1 text-xs bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 transition-colors whitespace-nowrap"
                               >
-                                تسجيل الخروج
+                                {t("students.actions.checkout")}
                               </button>
                             </>
                           ) : checkedIn && checkedOut && att?.checkinAt && att?.checkoutAt ? (
                             <div className="flex flex-col gap-0.5">
-                              <span className="text-xs text-gray-500">دخل {formatTime(att.checkinAt)}</span>
-                              <span className="text-xs text-gray-400">خرج {formatTime(att.checkoutAt)}</span>
+                              <span className="text-xs text-gray-500">{t("students.checkedInAt", { time: formatTime(att.checkinAt, locale) })}</span>
+                              <span className="text-xs text-gray-400">{t("students.checkedOutAt", { time: formatTime(att.checkoutAt, locale) })}</span>
                             </div>
                           ) : (
                             <div className="flex flex-col gap-1">
@@ -624,7 +624,7 @@ export default function StudentsPage() {
                                 onClick={() => checkin(student.id)}
                                 className="px-2 py-1 text-xs bg-success-bg text-success-text border border-success-text/20 rounded-lg hover:bg-success-bg transition-colors whitespace-nowrap"
                               >
-                                تسجيل الوصول
+                                {t("students.actions.checkin")}
                               </button>
                             </div>
                           )}
@@ -641,7 +641,7 @@ export default function StudentsPage() {
                           )}
                           <span className="font-medium text-[#111111]">{student.name}</span>
                           {!student.isActive && (
-                            <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">موقوف</span>
+                            <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">{t("students.suspended")}</span>
                           )}
                         </div>
                       </td>
@@ -656,7 +656,7 @@ export default function StudentsPage() {
                           {student.class?.name ?? "—"}
                           {(student.needsClassWarning || !student.classId) && (
                             <span
-                              title="هذا الطالب بدون فصل محدد"
+                              title={t("students.noClassAssigned")}
                               className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-orange-100 text-orange-600 text-xs"
                             >
                               ⚠
@@ -696,11 +696,11 @@ export default function StudentsPage() {
           onClick={(e) => { if (e.target === e.currentTarget) setShowExtendModal(false); }}
         >
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
-            <h3 className="font-bold text-[#111111] text-right mb-4">تمديد تاريخ الاشتراك</h3>
+            <h3 className="font-bold text-[#111111] text-right mb-4">{t("students.extendSubscription")}</h3>
             <p className="text-sm text-gray-500 text-right mb-4">
-              أدخل تاريخ انتهاء الاشتراك الجديد
+              {t("students.newEndDatePrompt")}
               <span className="text-gray-400 text-xs block mt-0.5">
-                سيتم تطبيقه على {selected.size} طالب محدد
+                {t("students.appliesToSelected", { count: selected.size })}
               </span>
             </p>
             <input
@@ -722,7 +722,7 @@ export default function StudentsPage() {
                 disabled={!newEndDate || isExtending}
                 className="px-4 py-2.5 rounded-lg bg-[#F64651] text-white text-sm hover:bg-[#D93A44] disabled:opacity-50 transition-colors"
               >
-                {isExtending ? "جاري التحديث..." : "موافق"}
+                {isExtending ? t("common.updating") : t("common.approve")}
               </button>
             </div>
           </div>
@@ -733,14 +733,14 @@ export default function StudentsPage() {
       {enrollmentModalOpen && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setEnrollmentModalOpen(false)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-bold text-[#111111] mb-4">إرسال نموذج التسجيل</h2>
+            <h2 className="text-lg font-bold text-[#111111] mb-4">{t("students.sendFormTitle")}</h2>
             {enrollSuccess ? (
               <div className="text-center py-4">
                 <div className="w-14 h-14 bg-success-bg rounded-full flex items-center justify-center mx-auto mb-3">
                   <span className="text-2xl">✓</span>
                 </div>
                 <p className="text-sm text-gray-700 font-medium">
-                  تم إرسال الرابط إلى <span dir="ltr" className="font-mono">{enrollSuccess}</span>
+                  {t("students.linkSentTo")} <span dir="ltr" className="font-mono">{enrollSuccess}</span>
                 </p>
                 <button
                   onClick={() => setEnrollmentModalOpen(false)}
@@ -757,7 +757,7 @@ export default function StudentsPage() {
                     returned nothing. The parent still gives their number inside
                     the form itself, which is unchanged. */}
                 <div className="mb-5">
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">البريد الإلكتروني <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">{t("common.email")} <span className="text-red-500">*</span></label>
                   <input
                     type="email"
                     dir="ltr"
@@ -767,7 +767,7 @@ export default function StudentsPage() {
                     className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651]"
                   />
                   <p className="mt-1.5 text-xs text-gray-500">
-                    يُرسل رابط النموذج ورمز التحقق إلى هذا البريد.
+                    {t("students.formEmailHint")}
                   </p>
                 </div>
                 {enrollError && (
@@ -779,7 +779,7 @@ export default function StudentsPage() {
                     disabled={enrollSending || !enrollEmail.trim()}
                     className="flex-1 py-2.5 bg-[#F64651] text-white rounded-xl text-sm font-medium hover:bg-[#D93A44] disabled:opacity-50 transition-colors"
                   >
-                    {enrollSending ? "جاري الإرسال..." : "إرسال الرابط"}
+                    {enrollSending ? t("common.sending") : t("students.sendLink")}
                   </button>
                   <button
                     onClick={() => setEnrollmentModalOpen(false)}
@@ -799,28 +799,28 @@ export default function StudentsPage() {
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setReviewModalSub(null)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
-              <h2 className="text-lg font-bold text-[#111111]">مراجعة طلب التسجيل</h2>
+              <h2 className="text-lg font-bold text-[#111111]">{t("students.reviewRequestTitle")}</h2>
               <button onClick={() => setReviewModalSub(null)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
             </div>
 
             {/* Student Info */}
             <div className="bg-gray-50 rounded-xl p-4 mb-4 space-y-3">
-              <h3 className="text-sm font-bold text-gray-700">معلومات الطالب</h3>
+              <h3 className="text-sm font-bold text-gray-700">{t("students.studentInfo")}</h3>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1">الاسم الكامل *</label>
+                  <label className="block text-xs text-gray-500 mb-1">{t("students.fullName")} *</label>
                   <input className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.full_name ?? ""} onChange={(e) => setRE("full_name", e.target.value)} />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1">رقم الهوية</label>
+                  <label className="block text-xs text-gray-500 mb-1">{t("students.idNumber")}</label>
                   <input className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.id_number ?? ""} onChange={(e) => setRE("id_number", e.target.value)} />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1">الجنسية</label>
+                  <label className="block text-xs text-gray-500 mb-1">{t("students.nationality")}</label>
                   <input className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.nationality ?? ""} onChange={(e) => setRE("nationality", e.target.value)} />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1">المرحلة الدراسية</label>
+                  <label className="block text-xs text-gray-500 mb-1">{t("students.academicStage")}</label>
                   <input className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.academic_stage ?? ""} onChange={(e) => setRE("academic_stage", e.target.value)} />
                 </div>
                 <div>
@@ -864,7 +864,7 @@ export default function StudentsPage() {
               <h3 className="text-sm font-bold text-gray-700">معلومات ولي الأمر</h3>
               <div className="grid grid-cols-2 gap-3">
                 <div className="col-span-2">
-                  <label className="block text-xs text-gray-500 mb-1">اسم ولي الأمر</label>
+                  <label className="block text-xs text-gray-500 mb-1">{t("students.guardianName")}</label>
                   <input className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.guardian_name ?? ""} onChange={(e) => setRE("guardian_name", e.target.value)} />
                 </div>
                 <div>
@@ -899,7 +899,7 @@ export default function StudentsPage() {
               <h3 className="text-sm font-bold text-gray-700">معلومات التسجيل</h3>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1">طبيعة الدوام</label>
+                  <label className="block text-xs text-gray-500 mb-1">{t("students.attendanceType")}</label>
                   <select className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.attendance_type ?? ""} onChange={(e) => setRE("attendance_type", e.target.value)}>
                     <option value="">—</option>
                     <option value="دوام منتظم">دوام منتظم</option>

@@ -16,11 +16,11 @@ import { useCallback, useEffect, useState } from "react";
 import axios from "axios";
 import { describeApiError } from "@/lib/api-error";
 import {
-  ATTENDANCE_STATUS_LABELS,
   ATTENDANCE_STATUS_COLORS,
   WEEKDAY_LABELS,
 } from "@/lib/attendance-schedule";
 import type { AttendanceStatus } from "@/generated/prisma/enums";
+import { useT } from "@/lib/i18n-provider";
 
 interface Cell {
   date: string;
@@ -54,6 +54,7 @@ interface WeekResponse {
 const SETTABLE: AttendanceStatus[] = ["PRESENT", "ABSENT", "LEAVE", "NO_RECORD"];
 
 export function WeeklyAttendanceGrid({ classId }: { classId?: string }) {
+  const t = useT();
   const [data, setData] = useState<WeekResponse | null>(null);
   const [weekStart, setWeekStart] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -230,12 +231,12 @@ export function WeeklyAttendanceGrid({ classId }: { classId?: string }) {
                             it is produced by the checkout action, not chosen. */}
                         {cell.status === "CHECKED_OUT" && (
                           <option value="CHECKED_OUT">
-                            {ATTENDANCE_STATUS_LABELS.CHECKED_OUT}
+                            {t("attendanceStatus.CHECKED_OUT")}
                           </option>
                         )}
                         {SETTABLE.map((status) => (
                           <option key={status} value={status}>
-                            {ATTENDANCE_STATUS_LABELS[status]}
+                            {t(`attendanceStatus.${status}`)}
                           </option>
                         ))}
                       </select>

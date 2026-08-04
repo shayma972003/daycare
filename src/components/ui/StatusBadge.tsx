@@ -1,7 +1,7 @@
 "use client";
 
-import { t } from "@/lib/utils";
-import { PAYMENT_STATUS_LABELS, parsePaymentStatus } from "@/lib/enum-labels";
+import { useT } from "@/lib/i18n-provider";
+import { parsePaymentStatus } from "@/lib/enum-labels";
 
 type DeliveryStatus = "SENT" | "FAILED";
 
@@ -41,10 +41,14 @@ const deliveryTextColors: Record<DeliveryStatus, string> = {
 };
 
 export function PaymentStatusBadge({ status }: { status: string }) {
+  const t = useT();
   const normalized = parsePaymentStatus(status);
   const dot = normalized ? PAYMENT_DOT_COLORS[normalized] : "bg-gray-300";
   const text = normalized ? PAYMENT_TEXT_COLORS[normalized] : "text-gray-500";
-  const label = normalized ? PAYMENT_STATUS_LABELS[normalized] : status;
+  // Through the dictionary, not the Arabic constant: this badge appears on
+  // every roster row, so leaving it untranslated undoes the language switch
+  // across the busiest screen in the product.
+  const label = normalized ? t(`paymentStatus.${normalized}`) : status;
   return (
     <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${text}`}>
       <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${dot}`} />
@@ -54,6 +58,7 @@ export function PaymentStatusBadge({ status }: { status: string }) {
 }
 
 export function DeliveryStatusBadge({ status }: { status: DeliveryStatus }) {
+  const t = useT();
   return (
     <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${deliveryTextColors[status]}`}>
       <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${deliveryDotColors[status]}`} />
@@ -63,6 +68,7 @@ export function DeliveryStatusBadge({ status }: { status: DeliveryStatus }) {
 }
 
 export function PeriodBadge({ period }: { period: "MORNING" | "EVENING" }) {
+  const t = useT();
   return (
     <span className="inline-flex items-center gap-1.5 text-xs font-medium text-teal">
       <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-teal" />

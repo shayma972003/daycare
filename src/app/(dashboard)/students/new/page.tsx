@@ -8,7 +8,6 @@ import { studentFormSchema } from "@/lib/form-schemas";
 import axios from "axios";
 import { Topbar } from "@/components/layout/Topbar";
 
-import { PAYMENT_STATUS_LABELS } from "@/lib/enum-labels";
 import { PAYMENT_STATUSES } from "@/lib/payment-status";
 import { useT } from "@/lib/i18n-provider";
 
@@ -400,7 +399,7 @@ export default function NewStudentPage() {
                 <select {...register("paymentStatus")} className={inputCls}>
                   {PAYMENT_STATUSES.map((status) => (
                     <option key={status} value={status}>
-                      {PAYMENT_STATUS_LABELS[status]}
+                      {t(`paymentStatus.${status}`)}
                     </option>
                   ))}
                 </select>

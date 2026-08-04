@@ -14,20 +14,21 @@ import { LanguageSwitcher } from "@/components/layout/LanguageSwitcher";
  * language was active when the module first loaded — switching language would
  * have changed the whole product except the menu.
  *
- * The newer screens use literal Arabic because they have no entry in
- * `locales/*.json` yet; they fall back to the literal until keys are added,
- * which is the same incremental path `useT` supports elsewhere.
+ * Every entry now has a key. Four of them carried a literal Arabic label
+ * instead, left over from when those screens were added — so switching to
+ * English translated the menu around them and left four Arabic words in the
+ * middle of it.
  */
-const navItems: Array<{ href: string; key?: string; label?: string }> = [
+const navItems: Array<{ href: string; key: string }> = [
   { href: "/dashboard", key: "nav.home" },
   { href: "/students", key: "nav.students" },
-  { href: "/care", label: "تقارير الرعاية" },
-  { href: "/calendar", label: "التقويم" },
-  { href: "/units", label: "الوحدات" },
+  { href: "/care", key: "nav.care" },
+  { href: "/calendar", key: "nav.calendar" },
+  { href: "/units", key: "nav.units" },
   { href: "/classes", key: "nav.classes" },
   { href: "/statistics", key: "nav.statistics" },
   { href: "/teachers", key: "nav.teachers" },
-  { href: "/shifts", label: "المناوبات" },
+  { href: "/shifts", key: "nav.shifts" },
   { href: "/settings", key: "nav.settings" },
 ];
 
@@ -91,7 +92,7 @@ export function Sidebar({ schoolName: schoolNameProp, schoolLogo }: SidebarProps
               )}
             >
               <div className={cn("w-2 h-2 rounded-full flex-shrink-0", isActive ? "bg-coral" : "bg-white/20")} />
-              <span>{item.key ? t(item.key) : item.label}</span>
+              <span>{t(item.key)}</span>
             </Link>
           );
         })}

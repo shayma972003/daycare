@@ -8,7 +8,11 @@
     "classes": "Classes",
     "statistics": "Statistics",
     "teachers": "Teachers",
-    "settings": "Settings"
+    "settings": "Settings",
+    "care": "Care Reports",
+    "calendar": "Calendar",
+    "units": "Units",
+    "shifts": "Shifts"
   },
   "common": {
     "save": "Save Changes",
@@ -38,7 +42,19 @@
     "minutes": "minutes",
     "day": "day",
     "month": "month",
-    "year": "year"
+    "year": "year",
+    "somethingWentWrong": "Something went wrong",
+    "sent": "Sent",
+    "approve": "Confirm",
+    "review": "Review",
+    "reject": "Reject",
+    "updating": "Updating…",
+    "sending": "Sending…",
+    "processing": "Processing the file…",
+    "apply": "Apply",
+    "boys": "Boys",
+    "girls": "Girls",
+    "email": "Email"
   },
   "auth": {
     "login": "Login",
@@ -75,7 +91,32 @@
     "period": "Period",
     "children": "children",
     "from": "From",
-    "to": "To"
+    "to": "To",
+    "todayAttendance": "Today's attendance",
+    "ofExpected": "of {total} expected",
+    "noneExpectedToday": "No children expected today",
+    "activityLog": "Activity notification log",
+    "pendingEnrollments": "New registration requests awaiting review",
+    "latestRequest": "Latest request",
+    "reviewRequests": "Review requests",
+    "andMoreRequests": "and {count} more requests…",
+    "recipient": "Recipient",
+    "type": "Type",
+    "content": "Content",
+    "sentAt": "Sent at",
+    "status": "Status",
+    "allStatuses": "All statuses",
+    "allTypes": "All types",
+    "sent": "Sent",
+    "failed": "Failed",
+    "whatsapp": "WhatsApp",
+    "email": "Email",
+    "clearAll": "Clear all",
+    "showMore": "Show more ({count} remaining)",
+    "confirmDeleteLog": "Delete this record?",
+    "confirmClearLogs": "Delete every activity notification record?",
+    "cannotBeUndone": "This cannot be undone",
+    "childrenCount": "{count} children"
   },
   "students": {
     "title": "Students",
@@ -132,7 +173,41 @@
         "issueInvoice": "Issue Invoice"
       },
       "invoices": "Issued Invoices"
-    }
+    },
+    "pendingRequests": "Pending registration requests",
+    "newRequestsCount": "{count} new requests",
+    "guardianName": "Guardian name",
+    "guardianPhone": "Phone number",
+    "attendanceType": "Attendance type",
+    "submittedAt": "Submitted at",
+    "setStatus": "Set status: {status}",
+    "extendSubscription": "Extend subscription date",
+    "addStudentManually": "Add a student",
+    "uploadStudentsFile": "Upload a students file",
+    "sendRegistrationForm": "Send a registration form",
+    "imported": "Added: {count} student(s)",
+    "importFailed": "Failed: {count} row(s)",
+    "andMoreErrors": "…and {count} more errors",
+    "attendanceColumn": "Attendance",
+    "noStudentsYet": "No students yet",
+    "noStudentsHint": "Add your first student to see them here",
+    "checkedInAt": "In {time}",
+    "checkedOutAt": "Out {time}",
+    "suspended": "Suspended",
+    "noClassAssigned": "This student has no class assigned",
+    "newEndDatePrompt": "Enter the new subscription end date",
+    "appliesToSelected": "Applies to {count} selected student(s)",
+    "sendFormTitle": "Send the registration form",
+    "linkSentTo": "The link was sent to",
+    "formEmailHint": "The form link and verification code go to this address.",
+    "sendLink": "Send the link",
+    "reviewRequestTitle": "Review the registration request",
+    "studentInfo": "Student information",
+    "fullName": "Full name",
+    "idNumber": "ID number",
+    "nationality": "Nationality",
+    "academicStage": "Academic stage",
+    "changeStatusFailed": "Could not change the payment status"
   },
   "classes": {
     "title": "Classes",
@@ -302,7 +377,8 @@
     "PAID": "Paid",
     "LATE": "Late",
     "CANCELLED": "Cancelled",
-    "SUSPENDED": "Suspended"
+    "SUSPENDED": "Suspended",
+    "PENDING": "Awaiting payment"
   },
   "paymentMethod": {
     "CASH": "Cash",
@@ -341,5 +417,12 @@
     "kg2": "KG 2",
     "kg3": "KG 3",
     "nursery": "Nursery"
+  },
+  "attendanceStatus": {
+    "PRESENT": "Present",
+    "ABSENT": "Absent",
+    "LEAVE": "On leave",
+    "CHECKED_OUT": "Checked out",
+    "NO_RECORD": "No record"
   }
 }

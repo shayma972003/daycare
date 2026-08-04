@@ -47,12 +47,28 @@ function lookup(dictionary: unknown, key: string): string | null {
 }
 
 /**
- * Resolves a dotted key.
+ * Resolves a dotted key, substituting `{name}` placeholders.
  *
  * Falls back to Arabic before falling back to the key itself: a missing English
  * string should show the Arabic one, which a user can at least act on, rather
  * than a raw `students.profile.title` that tells them nothing.
+ *
+ * Placeholders rather than string concatenation at the call site, because word
+ * order is not shared between the two languages: "من 5 متوقع" and "of 5
+ * expected" put the number in different places, and a sentence assembled from
+ * fragments can only be right in one of them.
  */
-export function translate(locale: Locale, key: string): string {
-  return lookup(DICTIONARIES[locale], key) ?? lookup(ar, key) ?? key;
+export function translate(
+  locale: Locale,
+  key: string,
+  vars?: Record<string, string | number>
+): string {
+  const template = lookup(DICTIONARIES[locale], key) ?? lookup(ar, key) ?? key;
+  if (!vars) return template;
+
+  return template.replace(/\{(\w+)\}/g, (whole, name: string) =>
+    // An unknown placeholder is left visible rather than blanked: a gap in a
+    // sentence is easy to miss, `{count}` on screen is not.
+    name in vars ? String(vars[name]) : whole
+  );
 }

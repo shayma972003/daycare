@@ -1,22 +1,11 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { formatAst } from "@/lib/datetime";
-import ar from "../../locales/ar.json";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function t(key: string): string {
-  const keys = key.split(".");
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let current: any = ar;
-  for (const k of keys) {
-    if (current == null) return key;
-    current = current[k];
-  }
-  return typeof current === "string" ? current : key;
-}
 
 export function replaceVariables(
   template: string,
@@ -45,18 +34,28 @@ export function replaceVariables(
  * Both fixed by routing through `formatAst`, which is the single definition of
  * how this product writes a date.
  */
-export function formatDate(date: Date | string | null | undefined): string {
+/**
+ * `locale` is optional so server code and older callers keep the Arabic
+ * formatting they have always produced; screens pass the interface language.
+ */
+export function formatDate(
+  date: Date | string | null | undefined,
+  locale: "ar" | "en" = "ar"
+): string {
   if (!date) return "—";
   const value = new Date(date);
   if (Number.isNaN(value.getTime())) return "—";
-  return formatAst(value, { year: "numeric", month: "2-digit", day: "2-digit" });
+  return formatAst(value, { year: "numeric", month: "2-digit", day: "2-digit" }, locale);
 }
 
-export function formatTime(date: Date | string | null | undefined): string {
+export function formatTime(
+  date: Date | string | null | undefined,
+  locale: "ar" | "en" = "ar"
+): string {
   if (!date) return "—";
   const value = new Date(date);
   if (Number.isNaN(value.getTime())) return "—";
-  return formatAst(value, { hour: "2-digit", minute: "2-digit" });
+  return formatAst(value, { hour: "2-digit", minute: "2-digit" }, locale);
 }
 
 /**

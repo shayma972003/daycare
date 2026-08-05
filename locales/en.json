@@ -683,7 +683,8 @@
     "typeACTIVITY": "Activity",
     "typeANNOUNCEMENT": "Announcement",
     "moreEvents": "+{n} more",
-    "typeUNIT": "Unit"
+    "typeUNIT": "Unit",
+    "eventTitle": "Title"
   },
   "units": {
     "title": "Teaching units",

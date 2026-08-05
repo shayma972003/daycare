@@ -603,9 +603,10 @@ export function ActivityFormModal({
               )}
             </div>
 
-            {/* Notification opt-in — edit only. Creating an activity has its own
-                send step, and an unticked box here means "save quietly". */}
-            {isEdit && (
+            {/* Both modes. The decision is made while writing the activity, so
+                hiding the choice until the second visit put it where it is no
+                longer being made. */}
+            {(
               <label className="flex items-start gap-2 text-sm text-gray-600 pt-2">
                 <input
                   type="checkbox"

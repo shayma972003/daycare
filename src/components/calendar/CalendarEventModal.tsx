@@ -187,7 +187,7 @@ export function CalendarEventModal({
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">{t("settings.address")}</label>
+            <label className="block text-xs font-medium text-gray-500 mb-1.5">{t("calendar.eventTitle")}</label>
             <input value={title} onChange={(e) => setTitle(e.target.value)} className={inputCls} />
           </div>
 

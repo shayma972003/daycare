@@ -685,7 +685,8 @@
     "moreEvents": "+{n} more",
     "typeUNIT": "Unit",
     "eventTitle": "Title",
-    "typeEVENT_ACTIVITY": "Programme"
+    "typeEVENT_ACTIVITY": "Programme",
+    "cannotConvert": "A programme cannot be converted — delete it and create an event instead."
   },
   "units": {
     "title": "Teaching units",

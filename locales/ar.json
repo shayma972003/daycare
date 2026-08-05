@@ -685,7 +685,8 @@
     "moreEvents": "+{n} أخرى",
     "typeUNIT": "وحدة",
     "eventTitle": "العنوان",
-    "typeEVENT_ACTIVITY": "فعالية"
+    "typeEVENT_ACTIVITY": "فعالية",
+    "cannotConvert": "لا يمكن تحويل الفعالية إلى نوع آخر — احذفيها وأنشئي حدثاً بدلاً منها."
   },
   "units": {
     "title": "الوحدات التعليمية",

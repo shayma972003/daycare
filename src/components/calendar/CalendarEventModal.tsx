@@ -170,10 +170,17 @@ export function CalendarEventModal({
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1.5">{t("finance.type")}</label>
             <div className="flex gap-2">
-              {(activity ? [] : (Object.keys(EVENT_TYPE_LABEL_KEYS) as CalendarEventType[])).map((option) => (
+              {(Object.keys(EVENT_TYPE_LABEL_KEYS) as CalendarEventType[]).map((option) => (
                 <button
                   key={option}
                   type="button"
+                  /* Shown while editing a programme, but not usable: an
+                     `Activity` row and a `CalendarEvent` row are different
+                     tables. Letting the tab switch would offer a conversion the
+                     save cannot perform, and the fields already typed would go
+                     to a new event while the programme sat unchanged. */
+                  disabled={Boolean(activity)}
+                  title={activity ? t("calendar.cannotConvert") : undefined}
                   onClick={() => {
                     setProgramme(false);
                     setType(option);
@@ -182,7 +189,7 @@ export function CalendarEventModal({
                     !programme && type === option
                       ? "bg-[#2F96A6] text-white"
                       : "bg-gray-50 text-gray-700 hover:bg-gray-100"
-                  }`}
+                  } disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-gray-50`}
                 >
                   {t(EVENT_TYPE_LABEL_KEYS[option])}
                 </button>
@@ -193,6 +200,7 @@ export function CalendarEventModal({
               {!event && (
                 <button
                   type="button"
+                  disabled={Boolean(activity)}
                   onClick={() => setProgramme(true)}
                   className={`px-4 py-2 rounded-xl text-sm transition-colors ${
                     programme

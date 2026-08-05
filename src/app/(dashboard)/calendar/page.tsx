@@ -273,12 +273,6 @@ export default function CalendarPage() {
               {t("common.previous")}
             </button>
             <button
-              onClick={() => setAnchor(new Date())}
-              className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm hover:bg-gray-50"
-            >
-              {t("common.today")}
-            </button>
-            <button
               onClick={() => setAnchor((current) => shiftAnchor(view, current, 1))}
               className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm hover:bg-gray-50"
             >

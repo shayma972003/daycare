@@ -34,7 +34,7 @@ export function Topbar({ title }: TopbarProps) {
         <button
           onClick={() => router.push("/attendance")}
           className="w-9 h-9 rounded-lg flex items-center justify-center border border-gray-200 text-gray-500 hover:border-teal hover:text-teal hover:bg-teal-light transition-all"
-          title={t("layout.kioskPage")}
+          title={t("nav.attendance")}
         >
           <div className="w-5 h-5 bg-gray-300 rounded" />
         </button>

@@ -871,12 +871,6 @@ model School {
   twoFaEnabled           Boolean  @default(false)
   twoFaPhone             String?
 
-  // Opaque, rotatable credential for the walk-up attendance kiosk. The school id
-  // used to serve that role, which made a printed QR an unrevocable permanent key
-  // to the full child roster.
-  attendanceToken          String?   @unique
-  attendanceTokenCreatedAt DateTime?
-
   // Business identity (registration wizard — Step 1)
   legalName              String?
   nationalUnifiedNumber  String?

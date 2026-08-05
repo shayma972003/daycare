@@ -1208,8 +1208,6 @@
     "loadDataFailed": "Could not load the data. Check your connection and try again.",
     "checkInFailed": "Something went wrong recording the check-in",
     "checkOutFailed": "Something went wrong recording the check-out",
-    "downloadQrCode": "Download QR code",
-    "downloadQr": "Download QR",
     "nobodyToShow": "Nobody to show",
     "checkInLabel": "In:",
     "checkOutLabel": "Out:",
@@ -1244,8 +1242,7 @@
     "subscriptionExpiredOn": "{name}'s subscription expired on"
   },
   "layout": {
-    "schoolLogo": "School logo",
-    "kioskPage": "Check-in / check-out page"
+    "schoolLogo": "School logo"
   },
   "careTypes": {
     "MEAL": "Meals",

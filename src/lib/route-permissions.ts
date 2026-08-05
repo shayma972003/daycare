@@ -34,7 +34,7 @@ export interface RouteRule {
  * Routes that manage their own access and must not be gated here.
  *
  * These never reach `requireSession()` — they are the super-admin panel (its own
- * JWT), the sign-in endpoints, the walk-up kiosk, the self-service enrolment
+ * JWT), the sign-in endpoints, the self-service enrolment
  * links a parent opens before any account exists, and the stored-file route
  * (which accepts three different credentials and picks among them itself).
  * Listed for the reader; the matcher in `src/proxy.ts` already skips them.
@@ -43,7 +43,6 @@ export const UNGATED_PREFIXES = [
   "/api/auth",
   "/api/admin",
   "/api/mobile",
-  "/api/attendance/public",
   "/api/enrollment",
   "/api/files",
 ];
@@ -128,10 +127,6 @@ export const ROUTE_PERMISSIONS: Record<string, RouteRule> = {
   "/api/attendance/teachers/checkout": { default: "attendance.staff" },
   "/api/attendance/teachers/today": { default: "attendance.staff" },
   "/api/attendance/teachers/bulk-action": { default: "attendance.staff" },
-  // Rotating the kiosk token mints a credential that opens the child roster to
-  // anyone holding the printed QR. Settings, not attendance.
-  "/api/attendance/token": { default: "settings.manage" },
-
   // ── Activities and schedule ─────────────────────────────────────────────
   "/api/activities": {
     methods: { GET: "schedule.view", POST: "schedule.manage" },

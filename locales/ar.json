@@ -1208,8 +1208,6 @@
     "loadDataFailed": "تعذر تحميل البيانات. تحقق من الاتصال وحاول مجدداً.",
     "checkInFailed": "حدث خطأ أثناء تسجيل الحضور",
     "checkOutFailed": "حدث خطأ أثناء تسجيل الانصراف",
-    "downloadQrCode": "تنزيل QR Code",
-    "downloadQr": "تنزيل QR",
     "nobodyToShow": "لا يوجد أحد لعرضه",
     "checkInLabel": "دخول:",
     "checkOutLabel": "خروج:",
@@ -1244,8 +1242,7 @@
     "subscriptionExpiredOn": "اشتراك الطالب {name} قد انتهى في تاريخ"
   },
   "layout": {
-    "schoolLogo": "شعار المدرسة",
-    "kioskPage": "صفحة تسجيل الدخول والخروج"
+    "schoolLogo": "شعار المدرسة"
   },
   "careTypes": {
     "MEAL": "وجبات الطعام",

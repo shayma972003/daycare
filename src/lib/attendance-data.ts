@@ -82,9 +82,10 @@ export async function getAttendancePageData(schoolId: string): Promise<{
     students: students.map((s) => ({
       id: s.id,
       full_name: s.name,
-      // Stamped for the same reason as the kiosk logo: the screen is
-      // deliberately session-less, and a private object needs a grant the
-      // browser can present. See src/lib/file-token.ts.
+      // Stamped so an <img> can fetch a private object without a header it
+      // cannot send. The board is session-checked now that the kiosk is gone,
+      // so the cookie would also serve — the grant is kept because it is what
+      // the mobile client will need. See src/lib/file-token.ts.
       avatar_url: stampFileUrl(s.avatarUrl),
       class_id: s.classId,
       class_name: s.class?.name ?? null,

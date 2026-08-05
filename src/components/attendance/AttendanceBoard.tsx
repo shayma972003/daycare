@@ -3,19 +3,23 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import axios from "axios";
 import { cn } from "@/lib/utils";
-import { generateQRCode } from "@/lib/qr-generator";
 import { AttendanceCard } from "./AttendanceCard";
 import type { AttendancePerson, AttendanceClass } from "@/lib/attendance-data";
 import { useT } from "@/lib/i18n-provider";
 
+/**
+ * Check-in and check-out, for signed-in staff.
+ *
+ * The walk-up QR kiosk this board also served is gone. It was the only way to
+ * reach `/attendance/public/<token>`, so removing the code that printed the QR
+ * would have left three unauthenticated endpoints alive with nothing able to
+ * find them — attack surface with no user. Both halves went together.
+ */
 interface AttendanceBoardProps {
-  /** Kiosk token. Present on the public board; fetched on demand in the dashboard. */
-  token?: string;
-  isPublic: boolean;
   schoolName?: string | null;
 }
 
-export function AttendanceBoard({ token, isPublic, schoolName }: AttendanceBoardProps) {
+export function AttendanceBoard({ schoolName }: AttendanceBoardProps) {
   const t = useT();
   const [activeTab, setActiveTab] = useState<"students" | "teachers">("students");
   const [selectedClass, setSelectedClass] = useState<string>("all");
@@ -28,12 +32,13 @@ export function AttendanceBoard({ token, isPublic, schoolName }: AttendanceBoard
   const [error, setError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
-    const url = isPublic ? `/api/attendance/public/${token}` : "/api/attendance/page-data";
-    const res = await axios.get<{ students: AttendancePerson[]; teachers: AttendancePerson[]; classes: AttendanceClass[] }>(url);
+    const res = await axios.get<{ students: AttendancePerson[]; teachers: AttendancePerson[]; classes: AttendanceClass[] }>(
+      "/api/attendance/page-data"
+    );
     setStudents(res.data.students);
     setTeachers(res.data.teachers);
     setClasses(res.data.classes);
-  }, [isPublic, token]);
+  }, []);
 
   useEffect(() => {
     // Without a catch a failed load left an empty board with no explanation.
@@ -51,23 +56,9 @@ export function AttendanceBoard({ token, isPublic, schoolName }: AttendanceBoard
     return people.filter((p) => p.class_id === selectedClass);
   }, [activeTab, selectedClass, students, teachers]);
 
-  /**
-   * The dashboard used to post to the *public* endpoints, bypassing its own
-   * session-checked routes entirely. Signed-in staff now go through the
-   * authenticated ones; only the kiosk uses the token path.
-   */
+  /** Session-checked routes only — there is no unauthenticated path left. */
   async function submitAttendance(personId: string, action: "checkin" | "checkout") {
     const isStudent = activeTab === "students";
-
-    if (isPublic) {
-      await axios.post(`/api/attendance/public/${action}`, {
-        token,
-        person_id: personId,
-        type: isStudent ? "student" : "teacher",
-      });
-      return;
-    }
-
     const scope = isStudent ? "students" : "teachers";
     const payload = isStudent ? { student_id: personId } : { teacher_id: personId };
     await axios.post(`/api/attendance/${scope}/${action}`, payload);
@@ -93,20 +84,6 @@ export function AttendanceBoard({ token, isPublic, schoolName }: AttendanceBoard
   const handleCheckin = (personId: string) => handleAction(personId, "checkin");
   const handleCheckout = (personId: string) => handleAction(personId, "checkout");
 
-  async function handleDownloadQR() {
-    // The dashboard does not hold the token — fetch it only when a QR is wanted.
-    const kioskToken =
-      token ?? (await axios.get<{ token: string }>("/api/attendance/token")).data.token;
-
-    const publicUrl = `${window.location.origin}/attendance/public/${kioskToken}`;
-    const qrDataUrl = await generateQRCode(publicUrl);
-    const link = document.createElement("a");
-    link.href = qrDataUrl;
-    link.download = "qr-attendance.png";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  }
 
   return (
     <div className="flex h-screen bg-gray-50" dir="rtl">
@@ -143,16 +120,7 @@ export function AttendanceBoard({ token, isPublic, schoolName }: AttendanceBoard
       {/* Main content */}
       <main className="flex-1 flex flex-col overflow-hidden">
         <div className="bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between flex-shrink-0">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleDownloadQR}
-              className="flex items-center gap-2 px-3 py-2 rounded-md border border-gray-200 text-gray-600 text-sm hover:border-teal hover:text-teal hover:bg-teal-light transition-all"
-              title={t("attendance.downloadQrCode")}
-            >
-              <div className="w-5 h-5 bg-gray-300 rounded" />
-              <span className="text-xs">{t("attendance.downloadQr")}</span>
-            </button>
-          </div>
+          <div />
 
           <div className="flex bg-gray-100 rounded-xl p-1">
             <button

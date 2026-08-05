@@ -35,7 +35,6 @@ const PUBLIC_API_PREFIXES = [
   // with a NextAuth cookie — so the check below would reject every call. Its
   // routes verify the token themselves.
   "/api/portal",
-  "/api/attendance/public",
   "/api/enrollment",
   "/api/health",
   // Stored files accept three different credentials — a per-key `?t=` grant, a
@@ -106,11 +105,12 @@ export async function proxy(request: NextRequest) {
  * an unprotected page. Inverted, forgetting an entry means a public page asks
  * for a login — visible immediately, and safe.
  *
- * `attendance/public` is excluded deliberately: it is the walk-up kiosk, reached
- * from a printed QR code by someone who has no account and never will.
+ * The walk-up attendance kiosk used to be excluded here. It is gone: check-in and
+ * check-out are done by signed-in staff, so nothing under `/attendance` is public
+ * any more and the exclusion would only widen the gate for no caller.
  */
 export const config = {
   matcher: [
-    "/((?!api/auth|api/admin|api/mobile|api/portal|api/attendance/public|api/enrollment|attendance/public|admin|portal|login|register|forgot-password|reset-password|enroll|_next/static|_next/image|favicon.ico|fonts|images).*)",
+    "/((?!api/auth|api/admin|api/mobile|api/portal|api/enrollment|admin|portal|login|register|forgot-password|reset-password|enroll|_next/static|_next/image|favicon.ico|fonts|images).*)",
   ],
 };

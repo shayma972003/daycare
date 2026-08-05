@@ -93,10 +93,7 @@ export default function AttendancePage() {
       </div>
 
       {tab === "today" ? (
-        // No token here on purpose: signed-in staff read and write through the
-        // session-checked routes. The kiosk token is fetched only when printing
-        // a QR.
-        <AttendanceBoard isPublic={false} schoolName={schoolName} />
+        <AttendanceBoard schoolName={schoolName} />
       ) : (
         <div className="p-6">
           <div className="bg-white rounded-2xl shadow-sm p-5">

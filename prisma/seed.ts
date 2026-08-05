@@ -1,5 +1,4 @@
 import "dotenv/config";
-import { randomBytes } from "crypto";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import bcrypt from "bcryptjs";
@@ -44,9 +43,6 @@ async function main() {
         name: "روضة النور",
         email: SCHOOL_EMAIL,
         plan: "premium",
-        // Without this the kiosk page 404s until someone opens the attendance screen.
-        attendanceToken: randomBytes(24).toString("base64url"),
-        attendanceTokenCreatedAt: new Date(),
         studentCheckinTime: "07:30",
         studentCheckoutTime: "16:00",
         teacherCheckinTime: "07:00",

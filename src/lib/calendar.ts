@@ -43,8 +43,27 @@ export const EVENT_TYPE_STYLES: Record<CalendarEventType, string> = {
 };
 
 /** The hours a nursery day is drawn across. */
-export const DAY_START_HOUR = 6;
-export const DAY_END_HOUR = 19;
+export const DAY_START_HOUR = 0;
+export const DAY_END_HOUR = 23;
+
+/**
+ * An hour label, in the 12-hour clock the reader actually speaks.
+ *
+ * Built by hand rather than through `Intl.DateTimeFormat`, because the grid
+ * labels an *hour of the day*, not an instant — there is no date to format, and
+ * inventing one drags the time zone into a row heading that has nothing to do
+ * with a moment in time.
+ *
+ * Arabic uses ص/م, English am/pm. Latin digits in both, matching every other
+ * number in the product.
+ */
+export function hourLabel(hour: number, locale: "ar" | "en" = "ar"): string {
+  const suffix =
+    hour < 12 ? (locale === "en" ? "am" : "ص") : locale === "en" ? "pm" : "م";
+  // 0 and 12 are both "12" on a 12-hour clock — midnight and noon.
+  const display = hour % 12 === 0 ? 12 : hour % 12;
+  return `${display}:00 ${suffix}`;
+}
 
 export interface CalendarRange {
   from: Date;

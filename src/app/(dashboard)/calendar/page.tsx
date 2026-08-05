@@ -13,7 +13,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { Topbar } from "@/components/layout/Topbar";
 import { describeApiError } from "@/lib/api-error";
-import { formatAst, astParts } from "@/lib/datetime";
+import { formatAst, astParts, astDayStart } from "@/lib/datetime";
 import { WEEKDAY_LABEL_KEYS } from "@/lib/attendance-schedule";
 import {
   rangeFor,
@@ -25,6 +25,7 @@ import {
   EVENT_TYPE_STYLES,
   DAY_START_HOUR,
   DAY_END_HOUR,
+  hourLabel,
   type CalendarView,
 } from "@/lib/calendar";
 import { CalendarEventModal } from "@/components/calendar/CalendarEventModal";
@@ -224,8 +225,32 @@ export default function CalendarPage() {
     []
   );
 
+  /**
+   * Every day an event covers, not just the one it starts on.
+   *
+   * A programme running the 5th to the 19th was drawn on the 5th and nowhere
+   * else, so a fortnight of activity looked like a single morning — and the
+   * week containing the 12th showed an empty calendar for something that was
+   * running all week.
+   *
+   * Compared by AST calendar day rather than by instant: an event ending at
+   * 09:00 on the 19th still belongs on the 19th, and one starting at 23:00 does
+   * not belong on the 20th.
+   */
   function eventsOn(day: Date) {
-    return events.filter((event) => isSameAstDay(new Date(event.startAt), day));
+    return events.filter((event) => {
+      const start = new Date(event.startAt);
+      if (isSameAstDay(start, day)) return true;
+      if (!event.endAt) return false;
+      const end = new Date(event.endAt);
+      if (isSameAstDay(end, day)) return true;
+      return astDayStart(start) < astDayStart(day) && astDayStart(day) < astDayStart(end);
+    });
+  }
+
+  /** True on the days after the first — those render as a band, not at an hour. */
+  function isContinuation(event: EventRow, day: Date) {
+    return !isSameAstDay(new Date(event.startAt), day);
   }
 
   const periodLabel =
@@ -320,7 +345,9 @@ export default function CalendarPage() {
               days={range.days}
               hours={hours}
               eventsOn={eventsOn}
+              isContinuation={isContinuation}
               shiftOn={shiftOn}
+              locale={locale}
               onSelect={openRow}
               onCreate={setCreating}
             />
@@ -370,14 +397,19 @@ function HourGrid({
   days,
   hours,
   eventsOn,
+  isContinuation,
   shiftOn,
+  locale,
   onSelect,
   onCreate,
 }: {
   days: Date[];
   hours: number[];
   eventsOn: (day: Date) => EventRow[];
+  isContinuation: (event: EventRow, day: Date) => boolean;
   shiftOn: (day: Date) => ShiftRow | null;
+  /** The hour column is written in words, so it needs the reader's language. */
+  locale: "ar" | "en";
   onSelect: (event: EventRow) => void;
   onCreate: (day: Date) => void;
 }) {
@@ -422,12 +454,14 @@ function HourGrid({
           className="grid border-b border-gray-50"
           style={{ gridTemplateColumns: `4rem repeat(${days.length}, minmax(0, 1fr))` }}
         >
-          <div className="text-[11px] text-gray-400 py-2 pl-2 text-left" dir="ltr">
-            {String(hour).padStart(2, "0")}:00
+          <div className="text-[11px] text-gray-400 py-2 px-2 text-start whitespace-nowrap">
+            {hourLabel(hour, locale)}
           </div>
           {days.map((day) => {
             const slotEvents = eventsOn(day).filter((event) => {
-              if (event.allDay) return hour === DAY_START_HOUR;
+              // Days after the first have no start hour of their own, so they
+              // sit in the first row like an all-day band.
+              if (event.allDay || isContinuation(event, day)) return hour === DAY_START_HOUR;
               return astParts(new Date(event.startAt)).hour === hour;
             });
             return (

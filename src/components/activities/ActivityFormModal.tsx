@@ -264,17 +264,31 @@ export function ActivityFormModal({
     setError(null);
     try {
       const payload = { ...data, imageUrl };
+
+      /**
+       * The id to notify about, whichever branch we took.
+       *
+       * Creating used to POST and stop there while the button read "save and
+       * send" — so a new activity announced itself to nobody, and the only way
+       * to find out was that no guardian mentioned it. The create branch now
+       * honours the same two checkboxes the edit branch does.
+       */
+      let targetId: string | null = null;
       if (isEdit && activity) {
         await axios.put(`/api/activities/${activity.id}`, payload);
-        // Only when the user asked for it. See `notifyGuardians`.
-        if (notifyGuardians || notifyStaff) {
-          await axios.post(`/api/activities/${activity.id}/send`, {
-            notifyGuardians,
-            notifyStaff,
-          });
-        }
+        targetId = activity.id;
       } else {
-        await axios.post("/api/activities", payload);
+        const created = await axios.post<{ id: string }>("/api/activities", payload);
+        targetId = created.data?.id ?? null;
+      }
+
+      // Only when asked. Every edit used to fire this, so fixing a typo in the
+      // title re-messaged every guardian in every invited class.
+      if (targetId && (notifyGuardians || notifyStaff)) {
+        await axios.post(`/api/activities/${targetId}/send`, {
+          notifyGuardians,
+          notifyStaff,
+        });
       }
       onSaved();
       onClose();
@@ -614,7 +628,7 @@ export function ActivityFormModal({
               </p>
             )}
 
-            {isEdit && (
+            {(
               <label className="flex items-start gap-2 text-sm text-gray-700 cursor-pointer">
                 <input
                   type="checkbox"
@@ -642,9 +656,9 @@ export function ActivityFormModal({
                     submitting early would save the blanks this fix removed. */}
                 {saving || loadingDetails
                   ? t("common.loading")
-                  : isEdit && !notifyGuardians && !notifyStaff
-                    ? t("common.save")
-                    : t("home.activityForm.saveAndSend")}
+                  : notifyGuardians || notifyStaff
+                    ? t("home.activityForm.saveAndSend")
+                    : t("common.save")}
               </button>
 
               {isEdit && (

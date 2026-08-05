@@ -95,7 +95,11 @@ export async function GET(request: Request) {
       ...(teacherId ? { teacherId } : {}),
     },
     orderBy: { startDate: "asc" },
-    include: { activityInvites: { select: { classId: true } } },
+    include: {
+      activityInvites: { select: { classId: true } },
+      teacher: { select: { name: true } },
+      stage: { select: { id: true, nameAr: true, nameEn: true } },
+    },
   });
 
   const activityRows = activities
@@ -118,6 +122,28 @@ export async function GET(request: Request) {
       location: null,
       classIds: activity.activityInvites.map((invite) => invite.classId),
       unit: null,
+      /**
+       * The row the editor wants, carried with the calendar row.
+       *
+       * Fetching it separately meant a second request that returned the raw
+       * table row — `activityFee`, `stageId` — while the form reads `fee` and
+       * `stage`. The form opened with a blank stage and a zero fee, and saving
+       * wrote those blanks back.
+       */
+      activity: {
+        id: activity.id,
+        name: activity.name,
+        teacherName: activity.teacher?.name,
+        stage: activity.stage,
+        period: activity.period,
+        childrenCount: activity.childrenCount,
+        startDate: activity.startDate.toISOString(),
+        endDate: activity.endDate.toISOString(),
+        fee: activity.activityFee,
+        imageUrl: activity.imageUrl,
+        message: activity.message,
+        active: activity.isActive,
+      },
     }));
 
   return Response.json(

@@ -56,7 +56,17 @@ export async function GET(request: Request) {
     orderBy: { createdAt: "desc" },
   });
 
-  return Response.json(activities, { status: 200 });
+  /**
+   * `fee` alongside `activityFee`.
+   *
+   * The client type has always read `fee`; the column is `activityFee`, so the
+   * edit form opened showing 0 for an activity that charged 50 — and saving
+   * wrote the 0 back. Both names are returned so older readers keep working.
+   */
+  return Response.json(
+    activities.map((activity) => ({ ...activity, fee: activity.activityFee })),
+    { status: 200 }
+  );
 }
 
 export async function POST(request: Request) {

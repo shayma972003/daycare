@@ -37,6 +37,8 @@ interface EventRow {
   id: string;
   /** "activity" rows come from the Activity table and open a different editor. */
   kind?: "event" | "activity";
+  /** Present on activity rows — the record the activity editor reads. */
+  activity?: ActivityRecord;
   type: CalendarEventType;
   title: string;
   description: string | null;
@@ -85,20 +87,15 @@ export default function CalendarPage() {
   const [activity, setActivity] = useState<ActivityRecord | null>(null);
   const [activityOpen, setActivityOpen] = useState(false);
 
-  async function openRow(row: EventRow) {
-    if (row.kind !== "activity") {
+  function openRow(row: EventRow) {
+    if (row.kind !== "activity" || !row.activity) {
       setEditing(row);
       return;
     }
-    // The form wants the record, not an id — and the calendar only carries
-    // enough of an activity to draw it.
-    try {
-      const response = await axios.get<ActivityRecord>(`/api/activities/${row.id}`);
-      setActivity(response.data);
-      setActivityOpen(true);
-    } catch (err) {
-      setError(describeApiError(err, t("calendar.loadFailed")));
-    }
+    // No second request: the calendar row already carries the record, in the
+    // shape the editor reads.
+    setActivity(row.activity);
+    setActivityOpen(true);
   }
 
   const range = useMemo(() => rangeFor(view, anchor), [view, anchor]);

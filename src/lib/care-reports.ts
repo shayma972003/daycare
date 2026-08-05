@@ -39,6 +39,26 @@ export const CARE_TYPE_LABELS: Record<CareReportType, string> = {
 };
 
 /**
+ * The same eight, as dictionary keys.
+ *
+ * Both tables exist because they have different jobs. The resolved Arabic above
+ * is what goes into a WhatsApp message and an activity-log entry — those are
+ * written for the guardian and the audit trail, not for whoever has the
+ * interface open. Anything a component renders reads these keys instead, so it
+ * follows the reader's language.
+ */
+export const CARE_TYPE_LABEL_KEYS: Record<CareReportType, string> = {
+  MEAL: "careTypes.MEAL",
+  NAP: "careTypes.NAP",
+  TOILET: "careTypes.TOILET",
+  MOOD: "careTypes.MOOD",
+  MEDICATION: "careTypes.MEDICATION",
+  HEALTH: "careTypes.HEALTH",
+  SUPPLIES: "careTypes.SUPPLIES",
+  GENERAL: "careTypes.GENERAL",
+};
+
+/**
  * Accent colour per type, as literal Tailwind classes.
  *
  * The icons themselves are SVG components — see `CARE_TYPE_ICON_NAMES` in
@@ -87,6 +107,33 @@ export const SUPPLY_URGENCY_LABELS: Record<SupplyUrgency, string> = {
   NORMAL: "عادي",
   SOON: "قريباً",
   URGENT: "عاجل",
+};
+
+export const MEAL_AMOUNT_LABEL_KEYS: Record<MealAmount, string> = {
+  ALL: "mealAmount.ALL",
+  HALF: "mealAmount.HALF",
+  LITTLE: "mealAmount.LITTLE",
+  REFUSED: "mealAmount.REFUSED",
+};
+
+export const TOILET_KIND_LABEL_KEYS: Record<ToiletKind, string> = {
+  DIAPER: "toiletKind.DIAPER",
+  POTTY: "toiletKind.POTTY",
+};
+
+export const MOOD_LABEL_KEYS: Record<ChildMood, string> = {
+  HAPPY: "mood.HAPPY",
+  CALM: "mood.CALM",
+  TIRED: "mood.TIRED",
+  UPSET: "mood.UPSET",
+  CRYING: "mood.CRYING",
+  UNWELL: "mood.UNWELL",
+};
+
+export const SUPPLY_URGENCY_LABEL_KEYS: Record<SupplyUrgency, string> = {
+  NORMAL: "supplyUrgency.NORMAL",
+  SOON: "supplyUrgency.SOON",
+  URGENT: "supplyUrgency.URGENT",
 };
 
 /**

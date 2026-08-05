@@ -9,9 +9,9 @@ import axios from "axios";
 import { describeApiError } from "@/lib/api-error";
 import { formatDate, formatCurrency } from "@/lib/utils";
 import { TeacherInvoiceModal } from "@/components/teachers/TeacherInvoiceModal";
-import { useT } from "@/lib/i18n-provider";
+import { useT, useLocale } from "@/lib/i18n-provider";
 import { astDateInputValue } from "@/lib/datetime";
-import { EMPLOYMENT_STATUS_LABELS } from "@/lib/enum-labels";
+import { EMPLOYMENT_STATUS_LABEL_KEYS } from "@/lib/enum-labels";
 import type { EmploymentStatus } from "@/generated/prisma/enums";
 
 /** Every reason except "still employed", which is the reactivate action. */
@@ -56,6 +56,7 @@ interface FormValues {
 const MAX_EXTRA = 7; // qualification4–10
 
 export default function TeacherProfilePage() {
+  const { locale } = useLocale();
   // Locale-aware translation — see src/lib/i18n.tsx.
   const t = useT();
   const { id } = useParams<{ id: string }>();
@@ -316,9 +317,9 @@ export default function TeacherProfilePage() {
         {!teacher.isActive && (
           <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">
             {teacher.status && teacher.status !== "ACTIVE"
-              ? EMPLOYMENT_STATUS_LABELS[teacher.status]
+              ? t(EMPLOYMENT_STATUS_LABEL_KEYS[teacher.status])
               : t("fields.inactive")}
-            {teacher.leftAt && ` · ${formatDate(teacher.leftAt)}`}
+            {teacher.leftAt && ` · ${formatDate(teacher.leftAt, locale)}`}
           </span>
         )}
       </div>
@@ -584,17 +585,17 @@ export default function TeacherProfilePage() {
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between items-center py-1.5 border-b border-gray-50">
                     <span className="text-gray-500">{t("teachers.profile.salaryCalc.baseSalary")}</span>
-                    <span className="font-medium text-[#111111]">{formatCurrency(baseSalary)}</span>
+                    <span className="font-medium text-[#111111]">{formatCurrency(baseSalary, locale)}</span>
                   </div>
                   <div className="flex justify-between items-center py-1.5 border-b border-gray-50">
                     <span className="text-gray-500">{t("teachers.profile.salaryCalc.lateDeduction")}</span>
-                    <span className="font-medium text-red-600">- {formatCurrency(lateDeduction)}</span>
+                    <span className="font-medium text-red-600">- {formatCurrency(lateDeduction, locale)}</span>
                   </div>
                   <div className="flex justify-between items-center py-2 bg-gray-50 rounded-lg px-2">
                     <span className="font-bold text-[#111111]">{t("teachers.profile.salaryCalc.netSalary")}</span>
-                    <span className="font-bold text-[#F64651] text-base">{formatCurrency(netSalary)}</span>
+                    <span className="font-bold text-[#F64651] text-base">{formatCurrency(netSalary, locale)}</span>
                   </div>
-                  <p className="text-xs text-gray-400 text-center pt-1">{lateHrs} {t("common.hours")} × {formatCurrency(deductionRate)} = {formatCurrency(lateDeduction)}</p>
+                  <p className="text-xs text-gray-400 text-center pt-1">{lateHrs} {t("common.hours")} × {formatCurrency(deductionRate, locale)} = {formatCurrency(lateDeduction, locale)}</p>
                 </div>
               </div>
             </div>
@@ -622,8 +623,8 @@ export default function TeacherProfilePage() {
                 {invoices.map((inv) => (
                   <tr key={inv.id} className="hover:bg-gray-50/50">
                     <td className="px-6 py-3 text-gray-700">{t("invoices.teacherInvoice")} #{inv.id.slice(0, 8)}</td>
-                    <td className="px-6 py-3 text-gray-500">{inv.amount != null ? formatCurrency(Number(inv.amount)) : "—"}</td>
-                    <td className="px-6 py-3 text-gray-500">{formatDate(inv.createdAt)}</td>
+                    <td className="px-6 py-3 text-gray-500">{inv.amount != null ? formatCurrency(Number(inv.amount), locale) : "—"}</td>
+                    <td className="px-6 py-3 text-gray-500">{formatDate(inv.createdAt, locale)}</td>
                     <td className="px-6 py-3">
                       <div className="flex gap-2">
                         {inv.pdfUrl && (
@@ -658,7 +659,7 @@ export default function TeacherProfilePage() {
               >
                 {DEPARTURE_OPTIONS.map((value) => (
                   <option key={value} value={value}>
-                    {EMPLOYMENT_STATUS_LABELS[value]}
+                    {t(EMPLOYMENT_STATUS_LABEL_KEYS[value])}
                   </option>
                 ))}
               </select>

@@ -1238,5 +1238,100 @@
   "layout": {
     "schoolLogo": "School logo",
     "kioskPage": "Check-in / check-out page"
+  },
+  "careTypes": {
+    "MEAL": "Meals",
+    "NAP": "Sleep and naps",
+    "TOILET": "Toilet and nappies",
+    "MOOD": "Mood",
+    "MEDICATION": "Medication",
+    "HEALTH": "General health",
+    "SUPPLIES": "Supply request",
+    "GENERAL": "General"
+  },
+  "mealAmount": {
+    "ALL": "All",
+    "HALF": "Half",
+    "LITTLE": "A little",
+    "REFUSED": "Refused"
+  },
+  "toiletKind": {
+    "DIAPER": "Nappy",
+    "POTTY": "Potty"
+  },
+  "mood": {
+    "HAPPY": "Happy",
+    "CALM": "Calm",
+    "TIRED": "Tired",
+    "UPSET": "Upset",
+    "CRYING": "Crying",
+    "UNWELL": "Unwell"
+  },
+  "supplyUrgency": {
+    "NORMAL": "Normal",
+    "SOON": "Soon",
+    "URGENT": "Urgent"
+  },
+  "calendarView": {
+    "day": "Day",
+    "week": "Week",
+    "month": "Month"
+  },
+  "weekday": {
+    "SUN": "Sunday",
+    "MON": "Monday",
+    "TUE": "Tuesday",
+    "WED": "Wednesday",
+    "THU": "Thursday",
+    "FRI": "Friday",
+    "SAT": "Saturday"
+  },
+  "ageGroup": {
+    "AGE_0_6M": "0–6 months",
+    "AGE_6_12M": "6–12 months",
+    "AGE_1_2Y": "1–2 years",
+    "AGE_2_3Y": "2–3 years",
+    "AGE_3_4Y": "3–4 years"
+  },
+  "attendanceState": {
+    "PRESENT": "Present",
+    "ABSENT": "Absent",
+    "LEAVE": "Leave",
+    "CHECKED_OUT": "Checked out",
+    "NO_RECORD": "No record"
+  },
+  "billingCycle": {
+    "DAILY": "Daily",
+    "WEEKLY": "Weekly",
+    "MONTHLY": "Monthly",
+    "YEARLY": "Yearly",
+    "CUSTOM": "Custom"
+  },
+  "bytes": {
+    "b": "{n} bytes",
+    "kb": "{n} KB",
+    "mb": "{n} MB",
+    "gb": "{n} GB"
+  },
+  "storageCategory": {
+    "studentFilesBytes": "Children's files",
+    "careReportBytes": "Care report photos",
+    "staffFilesBytes": "Staff files",
+    "unitFilesBytes": "Unit files",
+    "invoiceBytes": "Invoices",
+    "otherBytes": "Other",
+    "totalBytes": "Total"
+  },
+  "studentStatus": {
+    "ACTIVE": "Enrolled",
+    "GRADUATED": "Graduated",
+    "WITHDRAWN": "Withdrawn",
+    "TRANSFERRED": "Transferred"
+  },
+  "employmentStatus": {
+    "ACTIVE": "Employed",
+    "RESIGNED": "Resigned",
+    "TERMINATED": "Terminated",
+    "CONTRACT_ENDED": "Contract ended"
   }
 }

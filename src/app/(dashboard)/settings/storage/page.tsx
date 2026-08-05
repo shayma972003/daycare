@@ -14,7 +14,7 @@ import { Topbar } from "@/components/layout/Topbar";
 import { describeApiError } from "@/lib/api-error";
 // From `storage-format`, not `storage-usage`: the latter opens a database
 // connection at import time, which a Client Component must never do.
-import { formatBytes } from "@/lib/storage-format";
+import { formatBytes, STORAGE_CATEGORY_LABEL_KEYS } from "@/lib/storage-format";
 import { formatAst } from "@/lib/datetime";
 import { useT } from "@/lib/i18n-provider";
 
@@ -106,7 +106,7 @@ export default function StoragePage() {
       setNotice(
         t("storage.purged", {
           count: String(response.data.cleared),
-          size: formatBytes(Math.max(0, response.data.freedBytes)),
+          size: formatBytes(Math.max(0, response.data.freedBytes), t),
         })
       );
       setConfirmPurge(false);
@@ -142,11 +142,11 @@ export default function StoragePage() {
               <div className="flex items-baseline justify-between flex-wrap gap-2">
                 <div>
                   <span className="text-2xl font-bold text-[#111111]">
-                    {formatBytes(data.usedBytes)}
+                    {formatBytes(data.usedBytes, t)}
                   </span>
                   {data.quotaBytes !== null && (
                     <span className="text-sm text-gray-500">
-                      {" "}{t("storage.ofQuota", { total: formatBytes(data.quotaBytes) })}
+                      {" "}{t("storage.ofQuota", { total: formatBytes(data.quotaBytes, t) })}
                     </span>
                   )}
                 </div>
@@ -176,7 +176,7 @@ export default function StoragePage() {
                         key={key}
                         className={CATEGORY_COLORS[key]}
                         style={{ width: `${width}%` }}
-                        title={`${data.labels[key]}: ${formatBytes(value)}`}
+                        title={`${t(STORAGE_CATEGORY_LABEL_KEYS[key])}: ${formatBytes(value, t)}`}
                       />
                     );
                   })}
@@ -210,8 +210,8 @@ export default function StoragePage() {
                 {CATEGORY_KEYS.map((key) => (
                   <li key={key} className="flex items-center gap-3 text-sm">
                     <span aria-hidden className={`w-3 h-3 rounded-sm ${CATEGORY_COLORS[key]}`} />
-                    <span className="text-gray-700 flex-1">{data.labels[key]}</span>
-                    <span className="text-gray-500">{formatBytes(data[key])}</span>
+                    <span className="text-gray-700 flex-1">{t(STORAGE_CATEGORY_LABEL_KEYS[key])}</span>
+                    <span className="text-gray-500">{formatBytes(data[key], t)}</span>
                   </li>
                 ))}
               </ul>
@@ -248,7 +248,7 @@ export default function StoragePage() {
                   disabled={busy || data.invoiceBytes === 0}
                   className="px-5 py-2 border border-gray-300 text-gray-700 rounded-xl text-sm hover:bg-gray-50 disabled:opacity-50"
                 >
-                  {t("storage.purgeInvoiceFiles", { size: formatBytes(data.invoiceBytes) })}
+                  {t("storage.purgeInvoiceFiles", { size: formatBytes(data.invoiceBytes, t) })}
                 </button>
               )}
             </section>

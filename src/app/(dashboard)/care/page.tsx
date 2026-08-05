@@ -14,7 +14,7 @@ import { Topbar } from "@/components/layout/Topbar";
 import axios from "axios";
 import { describeApiError } from "@/lib/api-error";
 import { CareReportModal } from "@/components/care/CareReportModal";
-import { CARE_REPORT_TYPES, CARE_TYPE_LABELS, CARE_TYPE_COLORS } from "@/lib/care-reports";
+import { CARE_REPORT_TYPES, CARE_TYPE_LABEL_KEYS, CARE_TYPE_COLORS } from "@/lib/care-reports";
 import { Icon, CARE_TYPE_ICON_NAMES } from "@/components/ui/Icon";
 import { formatAst } from "@/lib/datetime";
 import type { CareReportType } from "@/generated/prisma/enums";
@@ -230,7 +230,7 @@ export default function CarePage() {
                   className={CARE_TYPE_COLORS[type]}
                 />
                 <span className="text-xs font-medium text-[#111111] text-center leading-tight">
-                  {CARE_TYPE_LABELS[type]}
+                  {t(CARE_TYPE_LABEL_KEYS[type])}
                 </span>
               </button>
             ))}

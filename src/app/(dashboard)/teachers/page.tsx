@@ -8,7 +8,7 @@ import { AvatarPlaceholder } from "@/components/ui/IconPlaceholder";
 import { PeriodBadge } from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { formatTime } from "@/lib/utils";
-import { useT } from "@/lib/i18n-provider";
+import { useT, useLocale } from "@/lib/i18n-provider";
 
 interface TodayAttendance {
   id: string;
@@ -46,6 +46,7 @@ function LiveTimer({ from }: { from: string }) {
 }
 
 export default function TeachersPage() {
+  const { locale } = useLocale();
   // Locale-aware translation — see src/lib/i18n.tsx.
   const t = useT();
   const router = useRouter();
@@ -332,13 +333,13 @@ export default function TeachersPage() {
                         <td className="px-4 py-3 text-xs">
                           {checkedIn && !checkedOut && att?.checkinAt ? (
                             <div className="flex flex-col gap-0.5">
-                              <span className="text-gray-500">{formatTime(att.checkinAt)}</span>
+                              <span className="text-gray-500">{formatTime(att.checkinAt, locale)}</span>
                               <LiveTimer from={att.checkinAt} />
                             </div>
                           ) : checkedIn && checkedOut && att?.checkoutAt ? (
                             <div className="flex flex-col gap-0.5">
-                              <span className="text-gray-500">{formatTime(att.checkinAt!)}</span>
-                              <span className="text-gray-400">{t("teachers.leftAt", { time: formatTime(att.checkoutAt) })}</span>
+                              <span className="text-gray-500">{formatTime(att.checkinAt!, locale)}</span>
+                              <span className="text-gray-400">{t("teachers.leftAt", { time: formatTime(att.checkoutAt, locale) })}</span>
                             </div>
                           ) : (
                             <span className="text-gray-400">—</span>

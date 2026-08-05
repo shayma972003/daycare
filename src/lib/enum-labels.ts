@@ -92,6 +92,21 @@ export const EMPLOYMENT_STATUS_LABELS: Record<EmploymentStatus, string> = {
   CONTRACT_ENDED: "انتهى العقد",
 };
 
+/** For components. The resolved tables above stay for logs and notifications. */
+export const STUDENT_STATUS_LABEL_KEYS: Record<StudentStatus, string> = {
+  ACTIVE: "studentStatus.ACTIVE",
+  GRADUATED: "studentStatus.GRADUATED",
+  WITHDRAWN: "studentStatus.WITHDRAWN",
+  TRANSFERRED: "studentStatus.TRANSFERRED",
+};
+
+export const EMPLOYMENT_STATUS_LABEL_KEYS: Record<EmploymentStatus, string> = {
+  ACTIVE: "employmentStatus.ACTIVE",
+  RESIGNED: "employmentStatus.RESIGNED",
+  TERMINATED: "employmentStatus.TERMINATED",
+  CONTRACT_ENDED: "employmentStatus.CONTRACT_ENDED",
+};
+
 export const ANONYMIZED_ENTITY_LABELS: Record<AnonymizedEntity, string> = {
   STUDENT: "طفل",
   TEACHER: "موظف",

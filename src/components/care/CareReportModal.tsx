@@ -17,12 +17,12 @@ import axios from "axios";
 import { describeApiError } from "@/lib/api-error";
 import { Icon, CARE_TYPE_ICON_NAMES } from "@/components/ui/Icon";
 import {
-  CARE_TYPE_LABELS,
+  CARE_TYPE_LABEL_KEYS,
   CARE_TYPE_COLORS,
-  MEAL_AMOUNT_LABELS,
-  TOILET_KIND_LABELS,
-  MOOD_LABELS,
-  SUPPLY_URGENCY_LABELS,
+  MEAL_AMOUNT_LABEL_KEYS,
+  TOILET_KIND_LABEL_KEYS,
+  MOOD_LABEL_KEYS,
+  SUPPLY_URGENCY_LABEL_KEYS,
 } from "@/lib/care-reports";
 import type { CareReportType } from "@/generated/prisma/enums";
 import { useT } from "@/lib/i18n-provider";
@@ -151,7 +151,7 @@ export function CareReportModal({
         <div className="sticky top-0 bg-white border-b border-gray-100 px-5 py-4 flex items-center gap-3">
           <Icon name={CARE_TYPE_ICON_NAMES[type]} size={24} className={CARE_TYPE_COLORS[type]} />
           <div className="flex-1">
-            <h3 className="font-bold text-[#111111]">{CARE_TYPE_LABELS[type]}</h3>
+            <h3 className="font-bold text-[#111111]">{t(CARE_TYPE_LABEL_KEYS[type])}</h3>
             <p className="text-xs text-gray-500">{studentLabel}</p>
           </div>
           <button onClick={onClose} className="text-gray-400 text-xl leading-none px-2">
@@ -190,7 +190,7 @@ export function CareReportModal({
               </Field>
               <Field label={t("careForm.amount")}>
                 <ChoiceRow
-                  options={MEAL_AMOUNT_LABELS}
+                  options={MEAL_AMOUNT_LABEL_KEYS}
                   value={fields.mealAmount}
                   onChange={(v) => set("mealAmount", v)}
                 />
@@ -236,7 +236,7 @@ export function CareReportModal({
             <>
               <Field label={t("careForm.kind")}>
                 <ChoiceRow
-                  options={TOILET_KIND_LABELS}
+                  options={TOILET_KIND_LABEL_KEYS}
                   value={fields.toiletKind}
                   onChange={(v) => set("toiletKind", v)}
                 />
@@ -254,7 +254,7 @@ export function CareReportModal({
           {type === "MOOD" && (
             <Field label={t("careForm.mood")}>
               <ChoiceRow
-                options={MOOD_LABELS}
+                options={MOOD_LABEL_KEYS}
                 value={fields.mood}
                 onChange={(v) => set("mood", v)}
               />
@@ -340,7 +340,7 @@ export function CareReportModal({
               </Field>
               <Field label={t("careForm.urgency")}>
                 <ChoiceRow
-                  options={SUPPLY_URGENCY_LABELS}
+                  options={SUPPLY_URGENCY_LABEL_KEYS}
                   value={fields.supplyUrgency}
                   onChange={(v) => set("supplyUrgency", v)}
                 />
@@ -447,13 +447,15 @@ function ChoiceRow({
   value,
   onChange,
 }: {
+  /** Enum value -> dictionary key. The enum is what gets stored. */
   options: Record<string, string>;
   value?: string;
   onChange: (value: string) => void;
 }) {
+  const t = useT();
   return (
     <div className="flex flex-wrap gap-2">
-      {Object.entries(options).map(([key, label]) => (
+      {Object.entries(options).map(([key, labelKey]) => (
         <button
           key={key}
           type="button"
@@ -464,7 +466,7 @@ function ChoiceRow({
               : "bg-gray-50 text-gray-700 hover:bg-gray-100"
           }`}
         >
-          {label}
+          {t(labelKey)}
         </button>
       ))}
     </div>

@@ -12,7 +12,7 @@ import { useCallback, useEffect, useState } from "react";
 import axios from "axios";
 import { Topbar } from "@/components/layout/Topbar";
 import { describeApiError } from "@/lib/api-error";
-import { WEEKDAY_LABELS } from "@/lib/attendance-schedule";
+import { WEEKDAY_LABEL_KEYS } from "@/lib/attendance-schedule";
 import { useT } from "@/lib/i18n-provider";
 
 interface Teacher {
@@ -167,7 +167,7 @@ export default function ShiftsPage() {
                   {data.days.map((date) => (
                     <th key={date} className="px-2 py-2 text-center border-b border-gray-100">
                       <div className="text-gray-600 font-medium">
-                        {WEEKDAY_LABELS[new Date(`${date}T00:00:00Z`).getUTCDay()]}
+                        {t(WEEKDAY_LABEL_KEYS[new Date(`${date}T00:00:00Z`).getUTCDay()])}
                       </div>
                       <div className="text-[11px] text-gray-400">{date.slice(5)}</div>
                     </th>

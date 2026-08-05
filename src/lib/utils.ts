@@ -65,6 +65,11 @@ export function formatTime(
  * product is Latin, and a figure that changes shape depending on which helper
  * printed it is worse than either choice consistently applied.
  */
-export function formatCurrency(amount: number): string {
-  return `${amount.toLocaleString("ar-SA-u-nu-latn")} ر.س`;
+/**
+ * `nu-latn` on both branches: the figures are the same number either way, and
+ * a screen mixing "١٬٢٠٠" with "1,200" reads as two different amounts.
+ */
+export function formatCurrency(amount: number, locale: "ar" | "en" = "ar"): string {
+  const value = amount.toLocaleString(locale === "en" ? "en-US" : "ar-SA-u-nu-latn");
+  return locale === "en" ? `${value} SAR` : `${value} ر.س`;
 }

@@ -2,7 +2,7 @@
 
 import { formatDate } from "@/lib/utils";
 import { PeriodBadge } from "@/components/ui/StatusBadge";
-import { useT } from "@/lib/i18n-provider";
+import { useT, useLocale } from "@/lib/i18n-provider";
 import { useStageName } from "@/lib/use-academic-stages";
 
 export interface Activity {
@@ -27,6 +27,7 @@ interface ActivityGridProps {
 }
 
 export function ActivityGrid({ activities, onAdd, onSelect }: ActivityGridProps) {
+  const { locale } = useLocale();
   // Locale-aware translation — see src/lib/i18n.tsx.
   const t = useT();
   const stageName = useStageName();
@@ -104,13 +105,13 @@ export function ActivityGrid({ activities, onAdd, onSelect }: ActivityGridProps)
                 {activity.startDate && (
                   <>
                     <span>{t("home.from")} </span>
-                    {formatDate(activity.startDate)}
+                    {formatDate(activity.startDate, locale)}
                   </>
                 )}
                 {activity.endDate && (
                   <>
                     <span> {t("home.to")} </span>
-                    {formatDate(activity.endDate)}
+                    {formatDate(activity.endDate, locale)}
                   </>
                 )}
               </p>

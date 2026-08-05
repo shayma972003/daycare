@@ -11,7 +11,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { describeApiError } from "@/lib/api-error";
-import { CARE_TYPE_COLORS, CARE_TYPE_LABELS } from "@/lib/care-reports";
+import { CARE_TYPE_COLORS, CARE_TYPE_LABEL_KEYS } from "@/lib/care-reports";
 import { Icon, CARE_TYPE_ICON_NAMES } from "@/components/ui/Icon";
 import { formatAst, astDayStart } from "@/lib/datetime";
 import type { CareReportType } from "@/generated/prisma/enums";
@@ -107,7 +107,7 @@ export function StudentCareFeed({ studentId }: { studentId: string }) {
                   />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-[#111111]">
-                      <span className="text-gray-500">{CARE_TYPE_LABELS[report.type]}: </span>
+                      <span className="text-gray-500">{t(CARE_TYPE_LABEL_KEYS[report.type])}: </span>
                       {report.summary}
                     </p>
                     {report.note && (

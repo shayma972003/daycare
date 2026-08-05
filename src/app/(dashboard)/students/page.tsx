@@ -12,6 +12,7 @@ import { PAYMENT_STATUSES } from "@/lib/payment-status";
 import { describeApiError } from "@/lib/api-error";
 import { useT, useLocale } from "@/lib/i18n-provider";
 import { useAcademicStages, useStageName } from "@/lib/use-academic-stages";
+import { formatAst } from "@/lib/datetime";
 
 type Student = {
   id: string;
@@ -394,7 +395,7 @@ export default function StudentsPage() {
                         <td className="px-4 py-3 text-gray-600 font-mono text-xs" dir="ltr">{sub.guardian_phone_1 ?? "—"}</td>
                         <td className="px-4 py-3 text-gray-600">{sub.attendance_type ?? "—"}</td>
                         <td className="px-4 py-3 text-gray-400 text-xs">
-                          {new Date(sub.submitted_at).toLocaleDateString("ar-SA", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                          {formatAst(new Date(sub.submitted_at), { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }, locale)}
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">

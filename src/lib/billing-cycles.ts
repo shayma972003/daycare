@@ -25,6 +25,14 @@ export const BILLING_CYCLE_LABELS: Record<BillingCycle, string> = {
   CUSTOM: "مخصص",
 };
 
+export const BILLING_CYCLE_LABEL_KEYS: Record<BillingCycle, string> = {
+  DAILY: "billingCycle.DAILY",
+  WEEKLY: "billingCycle.WEEKLY",
+  MONTHLY: "billingCycle.MONTHLY",
+  YEARLY: "billingCycle.YEARLY",
+  CUSTOM: "billingCycle.CUSTOM",
+};
+
 /**
  * The nth due date after a start date.
  *

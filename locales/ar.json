@@ -1238,5 +1238,100 @@
   "layout": {
     "schoolLogo": "شعار المدرسة",
     "kioskPage": "صفحة تسجيل الدخول والخروج"
+  },
+  "careTypes": {
+    "MEAL": "وجبات الطعام",
+    "NAP": "النوم والغفوات",
+    "TOILET": "دورة المياه والحفاض",
+    "MOOD": "الحالة المزاجية",
+    "MEDICATION": "الدواء",
+    "HEALTH": "الصحة العامة",
+    "SUPPLIES": "طلب مستلزمات",
+    "GENERAL": "عام"
+  },
+  "mealAmount": {
+    "ALL": "الكل",
+    "HALF": "نصف",
+    "LITTLE": "قليل",
+    "REFUSED": "رفض"
+  },
+  "toiletKind": {
+    "DIAPER": "حفاض",
+    "POTTY": "حمّام"
+  },
+  "mood": {
+    "HAPPY": "سعيد",
+    "CALM": "هادئ",
+    "TIRED": "متعب",
+    "UPSET": "منزعج",
+    "CRYING": "يبكي",
+    "UNWELL": "متوعّك"
+  },
+  "supplyUrgency": {
+    "NORMAL": "عادي",
+    "SOON": "قريباً",
+    "URGENT": "عاجل"
+  },
+  "calendarView": {
+    "day": "يوم",
+    "week": "أسبوع",
+    "month": "شهر"
+  },
+  "weekday": {
+    "SUN": "الأحد",
+    "MON": "الإثنين",
+    "TUE": "الثلاثاء",
+    "WED": "الأربعاء",
+    "THU": "الخميس",
+    "FRI": "الجمعة",
+    "SAT": "السبت"
+  },
+  "ageGroup": {
+    "AGE_0_6M": "0-6 شهور",
+    "AGE_6_12M": "6 شهور - سنة",
+    "AGE_1_2Y": "سنة - سنتين",
+    "AGE_2_3Y": "سنتان - 3 سنوات",
+    "AGE_3_4Y": "3 - 4 سنوات"
+  },
+  "attendanceState": {
+    "PRESENT": "حاضر",
+    "ABSENT": "غائب",
+    "LEAVE": "إجازة",
+    "CHECKED_OUT": "منصرف",
+    "NO_RECORD": "لا يوجد سجل"
+  },
+  "billingCycle": {
+    "DAILY": "يومي",
+    "WEEKLY": "أسبوعي",
+    "MONTHLY": "شهري",
+    "YEARLY": "سنوي",
+    "CUSTOM": "مخصص"
+  },
+  "bytes": {
+    "b": "{n} بايت",
+    "kb": "{n} كيلوبايت",
+    "mb": "{n} ميغابايت",
+    "gb": "{n} غيغابايت"
+  },
+  "storageCategory": {
+    "studentFilesBytes": "ملفات الأطفال",
+    "careReportBytes": "صور تقارير الرعاية",
+    "staffFilesBytes": "ملفات الطاقم",
+    "unitFilesBytes": "ملفات الوحدات",
+    "invoiceBytes": "الفواتير",
+    "otherBytes": "أخرى",
+    "totalBytes": "الإجمالي"
+  },
+  "studentStatus": {
+    "ACTIVE": "مُسجَّل",
+    "GRADUATED": "متخرّج",
+    "WITHDRAWN": "منسحب",
+    "TRANSFERRED": "منقول"
+  },
+  "employmentStatus": {
+    "ACTIVE": "على رأس العمل",
+    "RESIGNED": "مستقيل",
+    "TERMINATED": "منتهية خدماته",
+    "CONTRACT_ENDED": "انتهى العقد"
   }
 }

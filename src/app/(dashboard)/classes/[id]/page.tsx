@@ -6,8 +6,9 @@ import axios from "axios";
 import { Topbar } from "@/components/layout/Topbar";
 import { PeriodBadge } from "@/components/ui/StatusBadge";
 import { ClassDeleteConfirmModal } from "@/components/classes/ClassDeleteConfirmModal";
-import { useT } from "@/lib/i18n-provider";
+import { useT, useLocale } from "@/lib/i18n-provider";
 import { useAcademicStages, useStageName } from "@/lib/use-academic-stages";
+import { formatAst } from "@/lib/datetime";
 
 
 type Teacher = { id: string; name: string };
@@ -46,6 +47,7 @@ export default function ClassProfilePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const { locale } = useLocale();
   // Locale-aware translation — see src/lib/i18n.tsx.
   const t = useT();
   const { stages } = useAcademicStages();
@@ -459,7 +461,7 @@ export default function ClassProfilePage({
                 />
               ) : (
                 <p className="text-sm text-gray-700">
-                  {cls.registrationDate ? new Date(cls.registrationDate).toLocaleDateString("ar-SA") : "—"}
+                  {cls.registrationDate ? formatAst(new Date(cls.registrationDate), { year: "numeric", month: "2-digit", day: "2-digit" }, locale) : "—"}
                 </p>
               )}
             </div>

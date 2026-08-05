@@ -4,7 +4,8 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
 import { Topbar } from "@/components/layout/Topbar";
-import { useT } from "@/lib/i18n-provider";
+import { useT, useLocale } from "@/lib/i18n-provider";
+import { formatAst } from "@/lib/datetime";
 
 interface LogEntry {
   id: string;
@@ -34,6 +35,7 @@ const ENTITY_TYPE_KEYS: Record<string, string> = {
 const PAGE_SIZE = 50;
 
 export default function ActivityLogsPage() {
+  const { locale } = useLocale();
   const t = useT();
   const router = useRouter();
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -165,8 +167,8 @@ export default function ActivityLogsPage() {
 
                     <div className="text-left flex-shrink-0">
                       <p className="text-gray-400 text-xs">
-                        {new Date(log.created_at).toLocaleDateString("ar-SA")}{" "}
-                        {new Date(log.created_at).toLocaleTimeString("ar-SA")}
+                        {formatAst(new Date(log.created_at), { year: "numeric", month: "2-digit", day: "2-digit" }, locale)}{" "}
+                        {formatAst(new Date(log.created_at), { hour: "2-digit", minute: "2-digit" }, locale)}
                       </p>
                       <p className="text-gray-400 text-xs mt-0.5">{log.performed_by}</p>
                       {log.device_info && <p className="text-gray-300 text-xs mt-0.5">{log.device_info}</p>}

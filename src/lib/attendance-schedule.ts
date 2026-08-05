@@ -21,6 +21,14 @@ export const AGE_GROUP_LABELS: Record<AgeGroup, string> = {
   AGE_3_4Y: "3 - 4 سنوات",
 };
 
+export const AGE_GROUP_LABEL_KEYS: Record<AgeGroup, string> = {
+  AGE_0_6M: "ageGroup.AGE_0_6M",
+  AGE_6_12M: "ageGroup.AGE_6_12M",
+  AGE_1_2Y: "ageGroup.AGE_1_2Y",
+  AGE_2_3Y: "ageGroup.AGE_2_3Y",
+  AGE_3_4Y: "ageGroup.AGE_3_4Y",
+};
+
 /** Upper bound of each band in months, used to place a child by date of birth. */
 const AGE_GROUP_MAX_MONTHS: Record<AgeGroup, number> = {
   AGE_0_6M: 6,
@@ -60,6 +68,15 @@ export const ATTENDANCE_STATUS_LABELS: Record<AttendanceStatus, string> = {
   NO_RECORD: "لا يوجد سجل",
 };
 
+/** For components. The resolved table above stays for activity-log entries. */
+export const ATTENDANCE_STATUS_LABEL_KEYS: Record<AttendanceStatus, string> = {
+  PRESENT: "attendanceState.PRESENT",
+  ABSENT: "attendanceState.ABSENT",
+  LEAVE: "attendanceState.LEAVE",
+  CHECKED_OUT: "attendanceState.CHECKED_OUT",
+  NO_RECORD: "attendanceState.NO_RECORD",
+};
+
 /** Tailwind classes per state, so the colour vocabulary is defined once. */
 export const ATTENDANCE_STATUS_COLORS: Record<AttendanceStatus, string> = {
   PRESENT: "text-emerald-600",
@@ -83,6 +100,17 @@ export const WEEKDAY_LABELS = [
   "الخميس",
   "الجمعة",
   "السبت",
+];
+
+/** Same order, as dictionary keys, for anything a component renders. */
+export const WEEKDAY_LABEL_KEYS = [
+  "weekday.SUN",
+  "weekday.MON",
+  "weekday.TUE",
+  "weekday.WED",
+  "weekday.THU",
+  "weekday.FRI",
+  "weekday.SAT",
 ];
 
 /** Sunday–Thursday. */

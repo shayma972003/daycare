@@ -14,13 +14,13 @@ import axios from "axios";
 import { Topbar } from "@/components/layout/Topbar";
 import { describeApiError } from "@/lib/api-error";
 import { formatAst, astParts } from "@/lib/datetime";
-import { WEEKDAY_LABELS } from "@/lib/attendance-schedule";
+import { WEEKDAY_LABEL_KEYS } from "@/lib/attendance-schedule";
 import {
   rangeFor,
   shiftAnchor,
   isSameAstDay,
   isSameAstMonth,
-  CALENDAR_VIEW_LABELS,
+  CALENDAR_VIEW_LABEL_KEYS,
   EVENT_TYPE_LABEL_KEYS,
   EVENT_TYPE_STYLES,
   DAY_START_HOUR,
@@ -29,7 +29,7 @@ import {
 } from "@/lib/calendar";
 import { CalendarEventModal } from "@/components/calendar/CalendarEventModal";
 import type { CalendarEventType } from "@/generated/prisma/enums";
-import { useT } from "@/lib/i18n-provider";
+import { useT, useLocale } from "@/lib/i18n-provider";
 
 interface EventRow {
   id: string;
@@ -53,6 +53,9 @@ interface Option {
 export default function CalendarPage() {
   // Locale-aware translation — see src/lib/i18n.ts.
   const t = useT();
+  // The header range is built by Intl, which needs the language told to it —
+  // otherwise the month and weekday names follow the host and stay Arabic.
+  const { locale } = useLocale();
   const [view, setView] = useState<CalendarView>("week");
   const [anchor, setAnchor] = useState(() => new Date());
   const [events, setEvents] = useState<EventRow[]>([]);
@@ -137,12 +140,13 @@ export default function CalendarPage() {
 
   const periodLabel =
     view === "month"
-      ? formatAst(anchor, { year: "numeric", month: "long" })
+      ? formatAst(anchor, { year: "numeric", month: "long" }, locale)
       : view === "day"
-        ? formatAst(anchor, { weekday: "long", year: "numeric", month: "long", day: "numeric" })
-        : `${formatAst(range.days[0], { month: "short", day: "numeric" })} — ${formatAst(
+        ? formatAst(anchor, { weekday: "long", year: "numeric", month: "long", day: "numeric" }, locale)
+        : `${formatAst(range.days[0], { month: "short", day: "numeric" }, locale)} — ${formatAst(
             range.days[6],
-            { month: "short", day: "numeric" }
+            { month: "short", day: "numeric" },
+            locale
           )}`;
 
   return (
@@ -166,7 +170,7 @@ export default function CalendarPage() {
                   view === option ? "bg-white shadow text-[#111111]" : "text-gray-500"
                 }`}
               >
-                {CALENDAR_VIEW_LABELS[option]}
+                {t(CALENDAR_VIEW_LABEL_KEYS[option])}
               </button>
             ))}
           </div>
@@ -274,6 +278,7 @@ function HourGrid({
   onSelect: (event: EventRow) => void;
   onCreate: (day: Date) => void;
 }) {
+  const t = useT();
   return (
     <div className="min-w-[640px]">
       <div
@@ -284,7 +289,7 @@ function HourGrid({
         {days.map((day) => (
           <div key={day.toISOString()} className="text-center py-2">
             <div className="text-xs text-gray-500">
-              {WEEKDAY_LABELS[new Date(Date.UTC(astParts(day).year, astParts(day).month, astParts(day).day)).getUTCDay()]}
+              {t(WEEKDAY_LABEL_KEYS[new Date(Date.UTC(astParts(day).year, astParts(day).month, astParts(day).day)).getUTCDay()])}
             </div>
             <div
               className={`text-sm font-medium ${
@@ -363,9 +368,9 @@ function MonthGrid({
   return (
     <div className="min-w-[640px]">
       <div className="grid grid-cols-7 border-b border-gray-100">
-        {WEEKDAY_LABELS.map((label) => (
-          <div key={label} className="text-center text-xs text-gray-500 py-2">
-            {label}
+        {WEEKDAY_LABEL_KEYS.map((key) => (
+          <div key={key} className="text-center text-xs text-gray-500 py-2">
+            {t(key)}
           </div>
         ))}
       </div>

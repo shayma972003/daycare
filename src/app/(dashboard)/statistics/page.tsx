@@ -5,7 +5,8 @@ import axios from "axios";
 import { Topbar } from "@/components/layout/Topbar";
 import { formatCurrency } from "@/lib/utils";
 import { describeApiError } from "@/lib/api-error";
-import { useT } from "@/lib/i18n-provider";
+import { useT, useLocale } from "@/lib/i18n-provider";
+import { formatAst } from "@/lib/datetime";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -48,6 +49,7 @@ interface Report {
 }
 
 function DetailList({ rows, emptyText }: { rows: { label: string; date: string; amount: number }[]; emptyText: string }) {
+  const { locale } = useLocale();
   const t = useT();
   if (rows.length === 0) return <p className="text-sm text-gray-400 text-center py-6">{emptyText}</p>;
   const sorted = [...rows].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -65,8 +67,8 @@ function DetailList({ rows, emptyText }: { rows: { label: string; date: string; 
           {sorted.map((r, i) => (
             <tr key={i}>
               <td className="px-4 py-2 text-gray-800">{r.label}</td>
-              <td className="px-4 py-2 text-gray-500">{new Date(r.date).toLocaleDateString("ar-SA")}</td>
-              <td className="px-4 py-2 font-bold text-gray-900">{formatCurrency(r.amount)}</td>
+              <td className="px-4 py-2 text-gray-500">{formatAst(new Date(r.date), { year: "numeric", month: "2-digit", day: "2-digit" }, locale)}</td>
+              <td className="px-4 py-2 font-bold text-gray-900">{formatCurrency(r.amount, locale)}</td>
             </tr>
           ))}
         </tbody>
@@ -312,6 +314,7 @@ function SummaryRow({ label, value, valueClass }: { label: string; value: string
 }
 
 function SummaryTab() {
+  const { locale } = useLocale();
   // Each component calls the hook itself rather than receiving `t` as a prop —
   // threading it through would make every one of these signatures about
   // translation.
@@ -442,17 +445,17 @@ function SummaryTab() {
 
       {/* المالية — top KPI cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard label={t("finance.revenues")} value={formatCurrency(summary.revenue.total)} colorClass="text-emerald-600" bgClass="bg-emerald-50" />
-        <KpiCard label={t("finance.expenses")} value={formatCurrency(summary.expenses.total)} colorClass="text-orange-500" bgClass="bg-orange-50" />
-        <KpiCard label={t("finance.netIncome")} value={formatCurrency(summary.netIncome)} colorClass={summary.netIncome >= 0 ? "text-emerald-600" : "text-red-500"} bgClass={summary.netIncome >= 0 ? "bg-emerald-50" : "bg-red-50"} />
-        <KpiCard label={t("finance.outstanding")} value={formatCurrency(summary.amountDue)} colorClass="text-purple-600" bgClass="bg-purple-50" />
+        <KpiCard label={t("finance.revenues")} value={formatCurrency(summary.revenue.total, locale)} colorClass="text-emerald-600" bgClass="bg-emerald-50" />
+        <KpiCard label={t("finance.expenses")} value={formatCurrency(summary.expenses.total, locale)} colorClass="text-orange-500" bgClass="bg-orange-50" />
+        <KpiCard label={t("finance.netIncome")} value={formatCurrency(summary.netIncome, locale)} colorClass={summary.netIncome >= 0 ? "text-emerald-600" : "text-red-500"} bgClass={summary.netIncome >= 0 ? "bg-emerald-50" : "bg-red-50"} />
+        <KpiCard label={t("finance.outstanding")} value={formatCurrency(summary.amountDue, locale)} colorClass="text-purple-600" bgClass="bg-purple-50" />
       </div>
 
       {/* الأداء المالي */}
       <SectionCard title={t("finance.performance")}>
-        <SummaryRow label={t("finance.revenues")} value={formatCurrency(summary.revenue.total)} valueClass="text-emerald-600" />
-        <SummaryRow label={t("finance.expenses")} value={formatCurrency(summary.expenses.total)} valueClass="text-orange-500" />
-        <SummaryRow label={t("finance.netIncome")} value={formatCurrency(summary.netIncome)} valueClass={summary.netIncome >= 0 ? "text-emerald-600" : "text-red-500"} />
+        <SummaryRow label={t("finance.revenues")} value={formatCurrency(summary.revenue.total, locale)} valueClass="text-emerald-600" />
+        <SummaryRow label={t("finance.expenses")} value={formatCurrency(summary.expenses.total, locale)} valueClass="text-orange-500" />
+        <SummaryRow label={t("finance.netIncome")} value={formatCurrency(summary.netIncome, locale)} valueClass={summary.netIncome >= 0 ? "text-emerald-600" : "text-red-500"} />
         <div className="pt-3 border-t border-gray-100 space-y-2">
           <p className="text-xs text-gray-400">{t("finance.vsPrevious")}</p>
           <div className="flex items-center justify-between text-sm">
@@ -469,13 +472,13 @@ function SummaryTab() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* الإيرادات breakdown */}
         <SectionCard title={t("finance.revenues")}>
-          <SummaryRow label={t("finance.monthlyFees")} value={formatCurrency(summary.revenue.monthlyFees)} />
-          <SummaryRow label={t("finance.lateFees")} value={formatCurrency(summary.revenue.lateFees)} />
-          <SummaryRow label={t("finance.registrationCollected")} value={formatCurrency(summary.revenue.registrationFeesCollected)} />
-          <SummaryRow label={t("finance.activityFees")} value={formatCurrency(summary.revenue.activities)} />
-          <SummaryRow label={t("finance.vatCollected")} value={formatCurrency(summary.revenue.vatCollected)} />
+          <SummaryRow label={t("finance.monthlyFees")} value={formatCurrency(summary.revenue.monthlyFees, locale)} />
+          <SummaryRow label={t("finance.lateFees")} value={formatCurrency(summary.revenue.lateFees, locale)} />
+          <SummaryRow label={t("finance.registrationCollected")} value={formatCurrency(summary.revenue.registrationFeesCollected, locale)} />
+          <SummaryRow label={t("finance.activityFees")} value={formatCurrency(summary.revenue.activities, locale)} />
+          <SummaryRow label={t("finance.vatCollected")} value={formatCurrency(summary.revenue.vatCollected, locale)} />
           <div className="pt-2 border-t border-gray-100">
-            <SummaryRow label={t("finance.totalRevenue")} value={formatCurrency(summary.revenue.total)} valueClass="text-emerald-600" />
+            <SummaryRow label={t("finance.totalRevenue")} value={formatCurrency(summary.revenue.total, locale)} valueClass="text-emerald-600" />
           </div>
         </SectionCard>
 
@@ -485,52 +488,52 @@ function SummaryTab() {
             <div className="text-left">
               <div className="flex flex-col gap-0.5">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-bold text-emerald-600">{formatCurrency(summary.collection.paid)}</span>
+                  <span className="text-sm font-bold text-emerald-600">{formatCurrency(summary.collection.paid, locale)}</span>
                   <span className="text-xs text-gray-400">{t("finance.netTotal")}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-bold text-emerald-600">{formatCurrency(summary.collection.paidWithVat)}</span>
+                  <span className="text-sm font-bold text-emerald-600">{formatCurrency(summary.collection.paidWithVat, locale)}</span>
                   <span className="text-xs text-gray-400">{t("finance.vatIncluded")}</span>
                 </div>
               </div>
             </div>
             <span className="text-sm text-gray-500">{t("finance.paidCount", { n: String(summary.collection.paidCount) })}</span>
           </div>
-          <SummaryRow label={t("finance.lateCount", { n: String(summary.collection.lateCount) })} value={formatCurrency(summary.collection.late)} valueClass="text-red-500" />
-          <SummaryRow label={t("finance.pendingCount", { n: String(summary.collection.pendingCount) })} value={formatCurrency(summary.collection.pending)} valueClass="text-amber-500" />
+          <SummaryRow label={t("finance.lateCount", { n: String(summary.collection.lateCount) })} value={formatCurrency(summary.collection.late, locale)} valueClass="text-red-500" />
+          <SummaryRow label={t("finance.pendingCount", { n: String(summary.collection.pendingCount) })} value={formatCurrency(summary.collection.pending, locale)} valueClass="text-amber-500" />
         </SectionCard>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* المصروفات breakdown */}
         <SectionCard title={t("finance.expenses")}>
-          <SummaryRow label={t("finance.salaries")} value={formatCurrency(summary.expenses.salaries)} />
+          <SummaryRow label={t("finance.salaries")} value={formatCurrency(summary.expenses.salaries, locale)} />
           {summary.expenses.manual.length === 0 ? (
             <p className="text-xs text-gray-400 py-2">{t("finance.noManualExpenses")}</p>
           ) : (
-            summary.expenses.manual.map((e, i) => <SummaryRow key={i} label={e.title} value={formatCurrency(e.amount)} />)
+            summary.expenses.manual.map((e, i) => <SummaryRow key={i} label={e.title} value={formatCurrency(e.amount, locale)} />)
           )}
           <div className="pt-2 border-t border-gray-100">
-            <SummaryRow label={t("finance.totalExpenses")} value={formatCurrency(summary.expenses.total)} valueClass="text-orange-500" />
+            <SummaryRow label={t("finance.totalExpenses")} value={formatCurrency(summary.expenses.total, locale)} valueClass="text-orange-500" />
           </div>
         </SectionCard>
 
         {/* الرواتب */}
         <SectionCard title={t("finance.salaries")}>
-          <SummaryRow label={t("finance.totalSalaries")} value={formatCurrency(summary.salaries.totalBudgeted)} />
-          <SummaryRow label={t("finance.expenseRow")} value={formatCurrency(summary.salaries.paid)} valueClass="text-emerald-600" />
-          <SummaryRow label={t("finance.remaining")} value={formatCurrency(summary.salaries.remaining)} valueClass="text-amber-500" />
+          <SummaryRow label={t("finance.totalSalaries")} value={formatCurrency(summary.salaries.totalBudgeted, locale)} />
+          <SummaryRow label={t("finance.expenseRow")} value={formatCurrency(summary.salaries.paid, locale)} valueClass="text-emerald-600" />
+          <SummaryRow label={t("finance.remaining")} value={formatCurrency(summary.salaries.remaining, locale)} valueClass="text-amber-500" />
         </SectionCard>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* التدفق النقدي */}
         <SectionCard title={t("finance.cashFlow")}>
-          <SummaryRow label={t("finance.openingBalance")} value={formatCurrency(summary.cashFlow.openingBalance)} />
-          <SummaryRow label={t("finance.receipts")} value={`+ ${formatCurrency(summary.cashFlow.inflows)}`} valueClass="text-emerald-600" />
-          <SummaryRow label={t("finance.expenses")} value={`- ${formatCurrency(summary.cashFlow.outflows)}`} valueClass="text-red-500" />
+          <SummaryRow label={t("finance.openingBalance")} value={formatCurrency(summary.cashFlow.openingBalance, locale)} />
+          <SummaryRow label={t("finance.receipts")} value={`+ ${formatCurrency(summary.cashFlow.inflows, locale)}`} valueClass="text-emerald-600" />
+          <SummaryRow label={t("finance.expenses")} value={`- ${formatCurrency(summary.cashFlow.outflows, locale)}`} valueClass="text-red-500" />
           <div className="pt-2 border-t border-gray-100">
-            <SummaryRow label={t("finance.currentBalance")} value={formatCurrency(summary.cashFlow.closingBalance)} valueClass={summary.cashFlow.closingBalance >= 0 ? "text-emerald-600" : "text-red-500"} />
+            <SummaryRow label={t("finance.currentBalance")} value={formatCurrency(summary.cashFlow.closingBalance, locale)} valueClass={summary.cashFlow.closingBalance >= 0 ? "text-emerald-600" : "text-red-500"} />
           </div>
         </SectionCard>
       </div>
@@ -588,9 +591,9 @@ function SummaryTab() {
                     <tr key={`${r.kind}-${r.id}`}>
                       <td className="px-4 py-2 text-gray-500">{t(`finance.${r.kind}Row`)}</td>
                       <td className="px-4 py-2 text-gray-800">{r.label}</td>
-                      <td className="px-4 py-2 text-gray-500">{new Date(r.date).toLocaleDateString("ar-SA")}</td>
+                      <td className="px-4 py-2 text-gray-500">{formatAst(new Date(r.date), { year: "numeric", month: "2-digit", day: "2-digit" }, locale)}</td>
                       <td className={`px-4 py-2 font-bold ${r.kind === "revenue" ? "text-emerald-600" : "text-red-500"}`}>
-                        {r.kind === "revenue" ? "+" : "-"} {formatCurrency(r.amount)}
+                        {r.kind === "revenue" ? "+" : "-"} {formatCurrency(r.amount, locale)}
                       </td>
                     </tr>
                   ))}
@@ -625,7 +628,7 @@ function SummaryTab() {
                 <tr key={r.id} className="hover:bg-gray-50/50">
                   <td className="px-5 py-3 text-gray-800 font-medium">{r.name}</td>
                   <td className="px-5 py-3 text-gray-500">{r.period_label}</td>
-                  <td className="px-5 py-3 text-gray-500">{new Date(r.issued_at).toLocaleDateString("ar-SA")}</td>
+                  <td className="px-5 py-3 text-gray-500">{formatAst(new Date(r.issued_at), { year: "numeric", month: "2-digit", day: "2-digit" }, locale)}</td>
                   <td className="px-5 py-3">
                     <div className="flex gap-2">
                       <button onClick={() => { const b64=r.file_url.split(",")[1]; const bytes=Uint8Array.from(atob(b64),(c)=>c.charCodeAt(0)); window.open(URL.createObjectURL(new Blob([bytes],{type:"application/pdf"})),"_blank"); }}
@@ -647,6 +650,7 @@ function SummaryTab() {
 // ── TAB 2: Expenses Management ────────────────────────────────────────────────
 
 function ExpensesTab() {
+  const { locale } = useLocale();
   const t = useT();
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
@@ -764,9 +768,9 @@ function ExpensesTab() {
                       <td className="px-4 py-3 text-gray-600 text-xs">
                         {exp.type === "monthly" ? t("finance.monthlySubscription") : t("finance.onePayment")}
                       </td>
-                      <td className="px-4 py-3 text-gray-800 font-medium">{formatCurrency(exp.amount)}</td>
+                      <td className="px-4 py-3 text-gray-800 font-medium">{formatCurrency(exp.amount, locale)}</td>
                       <td className="px-4 py-3 text-gray-500 text-xs">
-                        {new Date(exp.start_date).toLocaleDateString("ar-SA")}
+                        {formatAst(new Date(exp.start_date), { year: "numeric", month: "2-digit", day: "2-digit" }, locale)}
                       </td>
                       <td className="px-4 py-3">
                         {exp.type === "monthly" ? (
@@ -777,7 +781,7 @@ function ExpensesTab() {
                             }
                             {exp.end_date && (
                               <span className="text-xs text-gray-400">
-                                {t("finance.endsOnLabel")} {new Date(exp.end_date).toLocaleDateString("ar-SA")}
+                                {t("finance.endsOnLabel")} {formatAst(new Date(exp.end_date), { year: "numeric", month: "2-digit", day: "2-digit" }, locale)}
                               </span>
                             )}
                           </div>

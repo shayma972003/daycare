@@ -7,13 +7,13 @@ import { useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { studentFormSchema } from "@/lib/form-schemas";
 import { Topbar } from "@/components/layout/Topbar";
-import { formatDate } from "@/lib/utils";
+import { formatDate, formatCurrency } from "@/lib/utils";
 import { InvoiceModal } from "@/components/students/InvoiceModal";
 import { StudentCareFeed } from "@/components/care/StudentCareFeed";
-import { STUDENT_STATUS_LABELS } from "@/lib/enum-labels";
+import { STUDENT_STATUS_LABEL_KEYS } from "@/lib/enum-labels";
 import { PAYMENT_STATUSES } from "@/lib/payment-status";
 import { astDateInputValue } from "@/lib/datetime";
-import { useT } from "@/lib/i18n-provider";
+import { useT, useLocale } from "@/lib/i18n-provider";
 import { useAcademicStages, useStageName } from "@/lib/use-academic-stages";
 
 /** ACTIVE is excluded: this is the set of reasons a child *leaves*. */
@@ -102,6 +102,7 @@ export default function StudentProfilePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const { locale } = useLocale();
   // Locale-aware translation — see src/lib/i18n.tsx.
   const t = useT();
   const { stages } = useAcademicStages();
@@ -996,7 +997,7 @@ export default function StudentProfilePage({
                 >
                   {DEPARTURE_OPTIONS.map((value) => (
                     <option key={value} value={value}>
-                      {STUDENT_STATUS_LABELS[value]}
+                      {t(STUDENT_STATUS_LABEL_KEYS[value])}
                     </option>
                   ))}
                 </select>
@@ -1166,8 +1167,8 @@ export default function StudentProfilePage({
                 {invoices.map((inv, i) => (
                   <tr key={inv.id} className="border-b border-gray-50 hover:bg-gray-50">
                     <td className="py-2">{i + 1}</td>
-                    <td className="py-2">{formatDate(inv.createdAt)}</td>
-                    <td className="py-2">{inv.amount.toLocaleString("ar-SA")} {t("finance.sar")}</td>
+                    <td className="py-2">{formatDate(inv.createdAt, locale)}</td>
+                    <td className="py-2">{formatCurrency(inv.amount, locale)}</td>
                     <td className="py-2">
                       <div className="flex gap-2">
                         {inv.pdfUrl && (

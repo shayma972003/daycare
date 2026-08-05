@@ -11,10 +11,10 @@ import type { CalendarEventType } from "@/generated/prisma/enums";
 
 export type CalendarView = "day" | "week" | "month";
 
-export const CALENDAR_VIEW_LABELS: Record<CalendarView, string> = {
-  day: "يوم",
-  week: "أسبوع",
-  month: "شهر",
+export const CALENDAR_VIEW_LABEL_KEYS: Record<CalendarView, string> = {
+  day: "calendarView.day",
+  week: "calendarView.week",
+  month: "calendarView.month",
 };
 
 /**

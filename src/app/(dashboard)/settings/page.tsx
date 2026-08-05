@@ -8,8 +8,9 @@ import { DeliveryStatusBadge } from "@/components/ui/StatusBadge";
 
 import { isPasswordAcceptable, PASSWORD_MIN_MESSAGE } from "@/lib/password-policy";
 import { PasswordRules } from "@/components/ui/PasswordRules";
-import { useT } from "@/lib/i18n-provider";
+import { useT, useLocale } from "@/lib/i18n-provider";
 import { AcademicStagesPanel } from "@/components/settings/AcademicStagesPanel";
+import { formatAst } from "@/lib/datetime";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -102,6 +103,7 @@ function FormField({
 // ── Main Page ────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
+  const { locale } = useLocale();
   // Locale-aware translation — see src/lib/i18n.tsx.
   const t = useT();
   const router = useRouter();
@@ -1378,7 +1380,7 @@ export default function SettingsPage() {
                                 <span title={log.content}>{log.content.length > 60 ? log.content.slice(0, 60) + "..." : log.content}</span>
                               </td>
                               <td className="py-3 px-2 text-gray-500 whitespace-nowrap">
-                                {new Date(log.sentAt).toLocaleDateString("ar-SA", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                                {formatAst(new Date(log.sentAt), { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }, locale)}
                               </td>
                               <td className="py-3 px-2"><DeliveryStatusBadge status={log.status} /></td>
                               <td className="py-3 px-2">

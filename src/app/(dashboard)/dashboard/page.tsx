@@ -8,7 +8,8 @@ import { ActivityGrid, type Activity } from "@/components/activities/ActivityGri
 import { AttendanceDonut } from "@/components/attendance/AttendanceDonut";
 import { ActivityFormModal } from "@/components/activities/ActivityFormModal";
 import { DeliveryStatusBadge } from "@/components/ui/StatusBadge";
-import { useT } from "@/lib/i18n-provider";
+import { useT, useLocale } from "@/lib/i18n-provider";
+import { formatAst } from "@/lib/datetime";
 
 
 interface NotificationLog {
@@ -25,6 +26,7 @@ type EnrollmentNotif = { id: string; full_name: string; submitted_at: string };
 const PAGE_SIZE = 15;
 
 export default function HomePage() {
+  const { locale } = useLocale();
   // Locale-aware translation — see src/lib/i18n.tsx.
   const t = useT();
   const router = useRouter();
@@ -206,7 +208,7 @@ export default function HomePage() {
                   <p className="text-sm font-bold text-[#111111]">{t("home.pendingEnrollments")}</p>
                   <p className="text-xs text-gray-500 mt-0.5">
                     {t("home.latestRequest")}: {pendingEnrollments[0]?.full_name} —{" "}
-                    {new Date(pendingEnrollments[0]?.submitted_at).toLocaleString("ar-SA", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                    {formatAst(new Date(pendingEnrollments[0]?.submitted_at), { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }, locale)}
                   </p>
                 </div>
               </div>
@@ -223,7 +225,7 @@ export default function HomePage() {
                   <div key={e.id} className="flex items-center justify-between text-xs text-gray-600 bg-white/60 rounded-lg px-3 py-1.5">
                     <span className="font-medium">{e.full_name}</span>
                     <span className="text-gray-400">
-                      {new Date(e.submitted_at).toLocaleString("ar-SA", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                      {formatAst(new Date(e.submitted_at), { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }, locale)}
                     </span>
                   </div>
                 ))}
@@ -335,7 +337,7 @@ export default function HomePage() {
                                 <span title={log.content}>{log.content.length > 60 ? log.content.slice(0, 60) + "…" : log.content}</span>
                               </td>
                               <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
-                                {new Date(log.sentAt).toLocaleString("ar-SA", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                                {formatAst(new Date(log.sentAt), { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }, locale)}
                               </td>
                               <td className="px-4 py-3"><DeliveryStatusBadge status={log.status} /></td>
                               <td className="px-4 py-3">

@@ -357,6 +357,22 @@ export default function CalendarPage() {
           }}
         />
       )}
+
+      {/* Mounted unconditionally: the form runs its own loaders off `open`, and
+          a conditional wrapper would remount it on every toggle. */}
+      <ActivityFormModal
+        open={activityOpen}
+        activity={activity}
+        onClose={() => {
+          setActivityOpen(false);
+          setActivity(null);
+        }}
+        onSaved={() => {
+          setActivityOpen(false);
+          setActivity(null);
+          load();
+        }}
+      />
     </div>
   );
 }

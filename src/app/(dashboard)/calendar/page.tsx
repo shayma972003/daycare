@@ -160,10 +160,9 @@ export default function CalendarPage() {
    * person being rostered twice. An event table has no such rule.
    */
   useEffect(() => {
-    if (!teacherFilter) {
-      setShifts([]);
-      return;
-    }
+    // No clearing here — `shiftOn` below already answers null without a filter,
+    // so the state is simply left alone rather than reset from an effect.
+    if (!teacherFilter) return;
     let cancelled = false;
     const params = new URLSearchParams({
       from: range.from.toISOString(),
@@ -186,10 +185,16 @@ export default function CalendarPage() {
 
   const shiftOn = useCallback(
     (day: Date) => {
-      const key = `${astParts(day).year}-${String(astParts(day).month + 1).padStart(2, "0")}-${String(astParts(day).day).padStart(2, "0")}`;
+      // Gated on the filter, not on the array: whatever was fetched for the
+      // previously selected teacher must not keep showing after she is
+      // deselected, and this is true the render it happens rather than one
+      // render later once a fetch has come back.
+      if (!teacherFilter) return null;
+      const parts = astParts(day);
+      const key = `${parts.year}-${String(parts.month + 1).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`;
       return shifts.find((shift) => shift.date.slice(0, 10) === key) ?? null;
     },
-    [shifts]
+    [shifts, teacherFilter]
   );
 
   const hours = useMemo(

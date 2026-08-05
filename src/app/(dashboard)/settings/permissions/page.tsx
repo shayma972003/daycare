@@ -15,7 +15,8 @@ import axios from "axios";
 import { Topbar } from "@/components/layout/Topbar";
 import { describeApiError } from "@/lib/api-error";
 import { PasswordRules, meetsRequiredRules } from "@/components/ui/PasswordRules";
-import type { PermissionDefinition, PermissionCategory } from "@/lib/permissions";
+import type { PermissionDefinition, PermissionCategory, CapabilityBundle } from "@/lib/permissions";
+import { CAPABILITY_BUNDLES, keysOutsideBundles } from "@/lib/permissions";
 import { useT } from "@/lib/i18n-provider";
 
 interface RoleRow {
@@ -299,12 +300,34 @@ function RolePermissionEditor({
   const t = useT();
   const [draft, setDraft] = useState<string[]>(role.permissions);
   const [saving, setSaving] = useState(false);
+  /* Simple by default. The full grid is a click away and never goes anywhere —
+     see CAPABILITY_BUNDLES for why one is a view over the other. */
+  const [advanced, setAdvanced] = useState(false);
 
   function toggle(key: string) {
     setDraft((current) =>
       current.includes(key) ? current.filter((k) => k !== key) : [...current, key]
     );
   }
+
+  /** A bundle is on only when every key it stands for is held. */
+  function bundleOn(bundle: CapabilityBundle) {
+    return bundle.keys.every((key) => draft.includes(key));
+  }
+
+  function toggleBundle(bundle: CapabilityBundle) {
+    const on = bundleOn(bundle);
+    setDraft((current) =>
+      on
+        ? current.filter((key) => !bundle.keys.includes(key))
+        : Array.from(new Set([...current, ...bundle.keys]))
+    );
+  }
+
+  /* Held keys this view cannot draw. Counted and shown rather than ignored: the
+     user is entitled to know the role carries more than the boxes in front of
+     them, and that saving here will not disturb it. */
+  const hiddenCount = keysOutsideBundles(draft).length;
 
   async function save() {
     setSaving(true);
@@ -318,8 +341,60 @@ function RolePermissionEditor({
     }
   }
 
+  if (!advanced) {
+    return (
+      <>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {CAPABILITY_BUNDLES.map((bundle) => (
+            <label
+              key={bundle.key}
+              className="flex items-start gap-2.5 text-sm text-gray-700 border border-gray-100 rounded-xl px-4 py-3 cursor-pointer hover:bg-gray-50"
+            >
+              <input
+                type="checkbox"
+                checked={bundleOn(bundle)}
+                onChange={() => toggleBundle(bundle)}
+                className="mt-0.5 accent-[#2F96A6]"
+              />
+              <span>{t(`capabilities.${bundle.key}`)}</span>
+            </label>
+          ))}
+        </div>
+
+        {hiddenCount > 0 && (
+          <p className="mt-3 text-xs text-gray-400">
+            {t("permissions.alsoHolds", { count: String(hiddenCount) })}
+          </p>
+        )}
+
+        <div className="flex items-center gap-3 mt-5">
+          <button
+            onClick={save}
+            disabled={saving}
+            className="px-6 py-2 bg-[#2F96A6] text-white rounded-xl text-sm font-medium hover:bg-[#26808e] disabled:opacity-60"
+          >
+            {saving ? t("careForm.saving") : t("permissions.savePermissions")}
+          </button>
+          <button
+            onClick={() => setAdvanced(true)}
+            className="text-sm text-[#2F96A6] hover:underline"
+          >
+            {t("permissions.advanced")}
+          </button>
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
+      <button
+        onClick={() => setAdvanced(false)}
+        className="text-sm text-[#2F96A6] hover:underline mb-4"
+      >
+        {t("permissions.backToSimple")}
+      </button>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {Object.entries(grouped).map(([category, permissions]) => (
           <div key={category} className="border border-gray-100 rounded-xl p-4">

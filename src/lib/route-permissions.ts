@@ -186,6 +186,12 @@ export const ROUTE_PERMISSIONS: Record<string, RouteRule> = {
   "/api/shifts": { methods: { GET: "schedule.view", POST: "schedule.manage", DELETE: "schedule.delete" } },
   // Roster counts are read by the dashboard; any signed-in member may see them.
   "/api/statistics/roster": { default: null },
+
+  // Both answer only for the caller and filter their own contents by the
+  // permissions that caller holds, so the gate here is "signed in".
+  "/api/me": { default: null },
+  "/api/dashboard/tasks": { default: null },
+  "/api/search": { default: null },
   "/api/storage": { methods: { GET: null, POST: "settings.storage" } },
   "/api/units/:id/files": { default: "units.manage" },
   "/api/units/:id/files/:fileId": { default: "units.manage" },

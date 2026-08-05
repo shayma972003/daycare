@@ -15,7 +15,10 @@
     "calendar": "التقويم",
     "units": "الوحدات",
     "shifts": "المناوبات",
-    "attendance": "الحضور"
+    "attendance": "الحضور",
+    "groupLearning": "التعلّم",
+    "groupFinance": "المالية",
+    "groupAdmin": "الإدارة"
   },
   "common": {
     "save": "حفظ",
@@ -344,7 +347,8 @@
     "trashNotice": "سيتم نقل فصل \"{name}\" إلى سلة المحذوفات. يمكنك استعادته خلال 30 يوماً.",
     "studentCount": "{n} طالب",
     "availableFilterHint": "يعرض فقط الطلاب بدون فصل محدد الذين يطابقون فترة هذا الفصل",
-    "containsStudents": "هذا الفصل يحتوي على {n} طلاب."
+    "containsStudents": "هذا الفصل يحتوي على {n} طلاب.",
+    "openFullForm": "فتح النموذج الكامل (صورة، ملاحظات، تاريخ التسجيل)"
   },
   "teachers": {
     "title": "المعلم",
@@ -662,7 +666,8 @@
     "loadFailed": "تعذر تحميل التقارير",
     "noReports": "لا توجد تقارير رعاية بعد",
     "selectedChildren": "{n} أطفال",
-    "willRecordFor": "سيُسجَّل لـ{label}"
+    "willRecordFor": "سيُسجَّل لـ{label}",
+    "quickFor": "تسجيل سريع لـ{name}"
   },
   "calendar": {
     "title": "التقويم",
@@ -1109,7 +1114,10 @@
     "accountCreatedNoEmail": "تم إنشاء الحساب — لكن تعذّر إرسال البريد إلى {email}",
     "roleUpdated": "تم تحديث دور {name}",
     "roleSaved": "تم حفظ صلاحيات \"{role}\"",
-    "ownerRoleLocked": "دور المدير يملك كل الصلاحيات ولا يمكن تعديله — تعديله قد يُخرج الحضانة من إعداداتها بلا طريقة للرجوع."
+    "ownerRoleLocked": "دور المدير يملك كل الصلاحيات ولا يمكن تعديله — تعديله قد يُخرج الحضانة من إعداداتها بلا طريقة للرجوع.",
+    "advanced": "خيارات متقدمة",
+    "backToSimple": "→ العودة للعرض المبسّط",
+    "alsoHolds": "يحمل هذا الدور أيضاً {count} صلاحية دقيقة لا تظهر هنا — تُضبط من الخيارات المتقدمة ولا يمسّها الحفظ من هنا."
   },
   "studentProfile": {
     "saved": "تم حفظ التغييرات",
@@ -1333,5 +1341,66 @@
     "RESIGNED": "مستقيل",
     "TERMINATED": "منتهية خدماته",
     "CONTRACT_ENDED": "انتهى العقد"
+  },
+  "todo": {
+    "title": "اليوم لديك",
+    "allClear": "لا شيء يحتاج انتباهك اليوم",
+    "absent": "{count} أطفال لم يحضروا",
+    "unpaidInvoices": "{count} فواتير تحتاج تحصيل",
+    "pendingEnrolments": "{count} طلبات تسجيل جديدة",
+    "classesWithoutTeacher": "{count} فصول بدون معلمة",
+    "careReports": "{count} تقارير رعاية اليوم",
+    "expiringSoon": "{count} اشتراكات تنتهي خلال شهر"
+  },
+  "setup": {
+    "title": "أكملي إعداد الحضانة",
+    "hint": "خطوات قليلة تجعل النظام جاهزاً للعمل. ابدئي بأيها شئتِ.",
+    "progress": "{done} من {total}",
+    "schoolInfo": "أكملي بيانات الحضانة",
+    "firstClass": "أضيفي أول فصل",
+    "firstTeacher": "أضيفي أول معلمة",
+    "firstStudent": "أضيفي أول طفل",
+    "firstInvite": "أرسلي أول نموذج تسجيل"
+  },
+  "capabilities": {
+    "viewChildren": "الاطلاع على الأطفال",
+    "editChildren": "تعديل بيانات الأطفال وأرشفتهم",
+    "childFiles": "ملفات الأطفال وأولياء الأمور",
+    "childAttendance": "تسجيل حضور الأطفال",
+    "manageClasses": "إدارة الفصول وتعيين الأطفال",
+    "manageStaff": "إدارة الطاقم",
+    "staffAttendance": "تسجيل حضور الطاقم",
+    "teaching": "الوحدات التعليمية والجدولة",
+    "finance": "الفواتير والاشتراكات والتقارير المالية",
+    "settings": "إعدادات الحضانة والتخزين",
+    "signIn": "الدخول إلى البوابة والتطبيق",
+    "viewTeaching": "الاطلاع على الوحدات والجدولة",
+    "manageTeaching": "إدارة الوحدات والجدولة"
+  },
+  "palette": {
+    "title": "البحث والأوامر",
+    "placeholder": "ابحثي عن طفل أو معلمة أو فصل، أو اكتبي إجراءً…",
+    "hint": "اكتبي حرفين على الأقل للبحث",
+    "noResults": "لا نتائج",
+    "action": "إجراء",
+    "navigate": "تنقّل",
+    "openRow": "فتح",
+    "addStudent": "إضافة طفل",
+    "addTeacher": "إضافة معلمة",
+    "addClass": "إضافة فصل",
+    "care": "تقارير الرعاية",
+    "attendance": "الحضور",
+    "finance": "التقارير المالية",
+    "students": "الأطفال",
+    "classes": "الفصول",
+    "teachers": "المعلمون",
+    "calendar": "التقويم",
+    "settings": "الإعدادات",
+    "kind": {
+      "student": "طفل",
+      "teacher": "معلمة",
+      "class": "فصل"
+    },
+    "search": "بحث"
   }
 }

@@ -7,6 +7,8 @@ import { Topbar } from "@/components/layout/Topbar";
 import { PeriodBadge } from "@/components/ui/StatusBadge";
 import { useT } from "@/lib/i18n-provider";
 import { useAcademicStages, useStageName } from "@/lib/use-academic-stages";
+import { useDrawer } from "@/components/ui/Drawer";
+import { QuickAddClass } from "@/components/classes/QuickAddClass";
 
 
 interface ClassItem {
@@ -36,6 +38,8 @@ export default function ClassesPage() {
   const [stageFilter, setStageFilter] = useState<string>("all");
   const { stages } = useAcademicStages();
   const stageName = useStageName();
+  // `?drawer=new-class`, so back closes the panel rather than the page.
+  const addClass = useDrawer("new-class");
 
   async function fetchClasses() {
     setLoading(true);
@@ -62,6 +66,13 @@ export default function ClassesPage() {
   return (
     <div className="flex flex-col min-h-screen">
       <Topbar title={t("classes.title")} />
+
+      <QuickAddClass
+        open={addClass.isOpen}
+        onClose={addClass.close}
+        onCreated={fetchClasses}
+        onNeedFullForm={() => router.push("/classes/new")}
+      />
 
       <div className="flex-1 p-6 space-y-5">
         {/* Filters */}
@@ -123,7 +134,7 @@ export default function ClassesPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {/* Add card */}
             <button
-              onClick={() => router.push("/classes/new")}
+              onClick={addClass.open}
               className="bg-white rounded-xl shadow-md border-2 border-dashed border-gray-200 flex flex-col items-center justify-center gap-2 min-h-[220px] hover:border-[#F64651] hover:shadow-lg transition-all group cursor-pointer"
             >
               <div className="w-12 h-12 rounded-full bg-gray-100 group-hover:bg-[#F64651]/10 flex items-center justify-center text-2xl text-gray-400 group-hover:text-[#F64651] transition-colors">

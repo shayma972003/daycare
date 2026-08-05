@@ -15,7 +15,10 @@
     "calendar": "Calendar",
     "units": "Units",
     "shifts": "Shifts",
-    "attendance": "Attendance"
+    "attendance": "Attendance",
+    "groupLearning": "Learning",
+    "groupFinance": "Finance",
+    "groupAdmin": "Administration"
   },
   "common": {
     "save": "Save",
@@ -344,7 +347,8 @@
     "trashNotice": "The class \"{name}\" will be moved to the trash. You can restore it within 30 days.",
     "studentCount": "{n} children",
     "availableFilterHint": "Shows only children without a class who match this class's period",
-    "containsStudents": "This class has {n} children."
+    "containsStudents": "This class has {n} children.",
+    "openFullForm": "Open the full form (image, notes, registration date)"
   },
   "teachers": {
     "title": "Teachers",
@@ -662,7 +666,8 @@
     "loadFailed": "Could not load the reports",
     "noReports": "No care reports yet",
     "selectedChildren": "{n} children",
-    "willRecordFor": "Will be recorded for {label}"
+    "willRecordFor": "Will be recorded for {label}",
+    "quickFor": "Quick record for {name}"
   },
   "calendar": {
     "title": "Calendar",
@@ -1109,7 +1114,10 @@
     "accountCreatedNoEmail": "Account created — but the email to {email} could not be sent",
     "roleUpdated": "{name}'s role was updated",
     "roleSaved": "Permissions for \"{role}\" were saved",
-    "ownerRoleLocked": "The owner role holds every permission and cannot be edited — changing it could lock the nursery out of its own settings with no way back."
+    "ownerRoleLocked": "The owner role holds every permission and cannot be edited — changing it could lock the nursery out of its own settings with no way back.",
+    "advanced": "Advanced options",
+    "backToSimple": "← Back to the simple view",
+    "alsoHolds": "This role also holds {count} finer permissions not shown here — set them under advanced options; saving from here leaves them untouched."
   },
   "studentProfile": {
     "saved": "Changes saved",
@@ -1333,5 +1341,66 @@
     "RESIGNED": "Resigned",
     "TERMINATED": "Terminated",
     "CONTRACT_ENDED": "Contract ended"
+  },
+  "todo": {
+    "title": "Today you have",
+    "allClear": "Nothing needs your attention today",
+    "absent": "{count} children have not checked in",
+    "unpaidInvoices": "{count} payments outstanding",
+    "pendingEnrolments": "{count} new enrolment requests",
+    "classesWithoutTeacher": "{count} classes without a lead teacher",
+    "careReports": "{count} care reports today",
+    "expiringSoon": "{count} subscriptions ending within a month"
+  },
+  "setup": {
+    "title": "Finish setting up your nursery",
+    "hint": "A few steps to get the system working. Start with whichever you like.",
+    "progress": "{done} of {total}",
+    "schoolInfo": "Complete the nursery details",
+    "firstClass": "Add your first class",
+    "firstTeacher": "Add your first teacher",
+    "firstStudent": "Add your first child",
+    "firstInvite": "Send your first enrolment form"
+  },
+  "capabilities": {
+    "viewChildren": "View children",
+    "editChildren": "Edit and archive children",
+    "childFiles": "Children's files and guardians",
+    "childAttendance": "Record children's attendance",
+    "manageClasses": "Manage classes and assign children",
+    "manageStaff": "Manage staff",
+    "staffAttendance": "Record staff attendance",
+    "teaching": "Teaching units and scheduling",
+    "finance": "Invoices, subscriptions and financial reports",
+    "settings": "Nursery settings and storage",
+    "signIn": "Sign in to the portal and the app",
+    "viewTeaching": "View teaching units and scheduling",
+    "manageTeaching": "Manage teaching units and scheduling"
+  },
+  "palette": {
+    "title": "Search and commands",
+    "placeholder": "Search for a child, teacher or class — or type an action…",
+    "hint": "Type at least two characters to search",
+    "noResults": "No results",
+    "action": "action",
+    "navigate": "navigate",
+    "openRow": "open",
+    "addStudent": "Add a child",
+    "addTeacher": "Add a teacher",
+    "addClass": "Add a class",
+    "care": "Care reports",
+    "attendance": "Attendance",
+    "finance": "Financial reports",
+    "students": "Children",
+    "classes": "Classes",
+    "teachers": "Teachers",
+    "calendar": "Calendar",
+    "settings": "Settings",
+    "kind": {
+      "student": "child",
+      "teacher": "teacher",
+      "class": "class"
+    },
+    "search": "Search"
   }
 }

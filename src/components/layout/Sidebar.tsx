@@ -6,31 +6,8 @@ import { signOut, useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n-provider";
 import { LanguageSwitcher } from "@/components/layout/LanguageSwitcher";
-
-/**
- * Nav entries as translation *keys*, resolved inside the component.
- *
- * They were resolved here at module scope, which froze every label to whatever
- * language was active when the module first loaded — switching language would
- * have changed the whole product except the menu.
- *
- * Every entry now has a key. Four of them carried a literal Arabic label
- * instead, left over from when those screens were added — so switching to
- * English translated the menu around them and left four Arabic words in the
- * middle of it.
- */
-const navItems: Array<{ href: string; key: string }> = [
-  { href: "/dashboard", key: "nav.home" },
-  { href: "/students", key: "nav.students" },
-  { href: "/care", key: "nav.care" },
-  { href: "/calendar", key: "nav.calendar" },
-  { href: "/units", key: "nav.units" },
-  { href: "/classes", key: "nav.classes" },
-  { href: "/statistics", key: "nav.statistics" },
-  { href: "/teachers", key: "nav.teachers" },
-  { href: "/shifts", key: "nav.shifts" },
-  { href: "/settings", key: "nav.settings" },
-];
+import { usePermissions } from "@/lib/use-permissions";
+import { NAV_GROUPS } from "@/lib/nav";
 
 interface SidebarProps {
   schoolName?: string | null;
@@ -42,6 +19,7 @@ export function Sidebar({ schoolName: schoolNameProp, schoolLogo }: SidebarProps
   const t = useT();
   const pathname = usePathname();
   const { data: session } = useSession();
+  const { can, loading: permissionsLoading } = usePermissions();
 
   const schoolName =
     schoolNameProp ??
@@ -75,25 +53,53 @@ export function Sidebar({ schoolName: schoolNameProp, schoolLogo }: SidebarProps
       </div>
 
       {/* Navigation */}
-      <nav className="relative flex-1 flex flex-col gap-0.5 px-3">
-        {navItems.map((item) => {
-          const isActive =
-            item.href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(item.href);
+      <nav className="relative flex-1 flex flex-col gap-0.5 px-3 overflow-y-auto">
+        {NAV_GROUPS.map((group, groupIndex) => {
+          /* While the permission list is still in flight, show only what needs
+             no permission. Filling a short menu in reads better than showing
+             everything and taking entries away a moment later. */
+          const visible = group.items.filter(
+            (item) => item.permission === null || (!permissionsLoading && can(item.permission))
+          );
+          if (visible.length === 0) return null;
 
           return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition-all duration-150",
-                isActive
-                  ? "bg-white text-gray-900 font-bold shadow-sm border-r-[3px] border-r-coral"
-                  : "text-white/50 font-normal hover:text-white/80 hover:bg-white/5"
+            <div key={group.key ?? `group-${groupIndex}`} className={group.key ? "mt-4" : undefined}>
+              {group.key && (
+                <p className="px-4 pb-1.5 text-[10px] font-medium tracking-wide text-white/25">
+                  {t(group.key)}
+                </p>
               )}
-            >
-              <div className={cn("w-2 h-2 rounded-full flex-shrink-0", isActive ? "bg-coral" : "bg-white/20")} />
-              <span>{t(item.key)}</span>
-            </Link>
+              <div className="flex flex-col gap-0.5">
+                {visible.map((item) => {
+                  const isActive =
+                    item.href === "/dashboard"
+                      ? pathname === "/dashboard"
+                      : pathname.startsWith(item.href);
+
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={cn(
+                        "flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition-all duration-150",
+                        isActive
+                          ? "bg-white text-gray-900 font-bold shadow-sm border-r-[3px] border-r-coral"
+                          : "text-white/50 font-normal hover:text-white/80 hover:bg-white/5"
+                      )}
+                    >
+                      <div
+                        className={cn(
+                          "w-2 h-2 rounded-full flex-shrink-0",
+                          isActive ? "bg-coral" : "bg-white/20"
+                        )}
+                      />
+                      <span>{t(item.key)}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
           );
         })}
       </nav>

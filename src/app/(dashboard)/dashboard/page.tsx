@@ -10,6 +10,8 @@ import { ActivityFormModal } from "@/components/activities/ActivityFormModal";
 import { DeliveryStatusBadge } from "@/components/ui/StatusBadge";
 import { useT, useLocale } from "@/lib/i18n-provider";
 import { formatAst } from "@/lib/datetime";
+import { SetupChecklist } from "@/components/dashboard/SetupChecklist";
+import { TodayTasks, useDashboardTasks } from "@/components/dashboard/TodayTasks";
 
 
 interface NotificationLog {
@@ -30,6 +32,8 @@ export default function HomePage() {
   // Locale-aware translation — see src/lib/i18n.tsx.
   const t = useT();
   const router = useRouter();
+  // One request covers both the checklist and the task list.
+  const { tasks, setup, loading: tasksLoading } = useDashboardTasks();
   const [currentActivities, setCurrentActivities] = useState<Activity[]>([]);
   const [pastActivities, setPastActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
@@ -195,6 +199,15 @@ export default function HomePage() {
         {error && (
           <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">{error}</div>
         )}
+
+        {/* Setup first, and only while it is unfinished — a school still filling
+            in its rooms has nothing useful in the task list below yet. */}
+        {setup && <SetupChecklist steps={setup.steps} />}
+
+        <section className="bg-white rounded-2xl shadow-[0_1px_4px_rgba(0,0,0,0.06)] p-6 space-y-3">
+          <h2 className="font-bold text-[#111111]">{t("todo.title")}</h2>
+          <TodayTasks tasks={tasks} loading={tasksLoading} />
+        </section>
 
         {/* ── طلبات التسجيل المعلقة ── */}
         {pendingEnrollments.length > 0 && (

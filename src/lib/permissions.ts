@@ -211,6 +211,62 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
   },
 ];
 
+/**
+ * Plain-language capabilities, each standing for a set of permission keys.
+ *
+ * The catalogue is thirty-odd keys named `category.action`, which is right for a
+ * table that has to be exact and wrong for the person deciding what a teacher
+ * may do. This is the same catalogue, grouped into the sentences a nursery
+ * actually thinks in.
+ *
+ * **A view, never a replacement.** The editor keeps the full permission list as
+ * its draft and this only decides which checkboxes are drawn. A simplified
+ * screen that saved *what it displayed* would revoke every key it happens not to
+ * cover — silently, and only for the roles someone edited from the simple tab.
+ * Anything not named here is preserved untouched and reported as a count.
+ */
+export interface CapabilityBundle {
+  key: string;
+  keys: string[];
+}
+
+export const CAPABILITY_BUNDLES: CapabilityBundle[] = [
+  { key: "signIn", keys: ["auth.portal", "auth.app"] },
+  { key: "viewChildren", keys: ["students.view"] },
+  { key: "editChildren", keys: ["students.manage", "students.archive"] },
+  { key: "childFiles", keys: ["students.files", "students.guardians"] },
+  { key: "childAttendance", keys: ["attendance.students"] },
+  { key: "manageClasses", keys: ["classes.view", "classes.assign", "classes.manage", "classes.archive"] },
+  { key: "manageStaff", keys: ["staff.view", "staff.manage", "staff.archive"] },
+  { key: "staffAttendance", keys: ["attendance.staff"] },
+  { key: "viewTeaching", keys: ["units.view", "schedule.view"] },
+  { key: "manageTeaching", keys: ["units.manage", "units.archive", "schedule.manage"] },
+  { key: "finance", keys: ["finance.view", "finance.manage", "finance.subscriptions"] },
+  { key: "settings", keys: ["settings.manage", "settings.storage"] },
+];
+
+/**
+ * Left out on purpose: every `.delete` key.
+ *
+ * The line is drawn between archive and delete, not between "safe" and
+ * "dangerous" in general. Archiving is the ordinary end of a lifecycle — a child
+ * graduates, a room closes for the year — and it is reversible from the trash
+ * for thirty days, so it belongs with the capability that manages that record.
+ * Deleting is not reversible, and rolling it into a friendly sentence like
+ * "manage children" would hand the power to destroy a child's file to whoever
+ * ticked a box that reads as "let her edit names".
+ *
+ * So deletion stays under advanced options, where granting it is a deliberate
+ * act — and the count beside the simple view says how many such keys a role
+ * holds rather than pretending they are not there.
+ */
+
+/** Keys no bundle covers — surfaced so the simple view never hides its own gaps. */
+export function keysOutsideBundles(held: string[]): string[] {
+  const covered = new Set(CAPABILITY_BUNDLES.flatMap((bundle) => bundle.keys));
+  return held.filter((key) => key !== ALL_PERMISSIONS && !covered.has(key));
+}
+
 /** Whether a permission list satisfies a required key, honouring the wildcard. */
 export function grants(held: string[], required: string): boolean {
   return held.includes(ALL_PERMISSIONS) || held.includes(required);

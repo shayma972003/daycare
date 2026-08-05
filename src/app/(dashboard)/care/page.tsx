@@ -14,6 +14,7 @@ import { Topbar } from "@/components/layout/Topbar";
 import axios from "axios";
 import { describeApiError } from "@/lib/api-error";
 import { CareReportModal } from "@/components/care/CareReportModal";
+import { QuickCareSheet } from "@/components/care/QuickCareSheet";
 import { CARE_REPORT_TYPES, CARE_TYPE_LABEL_KEYS, CARE_TYPE_COLORS } from "@/lib/care-reports";
 import { Icon, CARE_TYPE_ICON_NAMES } from "@/components/ui/Icon";
 import { formatAst } from "@/lib/datetime";
@@ -52,6 +53,10 @@ export default function CarePage() {
   const [classFilter, setClassFilter] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [activeType, setActiveType] = useState<CareReportType | null>(null);
+  /* The one-child path. Kept separate from `selected` so opening it does not
+     disturb a bulk selection the teacher is part-way through building. */
+  const [quickChild, setQuickChild] = useState<StudentRow | null>(null);
+  const [quickType, setQuickType] = useState<CareReportType | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -181,26 +186,42 @@ export default function CarePage() {
               {visible.map((student) => {
                 const isSelected = selected.has(student.id);
                 return (
-                  <button
+                  /* Two targets in one card: the body toggles the bulk
+                     selection, the ⚡ records for this child alone. */
+                  <div
                     key={student.id}
-                    onClick={() => toggle(student.id)}
-                    aria-pressed={isSelected}
-                    className={`flex items-center gap-2 px-3 py-3 rounded-xl text-sm text-right transition-colors border ${
+                    className={`flex items-center rounded-xl text-sm transition-colors border overflow-hidden ${
                       isSelected
-                        ? "bg-[#E0F7FA] border-[#2F96A6] text-[#111111]"
-                        : "bg-white border-gray-100 text-gray-700 hover:bg-gray-50"
+                        ? "bg-[#E0F7FA] border-[#2F96A6]"
+                        : "bg-white border-gray-100 hover:bg-gray-50"
                     }`}
                   >
-                    <span
-                      aria-hidden
-                      className={`w-5 h-5 rounded-full shrink-0 flex items-center justify-center text-xs ${
-                        isSelected ? "bg-[#2F96A6] text-white" : "bg-gray-100 text-transparent"
-                      }`}
+                    <button
+                      onClick={() => toggle(student.id)}
+                      aria-pressed={isSelected}
+                      className="flex items-center gap-2 px-3 py-3 flex-1 min-w-0 text-right"
                     >
-                      ✓
-                    </span>
-                    <span className="truncate">{student.name}</span>
-                  </button>
+                      <span
+                        aria-hidden
+                        className={`w-5 h-5 rounded-full shrink-0 flex items-center justify-center text-xs ${
+                          isSelected ? "bg-[#2F96A6] text-white" : "bg-gray-100 text-transparent"
+                        }`}
+                      >
+                        ✓
+                      </span>
+                      <span className={`truncate ${isSelected ? "text-[#111111]" : "text-gray-700"}`}>
+                        {student.name}
+                      </span>
+                    </button>
+                    <button
+                      onClick={() => setQuickChild(student)}
+                      aria-label={t("care.quickFor", { name: student.name })}
+                      title={t("care.quickFor", { name: student.name })}
+                      className="px-3 py-3 text-gray-300 hover:text-[#2F96A6] hover:bg-white/60 transition-colors shrink-0"
+                    >
+                      ⚡
+                    </button>
+                  </div>
                 );
               })}
             </div>
@@ -276,14 +297,31 @@ export default function CarePage() {
         </section>
       </div>
 
-      {activeType && (
+      {/* Type picker for the one-child path. Closing it leaves the bulk
+          selection exactly as it was. */}
+      {quickChild && !quickType && (
+        <QuickCareSheet
+          childName={quickChild.name}
+          onPick={(type) => setQuickType(type)}
+          onClose={() => setQuickChild(null)}
+        />
+      )}
+
+      {/* Both paths end in the same form — only the children differ. */}
+      {(activeType || (quickChild && quickType)) && (
         <CareReportModal
-          type={activeType}
-          studentIds={selectedIds}
-          studentLabel={selectedLabel}
-          onClose={() => setActiveType(null)}
+          type={(quickType ?? activeType) as CareReportType}
+          studentIds={quickChild ? [quickChild.id] : selectedIds}
+          studentLabel={quickChild ? quickChild.name : selectedLabel}
+          onClose={() => {
+            setActiveType(null);
+            setQuickType(null);
+            setQuickChild(null);
+          }}
           onSaved={(message) => {
             setActiveType(null);
+            setQuickType(null);
+            setQuickChild(null);
             setNotice(message);
             setError(null);
             // Selection kept on purpose: the next report is usually about the

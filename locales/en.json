@@ -181,7 +181,8 @@
       "message": "Attached Message",
       "classes": "Invited Classes",
       "saveAndSend": "Save & Send",
-      "deleteActivity": "Delete Activity"
+      "deleteActivity": "Delete Activity",
+      "sendFailed": "Could not send the notification"
     },
     "teacher": "Teacher",
     "group": "Group",
@@ -345,7 +346,8 @@
     "studentCount": "{n} children",
     "availableFilterHint": "Shows only children without a class who match this class's period",
     "containsStudents": "This class has {n} children.",
-    "openFullForm": "Open the full form (image, notes, registration date)"
+    "openFullForm": "Open the full form (image, notes, registration date)",
+    "noneYet": "No classes yet — add one from the Classes page"
   },
   "teachers": {
     "title": "Teachers",
@@ -1224,7 +1226,11 @@
     "notifyHint": "Left off, the change is saved without sending any message.",
     "modalLabel": "Add or edit an activity",
     "notifyStaff": "Notify the teachers",
-    "notifyStaffHint": "Sent to the lead teacher of each selected class — once, even if she leads several."
+    "notifyStaffHint": "Sent to the lead teacher of each selected class — once, even if she leads several.",
+    "sendNow": "Send the notification now",
+    "sendNowHint": "Sends immediately without saving any edit — for the activity as it stands.",
+    "sent": "Notification sent",
+    "pickAudience": "Choose guardians or teachers first"
   },
   "notifications": {
     "adminMessages": "Messages from admin",

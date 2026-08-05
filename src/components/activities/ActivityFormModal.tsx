@@ -6,6 +6,7 @@ import axios from "axios";
 import * as Dialog from "@radix-ui/react-dialog";
 
 import { VariableReference } from "@/components/ui/VariableReference";
+import { describeApiError } from "@/lib/api-error";
 import type { Activity } from "./ActivityGrid";
 import { useT } from "@/lib/i18n-provider";
 import { useAcademicStages, useStageName } from "@/lib/use-academic-stages";
@@ -63,6 +64,12 @@ export function ActivityFormModal({
   const [classes, setClasses] = useState<ClassItem[]>([]);
   const [loadingTeachers, setLoadingTeachers] = useState(false);
   const [loadingClasses, setLoadingClasses] = useState(false);
+  /* "The request failed" and "you have no classes" are different facts and were
+     both being drawn as "no data". One is a bug to report, the other is a step
+     the user has not taken yet — and the empty list gave no way to tell. */
+  const [classesFailed, setClassesFailed] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sentNotice, setSentNotice] = useState(false);
   const [loadingDetails, setLoadingDetails] = useState(false);
   // Opt-in, not automatic. Every edit used to fire the notification endpoint, so
   // fixing a typo in the title re-emailed every guardian in every invited class.
@@ -141,10 +148,17 @@ export function ActivityFormModal({
       .finally(() => setLoadingTeachers(false));
 
     setLoadingClasses(true);
+    setClassesFailed(false);
     axios
       .get<ClassItem[]>("/api/classes")
-      .then((r) => setClasses(r.data))
-      .catch(() => setClasses([]))
+      .then((r) => {
+        setClasses(r.data);
+        setClassesFailed(false);
+      })
+      .catch(() => {
+        setClasses([]);
+        setClassesFailed(true);
+      })
       .finally(() => setLoadingClasses(false));
   }, [open]);
 
@@ -272,6 +286,37 @@ export function ActivityFormModal({
       setError(message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  /**
+   * Sends without saving.
+   *
+   * Ticking a box and pressing save is the right shape when the decision is made
+   * while writing the activity. It is the wrong shape a week later: the message
+   * was not sent at the time, and the only way to send it was to re-save a
+   * record that needed no change — which also risks sending an edit nobody
+   * asked for. This posts to the same endpoint and touches nothing else.
+   */
+  const handleSendNow = async () => {
+    if (!activity) return;
+    if (!notifyGuardians && !notifyStaff) {
+      setError(t("activities.pickAudience"));
+      return;
+    }
+    setSending(true);
+    setError(null);
+    try {
+      await axios.post(`/api/activities/${activity.id}/send`, {
+        notifyGuardians,
+        notifyStaff,
+      });
+      setError(null);
+      setSentNotice(true);
+    } catch (err) {
+      setError(describeApiError(err, t("home.activityForm.sendFailed")));
+    } finally {
+      setSending(false);
     }
   };
 
@@ -520,8 +565,10 @@ export function ActivityFormModal({
               </label>
               {loadingClasses ? (
                 <div className="text-xs text-gray-400">{t("common.loading")}</div>
+              ) : classesFailed ? (
+                <div className="text-xs text-red-600">{t("classes.loadFailed")}</div>
               ) : classes.length === 0 ? (
-                <div className="text-xs text-gray-400">{t("common.noData")}</div>
+                <div className="text-xs text-gray-400">{t("classes.noneYet")}</div>
               ) : (
                 <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto p-2 border border-gray-100 rounded-lg">
                   {classes.map((cls) => (
@@ -559,6 +606,12 @@ export function ActivityFormModal({
                   </span>
                 </span>
               </label>
+            )}
+
+            {sentNotice && (
+              <p role="status" className="text-sm text-success-text bg-success-bg rounded-xl px-3 py-2">
+                {t("activities.sent")}
+              </p>
             )}
 
             {isEdit && (

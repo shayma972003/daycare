@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import ar from "../locales/ar.json";
 import en from "../locales/en.json";
 import { translate } from "@/lib/i18n";
+import { NAV_GROUPS } from "@/lib/nav";
 
 /**
  * Guards the two failures this file exists because of.
@@ -74,8 +75,22 @@ describe("translate", () => {
   });
 
   it("covers the nav entries that were left as Arabic literals", () => {
-    for (const key of ["care", "calendar", "units", "shifts"]) {
+    // `units` was here too, until the units page was folded into the calendar
+    // as a fourth event type and the menu entry stopped existing.
+    for (const key of ["care", "calendar", "shifts"]) {
       expect(translate("en", `nav.${key}`)).toMatch(/^[A-Za-z ]+$/);
+    }
+  });
+
+  it("names every nav entry in both languages", () => {
+    // Derived from the menu itself, so an entry added without a label fails
+    // here rather than rendering its own key to a user.
+    for (const group of NAV_GROUPS) {
+      if (group.key) expect(translate("en", group.key)).not.toBe(group.key);
+      for (const item of group.items) {
+        expect(translate("ar", item.key), `${item.href} has no Arabic label`).not.toBe(item.key);
+        expect(translate("en", item.key), `${item.href} has no English label`).not.toBe(item.key);
+      }
     }
   });
 

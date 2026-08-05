@@ -54,8 +54,8 @@ export async function GET(request: Request) {
       deletedAt: null,
       startAt: { gte: from, lt: to },
       ...(teacherId ? { teacherId } : {}),
-      ...(type && ["LESSON", "ACTIVITY", "ANNOUNCEMENT"].includes(type)
-        ? { type: type as "LESSON" | "ACTIVITY" | "ANNOUNCEMENT" }
+      ...(type && ["LESSON", "ACTIVITY", "ANNOUNCEMENT", "UNIT"].includes(type)
+        ? { type: type as "LESSON" | "ACTIVITY" | "ANNOUNCEMENT" | "UNIT" }
         : {}),
       // Filtering by room means "events this room is invited to". An event with
       // no rooms attached is school-wide and shows regardless — otherwise the
@@ -82,7 +82,7 @@ export async function GET(request: Request) {
 }
 
 const createSchema = z.object({
-  type: z.enum(["LESSON", "ACTIVITY", "ANNOUNCEMENT"]),
+  type: z.enum(["LESSON", "ACTIVITY", "ANNOUNCEMENT", "UNIT"]),
   title: z.string().min(1).max(200),
   description: z.string().max(2000).nullish(),
   startAt: z.string().min(1),

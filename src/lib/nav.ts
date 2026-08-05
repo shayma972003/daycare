@@ -42,13 +42,10 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/classes", key: "nav.classes", permission: "classes.view" },
       { href: "/care", key: "nav.care", permission: "students.files" },
       { href: "/attendance", key: "nav.attendance", permission: "attendance.students" },
-    ],
-  },
-  {
-    key: "nav.groupLearning",
-    items: [
+      /* The calendar sat under a "Learning" heading beside the units page.
+         Units are a calendar event type now, so that heading stood over a
+         single entry — a label with nothing to distinguish. */
       { href: "/calendar", key: "nav.calendar", permission: "schedule.view" },
-      { href: "/units", key: "nav.units", permission: "units.view" },
     ],
   },
   {

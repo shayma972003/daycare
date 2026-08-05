@@ -13,10 +13,8 @@
     "settings": "الإعدادات",
     "care": "تقارير الرعاية",
     "calendar": "التقويم",
-    "units": "الوحدات",
     "shifts": "المناوبات",
     "attendance": "الحضور",
-    "groupLearning": "التعلّم",
     "groupFinance": "المالية",
     "groupAdmin": "الإدارة"
   },
@@ -681,7 +679,8 @@
     "typeLESSON": "درس",
     "typeACTIVITY": "نشاط",
     "typeANNOUNCEMENT": "إعلان",
-    "moreEvents": "+{n} أخرى"
+    "moreEvents": "+{n} أخرى",
+    "typeUNIT": "وحدة"
   },
   "units": {
     "title": "الوحدات التعليمية",
@@ -1371,8 +1370,8 @@
     "finance": "الفواتير والاشتراكات والتقارير المالية",
     "settings": "إعدادات الحضانة والتخزين",
     "signIn": "الدخول إلى البوابة والتطبيق",
-    "viewTeaching": "الاطلاع على الوحدات والجدولة",
-    "manageTeaching": "إدارة الوحدات والجدولة"
+    "viewTeaching": "الاطلاع على التقويم والجدولة",
+    "manageTeaching": "إدارة التقويم والجدولة"
   },
   "palette": {
     "title": "البحث والأوامر",

@@ -13,10 +13,8 @@
     "settings": "Settings",
     "care": "Care Reports",
     "calendar": "Calendar",
-    "units": "Units",
     "shifts": "Shifts",
     "attendance": "Attendance",
-    "groupLearning": "Learning",
     "groupFinance": "Finance",
     "groupAdmin": "Administration"
   },
@@ -681,7 +679,8 @@
     "typeLESSON": "Lesson",
     "typeACTIVITY": "Activity",
     "typeANNOUNCEMENT": "Announcement",
-    "moreEvents": "+{n} more"
+    "moreEvents": "+{n} more",
+    "typeUNIT": "Unit"
   },
   "units": {
     "title": "Teaching units",
@@ -1371,8 +1370,8 @@
     "finance": "Invoices, subscriptions and financial reports",
     "settings": "Nursery settings and storage",
     "signIn": "Sign in to the portal and the app",
-    "viewTeaching": "View teaching units and scheduling",
-    "manageTeaching": "Manage teaching units and scheduling"
+    "viewTeaching": "View the calendar and scheduling",
+    "manageTeaching": "Manage the calendar and scheduling"
   },
   "palette": {
     "title": "Search and commands",

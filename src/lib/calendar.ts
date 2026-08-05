@@ -25,6 +25,7 @@ export const EVENT_TYPE_LABEL_KEYS: Record<CalendarEventType, string> = {
   LESSON: "calendar.typeLESSON",
   ACTIVITY: "calendar.typeACTIVITY",
   ANNOUNCEMENT: "calendar.typeANNOUNCEMENT",
+  UNIT: "calendar.typeUNIT",
 };
 
 /**
@@ -38,6 +39,7 @@ export const EVENT_TYPE_STYLES: Record<CalendarEventType, string> = {
   LESSON: "bg-[#E0F7FA] border-[#2F96A6] text-[#12626f]",
   ACTIVITY: "bg-[#FFF1E6] border-[#F8B500] text-[#8a5a00]",
   ANNOUNCEMENT: "bg-[#FFE8EA] border-[#F64651] text-[#8f1f27]",
+  UNIT: "bg-[#F3EEFF] border-[#7C3AED] text-[#4c1d95]",
 };
 
 /** The hours a nursery day is drawn across. */

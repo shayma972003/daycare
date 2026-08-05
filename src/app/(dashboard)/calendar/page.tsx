@@ -111,18 +111,27 @@ export default function CalendarPage() {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([
+    /**
+     * `allSettled`, not `all`.
+     *
+     * These two lists need different permissions — `/api/classes` wants
+     * `classes.view` and `/api/teachers` wants `staff.view` — and a teacher
+     * holds the first without the second. Under `Promise.all` her 403 on
+     * teachers rejected the whole batch, so the classes that *had* loaded were
+     * thrown away with it. The visible symptom was the event form's class
+     * picker rendering its heading above nothing at all, on exactly the roles
+     * that use the calendar most.
+     *
+     * Each list now stands or falls on its own.
+     */
+    Promise.allSettled([
       axios.get<Option[]>("/api/classes"),
       axios.get<Option[]>("/api/teachers"),
-    ])
-      .then(([classesRes, teachersRes]) => {
-        if (cancelled) return;
-        setClasses(classesRes.data);
-        setTeachers(teachersRes.data);
-      })
-      .catch(() => {
-        // Filters are optional; the calendar works without them.
-      });
+    ]).then(([classesRes, teachersRes]) => {
+      if (cancelled) return;
+      if (classesRes.status === "fulfilled") setClasses(classesRes.value.data);
+      if (teachersRes.status === "fulfilled") setTeachers(teachersRes.value.data);
+    });
     return () => {
       cancelled = true;
     };

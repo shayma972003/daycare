@@ -266,6 +266,10 @@ enum CalendarEventType {
   LESSON
   ACTIVITY
   ANNOUNCEMENT
+  /// A teaching unit, placed on the calendar rather than kept on a screen of
+  /// its own. The standalone units page was withdrawn: a unit is a titled span
+  /// of days belonging to some classes, which is what an event already is.
+  UNIT
 }
 
 /// Records every bulk export of tenant data.

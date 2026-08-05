@@ -14,6 +14,7 @@ import { describeApiError } from "@/lib/api-error";
 import { EVENT_TYPE_LABEL_KEYS } from "@/lib/calendar";
 import type { CalendarEventType } from "@/generated/prisma/enums";
 import { useT } from "@/lib/i18n-provider";
+import { ActivityFormModal } from "@/components/activities/ActivityFormModal";
 
 interface EventRow {
   id: string;
@@ -48,7 +49,6 @@ export function CalendarEventModal({
   defaultDate,
   classes,
   teachers,
-  onPickActivity,
   onClose,
   onSaved,
 }: {
@@ -56,16 +56,6 @@ export function CalendarEventModal({
   defaultDate: Date;
   classes: Option[];
   teachers: Option[];
-  /**
-   * Chosen when the type picker's "activity" is clicked on a *new* event.
-   *
-   * An activity is not a calendar event with a different label — it carries a
-   * fee, an academic stage, a child count and its own guardian invitations, and
-   * lives in its own table. Offering it here and then saving an event row would
-   * produce something that looks like an activity on the calendar and is
-   * invisible to every screen that lists activities.
-   */
-  onPickActivity?: () => void;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -73,6 +63,13 @@ export function CalendarEventModal({
   const isEdit = Boolean(event);
 
   const [type, setType] = useState<CalendarEventType>(event?.type ?? "LESSON");
+  /**
+   * The fifth button. Not a `CalendarEventType` — a programme is an `Activity`
+   * row with a fee, invited classes and its own notifications, so it has no
+   * enum value and never writes an event. It sits beside the four types
+   * because that is the one place a reader asks "what am I adding".
+   */
+  const [programme, setProgramme] = useState(false);
   const [title, setTitle] = useState(event?.title ?? "");
   const [description, setDescription] = useState(event?.description ?? "");
   const [startAt, setStartAt] = useState(toInput(event?.startAt ?? defaultDate));
@@ -166,16 +163,11 @@ export function CalendarEventModal({
                   key={option}
                   type="button"
                   onClick={() => {
-                    /* Editing an existing ACTIVITY event keeps working — those
-                       rows predate the activity table being shown here. */
-                    if (option === "ACTIVITY" && !event && onPickActivity) {
-                      onPickActivity();
-                      return;
-                    }
+                    setProgramme(false);
                     setType(option);
                   }}
                   className={`px-4 py-2 rounded-xl text-sm transition-colors ${
-                    type === option
+                    !programme && type === option
                       ? "bg-[#2F96A6] text-white"
                       : "bg-gray-50 text-gray-700 hover:bg-gray-100"
                   }`}
@@ -183,111 +175,149 @@ export function CalendarEventModal({
                   {t(EVENT_TYPE_LABEL_KEYS[option])}
                 </button>
               ))}
+
+              {/* Creating only: an existing event cannot become a programme,
+                  and an existing programme is opened by its own editor. */}
+              {!event && (
+                <button
+                  type="button"
+                  onClick={() => setProgramme(true)}
+                  className={`px-4 py-2 rounded-xl text-sm transition-colors ${
+                    programme
+                      ? "bg-[#2F96A6] text-white"
+                      : "bg-gray-50 text-gray-700 hover:bg-gray-100"
+                  }`}
+                >
+                  {t("calendar.typeEVENT_ACTIVITY")}
+                </button>
+              )}
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">{t("calendar.eventTitle")}</label>
-            <input value={title} onChange={(e) => setTitle(e.target.value)} className={inputCls} />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">
-              {isAnnouncement ? t("finance.date") : t("common.from")}
-            </label>
-            <input
-              type="datetime-local"
-              value={startAt}
-              onChange={(e) => setStartAt(e.target.value)}
-              className={inputCls}
-              dir="ltr"
+          {/* The programme form, in place. The heading and the type row above
+              stay put, so switching back is one click. */}
+          {programme && (
+            <ActivityFormModal
+              embedded
+              open
+              activity={null}
+              onClose={onClose}
+              onSaved={onSaved}
             />
-          </div>
-
-          {!isAnnouncement && (
-            <>
-              <label className="flex items-center gap-2 text-sm text-gray-700">
-                <input
-                  type="checkbox"
-                  checked={allDay}
-                  onChange={(e) => setAllDay(e.target.checked)}
-                  className="accent-[#2F96A6]"
-                />
-                {t("calendar.allDay")}
-              </label>
-
-              {!allDay && (
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1.5">{t("common.to")}</label>
-                  <input
-                    type="datetime-local"
-                    value={endAt}
-                    onChange={(e) => setEndAt(e.target.value)}
-                    className={inputCls}
-                    dir="ltr"
-                  />
-                </div>
-              )}
-
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1.5">{t("fields.teacher")}</label>
-                <select
-                  value={teacherId}
-                  onChange={(e) => setTeacherId(e.target.value)}
-                  className={inputCls}
-                >
-                  <option value="">{t("common.none")}</option>
-                  {teachers.map((teacher) => (
-                    <option key={teacher.id} value={teacher.id}>{teacher.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1.5">
-                  {t("nav.classes")} <span className="text-gray-400">{t("calendar.allClassesHint")}</span>
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {classes.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => toggleClass(item.id)}
-                      className={`px-3 py-2 rounded-xl text-sm transition-colors ${
-                        classIds.includes(item.id)
-                          ? "bg-[#2F96A6] text-white"
-                          : "bg-gray-50 text-gray-700 hover:bg-gray-100"
-                      }`}
-                    >
-                      {item.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1.5">{t("fields.place")}</label>
-                <input
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  className={inputCls}
-                />
-              </div>
-            </>
           )}
 
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">{t("finance.details")}</label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={3}
-              className={`${inputCls} resize-none`}
-            />
+          {/* The event fields. Hidden — not unmounted — while the programme
+              form is showing, so switching back keeps what was typed. */}
+          {/* Hidden rather than unmounted while the programme form is
+              showing, so switching back keeps whatever was typed. */}
+          <div className={programme ? "hidden" : "space-y-4"}>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">{t("calendar.eventTitle")}</label>
+              <input value={title} onChange={(e) => setTitle(e.target.value)} className={inputCls} />
+            </div>
+  
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">
+                {isAnnouncement ? t("finance.date") : t("common.from")}
+              </label>
+              <input
+                type="datetime-local"
+                value={startAt}
+                onChange={(e) => setStartAt(e.target.value)}
+                className={inputCls}
+                dir="ltr"
+              />
+            </div>
+  
+            {!isAnnouncement && (
+              <>
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={allDay}
+                    onChange={(e) => setAllDay(e.target.checked)}
+                    className="accent-[#2F96A6]"
+                  />
+                  {t("calendar.allDay")}
+                </label>
+  
+                {!allDay && (
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1.5">{t("common.to")}</label>
+                    <input
+                      type="datetime-local"
+                      value={endAt}
+                      onChange={(e) => setEndAt(e.target.value)}
+                      className={inputCls}
+                      dir="ltr"
+                    />
+                  </div>
+                )}
+  
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1.5">{t("fields.teacher")}</label>
+                  <select
+                    value={teacherId}
+                    onChange={(e) => setTeacherId(e.target.value)}
+                    className={inputCls}
+                  >
+                    <option value="">{t("common.none")}</option>
+                    {teachers.map((teacher) => (
+                      <option key={teacher.id} value={teacher.id}>{teacher.name}</option>
+                    ))}
+                  </select>
+                </div>
+  
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1.5">
+                    {t("nav.classes")} <span className="text-gray-400">{t("calendar.allClassesHint")}</span>
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {classes.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => toggleClass(item.id)}
+                        className={`px-3 py-2 rounded-xl text-sm transition-colors ${
+                          classIds.includes(item.id)
+                            ? "bg-[#2F96A6] text-white"
+                            : "bg-gray-50 text-gray-700 hover:bg-gray-100"
+                        }`}
+                      >
+                        {item.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+  
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1.5">{t("fields.place")}</label>
+                  <input
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
+                    className={inputCls}
+                  />
+                </div>
+              </>
+            )}
+  
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">{t("finance.details")}</label>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={3}
+                className={`${inputCls} resize-none`}
+              />
+            </div>
           </div>
         </div>
 
-        <div className="sticky bottom-0 bg-white border-t border-gray-100 px-5 py-4 flex gap-3">
+        <div
+          className={`sticky bottom-0 bg-white border-t border-gray-100 px-5 py-4 flex gap-3 ${
+            programme ? "hidden" : ""
+          }`}
+        >
           <button
             onClick={submit}
             disabled={saving || !title.trim() || !startAt}

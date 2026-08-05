@@ -680,11 +680,12 @@
     "allClassesHint": "(بدون تحديد = كل الفصول)",
     "allDay": "طوال اليوم",
     "typeLESSON": "درس",
-    "typeACTIVITY": "فعالية",
+    "typeACTIVITY": "نشاط",
     "typeANNOUNCEMENT": "إعلان",
     "moreEvents": "+{n} أخرى",
     "typeUNIT": "وحدة",
-    "eventTitle": "العنوان"
+    "eventTitle": "العنوان",
+    "typeEVENT_ACTIVITY": "فعالية"
   },
   "units": {
     "title": "الوحدات التعليمية",

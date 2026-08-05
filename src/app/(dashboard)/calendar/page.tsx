@@ -340,12 +340,6 @@ export default function CalendarPage() {
           defaultDate={creating ?? new Date()}
           classes={classes}
           teachers={teachers}
-          onPickActivity={() => {
-            setCreating(null);
-            setEditing(null);
-            setActivity(null);
-            setActivityOpen(true);
-          }}
           onClose={() => {
             setCreating(null);
             setEditing(null);

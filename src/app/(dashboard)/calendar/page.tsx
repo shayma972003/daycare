@@ -50,6 +50,15 @@ interface Option {
   name: string;
 }
 
+/** A rota entry, shown read-only. Editing one happens on the staff screens. */
+interface ShiftRow {
+  id: string;
+  teacherId: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+}
+
 export default function CalendarPage() {
   // Locale-aware translation — see src/lib/i18n.ts.
   const t = useT();
@@ -63,6 +72,7 @@ export default function CalendarPage() {
   const [teachers, setTeachers] = useState<Option[]>([]);
   const [classFilter, setClassFilter] = useState("");
   const [teacherFilter, setTeacherFilter] = useState("");
+  const [shifts, setShifts] = useState<ShiftRow[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<EventRow | null>(null);
   const [creating, setCreating] = useState<Date | null>(null);
@@ -136,6 +146,51 @@ export default function CalendarPage() {
       cancelled = true;
     };
   }, []);
+
+  /**
+   * A teacher's rota, drawn under the day headings.
+   *
+   * Only fetched when a teacher is chosen. Every staff member's shifts at once
+   * would be a band of overlapping times that answers no question — the useful
+   * question is "when is *she* working", and that is what the filter already
+   * says the reader is asking.
+   *
+   * Shifts stay their own records rather than becoming calendar events: a shift
+   * is unique per teacher per day, and that constraint is what stops the same
+   * person being rostered twice. An event table has no such rule.
+   */
+  useEffect(() => {
+    if (!teacherFilter) {
+      setShifts([]);
+      return;
+    }
+    let cancelled = false;
+    const params = new URLSearchParams({
+      from: range.from.toISOString(),
+      to: range.to.toISOString(),
+      teacherId: teacherFilter,
+    });
+    axios
+      .get<{ shifts: ShiftRow[] }>(`/api/shifts?${params.toString()}`)
+      .then((response) => {
+        if (!cancelled) setShifts(response.data.shifts ?? []);
+      })
+      .catch(() => {
+        // The rota is an overlay; the calendar is still readable without it.
+        if (!cancelled) setShifts([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [teacherFilter, range.from, range.to]);
+
+  const shiftOn = useCallback(
+    (day: Date) => {
+      const key = `${astParts(day).year}-${String(astParts(day).month + 1).padStart(2, "0")}-${String(astParts(day).day).padStart(2, "0")}`;
+      return shifts.find((shift) => shift.date.slice(0, 10) === key) ?? null;
+    },
+    [shifts]
+  );
 
   const hours = useMemo(
     () =>
@@ -245,6 +300,7 @@ export default function CalendarPage() {
               days={range.days}
               hours={hours}
               eventsOn={eventsOn}
+              shiftOn={shiftOn}
               onSelect={setEditing}
               onCreate={setCreating}
             />
@@ -278,12 +334,14 @@ function HourGrid({
   days,
   hours,
   eventsOn,
+  shiftOn,
   onSelect,
   onCreate,
 }: {
   days: Date[];
   hours: number[];
   eventsOn: (day: Date) => EventRow[];
+  shiftOn: (day: Date) => ShiftRow | null;
   onSelect: (event: EventRow) => void;
   onCreate: (day: Date) => void;
 }) {
@@ -307,6 +365,17 @@ function HourGrid({
             >
               {astParts(day).day}
             </div>
+            {/* The rota, when a teacher is selected. Read-only on purpose —
+                a shift is changed where it is planned, not in passing. */}
+            {shiftOn(day) && (
+              <div
+                className="mt-1 mx-1 rounded-md bg-[#F3EEFF] text-[#4c1d95] text-[10px] py-0.5"
+                dir="ltr"
+                title={t("shifts.title")}
+              >
+                {shiftOn(day)!.startTime}–{shiftOn(day)!.endTime}
+              </div>
+            )}
           </div>
         ))}
       </div>

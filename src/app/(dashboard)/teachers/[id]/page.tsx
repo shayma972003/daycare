@@ -9,6 +9,7 @@ import axios from "axios";
 import { describeApiError } from "@/lib/api-error";
 import { formatDate, formatCurrency } from "@/lib/utils";
 import { TeacherInvoiceModal } from "@/components/teachers/TeacherInvoiceModal";
+import { ShiftsPanel } from "@/components/teachers/ShiftsPanel";
 import { useT, useLocale } from "@/lib/i18n-provider";
 import { astDateInputValue } from "@/lib/datetime";
 import { EMPLOYMENT_STATUS_LABEL_KEYS } from "@/lib/enum-labels";
@@ -432,6 +433,17 @@ export default function TeacherProfilePage() {
                     </select>
                   </div>
                 </div>
+              </div>
+
+              {/* ── بطاقة المناوبات ─────────────────────────────────── */}
+              {/* The same grid as the staff list's rota, narrowed to this one
+                  person — so "when does she work" is answered on the screen
+                  that asks it, without opening a second one. */}
+              <div className="bg-white rounded-xl shadow-md p-6 space-y-4">
+                <h2 className="font-bold text-[#111111] text-base border-b border-gray-100 pb-3">
+                  {t("shifts.forThisTeacher")}
+                </h2>
+                <ShiftsPanel teacherId={id} />
               </div>
 
               {/* ── بطاقة المؤهلات الوظيفية ────────────────────────── */}

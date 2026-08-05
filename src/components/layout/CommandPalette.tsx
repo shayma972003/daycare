@@ -47,6 +47,7 @@ const ACTIONS: { key: string; href: string; permission: string | null }[] = [
   { key: "students", href: "/students", permission: "students.view" },
   { key: "classes", href: "/classes", permission: "classes.view" },
   { key: "teachers", href: "/teachers", permission: "staff.view" },
+  { key: "rota", href: "/teachers?drawer=rota", permission: "schedule.view" },
   { key: "calendar", href: "/calendar", permission: "schedule.view" },
   { key: "settings", href: "/settings", permission: "settings.manage" },
 ];

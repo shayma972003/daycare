@@ -22,7 +22,8 @@ export async function GET(request: Request) {
   }
   const schoolId = session.user.schoolId;
 
-  const startParam = new URL(request.url).searchParams.get("start");
+  const params = new URL(request.url).searchParams;
+  const startParam = params.get("start");
   const anchor = startParam ? new Date(startParam) : new Date();
   if (Number.isNaN(anchor.getTime())) {
     return Response.json({ error: "التاريخ غير صحيح" }, { status: 422 });
@@ -34,6 +35,36 @@ export async function GET(request: Request) {
   const weekEnd = new Date(weekStart);
   weekEnd.setUTCDate(weekEnd.getUTCDate() + 7);
 
+  /**
+   * `from`/`to` widen the window past one week, for the calendar's month view.
+   *
+   * The rota grid still asks for a week and gets one; this only lets a caller
+   * that is drawing a different span ask for that span instead of stitching
+   * four requests together. Bounded at 62 days so a mistyped range cannot ask
+   * for the school's entire history.
+   */
+  const fromParam = params.get("from");
+  const toParam = params.get("to");
+  let rangeStart = weekStart;
+  let rangeEnd = weekEnd;
+  if (fromParam && toParam) {
+    const from = new Date(fromParam);
+    const to = new Date(toParam);
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || to <= from) {
+      return Response.json({ error: "التاريخ غير صحيح" }, { status: 422 });
+    }
+    const MAX_DAYS = 62;
+    if ((to.getTime() - from.getTime()) / 86_400_000 > MAX_DAYS) {
+      return Response.json({ error: "المدة كبيرة جداً" }, { status: 422 });
+    }
+    rangeStart = astDateOnly(from);
+    rangeEnd = astDateOnly(to);
+    rangeEnd.setUTCDate(rangeEnd.getUTCDate() + 1);
+  }
+
+  // Scoped to the school first; the teacher filter only narrows within it.
+  const teacherFilter = params.get("teacherId");
+
   const [teachers, shifts] = await Promise.all([
     prisma.teacher.findMany({
       // Departed staff are excluded: `status != ACTIVE` is what "archived" means
@@ -44,7 +75,11 @@ export async function GET(request: Request) {
       select: { id: true, name: true, period: true },
     }),
     prisma.shift.findMany({
-      where: { schoolId, date: { gte: weekStart, lt: weekEnd } },
+      where: {
+        schoolId,
+        date: { gte: rangeStart, lt: rangeEnd },
+        ...(teacherFilter ? { teacherId: teacherFilter } : {}),
+      },
       select: {
         id: true,
         teacherId: true,

@@ -4,6 +4,8 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
 import { Topbar } from "@/components/layout/Topbar";
+import { Drawer, useDrawer } from "@/components/ui/Drawer";
+import { ShiftsPanel } from "@/components/teachers/ShiftsPanel";
 import { AvatarPlaceholder } from "@/components/ui/IconPlaceholder";
 import { PeriodBadge } from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -59,6 +61,8 @@ export default function TeachersPage() {
   const [bulkAction, setBulkAction] = useState("");
   const [bulkLoading, setBulkLoading] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  // `?drawer=rota` — the rota is a view of this list, so it lives in its URL.
+  const rota = useDrawer("rota");
   const [xlsxUploading, setXlsxUploading] = useState(false);
   const [xlsxResult, setXlsxResult] = useState<{ added: number; failed: number; errors: string[] } | null>(null);
   const xlsxInputRef = useRef<HTMLInputElement>(null);
@@ -183,6 +187,11 @@ export default function TeachersPage() {
     <div dir="rtl" className="flex flex-col min-h-screen">
       <Topbar title={t("teachers.title")} />
 
+      {/* The whole-week grid, opened from the staff list it belongs to. */}
+      <Drawer open={rota.isOpen} onClose={rota.close} title={t("shifts.title")}>
+        <ShiftsPanel />
+      </Drawer>
+
       <div className="flex-1 p-6 space-y-5">
         {/* Top bar */}
         <div className="flex flex-wrap gap-3 items-center justify-between">
@@ -217,6 +226,13 @@ export default function TeachersPage() {
                 {t("common.run")}
               </button>
             </div>
+
+            <button
+              onClick={rota.open}
+              className="px-4 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm hover:border-teal hover:text-teal transition-all"
+            >
+              {t("shifts.manage")}
+            </button>
 
             {/* Add teacher dropdown */}
             <div className="relative" ref={dropdownRef}>

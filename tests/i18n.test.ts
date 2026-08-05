@@ -75,9 +75,9 @@ describe("translate", () => {
   });
 
   it("covers the nav entries that were left as Arabic literals", () => {
-    // `units` was here too, until the units page was folded into the calendar
-    // as a fourth event type and the menu entry stopped existing.
-    for (const key of ["care", "calendar", "shifts"]) {
+    // `units` and `shifts` were here too. Units became a calendar event type;
+    // the rota moved behind the staff list. Neither names a menu entry now.
+    for (const key of ["care", "calendar"]) {
       expect(translate("en", `nav.${key}`)).toMatch(/^[A-Za-z ]+$/);
     }
   });

@@ -13,7 +13,6 @@
     "settings": "الإعدادات",
     "care": "تقارير الرعاية",
     "calendar": "التقويم",
-    "shifts": "المناوبات",
     "attendance": "الحضور",
     "groupFinance": "المالية",
     "groupAdmin": "الإدارة"
@@ -711,7 +710,9 @@
     "loadFailed": "تعذر تحميل المناوبات",
     "saveFailed": "تعذر حفظ المناوبة",
     "deleteFailed": "تعذر حذف المناوبة",
-    "noActiveStaff": "لا يوجد طاقم نشط"
+    "noActiveStaff": "لا يوجد طاقم نشط",
+    "manage": "المناوبات",
+    "forThisTeacher": "مناوبات هذا الأسبوع"
   },
   "plans": {
     "basic": "أساسية",
@@ -1397,6 +1398,7 @@
       "teacher": "معلمة",
       "class": "فصل"
     },
-    "search": "بحث"
+    "search": "بحث",
+    "rota": "المناوبات"
   }
 }

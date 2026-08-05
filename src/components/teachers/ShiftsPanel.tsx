@@ -1,16 +1,20 @@
 "use client";
 
 /**
- * Staff rota (task 2.28).
+ * Staff rota, as a panel rather than a screen of its own.
  *
- * A week grid of staff × days. Clicking a cell edits it in place — a rota is
- * filled in by sweeping across a row, and a modal per cell would make that
- * fifteen dialogs.
+ * The week grid stays. Filling a rota is a sweep across a row — Sunday to
+ * Thursday for one person, then the next — and a form that asks "which teacher,
+ * which day" for each cell turns one gesture into five. What went away is the
+ * top-level menu entry: a rota is something the administration does to its
+ * staff, so it belongs behind the staff list, not beside it.
+ *
+ * `teacherId` narrows the grid to one person, which is how it is opened from a
+ * teacher's own profile.
  */
 
 import { useCallback, useEffect, useState } from "react";
 import axios from "axios";
-import { Topbar } from "@/components/layout/Topbar";
 import { describeApiError } from "@/lib/api-error";
 import { WEEKDAY_LABEL_KEYS } from "@/lib/attendance-schedule";
 import { useT } from "@/lib/i18n-provider";
@@ -41,7 +45,7 @@ interface ShiftsResponse {
 const DEFAULT_START = "07:00";
 const DEFAULT_END = "15:00";
 
-export default function ShiftsPage() {
+export function ShiftsPanel({ teacherId }: { teacherId?: string }) {
   // Locale-aware translation — see src/lib/i18n.ts.
   const t = useT();
   const [data, setData] = useState<ShiftsResponse | null>(null);
@@ -128,11 +132,13 @@ export default function ShiftsPage() {
     setWeekStart(start.toISOString().slice(0, 10));
   }
 
-  return (
-    <div dir="rtl" className="min-h-screen bg-brand-bg">
-      <Topbar title={t("shifts.title")} />
+  const roster = teacherId
+    ? (data?.teachers ?? []).filter((teacher) => teacher.id === teacherId)
+    : (data?.teachers ?? []);
 
-      <div className="p-6 space-y-4">
+  return (
+    <>
+      <div className="space-y-4">
         {error && (
           <div role="alert" className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">
             {error}
@@ -155,15 +161,17 @@ export default function ShiftsPage() {
         <div className="bg-white rounded-2xl shadow-sm p-4 overflow-x-auto">
           {!data ? (
             <p className="text-sm text-gray-400 py-8 text-center">{t("common.loadingDots")}</p>
-          ) : data.teachers.length === 0 ? (
+          ) : roster.length === 0 ? (
             <p className="text-sm text-gray-400 py-8 text-center">{t("shifts.noActiveStaff")}</p>
           ) : (
-            <table className="w-full text-sm min-w-[760px] border-separate border-spacing-0">
+            <table className="w-full text-sm min-w-[560px] border-separate border-spacing-0">
               <thead>
                 <tr>
-                  <th className="sticky right-0 bg-white px-3 py-2 text-right text-gray-500 font-medium border-b border-gray-100">
-                    {t("fields.employee")}
-                  </th>
+                  {!teacherId && (
+                    <th className="sticky right-0 bg-white px-3 py-2 text-right text-gray-500 font-medium border-b border-gray-100">
+                      {t("fields.employee")}
+                    </th>
+                  )}
                   {data.days.map((date) => (
                     <th key={date} className="px-2 py-2 text-center border-b border-gray-100">
                       <div className="text-gray-600 font-medium">
@@ -175,11 +183,13 @@ export default function ShiftsPage() {
                 </tr>
               </thead>
               <tbody>
-                {data.teachers.map((teacher) => (
+                {roster.map((teacher) => (
                   <tr key={teacher.id}>
-                    <td className="sticky right-0 bg-white px-3 py-2 border-b border-gray-50 text-[#111111] whitespace-nowrap">
-                      {teacher.name}
-                    </td>
+                    {!teacherId && (
+                      <td className="sticky right-0 bg-white px-3 py-2 border-b border-gray-50 text-[#111111] whitespace-nowrap">
+                        {teacher.name}
+                      </td>
+                    )}
                     {data.days.map((date) => {
                       const shift = shiftFor(teacher.id, date);
                       return (
@@ -264,6 +274,6 @@ export default function ShiftsPage() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }

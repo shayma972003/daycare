@@ -195,22 +195,23 @@ export function CalendarEventModal({
                 </button>
               ))}
 
-              {/* An existing event cannot become a programme; an existing
-                  programme cannot become anything else. */}
-              {!event && (
-                <button
-                  type="button"
-                  disabled={Boolean(activity)}
-                  onClick={() => setProgramme(true)}
-                  className={`px-4 py-2 rounded-xl text-sm transition-colors ${
-                    programme
-                      ? "bg-[#2F96A6] text-white"
-                      : "bg-gray-50 text-gray-700 hover:bg-gray-100"
-                  }`}
-                >
-                  {t("calendar.typeEVENT_ACTIVITY")}
-                </button>
-              )}
+              {/* Always the fifth button, so the row is the same everywhere.
+                  Disabled while editing an event, for the same reason the four
+                  types are disabled while editing a programme: the two live in
+                  different tables and neither save can rewrite the other. */}
+              <button
+                type="button"
+                disabled={Boolean(event) || Boolean(activity)}
+                title={event ? t("calendar.cannotConvert") : undefined}
+                onClick={() => setProgramme(true)}
+                className={`px-4 py-2 rounded-xl text-sm transition-colors ${
+                  programme
+                    ? "bg-[#2F96A6] text-white"
+                    : "bg-gray-50 text-gray-700 hover:bg-gray-100"
+                } disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-gray-50`}
+              >
+                {t("calendar.typeEVENT_ACTIVITY")}
+              </button>
             </div>
           </div>
 

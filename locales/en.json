@@ -686,7 +686,7 @@
     "typeUNIT": "Unit",
     "eventTitle": "Title",
     "typeEVENT_ACTIVITY": "Programme",
-    "cannotConvert": "A programme cannot be converted — delete it and create an event instead."
+    "cannotConvert": "This cannot be converted — delete it and create the other kind."
   },
   "units": {
     "title": "Teaching units",

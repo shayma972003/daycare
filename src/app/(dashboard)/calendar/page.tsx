@@ -13,7 +13,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { Topbar } from "@/components/layout/Topbar";
 import { describeApiError } from "@/lib/api-error";
-import { formatAst, astParts, astDayStart } from "@/lib/datetime";
+import { formatAst, astParts } from "@/lib/datetime";
 import { WEEKDAY_LABEL_KEYS } from "@/lib/attendance-schedule";
 import {
   rangeFor,
@@ -26,6 +26,8 @@ import {
   DAY_START_HOUR,
   DAY_END_HOUR,
   hourLabel,
+  hoursOccupied,
+  coversDay,
   type CalendarView,
 } from "@/lib/calendar";
 import { CalendarEventModal } from "@/components/calendar/CalendarEventModal";
@@ -235,14 +237,9 @@ export default function CalendarPage() {
    * not belong on the 20th.
    */
   function eventsOn(day: Date) {
-    return events.filter((event) => {
-      const start = new Date(event.startAt);
-      if (isSameAstDay(start, day)) return true;
-      if (!event.endAt) return false;
-      const end = new Date(event.endAt);
-      if (isSameAstDay(end, day)) return true;
-      return astDayStart(start) < astDayStart(day) && astDayStart(day) < astDayStart(end);
-    });
+    return events.filter((event) =>
+      coversDay(new Date(event.startAt), event.endAt ? new Date(event.endAt) : null, day)
+    );
   }
 
   /** True on the days after the first — those render as a band, not at an hour. */
@@ -447,7 +444,25 @@ function HourGrid({
               // Days after the first have no start hour of their own, so they
               // sit in the first row like an all-day band.
               if (event.allDay || isContinuation(event, day)) return hour === DAY_START_HOUR;
-              return astParts(new Date(event.startAt)).hour === hour;
+
+              /**
+               * Every hour the event occupies, not only the one it starts in.
+               *
+               * A lesson from 17:00 to 19:00 was a single cell at 17:00, so two
+               * rooms booked 17:00–19:00 and 18:00–19:00 looked like they never
+               * met. The row an event sits in is what "does this clash" is read
+               * from, and one row cannot answer it.
+               */
+              const startParts = astParts(new Date(event.startAt));
+              const end = event.endAt ? new Date(event.endAt) : null;
+              // Null hour/minute means "finishes on a later day" — see hoursOccupied.
+              const sameDayEnd = end && isSameAstDay(end, day) ? astParts(end) : null;
+              return hoursOccupied(
+                startParts.hour,
+                startParts.minute,
+                end ? (sameDayEnd ? sameDayEnd.hour : null) : startParts.hour,
+                end ? (sameDayEnd ? sameDayEnd.minute : null) : startParts.minute
+              ).includes(hour);
             });
             return (
               <button

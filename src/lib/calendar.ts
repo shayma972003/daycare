@@ -47,6 +47,54 @@ export const DAY_START_HOUR = 0;
 export const DAY_END_HOUR = 23;
 
 /**
+ * Which hour rows an entry occupies on a given day.
+ *
+ * A lesson from 17:00 to 19:00 used to be a single cell at 17:00, so two rooms
+ * booked 17:00–19:00 and 18:00–19:00 looked like they never met. The row an
+ * entry sits in is what "does this clash" is read from, and one row cannot
+ * answer it.
+ *
+ * `endHour`/`endMinute` are null when the entry finishes on a later day, in
+ * which case it runs to the end of this one.
+ */
+export function hoursOccupied(
+  startHour: number,
+  startMinute: number,
+  endHour: number | null,
+  endMinute: number | null
+): number[] {
+  const last =
+    endHour === null
+      ? DAY_END_HOUR
+      : // Ending exactly on the hour does not occupy it: 17:00–19:00 fills 17
+        // and 18, leaving 19:00 free for whatever follows. A zero-length entry
+        // still shows in its own row rather than none.
+        endMinute === 0 && endHour > startHour
+        ? endHour - 1
+        : endHour;
+
+  const hours: number[] = [];
+  for (let hour = startHour; hour <= Math.min(last, DAY_END_HOUR); hour++) hours.push(hour);
+  return hours.length > 0 ? hours : [startHour];
+}
+
+/**
+ * Whether an entry runs on a given calendar day.
+ *
+ * Compared by AST day rather than by instant: one ending at 09:00 on the 19th
+ * still belongs on the 19th, and one starting at 23:00 does not belong on the
+ * 20th. A missing end means a single day.
+ */
+export function coversDay(start: Date, end: Date | null, day: Date): boolean {
+  const startDay = astDayStart(start).getTime();
+  const target = astDayStart(day).getTime();
+  if (startDay === target) return true;
+  if (!end) return false;
+  const endDay = astDayStart(end).getTime();
+  return startDay < target && target <= endDay;
+}
+
+/**
  * An hour label, in the 12-hour clock the reader actually speaks.
  *
  * Built by hand rather than through `Intl.DateTimeFormat`, because the grid

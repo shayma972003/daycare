@@ -5,6 +5,16 @@ import { assertTeacherOwned, assertClassOwned, crossTenantResponse } from "@/lib
 import { z } from "zod";
 
 const updateSchema = z.object({
+  /**
+   * The type was missing here, and the client has always sent it.
+   *
+   * Zod strips an unknown key silently, so changing a lesson to an
+   * announcement did nothing to `type` — while the *other* fields the client
+   * derives from the new type (`endAt: null`, `classIds: []`) were applied.
+   * The row stayed a lesson and lost its end time and every room, from an
+   * edit that looked like it had worked.
+   */
+  type: z.enum(["LESSON", "ACTIVITY", "ANNOUNCEMENT", "UNIT"]).optional(),
   title: z.string().min(1).max(200).optional(),
   description: z.string().max(2000).nullish(),
   startAt: z.string().optional(),
@@ -54,6 +64,7 @@ export async function PUT(
   if ("description" in parsed.data) data.description = parsed.data.description ?? null;
   if ("location" in parsed.data) data.location = parsed.data.location ?? null;
   if (parsed.data.allDay !== undefined) data.allDay = parsed.data.allDay;
+  if (parsed.data.type !== undefined) data.type = parsed.data.type;
 
   const startAt = parsed.data.startAt ? new Date(parsed.data.startAt) : existing.startAt;
   if (Number.isNaN(startAt.getTime())) {

@@ -145,3 +145,21 @@ export function formatDual(at: Date): string {
   // calendar, and adding one produces "1448 هـ هـ".
   return `${formatAst(at, { year: "numeric", month: "long", day: "numeric" })} · ${formatHijri(at)}`;
 }
+
+/**
+ * `datetime-local` value in Riyadh wall-clock terms.
+ *
+ * The calendar form used `getTimezoneOffset()`, which is the *browser's* zone,
+ * while every rendering path uses the fixed +3 model. On a device set to
+ * anything else the two disagreed: typing 17:00 on a UTC laptop stored 17:00Z
+ * and the grid drew it at 20:00.
+ */
+export function astInputValue(at: Date | string): string {
+  const date = typeof at === "string" ? new Date(at) : at;
+  return new Date(date.getTime() + AST_OFFSET_MS).toISOString().slice(0, 16);
+}
+
+/** The inverse: a Riyadh wall-clock string back to the instant it names. */
+export function astInputToDate(value: string): Date {
+  return new Date(new Date(`${value}:00Z`).getTime() - AST_OFFSET_MS);
+}

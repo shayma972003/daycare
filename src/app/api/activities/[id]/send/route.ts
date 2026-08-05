@@ -37,7 +37,13 @@ export async function POST(
         include: {
           class: {
             include: {
-              students: { include: { guardian: true } },
+              /* Enrolled children only. There was no filter, so guardians of
+                 children who had left the class — soft-deleted or withdrawn —
+                 were messaged about an activity their child is not in. */
+              students: {
+                where: { isActive: true, deletedAt: null },
+                include: { guardian: true },
+              },
               // The room's lead teacher, so staff hear about an activity they
               // are expected to run. Until now the message went to guardians
               // only and the teacher found out when the children arrived.
@@ -60,8 +66,30 @@ export async function POST(
 
   const notificationsSent: string[] = [];
 
-  for (const invite of notifyGuardians ? activity.activityInvites : []) {
-    for (const student of invite.class.students) {
+  /**
+   * No invited classes means the whole school.
+   *
+   * That is how the calendar reads it — an activity with no invitations shows
+   * to everyone — but the send loop walked the invitations and found none, so
+   * a school-wide activity with "notify guardians" ticked reached nobody and
+   * logged a cheerful "0 recipients".
+   */
+  const schoolWide = activity.activityInvites.length === 0;
+  const guardianClasses = schoolWide
+    ? await prisma.class.findMany({
+        where: { schoolId, deletedAt: null },
+        include: {
+          students: {
+            where: { isActive: true, deletedAt: null },
+            include: { guardian: true },
+          },
+          teacher: { select: { id: true, name: true, phone1: true, phone2: true, email: true } },
+        },
+      })
+    : activity.activityInvites.map((invite) => invite.class);
+
+  for (const room of notifyGuardians ? guardianClasses : []) {
+    for (const student of room.students) {
       const guardianName = student.guardian?.name ?? student.name;
       const phone = student.guardian?.phone1 ?? student.guardian?.phone2 ?? null;
       const email = student.guardian?.email ?? null;
@@ -114,8 +142,8 @@ export async function POST(
    */
   if (notifyStaff) {
     const seen = new Set<string>();
-    for (const invite of activity.activityInvites) {
-      const teacher = invite.class.teacher;
+    for (const room of guardianClasses) {
+      const teacher = room.teacher;
       if (!teacher || seen.has(teacher.id)) continue;
       seen.add(teacher.id);
 

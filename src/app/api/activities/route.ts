@@ -4,6 +4,7 @@ import { logAction } from "@/lib/activity-logger";
 import { parseClassGroup } from "@/lib/enum-labels";
 import { resolveStageId, foreignStageResponse } from "@/lib/academic-stage";
 import { z } from "zod";
+import { assertTeacherOwned, assertClassOwned, crossTenantResponse } from "@/lib/tenant-guard";
 
 const createActivitySchema = z.object({
   name: z.string().min(1),
@@ -112,11 +113,31 @@ export async function POST(request: Request) {
     classIds,
   } = parsed.data;
 
-  // Proven to belong to this school before it is stored.
+  /**
+   * Every id from the client is proven to belong to this school first.
+   *
+   * `stageId` was checked here and the other two were not, so a create could
+   * point an activity at another tenant's teacher and — worse — invite another
+   * tenant's classes. `send` then walks `invite.class.students` and messages
+   * those children's guardians, because the *activity* passes the schoolId
+   * check while its invitations do not. The update route has guarded all three
+   * since it was written; this one never did.
+   */
   let ownedStageId: string | null;
+  let ownedTeacherId: string | null | undefined;
+  const ownedClassIds: string[] = [];
   try {
     ownedStageId = await resolveStageId(stageId, schoolId);
+    if (teacherId !== undefined) {
+      ownedTeacherId = await assertTeacherOwned(teacherId || null, schoolId);
+    }
+    for (const classId of classIds ?? []) {
+      const owned = await assertClassOwned(classId, schoolId);
+      if (owned) ownedClassIds.push(owned);
+    }
   } catch (error) {
+    const denied = crossTenantResponse(error);
+    if (denied) return denied;
     const foreignStage = foreignStageResponse(error);
     if (foreignStage) return foreignStage;
     throw error;
@@ -130,7 +151,7 @@ export async function POST(request: Request) {
       name,
       startDate: new Date(startDate),
       endDate: new Date(endDate),
-      ...(teacherId !== undefined && { teacherId }),
+      ...(ownedTeacherId !== undefined && { teacherId: ownedTeacherId }),
       ...(group !== undefined && { group: parseClassGroup(group) ?? "KG1" }),
       ...(ownedStageId !== null && { stageId: ownedStageId }),
       ...(period !== undefined && { period }),
@@ -138,9 +159,9 @@ export async function POST(request: Request) {
       ...(resolvedFee !== undefined && { activityFee: resolvedFee }),
       ...(imageUrl !== undefined && { imageUrl }),
       ...(message !== undefined && { message }),
-      ...(classIds && classIds.length > 0 && {
+      ...(ownedClassIds.length > 0 && {
         activityInvites: {
-          create: classIds.map((classId) => ({ classId })),
+          create: ownedClassIds.map((classId) => ({ classId })),
         },
       }),
     },

@@ -11,6 +11,19 @@ import type { Activity } from "./ActivityGrid";
 import { useT } from "@/lib/i18n-provider";
 import { useAcademicStages, useStageName } from "@/lib/use-academic-stages";
 
+/**
+ * An emptied number box is zero, not `NaN`.
+ *
+ * `valueAsNumber` yields `NaN` when the field is cleared, `JSON.stringify`
+ * writes that as `null`, and the zod schema rejects null on a field it calls
+ * optional — so clearing the fee returned a 400 that, in the embedded form,
+ * was invisible.
+ */
+function emptyToZero(value: unknown): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 interface Teacher {
   id: string;
   name: string;
@@ -183,6 +196,12 @@ export function ActivityFormModal({
    */
   useEffect(() => {
     setError(null);
+    /* Reset per opening. The dashboard keeps this modal mounted, so a ticked
+       box survived into the next activity — saving B re-messaged every
+       guardian because A had been sent. */
+    setNotifyGuardians(false);
+    setNotifyStaff(false);
+    setSentNotice(false);
 
     if (open && activity) {
       reset({
@@ -366,6 +385,17 @@ export function ActivityFormModal({
 
   const body = (
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+              {/* Inside `body`, not beside it. This block used to sit after the
+                  `if (embedded) return body` line, so the calendar-embedded
+                  copy of this form reported nothing at all — including the
+                  details fetch failing, which re-enables Save with a blank
+                  teacher and no invited classes and lets a save wipe both. */}
+              {error && (
+                <div role="alert" className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+                  {error}
+                </div>
+              )}
+
               {/* Activity name */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -413,7 +443,7 @@ export function ActivityFormModal({
                   <input
                     type="number"
                     min={0}
-                    {...register("childrenCount", { valueAsNumber: true })}
+                    {...register("childrenCount", { setValueAs: emptyToZero })}
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651]"
                   />
                 </div>
@@ -485,7 +515,7 @@ export function ActivityFormModal({
                     type="number"
                     min={0}
                     step="0.01"
-                    {...register("fee", { valueAsNumber: true })}
+                    {...register("fee", { setValueAs: emptyToZero })}
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651] pl-12"
                   />
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">
@@ -646,6 +676,22 @@ export function ActivityFormModal({
                       : t("common.save")}
                 </button>
   
+                {/* Sends for an already-saved programme without re-saving it.
+                    The handler existed with no button after the form was
+                    extracted for embedding, so the whole "send it a week later"
+                    path was unreachable. */}
+                {isEdit && (
+                  <button
+                    type="button"
+                    onClick={handleSendNow}
+                    disabled={sending || saving}
+                    title={t("activities.sendNowHint")}
+                    className="px-4 py-2.5 border border-[#2F96A6] text-[#2F96A6] rounded-lg text-sm font-semibold hover:bg-[#E0F7FA] transition-colors disabled:opacity-60"
+                  >
+                    {sending ? t("common.loading") : t("activities.sendNow")}
+                  </button>
+                )}
+
                 {isEdit && (
                   <button
                     type="button"
@@ -684,12 +730,6 @@ export function ActivityFormModal({
               </button>
             </Dialog.Close>
           </div>
-
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
-              {error}
-            </div>
-          )}
 
           {body}
         </Dialog.Content>

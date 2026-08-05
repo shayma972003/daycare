@@ -52,17 +52,38 @@ export async function GET(request: Request) {
     where: {
       schoolId,
       deletedAt: null,
-      startAt: { gte: from, lt: to },
+      /**
+       * Overlap, not containment.
+       *
+       * `startAt: { gte: from }` asks "did it begin inside this window", which
+       * is a different question from "is it happening during it". A unit
+       * running the 1st to the 20th vanished from the week of the 12th — the
+       * client renders every day an entry covers, and the row it needed was
+       * never sent. Activities below have always used an overlap query; events
+       * did not, so the fix that made programmes span days did nothing here.
+       *
+       * An entry with no end is a single instant and only matches by start.
+       */
+      startAt: { lt: to },
       ...(teacherId ? { teacherId } : {}),
       ...(type && ["LESSON", "ACTIVITY", "ANNOUNCEMENT", "UNIT"].includes(type)
         ? { type: type as "LESSON" | "ACTIVITY" | "ANNOUNCEMENT" | "UNIT" }
         : {}),
-      // Filtering by room means "events this room is invited to". An event with
-      // no rooms attached is school-wide and shows regardless — otherwise the
-      // filter would hide the announcements that concern everybody.
-      ...(classId
-        ? { OR: [{ classes: { some: { classId } } }, { classes: { none: {} } }] }
-        : {}),
+      /**
+       * Both conditions are `OR` groups, so they go in `AND` rather than as two
+       * `OR` keys — the second would simply overwrite the first in the object
+       * literal, and the room filter would have silently undone the overlap.
+       *
+       * Filtering by room means "events this room is invited to". An event with
+       * no rooms attached is school-wide and shows regardless — otherwise the
+       * filter would hide the announcements that concern everybody.
+       */
+      AND: [
+        { OR: [{ endAt: { gte: from } }, { endAt: null, startAt: { gte: from } }] },
+        ...(classId
+          ? [{ OR: [{ classes: { some: { classId } } }, { classes: { none: {} } }] }]
+          : []),
+      ],
     },
     orderBy: { startAt: "asc" },
     include: {

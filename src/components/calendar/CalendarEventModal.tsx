@@ -11,6 +11,7 @@
 import { useState } from "react";
 import axios from "axios";
 import { describeApiError } from "@/lib/api-error";
+import { astInputValue, astInputToDate } from "@/lib/datetime";
 import { EVENT_TYPE_LABEL_KEYS } from "@/lib/calendar";
 import type { CalendarEventType } from "@/generated/prisma/enums";
 import { useT } from "@/lib/i18n-provider";
@@ -35,12 +36,11 @@ interface Option {
   name: string;
 }
 
-/** `datetime-local` wants the local wall clock, not an ISO instant. */
-function toInput(value: Date | string): string {
-  const date = typeof value === "string" ? new Date(value) : value;
-  const offset = date.getTimezoneOffset() * 60000;
-  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
-}
+/**
+ * `datetime-local` wants a wall clock — and the product's wall clock is Riyadh,
+ * not the browser's. See `astInputValue`.
+ */
+const toInput = astInputValue;
 
 const inputCls =
   "w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2F96A6]";
@@ -110,10 +110,10 @@ export function CalendarEventModal({
         type,
         title: title.trim(),
         description: description.trim() || null,
-        startAt: new Date(startAt).toISOString(),
+        startAt: astInputToDate(startAt).toISOString(),
         // Cleared for an announcement and for an all-day entry: both are
         // statements about a day, not a span of hours.
-        endAt: isAnnouncement || allDay || !endAt ? null : new Date(endAt).toISOString(),
+        endAt: isAnnouncement || allDay || !endAt ? null : astInputToDate(endAt).toISOString(),
         allDay,
         teacherId: teacherId || null,
         location: location.trim() || null,
@@ -217,20 +217,21 @@ export function CalendarEventModal({
 
           {/* The programme form, in place. The heading and the type row above
               stay put, so switching back is one click. */}
-          {programme && (
+          {/* Hidden, not unmounted — the event fields below are treated the
+              same way. Conditionally rendering it meant switching to a type
+              button and back discarded everything typed into the programme. */}
+          <div className={programme ? undefined : "hidden"}>
             <ActivityFormModal
               embedded
-              open
+              open={programme}
               activity={activity ?? null}
               onClose={onClose}
               onSaved={onSaved}
             />
-          )}
+          </div>
 
-          {/* The event fields. Hidden — not unmounted — while the programme
-              form is showing, so switching back keeps what was typed. */}
-          {/* Hidden rather than unmounted while the programme form is
-              showing, so switching back keeps whatever was typed. */}
+          {/* Hidden rather than unmounted while the programme form is showing,
+              so switching back keeps whatever was typed. */}
           <div className={programme ? "hidden" : "space-y-4"}>
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1.5">{t("calendar.eventTitle")}</label>

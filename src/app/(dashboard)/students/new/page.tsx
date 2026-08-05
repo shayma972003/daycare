@@ -11,6 +11,7 @@ import { Topbar } from "@/components/layout/Topbar";
 import { PAYMENT_STATUSES } from "@/lib/payment-status";
 import { useT } from "@/lib/i18n-provider";
 import { useAcademicStages, useStageName } from "@/lib/use-academic-stages";
+import { FormErrors, collectMessages } from "@/components/ui/FormErrors";
 
 type Class = { id: string; name: string };
 type GuardianSuggestion = { id: string; name: string; phone1?: string | null; phone2?: string | null; email?: string | null; name_2?: string | null; phone_3?: string | null; phone_4?: string | null; email_2?: string | null };
@@ -72,6 +73,12 @@ export default function NewStudentPage() {
   // Zod on the client, from the same schema the API uses — task 2.41. Without a
   // resolver the only validation was whatever the input element enforced, which
   // for a text field is nothing.
+  /* A blocked submit used to do nothing and say nothing — see FormErrors. */
+  const [invalidFields, setInvalidFields] = useState<string[]>([]);
+  function onInvalid(fieldErrors: unknown) {
+    setInvalidFields(collectMessages(fieldErrors));
+  }
+
   const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<StudentFormData>({
     resolver: zodResolver(studentFormSchema) as Resolver<StudentFormData>,
     defaultValues: {
@@ -227,7 +234,7 @@ export default function NewStudentPage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+        <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="space-y-5">
           {/* Card 1: معلومات الطالب */}
           <div className="bg-white rounded-xl shadow-md p-6">
             <h2 className="text-base font-bold text-[#111111] mb-5">{t("studentProfile.studentInfo")}</h2>
@@ -450,6 +457,7 @@ export default function NewStudentPage() {
           </div>
 
           <div className="flex gap-3">
+            <FormErrors messages={invalidFields} />
             <button
               type="submit"
               disabled={saving}

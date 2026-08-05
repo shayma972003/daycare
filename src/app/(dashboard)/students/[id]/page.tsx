@@ -9,6 +9,7 @@ import { studentFormSchema } from "@/lib/form-schemas";
 import { Topbar } from "@/components/layout/Topbar";
 import { formatDate, formatCurrency } from "@/lib/utils";
 import { InvoiceModal } from "@/components/students/InvoiceModal";
+import { FormErrors, collectMessages } from "@/components/ui/FormErrors";
 import { StudentCareFeed } from "@/components/care/StudentCareFeed";
 import { STUDENT_STATUS_LABEL_KEYS } from "@/lib/enum-labels";
 import { PAYMENT_STATUSES } from "@/lib/payment-status";
@@ -146,6 +147,21 @@ export default function StudentProfilePage({
 
   // Same schema as the create form — an edit that accepts what creation refuses
   // is how invalid rows get in through the side door (task 2.41).
+  /**
+   * What a blocked submit says.
+   *
+   * `handleSubmit` refuses to call the handler when the schema rejects a field,
+   * and `errors` was destructured here and rendered nowhere — so pressing save
+   * with an eleven-digit ID number did nothing at all, silently, with no way to
+   * find out why. Zod's messages are already written for a reader; they only
+   * needed somewhere to appear.
+   */
+  const [invalidFields, setInvalidFields] = useState<string[]>([]);
+
+  function onInvalid(fieldErrors: unknown) {
+    setInvalidFields(collectMessages(fieldErrors));
+  }
+
   const { register, handleSubmit, reset, watch, setValue, formState: { errors } } =
     useForm<FormData>({
       resolver: zodResolver(studentFormSchema) as Resolver<FormData>,
@@ -491,7 +507,7 @@ export default function StudentProfilePage({
           ← {t("students.title")}
         </button>
 
-        <form onSubmit={handleSubmit(onSave)}>
+        <form onSubmit={handleSubmit(onSave, onInvalid)}>
           <div className="flex gap-5 flex-col lg:flex-row">
             {/* Left: cards */}
             <div className="flex-1 space-y-5">
@@ -895,6 +911,9 @@ export default function StudentProfilePage({
             <div className="w-full lg:w-64 space-y-3 self-start">
               <div className="bg-white rounded-xl shadow-md p-5">
                 <div className="flex flex-col gap-3 w-full">
+                  {/* Shown beside the button that appeared to do nothing. */}
+                  <FormErrors messages={invalidFields} />
+
                   {/* 1. حفظ التغييرات */}
                   <button
                     type="submit"

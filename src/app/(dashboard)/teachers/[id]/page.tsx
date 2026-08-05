@@ -10,6 +10,7 @@ import { describeApiError } from "@/lib/api-error";
 import { formatDate, formatCurrency } from "@/lib/utils";
 import { TeacherInvoiceModal } from "@/components/teachers/TeacherInvoiceModal";
 import { ShiftsPanel } from "@/components/teachers/ShiftsPanel";
+import { FormErrors, collectMessages } from "@/components/ui/FormErrors";
 import { useT, useLocale } from "@/lib/i18n-provider";
 import { astDateInputValue } from "@/lib/datetime";
 import { EMPLOYMENT_STATUS_LABEL_KEYS } from "@/lib/enum-labels";
@@ -90,6 +91,12 @@ export default function TeacherProfilePage() {
   const [extraQuals, setExtraQuals] = useState<string[]>([]);
 
   // Same schema as the create form — see the note on the student profile.
+  /* A blocked submit used to do nothing and say nothing — see FormErrors. */
+  const [invalidFields, setInvalidFields] = useState<string[]>([]);
+  function onInvalid(fieldErrors: unknown) {
+    setInvalidFields(collectMessages(fieldErrors));
+  }
+
   const { register, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(teacherFormSchema) as Resolver<FormValues>,
     defaultValues: {
@@ -326,7 +333,7 @@ export default function TeacherProfilePage() {
       </div>
 
       <div className="flex-1 p-6">
-        <form onSubmit={handleSubmit(onSubmit)}>
+        <form onSubmit={handleSubmit(onSubmit, onInvalid)}>
           <div className="flex gap-6 items-start">
             {/* Cards column */}
             <div className="flex-1 space-y-5">
@@ -513,6 +520,7 @@ export default function TeacherProfilePage() {
               <div className="bg-white rounded-xl shadow-md p-4">
                 <div className="flex flex-col gap-3 w-full">
                   {/* 1. حفظ التغييرات */}
+                  <FormErrors messages={invalidFields} />
                   <button
                     type="submit"
                     disabled={saving}

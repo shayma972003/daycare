@@ -270,7 +270,8 @@
         "deleteLateFee": "حذف رسوم التأخير",
         "issueInvoice": "اصدار فاتورة"
       },
-      "invoices": "الفواتير الصادرة"
+      "invoices": "الفواتير الصادرة",
+      "fixFirst": "تعذّر الحفظ — صحّحي التالي:"
     },
     "pendingRequests": "طلبات التسجيل المعلقة",
     "newRequestsCount": "{count} طلبات جديدة",

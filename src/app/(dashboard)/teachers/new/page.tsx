@@ -8,6 +8,7 @@ import { teacherFormSchema } from "@/lib/form-schemas";
 import axios from "axios";
 import { Topbar } from "@/components/layout/Topbar";
 import { useT } from "@/lib/i18n-provider";
+import { FormErrors, collectMessages } from "@/components/ui/FormErrors";
 
 
 type Class = { id: string; name: string };
@@ -52,6 +53,12 @@ export default function NewTeacherPage() {
   const [error, setError] = useState<string | null>(null);
 
   // Shared schema — see the note on the student form and task 2.41.
+  /* A blocked submit used to do nothing and say nothing — see FormErrors. */
+  const [invalidFields, setInvalidFields] = useState<string[]>([]);
+  function onInvalid(fieldErrors: unknown) {
+    setInvalidFields(collectMessages(fieldErrors));
+  }
+
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<TeacherFormData>({
     resolver: zodResolver(teacherFormSchema) as Resolver<TeacherFormData>,
     defaultValues: {
@@ -107,7 +114,7 @@ export default function NewTeacherPage() {
           <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">{error}</div>
         )}
 
-        <form onSubmit={handleSubmit(onSubmit)}>
+        <form onSubmit={handleSubmit(onSubmit, onInvalid)}>
           <div className="bg-white rounded-xl shadow-md p-6">
             <h2 className="text-base font-bold text-[#111111] mb-5">{t("teachers.data")}</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -200,6 +207,7 @@ export default function NewTeacherPage() {
             </div>
 
             <div className="mt-6 flex gap-3">
+              <FormErrors messages={invalidFields} />
               <button
                 type="submit"
                 disabled={saving}

@@ -270,7 +270,8 @@
         "deleteLateFee": "Delete Late Fee",
         "issueInvoice": "Issue Invoice"
       },
-      "invoices": "Issued Invoices"
+      "invoices": "Issued Invoices",
+      "fixFirst": "Could not save — please fix:"
     },
     "pendingRequests": "Pending registration requests",
     "newRequestsCount": "{count} new requests",

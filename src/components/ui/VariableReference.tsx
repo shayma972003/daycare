@@ -4,6 +4,15 @@ import { useT } from "@/lib/i18n-provider";
 
 interface VariableReferenceProps {
   mode?: "full" | "payment" | "activity";
+  /**
+   * Given, each token becomes a button that inserts itself.
+   *
+   * Without it this is a list of `<child_name>` strings and a hope the reader
+   * retypes one correctly — angle brackets and an exact spelling, into a field
+   * that gives no feedback when it is wrong. A mistyped token is not an error,
+   * it is a message that goes out with `<chlid_name>` in it.
+   */
+  onInsert?: (token: string) => void;
 }
 
 interface VarDef {
@@ -53,7 +62,7 @@ const COLOR_MAP: Record<string, string> = {
 };
 const DEFAULT_CLASS = COLOR_MAP.indigo;
 
-export function VariableReference({ mode = "full" }: VariableReferenceProps) {
+export function VariableReference({ mode = "full", onInsert }: VariableReferenceProps) {
   const t = useT();
   const vars =
     mode === "payment"  ? PAYMENT_VARS  :
@@ -62,17 +71,34 @@ export function VariableReference({ mode = "full" }: VariableReferenceProps) {
 
   return (
     <div className="mt-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
-      <p className="text-xs font-semibold text-slate-600 mb-2">{t("variables.title")}</p>
+      <p className="text-xs font-semibold text-slate-600 mb-2">
+        {t("variables.title")}
+        {onInsert && (
+          <span className="font-normal text-slate-400"> — {t("variables.clickToInsert")}</span>
+        )}
+      </p>
       <div className="flex flex-wrap gap-1.5">
-        {vars.map((v) => (
-          <code
-            key={v.key}
-            title={t(v.labelKey)}
-            className={COLOR_MAP[v.color ?? "indigo"] ?? DEFAULT_CLASS}
-          >
-            {"<"}{v.key}{">"}
-          </code>
-        ))}
+        {vars.map((v) =>
+          onInsert ? (
+            <button
+              key={v.key}
+              type="button"
+              onClick={() => onInsert(`<${v.key}>`)}
+              title={t(v.labelKey)}
+              className={`${COLOR_MAP[v.color ?? "indigo"] ?? DEFAULT_CLASS} hover:ring-1 hover:ring-current cursor-pointer`}
+            >
+              {"<"}{v.key}{">"}
+            </button>
+          ) : (
+            <code
+              key={v.key}
+              title={t(v.labelKey)}
+              className={COLOR_MAP[v.color ?? "indigo"] ?? DEFAULT_CLASS}
+            >
+              {"<"}{v.key}{">"}
+            </code>
+          )
+        )}
       </div>
       <div className="flex flex-wrap gap-1.5 mt-2">
         {vars.map((v) => (

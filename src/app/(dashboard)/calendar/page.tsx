@@ -28,11 +28,15 @@ import {
   type CalendarView,
 } from "@/lib/calendar";
 import { CalendarEventModal } from "@/components/calendar/CalendarEventModal";
+import { ActivityFormModal } from "@/components/activities/ActivityFormModal";
+import type { Activity as ActivityRecord } from "@/components/activities/ActivityGrid";
 import type { CalendarEventType } from "@/generated/prisma/enums";
 import { useT, useLocale } from "@/lib/i18n-provider";
 
 interface EventRow {
   id: string;
+  /** "activity" rows come from the Activity table and open a different editor. */
+  kind?: "event" | "activity";
   type: CalendarEventType;
   title: string;
   description: string | null;
@@ -76,6 +80,26 @@ export default function CalendarPage() {
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<EventRow | null>(null);
   const [creating, setCreating] = useState<Date | null>(null);
+  /* Activities are edited in their own form — they carry a fee, a stage and
+     guardian invitations that the event form has no fields for. */
+  const [activity, setActivity] = useState<ActivityRecord | null>(null);
+  const [activityOpen, setActivityOpen] = useState(false);
+
+  async function openRow(row: EventRow) {
+    if (row.kind !== "activity") {
+      setEditing(row);
+      return;
+    }
+    // The form wants the record, not an id — and the calendar only carries
+    // enough of an activity to draw it.
+    try {
+      const response = await axios.get<ActivityRecord>(`/api/activities/${row.id}`);
+      setActivity(response.data);
+      setActivityOpen(true);
+    } catch (err) {
+      setError(describeApiError(err, t("calendar.loadFailed")));
+    }
+  }
 
   const range = useMemo(() => rangeFor(view, anchor), [view, anchor]);
 
@@ -299,14 +323,14 @@ export default function CalendarPage() {
 
         <div className="bg-white rounded-2xl shadow-sm p-4 overflow-x-auto">
           {view === "month" ? (
-            <MonthGrid days={range.days} anchor={anchor} eventsOn={eventsOn} onSelect={setEditing} />
+            <MonthGrid days={range.days} anchor={anchor} eventsOn={eventsOn} onSelect={openRow} />
           ) : (
             <HourGrid
               days={range.days}
               hours={hours}
               eventsOn={eventsOn}
               shiftOn={shiftOn}
-              onSelect={setEditing}
+              onSelect={openRow}
               onCreate={setCreating}
             />
           )}
@@ -319,6 +343,12 @@ export default function CalendarPage() {
           defaultDate={creating ?? new Date()}
           classes={classes}
           teachers={teachers}
+          onPickActivity={() => {
+            setCreating(null);
+            setEditing(null);
+            setActivity(null);
+            setActivityOpen(true);
+          }}
           onClose={() => {
             setCreating(null);
             setEditing(null);

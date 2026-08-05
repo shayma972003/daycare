@@ -72,12 +72,63 @@ export async function GET(request: Request) {
     },
   });
 
+  /**
+   * Activities are a table of their own, and the calendar never read it.
+   *
+   * That is why an activity added from the home screen appeared nowhere on the
+   * calendar: `CalendarEventType.ACTIVITY` and the `Activity` model share a
+   * name and nothing else. An activity carries a fee, a stage, a child count
+   * and its own guardian invitations, none of which an event row can hold — so
+   * it stays its own record and is *shown* here rather than copied here.
+   *
+   * Returned with `kind: "activity"` so the client can tell the two apart and
+   * open the right editor for each.
+   */
+  const activities = await prisma.activity.findMany({
+    where: {
+      schoolId,
+      isActive: true,
+      // Overlap, not containment: a two-week activity is happening during a week
+      // that starts after it began, and belongs on that week.
+      startDate: { lt: to },
+      endDate: { gte: from },
+      ...(teacherId ? { teacherId } : {}),
+    },
+    orderBy: { startDate: "asc" },
+    include: { activityInvites: { select: { classId: true } } },
+  });
+
+  const activityRows = activities
+    .filter((activity) => {
+      if (!classId) return true;
+      // Same rule as events: no rooms attached means school-wide.
+      const invited = activity.activityInvites.map((invite) => invite.classId);
+      return invited.length === 0 || invited.includes(classId);
+    })
+    .map((activity) => ({
+      id: activity.id,
+      kind: "activity" as const,
+      type: "ACTIVITY" as const,
+      title: activity.name,
+      description: activity.message,
+      startAt: activity.startDate.toISOString(),
+      endAt: activity.endDate.toISOString(),
+      allDay: true,
+      teacherId: activity.teacherId,
+      location: null,
+      classIds: activity.activityInvites.map((invite) => invite.classId),
+      unit: null,
+    }));
+
   return Response.json(
-    events.map((event) => ({
-      ...event,
-      classIds: event.classes.map((link) => link.classId),
-      classes: undefined,
-    }))
+    events
+      .map((event) => ({
+        ...event,
+        kind: "event" as const,
+        classIds: event.classes.map((link) => link.classId),
+        classes: undefined,
+      }))
+      .concat(activityRows as never[])
   );
 }
 

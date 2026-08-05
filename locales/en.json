@@ -634,7 +634,8 @@
     "activityNameDesc": "Activity name",
     "checkInTime": "Student check-in time",
     "checkOutTime": "Student check-out time",
-    "activityDate": "Activity date"
+    "activityDate": "Activity date",
+    "clickToInsert": "Tap a variable to add it to the message"
   },
   "invoices": {
     "invoice": "Invoice",
@@ -1221,7 +1222,9 @@
     "loadFailed": "Could not load the full activity details",
     "notifyGuardians": "Notify guardians of the change",
     "notifyHint": "Left off, the change is saved without sending any message.",
-    "modalLabel": "Add or edit an activity"
+    "modalLabel": "Add or edit an activity",
+    "notifyStaff": "Notify the teachers",
+    "notifyStaffHint": "Sent to the lead teacher of each selected class — once, even if she leads several."
   },
   "notifications": {
     "adminMessages": "Messages from admin",

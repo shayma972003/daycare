@@ -21,13 +21,28 @@ export async function POST(
   const schoolId = (session.user as { schoolId: string }).schoolId;
   const { id } = await params;
 
+  let body: { notifyGuardians?: boolean; notifyStaff?: boolean } = {};
+  try {
+    body = await request.json();
+  } catch {
+    // No body is the old call shape — both audiences, as the button reads.
+  }
+  const notifyGuardians = body.notifyGuardians ?? true;
+  const notifyStaff = body.notifyStaff ?? true;
+
   const activity = await prisma.activity.findFirst({
     where: { id, schoolId },
     include: {
       activityInvites: {
         include: {
           class: {
-            include: { students: { include: { guardian: true } } },
+            include: {
+              students: { include: { guardian: true } },
+              // The room's lead teacher, so staff hear about an activity they
+              // are expected to run. Until now the message went to guardians
+              // only and the teacher found out when the children arrived.
+              teacher: { select: { id: true, name: true, phone1: true, phone2: true, email: true } },
+            },
           },
         },
       },
@@ -45,7 +60,7 @@ export async function POST(
 
   const notificationsSent: string[] = [];
 
-  for (const invite of activity.activityInvites) {
+  for (const invite of notifyGuardians ? activity.activityInvites : []) {
     for (const student of invite.class.students) {
       const guardianName = student.guardian?.name ?? student.name;
       const phone = student.guardian?.phone1 ?? student.guardian?.phone2 ?? null;
@@ -87,6 +102,49 @@ export async function POST(
       );
 
       notificationsSent.push(student.name);
+    }
+  }
+
+  /**
+   * Staff, after the guardians.
+   *
+   * Deduplicated by teacher id: one person can lead several of the invited
+   * rooms, and three copies of the same message is how a notification channel
+   * stops being read.
+   */
+  if (notifyStaff) {
+    const seen = new Set<string>();
+    for (const invite of activity.activityInvites) {
+      const teacher = invite.class.teacher;
+      if (!teacher || seen.has(teacher.id)) continue;
+      seen.add(teacher.id);
+
+      const vars = buildMessageVars({
+        school: {
+          name: school?.name,
+          studentCheckinTime: school?.studentCheckinTime,
+          studentCheckoutTime: school?.studentCheckoutTime,
+        },
+        activity: {
+          name: activity.name,
+          activityFee: activity.activityFee,
+          startDate: activity.startDate,
+          endDate: activity.endDate,
+        },
+      });
+
+      await sendNotification(
+        schoolId,
+        teacher.name,
+        teacher.phone1 ?? teacher.phone2 ?? null,
+        teacher.email ?? null,
+        template,
+        vars,
+        schoolName,
+        "activity",
+        {}
+      );
+      notificationsSent.push(teacher.name);
     }
   }
 

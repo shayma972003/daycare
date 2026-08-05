@@ -67,6 +67,36 @@ export function ActivityFormModal({
   // Opt-in, not automatic. Every edit used to fire the notification endpoint, so
   // fixing a typo in the title re-emailed every guardian in every invited class.
   const [notifyGuardians, setNotifyGuardians] = useState(false);
+  /* Staff were never told. The message went to guardians only, so the teacher
+     expected to run the activity found out when the children turned up. */
+  const [notifyStaff, setNotifyStaff] = useState(false);
+  const messageRef = useRef<HTMLTextAreaElement | null>(null);
+
+  /**
+   * Inserts at the caret, not at the end.
+   *
+   * Appending would put the token after the full stop of whatever was already
+   * typed, so the writer has to cut and paste it back into place — which is the
+   * work this button exists to remove.
+   */
+  function insertVariable(token: string) {
+    const field = messageRef.current;
+    const current = getValues("message") ?? "";
+    if (!field) {
+      setValue("message", `${current}${token}`, { shouldDirty: true });
+      return;
+    }
+    const start = field.selectionStart ?? current.length;
+    const end = field.selectionEnd ?? start;
+    const next = `${current.slice(0, start)}${token}${current.slice(end)}`;
+    setValue("message", next, { shouldDirty: true });
+    // After React has written the new value, or the caret lands on stale text.
+    requestAnimationFrame(() => {
+      field.focus();
+      const caret = start + token.length;
+      field.setSelectionRange(caret, caret);
+    });
+  }
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,6 +111,7 @@ export function ActivityFormModal({
     reset,
     watch,
     setValue,
+    getValues,
     formState: { errors },
   } = useForm<ActivityFormValues>({
     defaultValues: {
@@ -222,8 +253,11 @@ export function ActivityFormModal({
       if (isEdit && activity) {
         await axios.put(`/api/activities/${activity.id}`, payload);
         // Only when the user asked for it. See `notifyGuardians`.
-        if (notifyGuardians) {
-          await axios.post(`/api/activities/${activity.id}/send`);
+        if (notifyGuardians || notifyStaff) {
+          await axios.post(`/api/activities/${activity.id}/send`, {
+            notifyGuardians,
+            notifyStaff,
+          });
         }
       } else {
         await axios.post("/api/activities", payload);
@@ -469,10 +503,14 @@ export function ActivityFormModal({
               </label>
               <textarea
                 {...register("message")}
+                ref={(element) => {
+                  register("message").ref(element);
+                  messageRef.current = element;
+                }}
                 rows={3}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651] resize-none"
               />
-              <VariableReference mode="full" />
+              <VariableReference mode="full" onInsert={insertVariable} />
             </div>
 
             {/* Classes checklist */}
@@ -523,6 +561,23 @@ export function ActivityFormModal({
               </label>
             )}
 
+            {isEdit && (
+              <label className="flex items-start gap-2 text-sm text-gray-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={notifyStaff}
+                  onChange={(e) => setNotifyStaff(e.target.checked)}
+                  className="accent-[#F64651] mt-0.5"
+                />
+                <span>
+                  {t("activities.notifyStaff")}
+                  <span className="block text-xs text-gray-400">
+                    {t("activities.notifyStaffHint")}
+                  </span>
+                </span>
+              </label>
+            )}
+
             {/* Action buttons */}
             <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
               <button
@@ -534,7 +589,7 @@ export function ActivityFormModal({
                     submitting early would save the blanks this fix removed. */}
                 {saving || loadingDetails
                   ? t("common.loading")
-                  : isEdit && !notifyGuardians
+                  : isEdit && !notifyGuardians && !notifyStaff
                     ? t("common.save")
                     : t("home.activityForm.saveAndSend")}
               </button>

@@ -48,6 +48,7 @@ export function CalendarEventModal({
   defaultDate,
   classes,
   teachers,
+  onPickActivity,
   onClose,
   onSaved,
 }: {
@@ -55,6 +56,16 @@ export function CalendarEventModal({
   defaultDate: Date;
   classes: Option[];
   teachers: Option[];
+  /**
+   * Chosen when the type picker's "activity" is clicked on a *new* event.
+   *
+   * An activity is not a calendar event with a different label — it carries a
+   * fee, an academic stage, a child count and its own guardian invitations, and
+   * lives in its own table. Offering it here and then saving an event row would
+   * produce something that looks like an activity on the calendar and is
+   * invisible to every screen that lists activities.
+   */
+  onPickActivity?: () => void;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -154,7 +165,15 @@ export function CalendarEventModal({
                 <button
                   key={option}
                   type="button"
-                  onClick={() => setType(option)}
+                  onClick={() => {
+                    /* Editing an existing ACTIVITY event keeps working — those
+                       rows predate the activity table being shown here. */
+                    if (option === "ACTIVITY" && !event && onPickActivity) {
+                      onPickActivity();
+                      return;
+                    }
+                    setType(option);
+                  }}
                   className={`px-4 py-2 rounded-xl text-sm transition-colors ${
                     type === option
                       ? "bg-[#2F96A6] text-white"

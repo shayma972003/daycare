@@ -29,7 +29,6 @@ import {
   type CalendarView,
 } from "@/lib/calendar";
 import { CalendarEventModal } from "@/components/calendar/CalendarEventModal";
-import { ActivityFormModal } from "@/components/activities/ActivityFormModal";
 import type { Activity as ActivityRecord } from "@/components/activities/ActivityGrid";
 import type { CalendarEventType } from "@/generated/prisma/enums";
 import { useT, useLocale } from "@/lib/i18n-provider";
@@ -86,7 +85,6 @@ export default function CalendarPage() {
   /* Activities are edited in their own form — they carry a fee, a stage and
      guardian invitations that the event form has no fields for. */
   const [activity, setActivity] = useState<ActivityRecord | null>(null);
-  const [activityOpen, setActivityOpen] = useState(false);
 
   function openRow(row: EventRow) {
     if (row.kind !== "activity" || !row.activity) {
@@ -96,7 +94,6 @@ export default function CalendarPage() {
     // No second request: the calendar row already carries the record, in the
     // shape the editor reads.
     setActivity(row.activity);
-    setActivityOpen(true);
   }
 
   const range = useMemo(() => rangeFor(view, anchor), [view, anchor]);
@@ -355,39 +352,27 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {(creating || editing) && (
+      {(creating || editing || activity) && (
         <CalendarEventModal
           event={editing}
+          activity={activity}
           defaultDate={creating ?? new Date()}
           classes={classes}
           teachers={teachers}
           onClose={() => {
             setCreating(null);
             setEditing(null);
+            setActivity(null);
           }}
           onSaved={() => {
             setCreating(null);
             setEditing(null);
+            setActivity(null);
             load();
           }}
         />
       )}
 
-      {/* Mounted unconditionally: the form runs its own loaders off `open`, and
-          a conditional wrapper would remount it on every toggle. */}
-      <ActivityFormModal
-        open={activityOpen}
-        activity={activity}
-        onClose={() => {
-          setActivityOpen(false);
-          setActivity(null);
-        }}
-        onSaved={() => {
-          setActivityOpen(false);
-          setActivity(null);
-          load();
-        }}
-      />
     </div>
   );
 }

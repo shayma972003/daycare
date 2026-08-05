@@ -15,6 +15,7 @@ import { EVENT_TYPE_LABEL_KEYS } from "@/lib/calendar";
 import type { CalendarEventType } from "@/generated/prisma/enums";
 import { useT } from "@/lib/i18n-provider";
 import { ActivityFormModal } from "@/components/activities/ActivityFormModal";
+import type { Activity as ActivityRecord } from "@/components/activities/ActivityGrid";
 
 interface EventRow {
   id: string;
@@ -46,6 +47,7 @@ const inputCls =
 
 export function CalendarEventModal({
   event,
+  activity,
   defaultDate,
   classes,
   teachers,
@@ -53,6 +55,16 @@ export function CalendarEventModal({
   onSaved,
 }: {
   event: EventRow | null;
+  /**
+   * An existing programme to edit, opened from the calendar.
+   *
+   * It comes through this component rather than opening the activity form on
+   * its own so that editing a programme and editing a lesson are the same
+   * dialog — same frame, same heading, same place. Clicking a programme used
+   * to raise a second modal with different chrome, which read as a different
+   * product.
+   */
+  activity?: ActivityRecord | null;
   defaultDate: Date;
   classes: Option[];
   teachers: Option[];
@@ -60,7 +72,7 @@ export function CalendarEventModal({
   onSaved: () => void;
 }) {
   const t = useT();
-  const isEdit = Boolean(event);
+  const isEdit = Boolean(event) || Boolean(activity);
 
   const [type, setType] = useState<CalendarEventType>(event?.type ?? "LESSON");
   /**
@@ -69,7 +81,7 @@ export function CalendarEventModal({
    * enum value and never writes an event. It sits beside the four types
    * because that is the one place a reader asks "what am I adding".
    */
-  const [programme, setProgramme] = useState(false);
+  const [programme, setProgramme] = useState(Boolean(activity));
   const [title, setTitle] = useState(event?.title ?? "");
   const [description, setDescription] = useState(event?.description ?? "");
   const [startAt, setStartAt] = useState(toInput(event?.startAt ?? defaultDate));
@@ -158,7 +170,7 @@ export function CalendarEventModal({
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1.5">{t("finance.type")}</label>
             <div className="flex gap-2">
-              {(Object.keys(EVENT_TYPE_LABEL_KEYS) as CalendarEventType[]).map((option) => (
+              {(activity ? [] : (Object.keys(EVENT_TYPE_LABEL_KEYS) as CalendarEventType[])).map((option) => (
                 <button
                   key={option}
                   type="button"
@@ -176,8 +188,8 @@ export function CalendarEventModal({
                 </button>
               ))}
 
-              {/* Creating only: an existing event cannot become a programme,
-                  and an existing programme is opened by its own editor. */}
+              {/* An existing event cannot become a programme; an existing
+                  programme cannot become anything else. */}
               {!event && (
                 <button
                   type="button"
@@ -200,7 +212,7 @@ export function CalendarEventModal({
             <ActivityFormModal
               embedded
               open
-              activity={null}
+              activity={activity ?? null}
               onClose={onClose}
               onSaved={onSaved}
             />

@@ -25,6 +25,7 @@ const ROUTES = [
   ["attendance/route.ts", "staff"],
   ["attendance/today/route.ts", "staff"],
   ["invoices/route.ts", "guardian"],
+  ["care-reports/create/route.ts", "staff"],
 ] as const;
 
 describe("mobile route contracts", () => {
@@ -46,7 +47,11 @@ describe("mobile route contracts", () => {
   it("gates the staff attendance routes on the attendance permission", () => {
     // A teacher's token carries her permissions; without this a member of staff
     // with no attendance right could still check children in.
-    for (const file of ["attendance/route.ts", "attendance/today/route.ts"]) {
+    for (const file of [
+      "attendance/route.ts",
+      "attendance/today/route.ts",
+      "care-reports/create/route.ts",
+    ]) {
       expect(source(file), `${file} has no permission check`).toContain(
         'permission: "attendance.students"'
       );
@@ -54,7 +59,11 @@ describe("mobile route contracts", () => {
   });
 
   it("scopes staff queries by school", () => {
-    for (const file of ["attendance/route.ts", "attendance/today/route.ts"]) {
+    for (const file of [
+      "attendance/route.ts",
+      "attendance/today/route.ts",
+      "care-reports/create/route.ts",
+    ]) {
       const code = source(file);
       expect(code, `${file} never reads schoolId from the claims`).toContain(
         "context.claims.schoolId"
@@ -84,6 +93,20 @@ describe("mobile route contracts", () => {
 
   it("stamps avatars, which an app cannot fetch with a bearer token", () => {
     expect(source("attendance/today/route.ts")).toContain("stampFileUrl");
+  });
+
+  it("refuses new personal data on an anonymised record", () => {
+    // A child whose data was destroyed under the retention policy must not gain
+    // more of it. See docs/DATA_LIFECYCLE.md.
+    const code = source("care-reports/create/route.ts");
+    expect(code).toContain("anonymizedAt");
+  });
+
+  it("checks a posted photo URL belongs to this school", () => {
+    // The upload route hands back a key inside the school's prefix, but nothing
+    // stops a caller posting a different one.
+    const code = source("care-reports/create/route.ts");
+    expect(code).toContain("schoolIdFromKey");
   });
 
   it("does not ship invoice PDFs in the list", () => {

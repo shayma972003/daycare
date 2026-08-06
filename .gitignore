@@ -60,3 +60,8 @@ Thumbs.db
 
 .vercel
 .env*
+
+# Expo app
+mobile/node_modules/
+mobile/.expo/
+mobile/dist/

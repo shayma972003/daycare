@@ -26,6 +26,7 @@ const ROUTES = [
   ["attendance/today/route.ts", "staff"],
   ["invoices/route.ts", "guardian"],
   ["care-reports/create/route.ts", "staff"],
+  ["attendance/mine/route.ts", "guardian"],
 ] as const;
 
 describe("mobile route contracts", () => {
@@ -72,11 +73,21 @@ describe("mobile route contracts", () => {
     }
   });
 
-  it("scopes the guardian route through her own children", () => {
-    const code = source("invoices/route.ts");
-    // A tenant filter alone would hand a parent the whole school's billing.
-    expect(code).toContain("guardianChildIds");
-    expect(code).toContain("in: allowedIds");
+  it("scopes every guardian route through her own children", () => {
+    // A tenant filter alone would hand a parent the whole school's records.
+    for (const file of ["invoices/route.ts", "attendance/mine/route.ts"]) {
+      const code = source(file);
+      expect(code, `${file} does not call guardianChildIds`).toContain("guardianChildIds");
+      expect(code, `${file} does not filter by the allowed ids`).toContain("in: allowedIds");
+    }
+  });
+
+  it("keeps the guardian roster separate from the staff one", () => {
+    // Sharing a route and branching on `kind` inside leaves the guardian path
+    // one missing `if` away from returning the whole school.
+    const guardian = source("attendance/mine/route.ts");
+    expect(guardian).not.toContain('kind: "staff"');
+    expect(source("attendance/today/route.ts")).not.toContain("guardianChildIds");
   });
 
   it("uses the shared definition of today, not its own arithmetic", () => {

@@ -4,7 +4,7 @@ import { logAction } from "@/lib/activity-logger";
 import { sendEmail } from "@/lib/notifications";
 import { normalizePhone } from "@/lib/phone-normalizer";
 import { env } from "@/lib/env";
-import { createHash, randomBytes } from "crypto";
+import { mintInvite, accountState } from "@/lib/invitations";
 import { z } from "zod";
 
 /**
@@ -67,13 +67,10 @@ export async function GET() {
             id: guardian.account.id,
             email: guardian.account.email,
             phone: guardian.account.phone,
-            // Three distinct states the UI needs to tell apart: invited but not
-            // yet used, active, and switched off.
-            status: guardian.account.disabledAt
-              ? "disabled"
-              : guardian.account.acceptedAt
-                ? "active"
-                : "invited",
+            // The same four states the staff list reports, from the same helper
+            // — an invitation that quietly expired is not the same thing as one
+            // still waiting, and the nursery needs to see which it is.
+            status: accountState(guardian.account),
             inviteExpiresAt: guardian.account.inviteExpiresAt,
             lastLoginAt: guardian.account.lastLoginAt,
           }
@@ -87,9 +84,6 @@ const createSchema = z.object({
   email: z.string().email().optional(),
   phone: z.string().min(6).max(20).optional(),
 });
-
-/** Seven days: long enough to survive a weekend, short enough to expire. */
-const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 export async function POST(request: Request) {
   let session;
@@ -150,14 +144,17 @@ export async function POST(request: Request) {
       ? normalizePhone(guardian.phone1)
       : null;
 
-  // The phone is the sign-in identifier, so without one the account exists but
-  // cannot be used — refused now rather than discovered by a confused parent.
-  if (!phone) {
-    return Response.json(
-      { error: "لا يوجد رقم جوال لولي الأمر — أضفه أولاً" },
-      { status: 422 }
-    );
-  }
+  /**
+   * The phone is no longer required.
+   *
+   * It used to be the sign-in identifier, and an account without one was
+   * unusable — so this route refused to create it. Sign-in is by email now, so
+   * a missing phone costs nothing: it is kept only as a contact detail.
+   *
+   * Which also removes a contradiction a nursery could see: the code always
+   * went to the email, yet a parent with an email and no phone could not be
+   * invited at all.
+   */
 
   // `GuardianAccount.email` is unique across the platform, so a clash may be
   // with another tenant. The message does not say which — the same
@@ -170,14 +167,9 @@ export async function POST(request: Request) {
     return Response.json({ error: "البريد مستخدم في حساب آخر" }, { status: 409 });
   }
 
-  /**
-   * The invitation token is stored hashed and returned once.
-   *
-   * Same rule as password reset: a database row must not be a working
-   * invitation. The plaintext exists only in the email that is about to be sent.
-   */
-  const token = randomBytes(24).toString("base64url");
-  const tokenHash = createHash("sha256").update(token).digest("hex");
+  // Minted by the shared helper, so staff and guardian invitations cannot drift
+  // apart in token length, hashing or lifetime.
+  const invite = mintInvite();
 
   const account = await prisma.guardianAccount.upsert({
     where: { guardianId: guardian.id },
@@ -186,8 +178,8 @@ export async function POST(request: Request) {
       guardianId: guardian.id,
       email,
       phone,
-      inviteTokenHash: tokenHash,
-      inviteExpiresAt: new Date(Date.now() + INVITE_TTL_MS),
+      inviteTokenHash: invite.tokenHash,
+      inviteExpiresAt: invite.expiresAt,
     },
     // Re-inviting refreshes the token rather than creating a second account, and
     // deliberately does not clear `acceptedAt`: resending the email to a parent
@@ -195,8 +187,8 @@ export async function POST(request: Request) {
     update: {
       email,
       phone,
-      inviteTokenHash: tokenHash,
-      inviteExpiresAt: new Date(Date.now() + INVITE_TTL_MS),
+      inviteTokenHash: invite.tokenHash,
+      inviteExpiresAt: invite.expiresAt,
     },
     select: { id: true, email: true, phone: true },
   });
@@ -208,14 +200,16 @@ export async function POST(request: Request) {
     [
       `مرحباً ${guardian.name}،`,
       "",
-      `دعتك ${guardian.school?.name ?? "الحضانة"} لمتابعة تقارير طفلك عبر البوابة والتطبيق.`,
+      `دعتك ${guardian.school?.name ?? "الحضانة"} لمتابعة تقارير طفلك عبر التطبيق.`,
       "",
-      `رقم الجوال المسجَّل: ${phone}`,
-      "سجّل الدخول برقم جوالك وسيصلك رمز تحقق على هذا البريد.",
+      "اضغطي الرابط لتعيين كلمة المرور الخاصة بك:",
+      // Was `/portal?invite=…`, which no route ever read — the token was minted,
+      // emailed, and silently ignored. This link is the one that redeems it.
+      appUrl ? `${appUrl}/activate/${invite.token}` : "",
       "",
-      appUrl ? `الرابط: ${appUrl}/portal?invite=${token}` : "",
+      `ثم سجّلي الدخول في التطبيق بالبريد: ${email}`,
       "",
-      "الدعوة صالحة لمدة 7 أيام.",
+      "الرابط صالح لمدة 7 أيام، ولا يعمل إلا مرة واحدة.",
     ]
       .filter(Boolean)
       .join("\n"),

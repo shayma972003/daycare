@@ -9,16 +9,18 @@ import {
 } from "./client";
 
 /**
- * The two doors into one app.
+ * One door, two registers.
  *
- * Staff sign in with email and password; guardians with a phone number and a
- * code. That difference is not a style choice — a member of staff already has
- * an account with a password, while a parent has never had one and should not
- * be asked to invent one to see whether their child ate lunch.
+ * Both kinds of account sign in with the email they were invited on and a
+ * password they chose when they redeemed that invitation. Guardians used to use
+ * a phone number and a code — but the phone only ever named the account, since
+ * the code went to the email regardless for want of an SMS gateway.
  *
- * The server decides which door a person came through and stamps `kind` into
- * the token. The app reads it to choose a home screen; it never asks the user
- * to declare a role, because a declared role is a claim and this one is proved.
+ * `kind` travels with the request because email alone cannot decide it: a
+ * teacher may also be a parent at the same nursery, and then the address exists
+ * in both registers. It picks which one to search. It grants nothing — the
+ * server stamps the real `kind` into the token from the row it actually found,
+ * so a wrong pick fails to sign in rather than signing in as the wrong person.
  */
 
 export interface Account {
@@ -36,32 +38,19 @@ interface TokenResponse {
   account: Account;
 }
 
-export async function signInStaff(email: string, password: string): Promise<Account> {
+export async function signIn(
+  kind: Role,
+  email: string,
+  password: string
+): Promise<Account> {
   const data = await request<TokenResponse>("/api/mobile/v1/auth/login", {
     method: "POST",
-    body: { email: email.trim(), password },
+    body: { email: email.trim().toLowerCase(), password, kind },
     anonymous: true,
   });
   await saveTokens(data.accessToken, data.refreshToken);
-  return data.account;
-}
-
-/** Step one for a guardian: the code goes to the address the nursery holds. */
-export async function requestGuardianCode(phone: string): Promise<void> {
-  await request("/api/mobile/v1/auth/request-otp", {
-    method: "POST",
-    body: { phone: phone.trim() },
-    anonymous: true,
-  });
-}
-
-export async function verifyGuardianCode(phone: string, code: string): Promise<Account> {
-  const data = await request<TokenResponse>("/api/mobile/v1/auth/verify-otp", {
-    method: "POST",
-    body: { phone: phone.trim(), code: code.trim() },
-    anonymous: true,
-  });
-  await saveTokens(data.accessToken, data.refreshToken);
+  // Returned from the response, not from `kind`: what the caller asked for is a
+  // request, and what came back is what the server decided.
   return data.account;
 }
 

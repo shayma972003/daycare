@@ -48,7 +48,9 @@ export async function PUT(request: Request) {
     return Response.json({ error: "User not found" }, { status: 404 });
   }
 
-  const valid = await bcrypt.compare(currentPassword, user.password);
+  // Null between invitation and activation. There is no current password to
+  // prove, and this route must not become a way to set one without the link.
+  const valid = user.password ? await bcrypt.compare(currentPassword, user.password) : false;
   if (!valid) {
     return Response.json({ error: "Current password is incorrect" }, { status: 400 });
   }

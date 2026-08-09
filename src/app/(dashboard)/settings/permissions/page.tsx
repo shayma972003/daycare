@@ -13,6 +13,7 @@
 import { useCallback, useEffect, useState } from "react";
 import axios from "axios";
 import { Topbar } from "@/components/layout/Topbar";
+import { GuardianAccounts } from "@/components/accounts/GuardianAccounts";
 import { describeApiError } from "@/lib/api-error";
 import { PasswordRules, meetsRequiredRules } from "@/components/ui/PasswordRules";
 import type { PermissionDefinition, PermissionCategory, CapabilityBundle } from "@/lib/permissions";
@@ -40,9 +41,26 @@ interface StaffRow {
   email: string;
   teacherId: string | null;
   disabled: boolean;
+  /** Four states, not a boolean — see accountState() in src/lib/invitations.ts. */
+  state: "none" | "invited" | "expired" | "active" | "disabled";
   isSelf: boolean;
   role: { id: string; nameAr: string; isOwner: boolean } | null;
 }
+
+/**
+ * What the nursery sees next to a name.
+ *
+ * "Invited" and "expired" look the same to a school that only has an on/off
+ * flag, and they need opposite responses: wait, or send again. Keeping them
+ * apart here is the whole reason the API reports a state rather than a boolean.
+ */
+const STATE_LABEL: Record<StaffRow["state"], { text: string; className: string }> = {
+  active: { text: "مفعَّل", className: "text-emerald-600" },
+  invited: { text: "بانتظار قبول الدعوة", className: "text-amber-600" },
+  expired: { text: "انتهت صلاحية الدعوة", className: "text-orange-600" },
+  none: { text: "بلا دعوة", className: "text-gray-500" },
+  disabled: { text: "معطَّل", className: "text-red-500" },
+};
 
 const OWNER_WILDCARD = "*";
 
@@ -55,6 +73,8 @@ export default function PermissionsPage() {
 
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
   const [showInvite, setShowInvite] = useState(false);
+  /** The id currently being invited, so only that row's button shows progress. */
+  const [inviting, setInviting] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -101,6 +121,30 @@ export default function PermissionsPage() {
       await load();
     } catch (err) {
       setError(describeApiError(err, t("permissions.updateFailed")));
+    }
+  }
+
+  async function resendInvite(user: StaffRow) {
+    setError(null);
+    setNotice(null);
+    setInviting(user.id);
+    try {
+      const res = await axios.post<{ sent: boolean }>(
+        `/api/staff-accounts/${user.id}/invite`
+      );
+      // Said plainly when the mail did not go out: the token was rotated either
+      // way, so silence here would leave the nursery waiting for a message that
+      // is never coming.
+      setNotice(
+        res.data.sent
+          ? `أُرسلت الدعوة إلى ${user.email}`
+          : "أُنشئت الدعوة لكن تعذّر إرسال البريد — تحقّقي من إعدادات البريد"
+      );
+      await load();
+    } catch (err) {
+      setError(describeApiError(err, "تعذّر إرسال الدعوة"));
+    } finally {
+      setInviting(null);
     }
   }
 
@@ -191,21 +235,37 @@ export default function PermissionsPage() {
                           )}
                         </td>
                         <td className="px-3 py-3">
-                          {user.disabled ? (
-                            <span className="text-red-500">{t("permissions.disabled")}</span>
-                          ) : (
-                            <span className="text-emerald-600">{t("permissions.enabled")}</span>
-                          )}
+                          <span className={STATE_LABEL[user.state].className}>
+                            {STATE_LABEL[user.state].text}
+                          </span>
                         </td>
                         <td className="px-3 py-3">
-                          {!user.role?.isOwner && !user.isSelf && (
-                            <button
-                              onClick={() => setDisabled(user, !user.disabled)}
-                              className="text-xs text-[#2F96A6] hover:underline"
-                            >
-                              {user.disabled ? t("permissions.enable") : t("permissions.disable")}
-                            </button>
-                          )}
+                          <div className="flex items-center gap-3">
+                            {/* Offered for anyone who has not signed in yet, and
+                                for an account that predates invitations whose
+                                password has been lost. */}
+                            {!user.disabled && user.state !== "active" && (
+                              <button
+                                onClick={() => resendInvite(user)}
+                                disabled={inviting === user.id}
+                                className="text-xs text-[#2F96A6] hover:underline disabled:opacity-50"
+                              >
+                                {inviting === user.id
+                                  ? "جارٍ الإرسال…"
+                                  : user.state === "none"
+                                    ? "إرسال دعوة"
+                                    : "إعادة إرسال الدعوة"}
+                              </button>
+                            )}
+                            {!user.role?.isOwner && !user.isSelf && (
+                              <button
+                                onClick={() => setDisabled(user, !user.disabled)}
+                                className="text-xs text-[#2F96A6] hover:underline"
+                              >
+                                {user.disabled ? t("permissions.enable") : t("permissions.disable")}
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -213,6 +273,12 @@ export default function PermissionsPage() {
                 </table>
               </div>
             </section>
+
+            {/* ── Guardian accounts ──────────────────────────────────────────
+                Beside the staff table, because a nursery asking "who can sign
+                in" means both. Hides itself if this account may not read
+                guardian records. */}
+            <GuardianAccounts />
 
             {/* ── Roles ──────────────────────────────────────────────────── */}
             <section className="bg-white rounded-2xl shadow-sm p-6">
@@ -447,9 +513,33 @@ function InviteStaffModal({
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [roleId, setRoleId] = useState(roles[0]?.id ?? "");
+  const [teacherId, setTeacherId] = useState("");
   const [password, setPassword] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [teachers, setTeachers] = useState<{ id: string; name: string }[]>([]);
+
+  // Loaded here rather than by the page: only this form needs them, and a list
+  // that is empty simply leaves the account unlinked.
+  useEffect(() => {
+    let cancelled = false;
+    axios
+      .get<{ teachers?: { id: string; name: string }[] } | { id: string; name: string }[]>(
+        "/api/teachers"
+      )
+      .then((res) => {
+        if (cancelled) return;
+        const body = res.data;
+        const list = Array.isArray(body) ? body : (body.teachers ?? []);
+        setTeachers(list.map((row) => ({ id: row.id, name: row.name })));
+      })
+      .catch(() => {
+        // Not fatal: the picker is optional, so it degrades to "no link".
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Blank means "generate one and email it", so the rules only gate a password
   // the user actually typed.
@@ -463,6 +553,7 @@ function InviteStaffModal({
         name,
         email,
         roleId,
+        ...(teacherId ? { teacherId } : {}),
         ...(password ? { password } : {}),
       });
       onCreated(
@@ -518,6 +609,31 @@ function InviteStaffModal({
               <option key={role.id} value={role.id}>{role.nameAr}</option>
             ))}
           </select>
+        </div>
+
+        {/* The link that was missing.
+            `User.teacherId` existed and the API accepted it, but this form never
+            sent one — so every staff login was unattached to a staff record, and
+            a care report filed from the app was stored against nobody. It also
+            decides whose roster the app shows: linked accounts see their own
+            classes, office accounts see the school. */}
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">
+            ربط بسجلّ معلّمة <span className="text-gray-400">(اختياري)</span>
+          </label>
+          <select
+            value={teacherId}
+            onChange={(e) => setTeacherId(e.target.value)}
+            className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm"
+          >
+            <option value="">حساب إداري — بلا سجلّ معلّمة</option>
+            {teachers.map((teacher) => (
+              <option key={teacher.id} value={teacher.id}>{teacher.name}</option>
+            ))}
+          </select>
+          <p className="text-[11px] text-gray-400 mt-1 leading-relaxed">
+            المعلّمة المرتبطة ترى أطفال فصولها فقط في التطبيق، وتُنسب تقارير الرعاية إليها.
+          </p>
         </div>
 
         <div>

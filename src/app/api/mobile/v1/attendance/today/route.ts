@@ -34,6 +34,38 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const classId = url.searchParams.get("classId");
 
+  /**
+   * A teacher sees her own classes; an office account sees the school.
+   *
+   * `User.teacherId` links a login to a staff record, and it is now set when the
+   * account is created. Where it is set, the roster narrows to the classes that
+   * staff record actually owns — a teacher taking the register has no business
+   * marking a child from a room she has never been in, and a list of the whole
+   * nursery is the wrong list to hunt through besides.
+   *
+   * Where it is null the account belongs to the office rather than to a room, so
+   * the school-wide roster is the correct answer and not a fallback.
+   */
+  const account = await prisma.user.findFirst({
+    where: { id: context.claims.sub, schoolId },
+    select: { teacherId: true },
+  });
+
+  let ownClassIds: string[] | null = null;
+  if (account?.teacherId) {
+    const owned = await prisma.class.findMany({
+      where: { schoolId, teacherId: account.teacherId },
+      select: { id: true },
+    });
+    ownClassIds = owned.map((row) => row.id);
+  }
+
+  // Asking for a class she does not hold is refused rather than widened: a
+  // narrowing parameter must never be able to broaden the result.
+  if (classId && ownClassIds && !ownClassIds.includes(classId)) {
+    return Response.json({ error: "لا تملكين صلاحية لهذا الفصل" }, { status: 403 });
+  }
+
   const now = new Date();
   const dayStart = astDayStart(now);
   // Documented exclusive — paired with `lt`, never `lte`.
@@ -44,7 +76,13 @@ export async function GET(request: Request) {
       schoolId,
       isActive: true,
       deletedAt: null,
-      ...(classId ? { classId } : {}),
+      ...(classId
+        ? { classId }
+        : ownClassIds
+          ? // An empty list is a real answer — a teacher who holds no class yet
+            // sees nobody, rather than everybody.
+            { classId: { in: ownClassIds } }
+          : {}),
     },
     orderBy: { name: "asc" },
     select: {

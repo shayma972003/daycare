@@ -43,7 +43,11 @@ export async function POST(request: Request) {
     return Response.json({ error: "User not found" }, { status: 404 });
   }
 
-  const valid = await bcrypt.compare(parsed.data.password, user.password);
+  // Null between invitation and activation. Such an account has no password to
+  // confirm with, so it cannot be the one turning a security control off.
+  const valid = user.password
+    ? await bcrypt.compare(parsed.data.password, user.password)
+    : false;
   if (!valid) {
     return Response.json({ error: "كلمة المرور غير صحيحة" }, { status: 400 });
   }

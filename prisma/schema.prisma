@@ -1081,7 +1081,11 @@ model User {
   id        String   @id @default(cuid())
   name      String
   email     String   @unique
-  password  String
+  /// Null between invitation and activation. Nullable rather than a throwaway
+  /// hash so the type system forces every comparison site to say what happens
+  /// when there is no password yet — a placeholder hash would compile silently
+  /// and behave like a real credential nobody knows.
+  password  String?
   /// Legacy free-text role. Kept because sessions and older rows carry it;
   /// `roleId` is what the permission layer reads.
   role      String   @default("admin")
@@ -1102,6 +1106,18 @@ model User {
   /// Set when the account is suspended without being deleted — a teacher on
   /// leave keeps her history but cannot sign in.
   disabledAt DateTime?
+
+  /// Invitation lifecycle — the same three columns, with the same meanings, as
+  /// GuardianAccount. Staff used to be sent a generated password in the clear,
+  /// which then lived in an inbox for as long as the mailbox did; an invitation
+  /// expires, and the password is chosen by the person who will type it.
+  ///
+  /// Stored hashed: a leaked database row must not be a working invitation.
+  inviteTokenHash String?   @unique
+  inviteExpiresAt DateTime?
+  /// Null until the invitation is redeemed. `password` is meaningless before
+  /// then — see the guard in the auth layer.
+  acceptedAt      DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

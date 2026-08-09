@@ -4,8 +4,9 @@ import { logAction } from "@/lib/activity-logger";
 import { sendEmail } from "@/lib/notifications";
 import { passwordSchema, BCRYPT_COST } from "@/lib/password-policy";
 import { ALL_PERMISSIONS } from "@/lib/permissions";
+import { mintInvite, accountState } from "@/lib/invitations";
+import { env } from "@/lib/env";
 import bcrypt from "bcryptjs";
-import { randomBytes } from "crypto";
 import { z } from "zod";
 
 /**
@@ -37,6 +38,8 @@ export async function GET() {
       email: true,
       teacherId: true,
       disabledAt: true,
+      acceptedAt: true,
+      inviteExpiresAt: true,
       createdAt: true,
       roleRef: { select: { id: true, nameAr: true, permissions: true } },
     },
@@ -49,6 +52,9 @@ export async function GET() {
       email: user.email,
       teacherId: user.teacherId,
       disabled: Boolean(user.disabledAt),
+      // Four states, not one boolean: "never invited", "invited and waiting",
+      // "invitation expired" and "signed in" each call for a different button.
+      state: accountState(user),
       createdAt: user.createdAt,
       role: user.roleRef
         ? {
@@ -137,21 +143,31 @@ export async function POST(request: Request) {
   }
 
   /**
-   * A generated password when none was given.
+   * An invitation, not a password.
    *
-   * `randomBytes`, never `Math.random()` — the same reason every other secret in
-   * this codebase moved off it in task 0.19. The plaintext is emailed once and
-   * never stored or logged.
+   * This route used to generate a password and email it in the clear, where it
+   * then lived in an inbox for as long as the mailbox did — no expiry, and no
+   * way to tell whether it had ever been used. An invitation expires in seven
+   * days and is chosen by the person who will type it.
+   *
+   * A password may still be set directly, for the case where the owner is
+   * standing next to a new member of staff and it is faster to agree one aloud.
+   * That account is active immediately and needs no invitation.
    */
-  const generated = parsed.data.password ?? randomBytes(9).toString("base64url");
-  const passwordHash = await bcrypt.hash(generated, BCRYPT_COST);
+  const direct = parsed.data.password
+    ? await bcrypt.hash(parsed.data.password, BCRYPT_COST)
+    : null;
+  const invite = direct ? null : mintInvite();
 
   const user = await prisma.user.create({
     data: {
       schoolId,
       name: parsed.data.name,
       email,
-      password: passwordHash,
+      password: direct,
+      acceptedAt: direct ? new Date() : null,
+      inviteTokenHash: invite?.tokenHash ?? null,
+      inviteExpiresAt: invite?.expiresAt ?? null,
       role: "staff",
       roleId: role.id,
       teacherId: parsed.data.teacherId ?? null,
@@ -167,19 +183,34 @@ export async function POST(request: Request) {
   // Best-effort: a mail failure must not undo an account that already exists.
   // The owner can reset the password from this screen if the message never
   // arrives.
+  const appUrl = env.NEXT_PUBLIC_APP_URL ?? "";
   const delivered = await sendEmail(
     email,
-    "تم إنشاء حسابك",
-    [
-      `مرحباً ${parsed.data.name}،`,
-      "",
-      `تم إنشاء حساب لك في ${school?.name ?? "الحضانة"} بصلاحية: ${role.nameAr}`,
-      "",
-      `البريد: ${email}`,
-      `كلمة المرور المؤقتة: ${generated}`,
-      "",
-      "يرجى تغيير كلمة المرور بعد أول تسجيل دخول.",
-    ].join("\n"),
+    invite ? `دعوة للانضمام إلى ${school?.name ?? "الحضانة"}` : "تم إنشاء حسابك",
+    (invite
+      ? [
+          `مرحباً ${parsed.data.name}،`,
+          "",
+          `دعتك ${school?.name ?? "الحضانة"} للانضمام بصلاحية: ${role.nameAr}`,
+          "",
+          "اضغطي الرابط لتعيين كلمة المرور الخاصة بك:",
+          appUrl ? `${appUrl}/activate/${invite.token}` : "",
+          "",
+          "الرابط صالح لمدة 7 أيام، ولا يعمل إلا مرة واحدة.",
+        ]
+      : [
+          `مرحباً ${parsed.data.name}،`,
+          "",
+          `تم إنشاء حساب لك في ${school?.name ?? "الحضانة"} بصلاحية: ${role.nameAr}`,
+          "",
+          `البريد: ${email}`,
+          // The password is not repeated here. It was agreed in person; putting
+          // it in an inbox is the habit this change exists to end.
+          "كلمة المرور هي التي اتُّفق عليها عند إنشاء الحساب.",
+        ]
+    )
+      .filter(Boolean)
+      .join("\n"),
     school?.name ?? ""
   );
 

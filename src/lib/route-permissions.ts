@@ -270,6 +270,9 @@ export const ROUTE_PERMISSIONS: Record<string, RouteRule> = {
   "/api/roles/:id": { default: "staff.manage" },
   "/api/staff-accounts": { methods: { GET: "staff.view", POST: "staff.manage" } },
   "/api/staff-accounts/:id": { default: "staff.manage" },
+  // Its own key: the table matches whole paths, so this would otherwise fall
+  // through to the owner-only default rather than inheriting the line above.
+  "/api/staff-accounts/:id/invite": { default: "staff.manage" },
   "/api/guardian-accounts": {
     methods: { GET: "students.guardians", POST: "students.guardians" },
   },

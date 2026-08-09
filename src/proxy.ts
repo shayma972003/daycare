@@ -36,6 +36,10 @@ const PUBLIC_API_PREFIXES = [
   // routes verify the token themselves.
   "/api/portal",
   "/api/enrollment",
+  // Redeeming an invitation is by definition done while signed out — it is how
+  // the account gets a password in the first place. The token is the credential
+  // and the handler verifies it.
+  "/api/activate",
   "/api/health",
   // Stored files accept three different credentials — a per-key `?t=` grant, a
   // mobile bearer token, or a dashboard cookie — and decide among them
@@ -111,6 +115,6 @@ export async function proxy(request: NextRequest) {
  */
 export const config = {
   matcher: [
-    "/((?!api/auth|api/admin|api/mobile|api/portal|api/enrollment|admin|portal|login|register|forgot-password|reset-password|enroll|_next/static|_next/image|favicon.ico|fonts|images).*)",
+    "/((?!api/auth|api/admin|api/mobile|api/portal|api/enrollment|api/activate|admin|portal|login|register|forgot-password|reset-password|enroll|activate|_next/static|_next/image|favicon.ico|fonts|images).*)",
   ],
 };

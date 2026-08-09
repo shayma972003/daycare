@@ -295,43 +295,37 @@ export default function PortalPage() {
   );
 }
 
-/** Phone → emailed code → token. The same two steps as the app. */
+/**
+ * Email and password — the same credentials as the app.
+ *
+ * Was phone → emailed code. The phone only ever named the account; the code went
+ * to the email regardless, because there is no SMS gateway. Guardians now set a
+ * password when they redeem their invitation, so there is nothing left for the
+ * two-step dance to establish.
+ */
 function PortalSignIn({ onSignedIn }: { onSignedIn: (token: string) => void }) {
-  const [step, setStep] = useState<"phone" | "otp">("phone");
-  const [phone, setPhone] = useState("");
-  const [otp, setOtp] = useState("");
-  const [hint, setHint] = useState<string | null>(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function requestCode() {
-    setBusy(true);
-    setError(null);
-    try {
-      const response = await axios.post<{ hint: string | null }>(
-        "/api/mobile/v1/auth/request-otp",
-        { phone }
-      );
-      setHint(response.data.hint);
-      setStep("otp");
-    } catch {
-      setError("تعذر إرسال الرمز، حاولي مجدداً");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function verify() {
+  async function signIn() {
     setBusy(true);
     setError(null);
     try {
       const response = await axios.post<{ accessToken: string }>(
-        "/api/mobile/v1/auth/verify-otp",
-        { phone, otp }
+        "/api/mobile/v1/auth/login",
+        // `kind` selects which table to search: the same address may belong to a
+        // teacher who is also a parent here.
+        { email: email.trim().toLowerCase(), password, kind: "guardian" }
       );
       onSignedIn(response.data.accessToken);
-    } catch {
-      setError("الرمز غير صحيح أو منتهي الصلاحية");
+    } catch (err) {
+      setError(
+        axios.isAxiosError(err) && err.response?.status === 401
+          ? "البريد أو كلمة المرور غير صحيحة"
+          : "تعذّر تسجيل الدخول، حاولي مجدداً"
+      );
       setBusy(false);
     }
   }
@@ -347,66 +341,44 @@ function PortalSignIn({ onSignedIn }: { onSignedIn: (token: string) => void }) {
           </div>
         )}
 
-        {step === "phone" ? (
-          <>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1.5">رقم الجوال</label>
-              <input
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                type="tel"
-                dir="ltr"
-                placeholder="05xxxxxxxx"
-                className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm"
-              />
-            </div>
-            <button
-              onClick={requestCode}
-              disabled={busy || phone.trim().length < 6}
-              className="w-full py-3 bg-[#2F96A6] text-white rounded-xl text-sm font-bold hover:bg-[#26808e] disabled:opacity-60"
-            >
-              {busy ? "..." : "إرسال رمز التحقق"}
-            </button>
-            <p className="text-xs text-gray-400 leading-relaxed">
-              سيصلك رمز التحقق على البريد الإلكتروني المسجَّل لدى الحضانة.
-            </p>
-          </>
-        ) : (
-          <>
-            {hint && (
-              <p className="text-xs text-gray-500">
-                أُرسل الرمز إلى <span dir="ltr">{hint}</span>
-              </p>
-            )}
-            <div>
-              <label className="block text-xs text-gray-500 mb-1.5">رمز التحقق</label>
-              <input
-                value={otp}
-                onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                inputMode="numeric"
-                dir="ltr"
-                className="w-full border border-gray-200 rounded-xl px-3 py-3 text-center tracking-[0.4em] font-mono"
-              />
-            </div>
-            <button
-              onClick={verify}
-              disabled={busy || otp.length !== 6}
-              className="w-full py-3 bg-[#2F96A6] text-white rounded-xl text-sm font-bold hover:bg-[#26808e] disabled:opacity-60"
-            >
-              {busy ? "..." : "دخول"}
-            </button>
-            <button
-              onClick={() => {
-                setStep("phone");
-                setOtp("");
-                setError(null);
-              }}
-              className="w-full text-xs text-gray-500"
-            >
-              تغيير رقم الجوال
-            </button>
-          </>
-        )}
+        <div>
+          <label className="block text-xs text-gray-500 mb-1.5">البريد الإلكتروني</label>
+          <input
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            type="email"
+            dir="ltr"
+            placeholder="name@example.com"
+            className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs text-gray-500 mb-1.5">كلمة المرور</label>
+          <input
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            type="password"
+            dir="ltr"
+            placeholder="••••••••"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && email.trim() && password) signIn();
+            }}
+            className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm"
+          />
+        </div>
+
+        <button
+          onClick={signIn}
+          disabled={busy || !email.trim() || !password}
+          className="w-full py-3 bg-[#2F96A6] text-white rounded-xl text-sm font-bold hover:bg-[#26808e] disabled:opacity-60"
+        >
+          {busy ? "..." : "دخول"}
+        </button>
+
+        <p className="text-xs text-gray-400 leading-relaxed">
+          إن لم يكن لديك حساب بعد، ستصلك دعوة من الحضانة على بريدك لتعيين كلمة المرور.
+        </p>
       </div>
     </div>
   );

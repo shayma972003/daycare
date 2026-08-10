@@ -459,12 +459,28 @@ export default function SettingsPage() {
   }
 
   useEffect(() => {
-    // `setRestoreAllMsg` used to be called here synchronously. The message
-    // belongs to a tab, so it is cleared by `loadTrash` as part of loading that
-    // tab rather than by a second state write racing the same render.
-    loadTrash(trashTab);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trashTab]);
+    const controller = new AbortController();
+    axios
+      .get(`/api/trash/${trashTab}`, { signal: controller.signal })
+      .then((res) => {
+        if (trashTab === "students") setTrashStudents(res.data.items ?? res.data);
+        if (trashTab === "teachers") setTrashTeachers(res.data.items ?? res.data);
+        if (trashTab === "classes") setTrashClasses(res.data.items ?? res.data);
+      })
+      .catch((requestError: unknown) => {
+        if (!axios.isCancel(requestError)) setSettingsError(t("settings.loadFailed"));
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoadingTrash(false);
+      });
+    return () => controller.abort();
+  }, [trashTab, t]);
+
+  function selectTrashTab(tab: "students" | "teachers" | "classes") {
+    setLoadingTrash(true);
+    setRestoreAllMsg("");
+    setTrashTab(tab);
+  }
 
   const trashTypeSingular: Record<"students" | "teachers" | "classes", string> = {
     students: "student",
@@ -1103,7 +1119,7 @@ export default function SettingsPage() {
                     {(["students", "teachers", "classes"] as const).map((tab) => (
                       <button
                         key={tab}
-                        onClick={() => setTrashTab(tab)}
+                        onClick={() => selectTrashTab(tab)}
                         className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
                           trashTab === tab
                             ? "bg-[#111111] text-white"

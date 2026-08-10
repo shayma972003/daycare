@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import axios from "axios";
 import { describeApiError } from "@/lib/api-error";
 
@@ -47,7 +47,7 @@ export function GuardianAccounts() {
   const [notice, setNotice] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  async function load() {
     try {
       const res = await axios.get<GuardianRow[]>("/api/guardian-accounts");
       setRows(res.data);
@@ -69,11 +69,29 @@ export function GuardianAccounts() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }
 
   useEffect(() => {
-    load();
-  }, [load]);
+    const controller = new AbortController();
+    axios
+      .get<GuardianRow[]>("/api/guardian-accounts", { signal: controller.signal })
+      .then((res) => {
+        setRows(res.data);
+        setError(null);
+      })
+      .catch((err) => {
+        if (axios.isCancel(err)) return;
+        if (axios.isAxiosError(err) && err.response?.status === 403) {
+          setForbidden(true);
+        } else {
+          setError(describeApiError(err, "تعذّر تحميل حسابات أولياء الأمور"));
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, []);
 
   async function invite(row: GuardianRow) {
     setError(null);

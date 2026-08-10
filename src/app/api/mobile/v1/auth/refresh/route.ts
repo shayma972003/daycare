@@ -7,11 +7,9 @@ const schema = z.object({ refreshToken: z.string().min(20) });
 /**
  * Exchanges a refresh token for a new pair.
  *
- * Every failure returns 401 with a distinct `code`. The app needs to tell them
- * apart: an expired token means "sign in again", while `TOKEN_REUSED` means the
- * session was revoked because a copy of the token was seen in circulation, and
- * that is worth telling the user about rather than silently bouncing them to the
- * login screen.
+ * Every authentication failure is deliberately indistinguishable to the
+ * caller. The server logs the internal reason without logging the bearer token
+ * or its full hash.
  */
 export async function POST(request: Request) {
   let body: unknown;
@@ -32,14 +30,8 @@ export async function POST(request: Request) {
   });
 
   if (!result.ok) {
-    const messages: Record<typeof result.reason, string> = {
-      invalid: "جلسة غير معروفة",
-      expired: "انتهت صلاحية الجلسة",
-      revoked: "تم إنهاء الجلسة",
-      reused: "تم إنهاء الجلسة لأسباب أمنية — يرجى تسجيل الدخول مجدداً",
-    };
     return Response.json(
-      { error: messages[result.reason], code: result.reason.toUpperCase() },
+      { error: "تعذّر تجديد الجلسة، يرجى تسجيل الدخول مجدداً", code: "SESSION_INVALID" },
       { status: 401 }
     );
   }

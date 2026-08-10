@@ -2,6 +2,7 @@ import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
 import { parseAcademicStage } from "@/lib/enum-labels";
+import { protectIdNumber } from "@/lib/pii-crypto";
 import { z } from "zod";
 import * as XLSX from "xlsx";
 
@@ -124,7 +125,7 @@ export async function POST(request: Request) {
         healthCondition: v.healthCondition ?? null,
         academicStage: parseAcademicStage(v.academicStage),
         period: v.period as "MORNING" | "EVENING",
-        idNumber: v.idNumber ?? null,
+        ...protectIdNumber(v.idNumber),
         dateOfBirth: v.dateOfBirth ? new Date(v.dateOfBirth) : null,
         nationality: v.nationality ?? null,
         gender: v.gender as "MALE" | "FEMALE",

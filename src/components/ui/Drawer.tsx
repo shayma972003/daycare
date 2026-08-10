@@ -19,9 +19,10 @@
  * pushed rather than stacking a second one.
  */
 
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef, type RefObject } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useT } from "@/lib/i18n-provider";
+import { cn } from "@/lib/utils";
 
 const PARAM = "drawer";
 
@@ -51,27 +52,67 @@ export function Drawer({
   onClose,
   title,
   children,
+  returnFocusRef,
+  panelClassName,
+  headerClassName,
+  contentClassName,
+  panelId,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   children: React.ReactNode;
+  returnFocusRef?: RefObject<HTMLElement | null>;
+  panelClassName?: string;
+  headerClassName?: string;
+  contentClassName?: string;
+  panelId?: string;
 }) {
   const t = useT();
+  const panelRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     if (!open) return;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const returnFocus = returnFocusRef?.current ?? previousFocus;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+      if (event.key !== "Tab") return;
+
+      const focusable = Array.from(
+        panelRef.current?.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        ) ?? []
+      ).filter((element) => !element.hasAttribute("hidden"));
+      if (focusable.length === 0) {
+        event.preventDefault();
+        panelRef.current?.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
     document.addEventListener("keydown", onKey);
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    panelRef.current?.focus();
     return () => {
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = previous;
+      returnFocus?.focus();
     };
-  }, [open, onClose]);
+  }, [open, onClose, returnFocusRef]);
 
   if (!open) return null;
 
@@ -82,12 +123,19 @@ export function Drawer({
       {/* Anchored to the inline-start edge, so it slides in from the side the
           reader's language starts at — right in Arabic, left in English. */}
       <aside
+        id={panelId}
+        ref={panelRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="relative ms-auto h-full w-full sm:max-w-md bg-white shadow-modal flex flex-col"
+        data-drawer-panel
+        className={cn(
+          "relative me-auto h-full w-full sm:max-w-md bg-white shadow-modal flex flex-col outline-none",
+          panelClassName
+        )}
       >
-        <header className="flex items-center justify-between gap-3 px-5 py-4 border-b border-gray-100 shrink-0">
+        <header className={cn("flex items-center justify-between gap-3 px-5 py-4 border-b border-gray-100 shrink-0", headerClassName)}>
           <h2 className="font-bold text-[#111111]">{title}</h2>
           <button
             onClick={onClose}
@@ -98,7 +146,7 @@ export function Drawer({
           </button>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-5">{children}</div>
+        <div className={cn("flex-1 min-h-0 overflow-y-auto p-5", contentClassName)}>{children}</div>
       </aside>
     </div>
   );

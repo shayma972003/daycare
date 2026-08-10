@@ -53,7 +53,7 @@ export function ActivityGrid({ activities, onAdd, onSelect }: ActivityGridProps)
         <button
           key={activity.id}
           onClick={() => onSelect(activity)}
-          className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow text-right w-full"
+          className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow text-start w-full"
         >
           {/* Activity image */}
           {activity.imageUrl ? (

@@ -1,6 +1,7 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
+import { protectIdNumber } from "@/lib/pii-crypto";
 import { z } from "zod";
 
 const createTeacherSchema = z.object({
@@ -126,7 +127,7 @@ export async function POST(request: Request) {
       schoolId,
       name,
       ...(period !== undefined && { period }),
-      ...(idNumber !== undefined && { idNumber }),
+      ...(idNumber !== undefined && protectIdNumber(idNumber)),
       ...(dateOfBirth !== undefined && { dateOfBirth: new Date(dateOfBirth) }),
       ...(nationality !== undefined && { nationality }),
       ...(email !== undefined && { email }),

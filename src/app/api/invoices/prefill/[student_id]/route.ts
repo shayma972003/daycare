@@ -1,5 +1,6 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { revealIdNumber } from "@/lib/pii-crypto";
 
 export async function GET(
   _request: Request,
@@ -68,7 +69,7 @@ export async function GET(
       },
       student: {
         name: student.name,
-        idNumber: student.idNumber ?? null,
+        idNumber: revealIdNumber(student),
         className: student.class?.name ?? null,
         paymentMethod: student.paymentMethod,
       },

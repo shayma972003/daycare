@@ -89,7 +89,6 @@
 body {
   background-color: var(--color-brand-bg);
   color: var(--color-navy);
-  direction: rtl;
   -webkit-font-smoothing: antialiased;
 }
 

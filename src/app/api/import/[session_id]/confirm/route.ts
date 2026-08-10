@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { parseAcademicStage, parseAttendanceType, parsePaymentStatus } from '@/lib/enum-labels';
 import { normalizePhone } from '@/lib/phone-normalizer';
 import { logAction } from '@/lib/activity-logger';
+import { protectIdNumber } from '@/lib/pii-crypto';
 
 function parseDate(val: unknown): Date | null {
   if (val === null || val === undefined || val === '') return null;
@@ -108,7 +109,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ session
             schoolId,
             name: String(data.full_name).trim(),
             guardianId,
-            idNumber: data.id_number ? String(data.id_number).trim() : null,
+            ...protectIdNumber(data.id_number ? String(data.id_number) : null),
             dateOfBirth: parseDate(data.date_of_birth),
             gender: gender as 'MALE' | 'FEMALE',
             nationality: data.nationality ? String(data.nationality).trim() : null,
@@ -142,7 +143,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ session
           data: {
             schoolId,
             name: String(data.full_name).trim(),
-            idNumber: data.id_number ? String(data.id_number).trim() : null,
+            ...protectIdNumber(data.id_number ? String(data.id_number) : null),
             dateOfBirth: data.date_of_birth ? new Date(data.date_of_birth as string) : null,
             nationality: data.nationality ? String(data.nationality).trim() : null,
             email: data.email ? String(data.email).trim() : null,

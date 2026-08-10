@@ -5,6 +5,7 @@ import { z } from "zod";
 import { normalizePhone } from "@/lib/phone-normalizer";
 import { astDayStart } from "@/lib/datetime";
 import { keyFromUrl, schoolIdFromKey } from "@/lib/r2";
+import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
 
 const schema = z.object({
   token: z.string().min(1),
@@ -33,6 +34,13 @@ const schema = z.object({
 });
 
 export async function POST(request: Request) {
+  const limited = await rateLimit({
+    key: `enroll:submit:${clientIp(request)}`,
+    limit: 20,
+    windowMs: 60 * 60 * 1000,
+  });
+  if (!limited.ok) return tooManyRequests(limited.retryAfter);
+
   let body: unknown;
   try {
     body = await request.json();

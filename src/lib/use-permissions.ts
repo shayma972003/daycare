@@ -1,25 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import axios from "axios";
+import { useSession } from "next-auth/react";
 import { grants } from "@/lib/permissions";
 
 /**
  * The caller's permissions, for deciding what to *show*.
  *
- * Fetched rather than read from the session: the JWT carries only a role name,
- * and `requireSession()` re-reads the permission list from the database on every
- * request. A copy in the token would go stale the moment a role was edited, and
- * the product already treats drifted permissions as a reason to end the session.
- *
- * This is presentation only. Every route enforces its own requirement from
- * `route-permissions.ts`, and an unmatched path is refused by default. Hiding a
- * link the server would reject is a courtesy — it stops a user hunting for a
- * screen that will 403 — never the control itself.
- *
- * While loading, `can()` answers false. Briefly showing a short menu that fills
- * in is better than showing every entry and taking some away, which reads as the
- * product breaking.
+ * This is presentation only. Every route still enforces its requirement from
+ * `route-permissions.ts`. The store deliberately drops `me` while loading or
+ * after an error, so a protected action is never rendered from stale data.
  */
 export interface Me {
   id: string;
@@ -29,57 +20,170 @@ export interface Me {
   permissions: string[];
 }
 
-let cached: Me | null = null;
-let inFlight: Promise<Me | null> | null = null;
+export type PermissionStatus = "idle" | "loading" | "ready" | "error";
+
+export interface PermissionSnapshot {
+  sessionKey: string | null;
+  status: PermissionStatus;
+  me: Me | null;
+  error: Error | null;
+}
+
+const EMPTY_SNAPSHOT: PermissionSnapshot = {
+  sessionKey: null,
+  status: "idle",
+  me: null,
+  error: null,
+};
+
+let snapshot = EMPTY_SNAPSHOT;
+let generation = 0;
+let inFlight: {
+  sessionKey: string;
+  generation: number;
+  promise: Promise<PermissionSnapshot>;
+} | null = null;
+const listeners = new Set<() => void>();
+
+function publish(next: PermissionSnapshot) {
+  snapshot = next;
+  for (const listener of listeners) listener();
+}
+
+function fetchPermissions(sessionKey: string, force = false): Promise<PermissionSnapshot> {
+  if (!force && snapshot.sessionKey === sessionKey) {
+    if (snapshot.status === "ready" || snapshot.status === "error") {
+      return Promise.resolve(snapshot);
+    }
+    if (inFlight?.sessionKey === sessionKey) return inFlight.promise;
+  }
+
+  const requestGeneration = ++generation;
+  publish({ sessionKey, status: "loading", me: null, error: null });
+
+  const promise = axios
+    .get<Me>("/api/me")
+    .then((response) => {
+      if (generation !== requestGeneration || snapshot.sessionKey !== sessionKey) {
+        return snapshot;
+      }
+      const next: PermissionSnapshot = {
+        sessionKey,
+        status: "ready",
+        me: response.data,
+        error: null,
+      };
+      publish(next);
+      return next;
+    })
+    .catch((cause: unknown) => {
+      if (generation !== requestGeneration || snapshot.sessionKey !== sessionKey) {
+        return snapshot;
+      }
+      const error = cause instanceof Error ? cause : new Error("Failed to load permissions");
+      const next: PermissionSnapshot = {
+        sessionKey,
+        status: "error",
+        me: null,
+        error,
+      };
+      publish(next);
+      return next;
+    })
+    .finally(() => {
+      if (inFlight?.generation === requestGeneration) inFlight = null;
+    });
+
+  inFlight = { sessionKey, generation: requestGeneration, promise };
+  return promise;
+}
 
 /**
- * Shared across every component that asks.
- *
- * The sidebar, the command palette and the topbar all want this on the same
- * paint; without a module-level cache that is three identical requests, each
- * paying a session re-validation.
+ * The single permission state source used by the hook and by mutation screens.
+ * Exposed as an object so tests can prove subscription, de-duplication and
+ * session isolation without adding a second cache implementation.
  */
-function loadMe(): Promise<Me | null> {
-  if (cached) return Promise.resolve(cached);
-  if (!inFlight) {
-    inFlight = axios
-      .get<Me>("/api/me")
-      .then((response) => {
-        cached = response.data;
-        return cached;
-      })
-      .catch(() => null)
-      .finally(() => {
-        inFlight = null;
-      });
-  }
-  return inFlight;
+export const permissionStore = {
+  subscribe(listener: () => void) {
+    listeners.add(listener);
+    return () => listeners.delete(listener);
+  },
+  getSnapshot() {
+    return snapshot;
+  },
+  syncSession(sessionKey: string | null) {
+    if (!sessionKey) {
+      this.clear();
+      return Promise.resolve(snapshot);
+    }
+    if (snapshot.sessionKey !== sessionKey) return fetchPermissions(sessionKey, true);
+    return fetchPermissions(sessionKey);
+  },
+  invalidate() {
+    if (!snapshot.sessionKey) return Promise.resolve(snapshot);
+    return fetchPermissions(snapshot.sessionKey, true);
+  },
+  clear() {
+    generation += 1;
+    inFlight = null;
+    if (snapshot !== EMPTY_SNAPSHOT) publish(EMPTY_SNAPSHOT);
+  },
+};
+
+function sessionKey(
+  user: { id: string; schoolId: string; role: string } | undefined
+): string | null {
+  if (!user?.id || !user.schoolId) return null;
+  return `${user.schoolId}:${user.id}:${user.role}`;
 }
 
 export function usePermissions() {
-  const [me, setMe] = useState<Me | null>(cached);
-  const [loading, setLoading] = useState(!cached);
+  const { data: session, status: sessionStatus } = useSession();
+  const storeSnapshot = useSyncExternalStore(
+    permissionStore.subscribe,
+    permissionStore.getSnapshot,
+    permissionStore.getSnapshot
+  );
+  const currentSessionKey =
+    sessionStatus === "authenticated" ? sessionKey(session?.user) : null;
 
   useEffect(() => {
-    let cancelled = false;
-    loadMe().then((result) => {
-      if (cancelled) return;
-      setMe(result);
-      setLoading(false);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    if (sessionStatus === "loading") return;
+    void permissionStore.syncSession(currentSessionKey);
+  }, [currentSessionKey, sessionStatus]);
+
+  const belongsToCurrentSession =
+    currentSessionKey !== null && storeSnapshot.sessionKey === currentSessionKey;
+  const current = belongsToCurrentSession ? storeSnapshot : EMPTY_SNAPSHOT;
+  const loading =
+    sessionStatus === "loading" ||
+    (sessionStatus === "authenticated" &&
+      (!belongsToCurrentSession || current.status === "idle" || current.status === "loading"));
+  const status: PermissionStatus = loading ? "loading" : current.status;
+  const me = status === "ready" ? current.me : null;
 
   return {
     me,
+    status,
     loading,
+    error: status === "error" ? current.error : null,
     can: (permission: string) => (me ? grants(me.permissions, permission) : false),
+    canAny: (permissions: readonly string[]) =>
+      me ? permissions.some((permission) => grants(me.permissions, permission)) : false,
   };
 }
 
-/** Drops the cache so the next read re-fetches — call after changing a role. */
+/** Refetches now and notifies every mounted permission consumer. */
+export function invalidatePermissions() {
+  return permissionStore.invalidate();
+}
+
+/** Clears permissions synchronously; call before ending or replacing a session. */
+export function clearPermissions() {
+  permissionStore.clear();
+}
+
+/** @deprecated Use `invalidatePermissions()` or `clearPermissions()` explicitly. */
 export function forgetPermissions() {
-  cached = null;
+  clearPermissions();
 }

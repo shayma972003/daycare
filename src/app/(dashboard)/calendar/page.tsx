@@ -34,6 +34,8 @@ import { CalendarEventModal } from "@/components/calendar/CalendarEventModal";
 import type { Activity as ActivityRecord } from "@/components/activities/ActivityGrid";
 import type { CalendarEventType } from "@/generated/prisma/enums";
 import { useT, useLocale } from "@/lib/i18n-provider";
+import { PermissionGate } from "@/components/auth/PermissionGate";
+import { usePermissions } from "@/lib/use-permissions";
 
 interface EventRow {
   id: string;
@@ -73,6 +75,7 @@ export default function CalendarPage() {
   // The header range is built by Intl, which needs the language told to it —
   // otherwise the month and weekday names follow the host and stay Arabic.
   const { locale } = useLocale();
+  const { can, canAny } = usePermissions();
   const [view, setView] = useState<CalendarView>("week");
   const [anchor, setAnchor] = useState(() => new Date());
   const [events, setEvents] = useState<EventRow[]>([]);
@@ -89,6 +92,7 @@ export default function CalendarPage() {
   const [activity, setActivity] = useState<ActivityRecord | null>(null);
 
   function openRow(row: EventRow) {
+    if (!canAny(["schedule.manage", "schedule.delete"])) return;
     if (row.kind !== "activity" || !row.activity) {
       setEditing(row);
       return;
@@ -322,12 +326,14 @@ export default function CalendarPage() {
                 <option key={item.id} value={item.id}>{item.name}</option>
               ))}
             </select>
-            <button
-              onClick={() => setCreating(anchor)}
-              className="px-4 py-2 bg-[#2F96A6] text-white rounded-xl text-sm font-medium hover:bg-[#26808e]"
-            >
-              {t("common.add")}
-            </button>
+            <PermissionGate permission="schedule.manage">
+              <button
+                onClick={() => setCreating(anchor)}
+                className="px-4 py-2 bg-[#2F96A6] text-white rounded-xl text-sm font-medium hover:bg-[#26808e]"
+              >
+                {t("common.add")}
+              </button>
+            </PermissionGate>
           </div>
         </div>
 
@@ -343,12 +349,13 @@ export default function CalendarPage() {
               shiftOn={shiftOn}
               locale={locale}
               onSelect={openRow}
-              onCreate={setCreating}
+              onCreate={can("schedule.manage") ? setCreating : undefined}
             />
           )}
         </div>
       </div>
 
+      <PermissionGate anyOf={["schedule.manage", "schedule.delete"]}>
       {(creating || editing || activity) && (
         <CalendarEventModal
           event={editing}
@@ -369,6 +376,7 @@ export default function CalendarPage() {
           }}
         />
       )}
+      </PermissionGate>
 
     </div>
   );
@@ -393,7 +401,7 @@ function HourGrid({
   /** The hour column is written in words, so it needs the reader's language. */
   locale: "ar" | "en";
   onSelect: (event: EventRow) => void;
-  onCreate: (day: Date) => void;
+  onCreate?: (day: Date) => void;
 }) {
   const t = useT();
   return (
@@ -467,7 +475,7 @@ function HourGrid({
             return (
               <button
                 key={`${day.toISOString()}-${hour}`}
-                onClick={() => slotEvents.length === 0 && onCreate(day)}
+                onClick={() => slotEvents.length === 0 && onCreate?.(day)}
                 className="min-h-[44px] border-r border-gray-50 p-1 text-right align-top hover:bg-gray-50/60 transition-colors"
               >
                 {slotEvents.map((event) => (

@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
+import { isPublicEnrollmentRoute } from "@/lib/enrollment-access";
 
 /**
  * Edge gate for the dashboard and the tenant API.
@@ -35,7 +36,6 @@ const PUBLIC_API_PREFIXES = [
   // with a NextAuth cookie — so the check below would reject every call. Its
   // routes verify the token themselves.
   "/api/portal",
-  "/api/enrollment",
   // Redeeming an invitation is by definition done while signed out — it is how
   // the account gets a password in the first place. The token is the credential
   // and the handler verifies it.
@@ -48,16 +48,18 @@ const PUBLIC_API_PREFIXES = [
   "/api/files",
 ];
 
-function isPublicApi(pathname: string): boolean {
-  return PUBLIC_API_PREFIXES.some(
-    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+function isPublicApi(pathname: string, method: string): boolean {
+  return (
+    PUBLIC_API_PREFIXES.some(
+      (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+    ) || isPublicEnrollmentRoute(pathname, method)
   );
 }
 
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
 
-  if (isPublicApi(pathname)) return NextResponse.next();
+  if (isPublicApi(pathname, request.method)) return NextResponse.next();
 
   /**
    * Forwards the path and method to the route handlers.
@@ -115,6 +117,6 @@ export async function proxy(request: NextRequest) {
  */
 export const config = {
   matcher: [
-    "/((?!api/auth|api/admin|api/mobile|api/portal|api/enrollment|api/activate|admin|portal|login|register|forgot-password|reset-password|enroll|activate|_next/static|_next/image|favicon.ico|fonts|images).*)",
+    "/((?!api/auth|api/admin|api/mobile|api/portal|api/activate|admin|portal|login|register|forgot-password|reset-password|enroll|activate|_next/static|_next/image|favicon.ico|fonts|images).*)",
   ],
 };

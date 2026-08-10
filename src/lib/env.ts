@@ -35,6 +35,17 @@ const envSchema = z.object({
   NEXTAUTH_URL: z.string({ error: "NEXTAUTH_URL is required" }).url(),
   ADMIN_JWT_SECRET: requiredSecret("ADMIN_JWT_SECRET"),
 
+  // National IDs must never be written without both independent secrets.
+  // They are optional outside production so a developer can run the app, but
+  // any attempt to save a non-empty ID still fails closed in `pii-crypto.ts`.
+  PII_ENCRYPTION_KEY: optional(
+    z.string().refine(
+      (value) => Buffer.from(value, "base64").length === 32,
+      "PII_ENCRYPTION_KEY must be a base64-encoded 32-byte key"
+    )
+  ),
+  PII_INDEX_PEPPER: optional(z.string().min(32)),
+
   // ─── Optional — each gates exactly one feature ─────────────────────────────
   /** Scheduled jobs reject every request while unset (fail-closed). */
   CRON_SECRET: optional(z.string()),
@@ -88,6 +99,18 @@ const envSchema = z.object({
   TWILIO_ACCOUNT_SID: optional(z.string()),
   TWILIO_AUTH_TOKEN: optional(z.string()),
   TWILIO_WHATSAPP_FROM: optional(z.string()),
+}).superRefine((value, ctx) => {
+  if (value.NODE_ENV !== "production") return;
+
+  for (const name of ["PII_ENCRYPTION_KEY", "PII_INDEX_PEPPER"] as const) {
+    if (!value[name]) {
+      ctx.addIssue({
+        code: "custom",
+        path: [name],
+        message: `${name} is required in production`,
+      });
+    }
+  }
 });
 
 type ParsedEnv = z.infer<typeof envSchema>;
@@ -104,7 +127,11 @@ function loadEnv(): Env {
       .map((i) => `  • ${i.path.join(".")}: ${i.message}`)
       .join("\n");
 
-    if (isBuildPhase) {
+    const hasPiiIssue = parsed.error.issues.some(
+      (issue) => issue.path[0] === "PII_ENCRYPTION_KEY" || issue.path[0] === "PII_INDEX_PEPPER"
+    );
+
+    if (isBuildPhase && !hasPiiIssue) {
       console.warn(`⚠️  Environment validation skipped during build:\n${issues}`);
       return { ...(process.env as unknown as ParsedEnv), APP_URL: "" };
     }

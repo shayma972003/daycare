@@ -32,6 +32,10 @@
     "close": "Close",
     "viewMore": "View More",
     "noData": "No data available",
+    "retry": "Retry",
+    "bulkResult": "{succeeded} succeeded and {failed} failed.",
+    "bulkExactFailuresRetained": "Failed items remain selected.",
+    "bulkUnknownFailuresRetained": "The API did not identify the failed items, so the full selection remains selected.",
     "actions": "Actions",
     "select": "Select",
     "all": "All",
@@ -1255,7 +1259,10 @@
     "subscriptionExpiredOn": "{name}'s subscription expired on"
   },
   "layout": {
-    "schoolLogo": "School logo"
+    "schoolLogo": "School logo",
+    "mainNavigation": "Main navigation",
+    "openNavigation": "Open navigation menu",
+    "closeNavigation": "Close navigation menu"
   },
   "careTypes": {
     "MEAL": "Meals",
@@ -1412,6 +1419,8 @@
       "class": "class"
     },
     "search": "Search",
-    "rota": "Rota"
+    "rota": "Rota",
+    "shortcut": "Ctrl K",
+    "escapeKey": "Esc"
   }
 }

@@ -28,6 +28,7 @@ import { SignJWT, jwtVerify } from "jose";
 import { createHash, randomBytes } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { env } from "@/lib/env";
+import type { Prisma } from "@/generated/prisma/client";
 
 const SECRET = new TextEncoder().encode(env.NEXTAUTH_SECRET);
 const ISSUER = "daycare-mobile";
@@ -51,6 +52,8 @@ export interface TokenPair {
   refreshToken: string;
   expiresIn: number;
 }
+
+type AuthDb = typeof prisma | Prisma.TransactionClient;
 
 function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
@@ -80,13 +83,21 @@ export async function issueTokenPair(
   claims: AccessTokenClaims,
   context: { userAgent?: string | null; ipAddress?: string | null; familyId?: string } = {}
 ): Promise<TokenPair> {
+  return issueTokenPairWithDb(prisma, claims, context);
+}
+
+async function issueTokenPairWithDb(
+  db: AuthDb,
+  claims: AccessTokenClaims,
+  context: { userAgent?: string | null; ipAddress?: string | null; familyId?: string } = {}
+): Promise<TokenPair> {
   const accessToken = await signAccessToken(claims);
 
   // 32 bytes from the CSPRNG. `Math.random()` is not a source of secrets — the
   // same defect fixed across this codebase in task 0.19.
   const refreshToken = randomBytes(32).toString("base64url");
 
-  await prisma.refreshToken.create({
+  await db.refreshToken.create({
     data: {
       tokenHash: hashToken(refreshToken),
       familyId: context.familyId ?? randomBytes(16).toString("hex"),
@@ -105,6 +116,7 @@ export async function issueTokenPair(
 export type RefreshOutcome =
   | { ok: true; pair: TokenPair; claims: AccessTokenClaims }
   | { ok: false; reason: "invalid" | "expired" | "revoked" | "reused" };
+type RefreshFailureReason = Extract<RefreshOutcome, { ok: false }>["reason"];
 
 /**
  * Exchanges a refresh token for a new pair.
@@ -118,46 +130,81 @@ export async function rotateRefreshToken(
   token: string,
   context: { userAgent?: string | null; ipAddress?: string | null } = {}
 ): Promise<RefreshOutcome> {
-  const record = await prisma.refreshToken.findUnique({
-    where: { tokenHash: hashToken(token) },
-  });
-
-  if (!record) return { ok: false, reason: "invalid" };
-
-  if (record.rotatedAt) {
-    await prisma.refreshToken.updateMany({
-      where: { familyId: record.familyId, revokedAt: null },
-      data: { revokedAt: new Date() },
+  return prisma.$transaction(async (tx): Promise<RefreshOutcome> => {
+    const record = await tx.refreshToken.findUnique({
+      where: { tokenHash: hashToken(token) },
     });
-    console.warn(`[mobile-auth] refresh token reuse on family ${record.familyId}`);
-    return { ok: false, reason: "reused" };
-  }
 
-  if (record.revokedAt) return { ok: false, reason: "revoked" };
-  if (record.expiresAt < new Date()) return { ok: false, reason: "expired" };
+    if (!record) {
+      logRefreshRejection("invalid");
+      return { ok: false, reason: "invalid" };
+    }
 
-  // Re-read the account rather than trusting what the old token carried: a role
-  // change, a disabled account or a suspended school must take effect at the
-  // next refresh at the latest.
-  const claims = await claimsForSubject(
-    record.userId ? "staff" : "guardian",
-    record.userId ?? record.guardianAccountId ?? ""
-  );
-  if (!claims) {
-    await prisma.refreshToken.updateMany({
-      where: { familyId: record.familyId, revokedAt: null },
-      data: { revokedAt: new Date() },
+    if (record.rotatedAt) {
+      await revokeTokenFamily(tx, record.familyId);
+      logRefreshRejection("reused", record.familyId);
+      return { ok: false, reason: "reused" };
+    }
+
+    if (record.revokedAt) {
+      logRefreshRejection("revoked", record.familyId);
+      return { ok: false, reason: "revoked" };
+    }
+    if (record.expiresAt < new Date()) {
+      logRefreshRejection("expired", record.familyId);
+      return { ok: false, reason: "expired" };
+    }
+
+    // Re-read the account inside the same transaction rather than trusting
+    // claims from the old access token. Disablement and subscription changes
+    // therefore take effect no later than the next refresh.
+    const claims = await claimsForSubjectWithDb(
+      tx,
+      record.userId ? "staff" : "guardian",
+      record.userId ?? record.guardianAccountId ?? ""
+    );
+    if (!claims) {
+      await revokeTokenFamily(tx, record.familyId);
+      logRefreshRejection("revoked", record.familyId);
+      return { ok: false, reason: "revoked" };
+    }
+
+    // Compare-and-set is the serialization point. Two requests may both read
+    // the row, but only one can change the still-active token. PostgreSQL makes
+    // the second updater wait, re-check the predicate, then report count=0.
+    const claimed = await tx.refreshToken.updateMany({
+      where: { id: record.id, rotatedAt: null, revokedAt: null },
+      data: { rotatedAt: new Date() },
     });
-    return { ok: false, reason: "revoked" };
-  }
 
-  await prisma.refreshToken.update({
-    where: { id: record.id },
-    data: { rotatedAt: new Date() },
+    if (claimed.count !== 1) {
+      await revokeTokenFamily(tx, record.familyId);
+      logRefreshRejection("reused", record.familyId);
+      return { ok: false, reason: "reused" };
+    }
+
+    // Creation is deliberately inside this transaction. If it throws, the CAS
+    // above rolls back and the original token remains usable.
+    const pair = await issueTokenPairWithDb(tx, claims, {
+      ...context,
+      familyId: record.familyId,
+    });
+    return { ok: true, pair, claims };
   });
+}
 
-  const pair = await issueTokenPair(claims, { ...context, familyId: record.familyId });
-  return { ok: true, pair, claims };
+async function revokeTokenFamily(db: AuthDb, familyId: string): Promise<void> {
+  await db.refreshToken.updateMany({
+    where: { familyId, revokedAt: null },
+    data: { revokedAt: new Date() },
+  });
+}
+
+function logRefreshRejection(reason: RefreshFailureReason, familyId?: string) {
+  // A short family prefix correlates an incident without logging a bearer token
+  // or its full hash/family identifier.
+  const family = familyId ? ` family=${familyId.slice(0, 8)}…` : "";
+  console.warn(`[mobile-auth] refresh rejected reason=${reason}${family}`);
 }
 
 /**
@@ -171,8 +218,16 @@ export async function claimsForSubject(
   kind: MobileSubject,
   id: string
 ): Promise<AccessTokenClaims | null> {
+  return claimsForSubjectWithDb(prisma, kind, id);
+}
+
+async function claimsForSubjectWithDb(
+  db: AuthDb,
+  kind: MobileSubject,
+  id: string
+): Promise<AccessTokenClaims | null> {
   if (kind === "staff") {
-    const user = await prisma.user.findUnique({
+    const user = await db.user.findUnique({
       where: { id },
       select: {
         id: true,
@@ -194,7 +249,7 @@ export async function claimsForSubject(
     };
   }
 
-  const account = await prisma.guardianAccount.findUnique({
+  const account = await db.guardianAccount.findUnique({
     where: { id },
     select: {
       id: true,

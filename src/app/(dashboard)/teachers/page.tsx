@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
 import { Topbar } from "@/components/layout/Topbar";
@@ -11,6 +11,17 @@ import { PeriodBadge } from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { formatTime } from "@/lib/utils";
 import { useT, useLocale } from "@/lib/i18n-provider";
+import { PermissionGate } from "@/components/auth/PermissionGate";
+import { DataErrorState, RefreshIndicator } from "@/components/ui/DataLoadState";
+import {
+  collectionView,
+  countedBulkOutcome,
+  type BulkOutcome,
+  type CollectionStatus,
+} from "@/lib/collection-state";
+import { LatestRequest, type RequestTicket } from "@/lib/latest-request";
+import { describeApiError } from "@/lib/api-error";
+import { usePermissions } from "@/lib/use-permissions";
 
 interface TodayAttendance {
   id: string;
@@ -25,6 +36,17 @@ interface Teacher {
   name: string;
   period?: "MORNING" | "EVENING" | null;
   classes?: { id: string; name: string }[];
+}
+
+async function loadTeacherAttendance(ticket: RequestTicket) {
+  const response = await axios.get<TodayAttendance[]>("/api/attendance/teachers/today", {
+    signal: ticket.signal,
+  });
+  const map: Record<string, TodayAttendance> = {};
+  response.data.forEach((attendance) => {
+    map[attendance.teacherId] = attendance;
+  });
+  return map;
 }
 
 function LiveTimer({ from }: { from: string }) {
@@ -52,9 +74,18 @@ export default function TeachersPage() {
   // Locale-aware translation — see src/lib/i18n.tsx.
   const t = useT();
   const router = useRouter();
+  const { can } = usePermissions();
+  const canManageAttendance = can("attendance.staff");
   const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [listStatus, setListStatus] = useState<CollectionStatus>("loading");
+  const [listError, setListError] = useState<string | null>(null);
+  const [listRefresh, setListRefresh] = useState(0);
+  const [teacherRequests] = useState(() => new LatestRequest());
+  const [attendanceRequests] = useState(() => new LatestRequest());
+  const [attendanceError, setAttendanceError] = useState<string | null>(null);
+  const [attendanceRefresh, setAttendanceRefresh] = useState(0);
+  const [operationError, setOperationError] = useState<string | null>(null);
+  const [bulkOutcome, setBulkOutcome] = useState<(BulkOutcome & { message: string }) | null>(null);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -71,34 +102,51 @@ export default function TeachersPage() {
   // Today's attendance map: teacherId → attendance record
   const [todayAtt, setTodayAtt] = useState<Record<string, TodayAttendance>>({});
 
-  const fetchTodayAttendance = useCallback(async () => {
-    try {
-      const res = await axios.get<TodayAttendance[]>("/api/attendance/teachers/today");
-      const map: Record<string, TodayAttendance> = {};
-      res.data.forEach((a) => { map[a.teacherId] = a; });
-      setTodayAtt(map);
-    } catch { /* silent */ }
-  }, []);
-
-  const fetchTeachers = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
+  useEffect(() => {
+    const ticket = teacherRequests.begin();
+    const timer = setTimeout(() => {
       const params: Record<string, string> = {};
       if (search) params.search = search;
-      const res = await axios.get<Teacher[]>("/api/teachers", { params });
-      setTeachers(res.data);
-    } catch {
-      setError(t("common.error"));
-    } finally {
-      setLoading(false);
-    }
-  }, [search, t]);
+      axios
+        .get<Teacher[]>("/api/teachers", { params, signal: ticket.signal })
+        .then((response) => {
+          ticket.commit(() => {
+            setTeachers(response.data);
+            setListError(null);
+            setListStatus("ready");
+          });
+        })
+        .catch((error: unknown) => {
+          if (axios.isCancel(error)) return;
+          ticket.commit(() => {
+            setListError(describeApiError(error, t("common.error")));
+            setListStatus("error");
+          });
+        });
+    }, search ? 300 : 0);
+    return () => {
+      clearTimeout(timer);
+      ticket.cancel();
+    };
+  }, [listRefresh, search, t, teacherRequests]);
 
   useEffect(() => {
-    fetchTeachers();
-    fetchTodayAttendance();
-  }, [fetchTeachers, fetchTodayAttendance]);
+    if (!canManageAttendance) return;
+    const ticket = attendanceRequests.begin();
+    loadTeacherAttendance(ticket)
+      .then((map) => {
+        ticket.commit(() => {
+          setTodayAtt(map);
+          setAttendanceError(null);
+        });
+      })
+      .catch((error: unknown) => {
+        if (!axios.isCancel(error)) {
+          ticket.commit(() => setAttendanceError(describeApiError(error, t("common.error"))));
+        }
+      });
+    return ticket.cancel;
+  }, [attendanceRefresh, attendanceRequests, canManageAttendance, t]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -124,13 +172,47 @@ export default function TeachersPage() {
     else setSelected(new Set(teachers.map((tc) => tc.id)));
   }
 
+  function refreshTeachers() {
+    setListStatus(teachers.length > 0 ? "refreshing" : "loading");
+    setListError(null);
+    setListRefresh((value) => value + 1);
+  }
+
+  async function refreshAttendance() {
+    const ticket = attendanceRequests.begin();
+    try {
+      const map = await loadTeacherAttendance(ticket);
+      ticket.commit(() => {
+        setTodayAtt(map);
+        setAttendanceError(null);
+      });
+    } catch (error) {
+      if (!axios.isCancel(error)) {
+        ticket.commit(() => setAttendanceError(describeApiError(error, t("common.error"))));
+      }
+    }
+  }
+
+  function presentBulkOutcome(outcome: BulkOutcome) {
+    const suffix = outcome.failed > 0
+      ? t("common.bulkUnknownFailuresRetained")
+      : "";
+    setBulkOutcome({
+      ...outcome,
+      message: `${t("common.bulkResult", { succeeded: outcome.succeeded, failed: outcome.failed })} ${suffix}`,
+    });
+    setSelected(new Set(outcome.remainingSelection));
+    if (outcome.failed === 0) setBulkAction("");
+  }
+
   async function handleCheckin(id: string) {
     setActionLoading(id + ":checkin");
+    setOperationError(null);
     try {
       await axios.post(`/api/teachers/${id}/checkin`);
-      await fetchTodayAttendance();
-    } catch {
-      // silent
+      await refreshAttendance();
+    } catch (error) {
+      setOperationError(describeApiError(error, t("common.error")));
     } finally {
       setActionLoading(null);
     }
@@ -138,11 +220,12 @@ export default function TeachersPage() {
 
   async function handleCheckout(id: string) {
     setActionLoading(id + ":checkout");
+    setOperationError(null);
     try {
       await axios.post(`/api/teachers/${id}/checkout`);
-      await fetchTodayAttendance();
-    } catch {
-      // silent
+      await refreshAttendance();
+    } catch (error) {
+      setOperationError(describeApiError(error, t("common.error")));
     } finally {
       setActionLoading(null);
     }
@@ -152,15 +235,20 @@ export default function TeachersPage() {
     const ids = Array.from(selected);
     if (!bulkAction || ids.length === 0) return;
     setBulkLoading(true);
+    setOperationError(null);
+    setBulkOutcome(null);
     try {
-      await axios.post("/api/attendance/teachers/bulk-action", { teacherIds: ids, action: bulkAction });
-      await fetchTodayAttendance();
-    } catch {
-      // silent
+      const response = await axios.post<{ processed: number; skipped: number }>(
+        "/api/attendance/teachers/bulk-action",
+        { teacherIds: ids, action: bulkAction }
+      );
+      presentBulkOutcome(countedBulkOutcome(ids, response.data.processed));
+      await refreshAttendance();
+    } catch (error) {
+      setOperationError(describeApiError(error, t("common.error")));
+      presentBulkOutcome(countedBulkOutcome(ids, 0));
     } finally {
       setBulkLoading(false);
-      setSelected(new Set());
-      setBulkAction("");
     }
   }
 
@@ -174,7 +262,7 @@ export default function TeachersPage() {
       fd.append("file", file);
       const res = await axios.post<{ added: number; failed: number; errors: string[] }>("/api/teachers/bulk", fd);
       setXlsxResult(res.data);
-      fetchTeachers();
+      refreshTeachers();
     } catch (err) {
       setXlsxResult({ added: 0, failed: 1, errors: [axios.isAxiosError(err) ? err.response?.data?.error ?? t("common.error") : t("common.error")] });
     } finally {
@@ -183,8 +271,16 @@ export default function TeachersPage() {
     }
   }
 
+  function changeSearch(value: string) {
+    setListStatus(teachers.length > 0 ? "refreshing" : "loading");
+    setListError(null);
+    setSearch(value);
+  }
+
+  const teacherView = collectionView(listStatus, teachers.length);
+
   return (
-    <div dir="rtl" className="flex flex-col min-h-screen">
+    <div className="flex flex-col min-h-screen">
       <Topbar title={t("teachers.title")} />
 
       {/* The whole-week grid, opened from the staff list it belongs to. */}
@@ -192,22 +288,23 @@ export default function TeachersPage() {
         <ShiftsPanel />
       </Drawer>
 
-      <div className="flex-1 p-6 space-y-5">
+      <div className="flex-1 space-y-5 p-3 sm:p-4 lg:p-6">
         {/* Top bar */}
         <div className="flex flex-wrap gap-3 items-center justify-between">
           <div className="relative">
             <input
               type="text"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => changeSearch(e.target.value)}
               placeholder={t("students.searchPlaceholder")}
-              className="w-64 px-4 py-2 pr-9 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#F64651] text-sm bg-white shadow-sm"
+              className="w-64 px-4 py-2 ps-9 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#F64651] text-sm bg-white shadow-sm"
             />
-            <span className="absolute left-auto right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+            <span className="absolute start-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
           </div>
 
           <div className="flex gap-2 items-center">
             {/* Bulk action */}
+            <PermissionGate permission="attendance.staff">
             <div className="flex items-center gap-2">
               <select
                 value={bulkAction}
@@ -223,43 +320,48 @@ export default function TeachersPage() {
                 disabled={!bulkAction || selected.size === 0 || bulkLoading}
                 className="px-3 py-2 bg-[#111111] text-white rounded-lg text-sm disabled:opacity-40"
               >
-                {t("common.run")}
+                {bulkLoading ? t("common.loading") : t("common.run")}
               </button>
             </div>
+            </PermissionGate>
 
-            <button
-              onClick={rota.open}
-              className="px-4 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm hover:border-teal hover:text-teal transition-all"
-            >
-              {t("shifts.manage")}
-            </button>
+            <PermissionGate permission="schedule.manage">
+              <button
+                onClick={rota.open}
+                className="px-4 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm hover:border-teal hover:text-teal transition-all"
+              >
+                {t("shifts.manage")}
+              </button>
+            </PermissionGate>
 
             {/* Add teacher dropdown */}
+            <PermissionGate permission="staff.manage">
             <div className="relative" ref={dropdownRef}>
               <button
                 onClick={() => setDropdownOpen(!dropdownOpen)}
                 className="flex items-center gap-1 px-4 py-2 bg-[#F64651] text-white rounded-xl text-sm font-bold hover:bg-[#D93A44] transition-all shadow-md"
               >
                 + {t("teachers.addTeacher")}
-                <span className="text-xs mr-1">▼</span>
+                <span className="text-xs ms-1">▼</span>
               </button>
               {dropdownOpen && (
-                <div className="absolute left-0 top-full mt-1 w-52 bg-white rounded-xl shadow-lg border border-gray-100 z-30 overflow-hidden">
+                <div className="absolute end-0 top-full mt-1 w-52 bg-white rounded-xl shadow-lg border border-gray-100 z-30 overflow-hidden">
                   <button
                     onClick={() => { setDropdownOpen(false); router.push("/teachers/new"); }}
-                    className="w-full text-right px-4 py-3 text-sm text-[#111111] hover:bg-gray-50 transition-colors border-b border-gray-50"
+                    className="w-full text-start px-4 py-3 text-sm text-[#111111] hover:bg-gray-50 transition-colors border-b border-gray-50"
                   >
                     {t("teachers.addNewShort")}
                   </button>
                   <button
                     onClick={() => { setDropdownOpen(false); router.push("/teachers/import"); }}
-                    className="w-full text-right px-4 py-3 text-sm text-[#111111] hover:bg-gray-50 transition-colors"
+                    className="w-full text-start px-4 py-3 text-sm text-[#111111] hover:bg-gray-50 transition-colors"
                   >
                     {t("teachers.uploadFile")}
                   </button>
                 </div>
               )}
             </div>
+            </PermissionGate>
           </div>
         </div>
 
@@ -282,30 +384,68 @@ export default function TeachersPage() {
           </div>
         )}
 
-        {error && (
-          <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{error}</div>
+        {listStatus === "refreshing" && <RefreshIndicator label={t("common.loading")} />}
+        {listError && teachers.length > 0 && (
+          <DataErrorState message={listError} retryLabel={t("common.retry")} onRetry={refreshTeachers} />
+        )}
+        {attendanceError && (
+          <DataErrorState
+            message={attendanceError}
+            retryLabel={t("common.retry")}
+            onRetry={() => setAttendanceRefresh((value) => value + 1)}
+          />
+        )}
+        {operationError && (
+          <div role="alert" className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+            {operationError}
+          </div>
+        )}
+        {bulkOutcome && (
+          <div
+            role="status"
+            className={`p-4 rounded-xl text-sm border ${
+              bulkOutcome.failed > 0
+                ? "bg-orange-50 border-orange-200 text-orange-800"
+                : "bg-success-bg border-success-text/20 text-success-text"
+            }`}
+          >
+            {bulkOutcome.message}
+          </div>
         )}
 
         {/* Table */}
         <div className="bg-white rounded-xl shadow-md overflow-hidden">
-          {loading ? (
+          {teacherView === "loading" ? (
             <div className="flex items-center justify-center py-20 text-gray-400 text-sm">{t("common.loading")}</div>
-          ) : teachers.length === 0 ? (
+          ) : teacherView === "error" ? (
+            <div className="p-5">
+              <DataErrorState
+                message={listError ?? t("common.error")}
+                retryLabel={t("common.retry")}
+                onRetry={refreshTeachers}
+              />
+            </div>
+          ) : teacherView === "empty" ? (
             <EmptyState title={t("teachers.emptyTitle")} description={t("teachers.emptyHint")} />
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+            <div
+              role="region"
+              aria-label={t("teachers.title")}
+              tabIndex={0}
+              className="max-w-full overflow-x-auto"
+            >
+              <table className="w-full min-w-[820px] text-sm">
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50">
-                    <th className="px-4 py-3 text-right">
+                    <th className="px-4 py-3 text-start">
                       <input type="checkbox" checked={selected.size === teachers.length && teachers.length > 0} onChange={toggleAll} className="rounded" />
                     </th>
-                    <th className="px-4 py-3 text-right font-medium text-gray-600">{t("teachers.columns.name")}</th>
-                    <th className="px-4 py-3 text-right font-medium text-gray-600">{t("teachers.columns.period")}</th>
-                    <th className="px-4 py-3 text-right font-medium text-gray-600">{t("teachers.columns.class")}</th>
-                    <th className="px-4 py-3 text-right font-medium text-gray-600">{t("common.viewMore")}</th>
-                    <th className="px-4 py-3 text-right font-medium text-gray-600">{t("teachers.columns.checkinTime")}</th>
-                    <th className="px-4 py-3 text-right font-medium text-gray-600">{t("common.actions")}</th>
+                    <th className="px-4 py-3 text-start font-medium text-gray-600">{t("teachers.columns.name")}</th>
+                    <th className="px-4 py-3 text-start font-medium text-gray-600">{t("teachers.columns.period")}</th>
+                    <th className="px-4 py-3 text-start font-medium text-gray-600">{t("teachers.columns.class")}</th>
+                    <th className="px-4 py-3 text-start font-medium text-gray-600">{t("common.viewMore")}</th>
+                    <th className="px-4 py-3 text-start font-medium text-gray-600">{t("teachers.columns.checkinTime")}</th>
+                    <th className="px-4 py-3 text-start font-medium text-gray-600">{t("common.actions")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
@@ -366,21 +506,25 @@ export default function TeachersPage() {
                         <td className="px-4 py-3">
                           <div className="flex gap-2">
                             {!checkedIn ? (
-                              <button
-                                onClick={() => handleCheckin(teacher.id)}
-                                disabled={actionLoading === teacher.id + ":checkin"}
-                                className="px-3 py-1.5 bg-[#F64651] text-white rounded-lg text-xs font-medium hover:bg-[#D93A44] transition-all disabled:opacity-60"
-                              >
-                                {actionLoading === teacher.id + ":checkin" ? "..." : t("teachers.actions.checkin")}
-                              </button>
+                              <PermissionGate permission="attendance.staff">
+                                <button
+                                  onClick={() => handleCheckin(teacher.id)}
+                                  disabled={actionLoading === teacher.id + ":checkin"}
+                                  className="px-3 py-1.5 bg-[#F64651] text-white rounded-lg text-xs font-medium hover:bg-[#D93A44] transition-all disabled:opacity-60"
+                                >
+                                  {actionLoading === teacher.id + ":checkin" ? "..." : t("teachers.actions.checkin")}
+                                </button>
+                              </PermissionGate>
                             ) : !checkedOut ? (
-                              <button
-                                onClick={() => handleCheckout(teacher.id)}
-                                disabled={actionLoading === teacher.id + ":checkout"}
-                                className="px-3 py-1.5 bg-red-500 text-white rounded-lg text-xs font-medium hover:bg-red-600 transition-all disabled:opacity-60"
-                              >
-                                {actionLoading === teacher.id + ":checkout" ? "..." : t("teachers.actions.checkout")}
-                              </button>
+                              <PermissionGate permission="attendance.staff">
+                                <button
+                                  onClick={() => handleCheckout(teacher.id)}
+                                  disabled={actionLoading === teacher.id + ":checkout"}
+                                  className="px-3 py-1.5 bg-red-500 text-white rounded-lg text-xs font-medium hover:bg-red-600 transition-all disabled:opacity-60"
+                                >
+                                  {actionLoading === teacher.id + ":checkout" ? "..." : t("teachers.actions.checkout")}
+                                </button>
+                              </PermissionGate>
                             ) : (
                               <span className="text-xs text-gray-400 px-3 py-1.5">{t("teachers.checkedOut")}</span>
                             )}

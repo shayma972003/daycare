@@ -168,7 +168,7 @@ export function ShiftsPanel({ teacherId }: { teacherId?: string }) {
               <thead>
                 <tr>
                   {!teacherId && (
-                    <th className="sticky right-0 bg-white px-3 py-2 text-right text-gray-500 font-medium border-b border-gray-100">
+                    <th className="sticky start-0 bg-white px-3 py-2 text-start text-gray-500 font-medium border-b border-gray-100">
                       {t("fields.employee")}
                     </th>
                   )}
@@ -186,7 +186,7 @@ export function ShiftsPanel({ teacherId }: { teacherId?: string }) {
                 {roster.map((teacher) => (
                   <tr key={teacher.id}>
                     {!teacherId && (
-                      <td className="sticky right-0 bg-white px-3 py-2 border-b border-gray-50 text-[#111111] whitespace-nowrap">
+                      <td className="sticky start-0 bg-white px-3 py-2 border-b border-gray-50 text-[#111111] whitespace-nowrap">
                         {teacher.name}
                       </td>
                     )}
@@ -218,7 +218,7 @@ export function ShiftsPanel({ teacherId }: { teacherId?: string }) {
 
       {editing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-xs space-y-4" dir="rtl">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-xs space-y-4">
             <h3 className="font-bold text-[#111111]">
               {data?.teachers.find((t) => t.id === editing.teacherId)?.name} — {editing.date}
             </h3>

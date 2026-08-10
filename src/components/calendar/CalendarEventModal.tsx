@@ -17,6 +17,7 @@ import type { CalendarEventType } from "@/generated/prisma/enums";
 import { useT } from "@/lib/i18n-provider";
 import { ActivityFormModal } from "@/components/activities/ActivityFormModal";
 import type { Activity as ActivityRecord } from "@/components/activities/ActivityGrid";
+import { PermissionGate } from "@/components/auth/PermissionGate";
 
 interface EventRow {
   id: string;
@@ -340,21 +341,25 @@ export function CalendarEventModal({
             programme ? "hidden" : ""
           }`}
         >
-          <button
-            onClick={submit}
-            disabled={saving || !title.trim() || !startAt}
-            className="flex-1 px-5 py-3 bg-[#2F96A6] text-white rounded-xl text-sm font-bold hover:bg-[#26808e] disabled:opacity-60"
-          >
-            {saving ? t("careForm.saving") : t("common.save")}
-          </button>
-          {isEdit && (
+          <PermissionGate permission="schedule.manage">
             <button
-              onClick={remove}
-              disabled={deleting}
-              className="px-5 py-3 border border-red-200 text-red-600 rounded-xl text-sm hover:bg-red-50 disabled:opacity-60"
+              onClick={submit}
+              disabled={saving || !title.trim() || !startAt}
+              className="flex-1 px-5 py-3 bg-[#2F96A6] text-white rounded-xl text-sm font-bold hover:bg-[#26808e] disabled:opacity-60"
             >
-              {deleting ? "..." : t("common.delete")}
+              {saving ? t("careForm.saving") : t("common.save")}
             </button>
+          </PermissionGate>
+          {isEdit && (
+            <PermissionGate permission="schedule.delete">
+              <button
+                onClick={remove}
+                disabled={deleting}
+                className="px-5 py-3 border border-red-200 text-red-600 rounded-xl text-sm hover:bg-red-50 disabled:opacity-60"
+              >
+                {deleting ? "..." : t("common.delete")}
+              </button>
+            </PermissionGate>
           )}
           <button
             onClick={onClose}

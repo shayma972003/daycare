@@ -17,7 +17,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import axios from "axios";
-import { useT } from "@/lib/i18n-provider";
+import { useLocale, useT } from "@/lib/i18n-provider";
+import { forwardArrowFor } from "@/lib/i18n";
 
 export interface DashboardTask {
   key: string;
@@ -30,6 +31,7 @@ const URGENT = new Set(["unpaidInvoices", "classesWithoutTeacher"]);
 
 export function TodayTasks({ tasks, loading }: { tasks: DashboardTask[]; loading: boolean }) {
   const t = useT();
+  const { locale } = useLocale();
   const open = tasks.filter((task) => task.count > 0);
 
   if (loading) {
@@ -68,7 +70,7 @@ export function TodayTasks({ tasks, loading }: { tasks: DashboardTask[]; loading
               aria-hidden
               className="text-gray-300 group-hover:text-gray-500 transition-colors text-xs"
             >
-              ←
+              {forwardArrowFor(locale)}
             </span>
           </Link>
         </li>

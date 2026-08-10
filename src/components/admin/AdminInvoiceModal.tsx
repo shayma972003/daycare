@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import axios from "axios";
+import { astDateInputValue } from "@/lib/datetime";
+import { modalSessionKey } from "@/lib/modal-session";
 
 interface LineItem {
   id: string;
@@ -53,12 +55,20 @@ function calcRowTotal(quantity: number | "", price: number | "", vat: number | "
   return qty * (Number(price) || 0) + (Number(vat) || 0);
 }
 
-function toDateInput(d: Date) {
-  return d.toISOString().slice(0, 10);
+export function AdminInvoiceModal({ open, schoolId, onClose, onIssued }: AdminInvoiceModalProps) {
+  if (!open) return null;
+  return (
+    <AdminInvoiceModalContent
+      key={modalSessionKey("admin-invoice", schoolId)}
+      schoolId={schoolId}
+      onClose={onClose}
+      onIssued={onIssued}
+    />
+  );
 }
 
-export function AdminInvoiceModal({ open, schoolId, onClose, onIssued }: AdminInvoiceModalProps) {
-  const [loading, setLoading] = useState(false);
+function AdminInvoiceModalContent({ schoolId, onClose, onIssued }: Omit<AdminInvoiceModalProps, "open">) {
+  const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -86,11 +96,9 @@ export function AdminInvoiceModal({ open, schoolId, onClose, onIssued }: AdminIn
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
 
   useEffect(() => {
-    if (!open) return;
-    setLoading(true);
-    setError(null);
+    const controller = new AbortController();
     axios
-      .get<PrefillData>(`/api/admin/invoices/prefill/${schoolId}`)
+      .get<PrefillData>(`/api/admin/invoices/prefill/${schoolId}`, { signal: controller.signal })
       .then((res) => {
         const d = res.data;
         setOurCompanyName(d.ourCompanyName);
@@ -109,7 +117,7 @@ export function AdminInvoiceModal({ open, schoolId, onClose, onIssued }: AdminIn
 
         setInvoiceNumber(d.invoiceNumber);
         setSubscriptionType(d.planName);
-        setIssueDate(toDateInput(new Date()));
+        setIssueDate(astDateInputValue());
         setDueDate("");
         setStatus("متأخر");
         setPaymentMethod("");
@@ -124,9 +132,14 @@ export function AdminInvoiceModal({ open, schoolId, onClose, onIssued }: AdminIn
           },
         ]);
       })
-      .catch(() => setError("فشل تحميل البيانات"))
-      .finally(() => setLoading(false));
-  }, [open, schoolId]);
+      .catch((requestError: unknown) => {
+        if (!axios.isCancel(requestError)) setError("فشل تحميل البيانات");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, [schoolId]);
 
   function addLineItem() {
     setLineItems((prev) => [...prev, { id: Date.now().toString(), description: "", quantity: 1, price: 0, vat: 0 }]);
@@ -193,8 +206,6 @@ export function AdminInvoiceModal({ open, schoolId, onClose, onIssued }: AdminIn
       setGenerating(false);
     }
   }
-
-  if (!open) return null;
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" dir="rtl">

@@ -32,6 +32,10 @@
     "close": "إغلاق",
     "viewMore": "معرفة المزيد",
     "noData": "لا توجد بيانات",
+    "retry": "إعادة المحاولة",
+    "bulkResult": "نجح {succeeded}، وفشل {failed}.",
+    "bulkExactFailuresRetained": "بقيت العناصر التي فشلت محددة.",
+    "bulkUnknownFailuresRetained": "لم تحدد الواجهة البرمجية العناصر التي فشلت، لذلك أُبقي التحديد كاملًا.",
     "actions": "إجراءات",
     "select": "اختر",
     "all": "الكل",
@@ -1255,7 +1259,10 @@
     "subscriptionExpiredOn": "اشتراك الطالب {name} قد انتهى في تاريخ"
   },
   "layout": {
-    "schoolLogo": "شعار المدرسة"
+    "schoolLogo": "شعار المدرسة",
+    "mainNavigation": "التنقل الرئيسي",
+    "openNavigation": "فتح قائمة التنقل",
+    "closeNavigation": "إغلاق قائمة التنقل"
   },
   "careTypes": {
     "MEAL": "وجبات الطعام",
@@ -1412,6 +1419,8 @@
       "class": "فصل"
     },
     "search": "بحث",
-    "rota": "المناوبات"
+    "rota": "المناوبات",
+    "shortcut": "Ctrl K",
+    "escapeKey": "Esc"
   }
 }

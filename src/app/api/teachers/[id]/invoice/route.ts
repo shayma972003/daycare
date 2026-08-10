@@ -1,7 +1,7 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
-import { astDateOnly, astParts } from "@/lib/datetime";
+import { astDateInputValue, astDateOnly, astParts } from "@/lib/datetime";
 import { findInvoiceThisMonth, duplicateInvoiceResponse } from "@/lib/invoice-duplicates";
 
 export async function POST(
@@ -37,7 +37,7 @@ export async function POST(
   }
 
   const now = new Date();
-  const issueDate = now.toISOString().split("T")[0];
+  const issueDate = astDateInputValue(now);
 
   // Lateness for *this month only*. `teacher.lateHours` is a cumulative total
   // that is never reset, so using it meant every monthly salary invoice

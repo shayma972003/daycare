@@ -1,10 +1,12 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { protectIdNumber } from "@/lib/pii-crypto";
 import { logAction } from "@/lib/activity-logger";
 import { assertClassOwned, crossTenantResponse } from "@/lib/tenant-guard";
 import { resolveStageId, foreignStageResponse } from "@/lib/academic-stage";
 import { parseAcademicStage, parseAttendanceType } from "@/lib/enum-labels";
 import { z } from "zod";
+import { ENROLLMENT_MANAGE_PERMISSION } from "@/lib/enrollment-access";
 
 const schema = z.object({
   class_id: z.string().optional(),
@@ -64,7 +66,10 @@ export async function POST(
       Response.json({ error: "Unauthorized" }, { status: 401 })
     );
   }
-  const schoolId = (session.user as { schoolId: string }).schoolId;
+  if (!session.can(ENROLLMENT_MANAGE_PERMISSION)) {
+    return Response.json({ error: "Forbidden", code: "FORBIDDEN" }, { status: 403 });
+  }
+  const schoolId = session.user.schoolId;
   const { submission_id } = await params;
 
   const sub = await prisma.enrollmentSubmission.findFirst({
@@ -95,8 +100,8 @@ export async function POST(
     if (existing) {
       guardianId = existing.id;
       // Update guardian with any new info from overrides
-      await prisma.guardian.update({
-        where: { id: existing.id },
+      await prisma.guardian.updateMany({
+        where: { id: existing.id, schoolId },
         data: {
           name: ov.guardian_name ?? sub.guardian_name ?? existing.name,
           phone2: ov.guardian_phone_2 ?? sub.guardian_phone_2 ?? existing.phone2,
@@ -147,7 +152,7 @@ export async function POST(
       name: (ov.full_name ?? sub.full_name) || "—",
       classId: ownedClassId,
       guardianId,
-      idNumber: ov.id_number ?? sub.id_number ?? null,
+      ...protectIdNumber(ov.id_number ?? sub.id_number),
       nationality: ov.nationality ?? sub.nationality ?? null,
       academicStage: parseAcademicStage(ov.academic_stage ?? sub.academic_stage),
       ...(ownedStageId !== null && { stageId: ownedStageId }),
@@ -166,8 +171,8 @@ export async function POST(
     },
   });
 
-  await prisma.enrollmentSubmission.update({
-    where: { id: submission_id },
+  await prisma.enrollmentSubmission.updateMany({
+    where: { id: submission_id, school_id: schoolId },
     data: { status: "approved", student_id: student.id, reviewed_at: new Date() },
   });
 

@@ -9,6 +9,12 @@ import { useT } from "@/lib/i18n-provider";
 import { useAcademicStages, useStageName } from "@/lib/use-academic-stages";
 import { useDrawer } from "@/components/ui/Drawer";
 import { QuickAddClass } from "@/components/classes/QuickAddClass";
+import { PermissionGate } from "@/components/auth/PermissionGate";
+import { DataErrorState, RefreshIndicator } from "@/components/ui/DataLoadState";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { collectionView, type CollectionStatus } from "@/lib/collection-state";
+import { LatestRequest } from "@/lib/latest-request";
+import { describeApiError } from "@/lib/api-error";
 
 
 interface ClassItem {
@@ -30,8 +36,10 @@ export default function ClassesPage() {
   const t = useT();
   const router = useRouter();
   const [classes, setClasses] = useState<ClassItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [listStatus, setListStatus] = useState<CollectionStatus>("loading");
+  const [listError, setListError] = useState<string | null>(null);
+  const [listRefresh, setListRefresh] = useState(0);
+  const [classRequests] = useState(() => new LatestRequest());
 
   const [periodFilter, setPeriodFilter] = useState<"MORNING" | "EVENING" | "all">("all");
   // The school's own stages now, not four hard-coded ones (task 2.44).
@@ -41,50 +49,76 @@ export default function ClassesPage() {
   // `?drawer=new-class`, so back closes the panel rather than the page.
   const addClass = useDrawer("new-class");
 
-  async function fetchClasses() {
-    setLoading(true);
-    setError(null);
-    try {
-      const params: Record<string, string> = {};
-      if (periodFilter !== "all") params.period = periodFilter;
-      if (stageFilter !== "all") params.stageId = stageFilter;
+  useEffect(() => {
+    const ticket = classRequests.begin();
+    const params: Record<string, string> = {};
+    if (periodFilter !== "all") params.period = periodFilter;
+    if (stageFilter !== "all") params.stageId = stageFilter;
 
-      const res = await axios.get<ClassItem[]>("/api/classes", { params });
-      setClasses(res.data);
-    } catch {
-      setError(t("common.error"));
-    } finally {
-      setLoading(false);
-    }
+    axios
+      .get<ClassItem[]>("/api/classes", { params, signal: ticket.signal })
+      .then((res) => {
+        ticket.commit(() => {
+          setClasses(res.data);
+          setListError(null);
+          setListStatus("ready");
+        });
+      })
+      .catch((requestError: unknown) => {
+        if (axios.isCancel(requestError)) return;
+        ticket.commit(() => {
+          setListError(describeApiError(requestError, t("common.error")));
+          setListStatus("error");
+        });
+      });
+
+    return ticket.cancel;
+  }, [classRequests, listRefresh, periodFilter, stageFilter, t]);
+
+  function refreshClasses() {
+    setListStatus(classes.length > 0 ? "refreshing" : "loading");
+    setListError(null);
+    setListRefresh((value) => value + 1);
   }
 
-  useEffect(() => {
-    fetchClasses();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [periodFilter, stageFilter]);
+  function changePeriod(period: "MORNING" | "EVENING" | "all") {
+    setListStatus(classes.length > 0 ? "refreshing" : "loading");
+    setListError(null);
+    setPeriodFilter(period);
+  }
+
+  function changeStage(stageId: string) {
+    setListStatus(classes.length > 0 ? "refreshing" : "loading");
+    setListError(null);
+    setStageFilter(stageId);
+  }
+
+  const classesView = collectionView(listStatus, classes.length);
 
   return (
     <div className="flex flex-col min-h-screen">
       <Topbar title={t("classes.title")} />
 
-      <QuickAddClass
-        open={addClass.isOpen}
-        onClose={addClass.close}
-        onCreated={fetchClasses}
-        onNeedFullForm={() => router.push("/classes/new")}
-      />
+      <PermissionGate permission="classes.manage">
+        <QuickAddClass
+          open={addClass.isOpen}
+          onClose={addClass.close}
+          onCreated={refreshClasses}
+          onNeedFullForm={() => router.push("/classes/new")}
+        />
+      </PermissionGate>
 
-      <div className="flex-1 p-6 space-y-5">
+      <div className="flex-1 space-y-5 p-3 sm:p-4 lg:p-6">
         {/* Filters */}
         <div className="flex flex-wrap gap-3 items-center">
           {/* Period filter */}
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-500">{t("classes.filterByPeriod")}:</span>
-            <div className="flex rounded-xl overflow-hidden border border-gray-200 bg-white shadow-sm">
+            <div className="flex max-w-full overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
               {(["all", "MORNING", "EVENING"] as const).map((p) => (
                 <button
                   key={p}
-                  onClick={() => setPeriodFilter(p)}
+                  onClick={() => changePeriod(p)}
                   className={`px-3 py-1.5 text-xs font-medium transition-all ${
                     periodFilter === p
                       ? "bg-[#F64651] text-white"
@@ -100,11 +134,11 @@ export default function ClassesPage() {
           {/* Academic stage filter */}
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-500">{t("common.filterByStage")}:</span>
-            <div className="flex rounded-xl overflow-hidden border border-gray-200 bg-white shadow-sm">
+            <div className="flex max-w-full overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
               {[{ id: "all", label: t("common.all") }, ...stages.map((s) => ({ id: s.id, label: stageName(s) }))].map((g) => (
                 <button
                   key={g.id}
-                  onClick={() => setStageFilter(g.id)}
+                  onClick={() => changeStage(g.id)}
                   className={`px-3 py-1.5 text-xs font-medium transition-all ${
                     stageFilter === g.id
                       ? "bg-[#F64651] text-white"
@@ -118,44 +152,54 @@ export default function ClassesPage() {
           </div>
         </div>
 
-        {/* Error */}
-        {error && (
-          <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
-            {error}
-          </div>
+        {listStatus === "refreshing" && <RefreshIndicator label={t("common.loading")} />}
+        {listError && classes.length > 0 && (
+          <DataErrorState message={listError} retryLabel={t("common.retry")} onRetry={refreshClasses} />
         )}
 
         {/* Grid */}
-        {loading ? (
+        {classesView === "loading" ? (
           <div className="flex items-center justify-center py-20 text-gray-400 text-sm">
             {t("common.loading")}
           </div>
+        ) : classesView === "error" ? (
+          <DataErrorState
+            message={listError ?? t("common.error")}
+            retryLabel={t("common.retry")}
+            onRetry={refreshClasses}
+          />
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          <>
+          {classesView === "empty" && (
+            <EmptyState title={t("common.noData")} description={t("classes.noneYet")} />
+          )}
+          <div data-responsive-class-grid className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
             {/* Add card */}
-            <button
-              onClick={addClass.open}
-              className="bg-white rounded-xl shadow-md border-2 border-dashed border-gray-200 flex flex-col items-center justify-center gap-2 min-h-[220px] hover:border-[#F64651] hover:shadow-lg transition-all group cursor-pointer"
-            >
-              <div className="w-12 h-12 rounded-full bg-gray-100 group-hover:bg-[#F64651]/10 flex items-center justify-center text-2xl text-gray-400 group-hover:text-[#F64651] transition-colors">
-                +
-              </div>
-              <span className="text-sm text-gray-400 group-hover:text-[#F64651] font-medium transition-colors">
-                {t("classes.addClass")}
-              </span>
-            </button>
+            <PermissionGate permission="classes.manage">
+              <button
+                onClick={addClass.open}
+                className="bg-white rounded-xl shadow-md border-2 border-dashed border-gray-200 flex flex-col items-center justify-center gap-2 min-h-[220px] hover:border-[#F64651] hover:shadow-lg transition-all group cursor-pointer"
+              >
+                <div className="w-12 h-12 rounded-full bg-gray-100 group-hover:bg-[#F64651]/10 flex items-center justify-center text-2xl text-gray-400 group-hover:text-[#F64651] transition-colors">
+                  +
+                </div>
+                <span className="text-sm text-gray-400 group-hover:text-[#F64651] font-medium transition-colors">
+                  {t("classes.addClass")}
+                </span>
+              </button>
+            </PermissionGate>
 
             {/* Class cards */}
             {classes.map((cls) => (
               <button
                 key={cls.id}
                 onClick={() => router.push(`/classes/${cls.id}`)}
-                className="relative bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow text-right w-full"
+                className="relative bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow text-start w-full"
               >
                 {cls.needsTeacherWarning && (
                   <span
                     title={t("classes.noHeadTeacher")}
-                    className="absolute bottom-2 left-2 z-10 flex items-center justify-center w-6 h-6 rounded-full bg-orange-100 text-orange-600 text-sm shadow"
+                    className="absolute bottom-2 end-2 z-10 flex items-center justify-center w-6 h-6 rounded-full bg-orange-100 text-orange-600 text-sm shadow"
                   >
                     ⚠
                   </span>
@@ -167,7 +211,7 @@ export default function ClassesPage() {
                   ) : (
                     <div className="flex flex-col items-center gap-1">
                       <div className="w-10 h-10 bg-gray-200 rounded flex items-center justify-center text-xs">
-                        [img]
+                        {t("common.imagePlaceholder")}
                       </div>
                     </div>
                   )}
@@ -202,6 +246,7 @@ export default function ClassesPage() {
               </button>
             ))}
           </div>
+          </>
         )}
       </div>
     </div>

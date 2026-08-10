@@ -1,6 +1,7 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
+import { protectIdNumber } from "@/lib/pii-crypto";
 import { z } from "zod";
 import * as XLSX from "xlsx";
 
@@ -88,7 +89,7 @@ export async function POST(request: Request) {
         schoolId,
         name: v.name,
         period: v.period as "MORNING" | "EVENING",
-        idNumber: v.idNumber ?? null,
+        ...protectIdNumber(v.idNumber),
         dateOfBirth: v.dateOfBirth ? new Date(v.dateOfBirth) : null,
         nationality: v.nationality ?? null,
         email: v.email || null,

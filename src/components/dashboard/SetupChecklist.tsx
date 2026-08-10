@@ -19,7 +19,8 @@
  */
 
 import Link from "next/link";
-import { useT } from "@/lib/i18n-provider";
+import { useLocale, useT } from "@/lib/i18n-provider";
+import { forwardArrowFor } from "@/lib/i18n";
 
 export interface SetupStep {
   key: string;
@@ -29,6 +30,7 @@ export interface SetupStep {
 
 export function SetupChecklist({ steps }: { steps: SetupStep[] }) {
   const t = useT();
+  const { locale } = useLocale();
   const done = steps.filter((step) => step.done).length;
 
   if (done === steps.length) return null;
@@ -90,7 +92,7 @@ export function SetupChecklist({ steps }: { steps: SetupStep[] }) {
                   aria-hidden
                   className="text-gray-300 group-hover:text-gray-500 transition-colors text-xs"
                 >
-                  ←
+                  {forwardArrowFor(locale)}
                 </span>
               )}
             </Link>

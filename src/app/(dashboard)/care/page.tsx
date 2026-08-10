@@ -17,7 +17,7 @@ import { CareReportModal } from "@/components/care/CareReportModal";
 import { QuickCareSheet } from "@/components/care/QuickCareSheet";
 import { CARE_REPORT_TYPES, CARE_TYPE_LABEL_KEYS, CARE_TYPE_COLORS } from "@/lib/care-reports";
 import { Icon, CARE_TYPE_ICON_NAMES } from "@/components/ui/Icon";
-import { formatAst } from "@/lib/datetime";
+import { astDateInputValue, formatAst } from "@/lib/datetime";
 import type { CareReportType } from "@/generated/prisma/enums";
 import { useT } from "@/lib/i18n-provider";
 
@@ -61,7 +61,7 @@ export default function CarePage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = astDateInputValue();
 
   const loadReports = useCallback(async () => {
     try {

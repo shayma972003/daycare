@@ -16,6 +16,7 @@ import { PAYMENT_STATUSES } from "@/lib/payment-status";
 import { astDateInputValue } from "@/lib/datetime";
 import { useT, useLocale } from "@/lib/i18n-provider";
 import { useAcademicStages, useStageName } from "@/lib/use-academic-stages";
+import { PermissionGate } from "@/components/auth/PermissionGate";
 
 /** ACTIVE is excluded: this is the set of reasons a child *leaves*. */
 type StudentDepartureStatus = "GRADUATED" | "WITHDRAWN" | "TRANSFERRED";
@@ -915,14 +916,16 @@ export default function StudentProfilePage({
                   <FormErrors messages={invalidFields} />
 
                   {/* 1. حفظ التغييرات */}
-                  <button
-                    type="submit"
-                    disabled={saving}
-                    className="w-full px-5 py-2.5 rounded-md bg-coral text-white font-medium text-sm
-                               hover:bg-coral-dark active:scale-[0.98] transition-all disabled:opacity-60"
-                  >
-                    {saving ? t("common.loading") : t("students.profile.actions.save")}
-                  </button>
+                  <PermissionGate permission="students.manage">
+                    <button
+                      type="submit"
+                      disabled={saving}
+                      className="w-full px-5 py-2.5 rounded-md bg-coral text-white font-medium text-sm
+                                 hover:bg-coral-dark active:scale-[0.98] transition-all disabled:opacity-60"
+                    >
+                      {saving ? t("common.loading") : t("students.profile.actions.save")}
+                    </button>
+                  </PermissionGate>
 
                   {/* 2. ارسال تذكير بالدفع */}
                   <button
@@ -986,16 +989,18 @@ export default function StudentProfilePage({
                   </button>
 
                   {/* 6. نقل إلى سلة المحذوفات */}
-                  <button
-                    type="button"
-                    onClick={() => setShowTrashModal(true)}
-                    className="w-full px-5 py-2.5 rounded-md bg-white font-medium text-sm
-                               border border-[#666666] text-[#666666]
-                               hover:border-[#F64651] hover:text-[#F64651] hover:bg-[#FFE8EA]
-                               active:scale-[0.98] transition-all"
-                  >
-                    {t("classes.moveToTrash")}
-                  </button>
+                  <PermissionGate permission="students.delete">
+                    <button
+                      type="button"
+                      onClick={() => setShowTrashModal(true)}
+                      className="w-full px-5 py-2.5 rounded-md bg-white font-medium text-sm
+                                 border border-[#666666] text-[#666666]
+                                 hover:border-[#F64651] hover:text-[#F64651] hover:bg-[#FFE8EA]
+                                 active:scale-[0.98] transition-all"
+                    >
+                      {t("classes.moveToTrash")}
+                    </button>
+                  </PermissionGate>
                 </div>
               </div>
             </div>
@@ -1065,13 +1070,15 @@ export default function StudentProfilePage({
                 {t("studentProfile.trashNotice", { name: student?.name ?? "" })}
               </p>
               <div className="flex gap-3 justify-center">
-                <button
-                  onClick={moveToTrash}
-                  disabled={trashing}
-                  className="px-5 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 disabled:opacity-60"
-                >
-                  {trashing ? "..." : t("studentProfile.confirmMove")}
-                </button>
+                <PermissionGate permission="students.delete">
+                  <button
+                    onClick={moveToTrash}
+                    disabled={trashing}
+                    className="px-5 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 disabled:opacity-60"
+                  >
+                    {trashing ? "..." : t("studentProfile.confirmMove")}
+                  </button>
+                </PermissionGate>
                 <button
                   onClick={() => setShowTrashModal(false)}
                   className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm"

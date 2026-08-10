@@ -15,6 +15,7 @@ import { useT, useLocale } from "@/lib/i18n-provider";
 import { astDateInputValue } from "@/lib/datetime";
 import { EMPLOYMENT_STATUS_LABEL_KEYS } from "@/lib/enum-labels";
 import type { EmploymentStatus } from "@/generated/prisma/enums";
+import { PermissionGate } from "@/components/auth/PermissionGate";
 
 /** Every reason except "still employed", which is the reactivate action. */
 type TeacherDepartureStatus = Exclude<EmploymentStatus, "ACTIVE">;
@@ -521,14 +522,16 @@ export default function TeacherProfilePage() {
                 <div className="flex flex-col gap-3 w-full">
                   {/* 1. حفظ التغييرات */}
                   <FormErrors messages={invalidFields} />
-                  <button
-                    type="submit"
-                    disabled={saving}
-                    className="w-full px-5 py-2.5 rounded-md bg-coral text-white font-medium text-sm
-                               hover:bg-coral-dark active:scale-[0.98] transition-all disabled:opacity-60"
-                  >
-                    {saving ? t("common.loading") : t("teachers.profile.actions.save")}
-                  </button>
+                  <PermissionGate permission="staff.manage">
+                    <button
+                      type="submit"
+                      disabled={saving}
+                      className="w-full px-5 py-2.5 rounded-md bg-coral text-white font-medium text-sm
+                                 hover:bg-coral-dark active:scale-[0.98] transition-all disabled:opacity-60"
+                    >
+                      {saving ? t("common.loading") : t("teachers.profile.actions.save")}
+                    </button>
+                  </PermissionGate>
 
                   {/* 2. ارسال تذكير بالدفع */}
                   <button
@@ -587,16 +590,18 @@ export default function TeacherProfilePage() {
                   </button>
 
                   {/* 6. نقل إلى سلة المحذوفات */}
-                  <button
-                    type="button"
-                    onClick={openTrashModal}
-                    className="w-full px-5 py-2.5 rounded-md bg-white font-medium text-sm
-                               border border-[#666666] text-[#666666]
-                               hover:border-[#F64651] hover:text-[#F64651] hover:bg-[#FFE8EA]
-                               active:scale-[0.98] transition-all"
-                  >
-                    {t("classes.moveToTrash")}
-                  </button>
+                  <PermissionGate permission="staff.delete">
+                    <button
+                      type="button"
+                      onClick={openTrashModal}
+                      className="w-full px-5 py-2.5 rounded-md bg-white font-medium text-sm
+                                 border border-[#666666] text-[#666666]
+                                 hover:border-[#F64651] hover:text-[#F64651] hover:bg-[#FFE8EA]
+                                 active:scale-[0.98] transition-all"
+                    >
+                      {t("classes.moveToTrash")}
+                    </button>
+                  </PermissionGate>
                 </div>
               </div>
 
@@ -744,13 +749,15 @@ export default function TeacherProfilePage() {
               </>
             )}
             <div className="flex gap-3 justify-center">
-              <button
-                onClick={moveToTrash}
-                disabled={trashing}
-                className="px-5 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 disabled:opacity-60"
-              >
-                {trashing ? "..." : trashClasses.length === 0 ? t("teacherProfile.confirmMove") : t("common.delete")}
-              </button>
+              <PermissionGate permission="staff.delete">
+                <button
+                  onClick={moveToTrash}
+                  disabled={trashing}
+                  className="px-5 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 disabled:opacity-60"
+                >
+                  {trashing ? "..." : trashClasses.length === 0 ? t("teacherProfile.confirmMove") : t("common.delete")}
+                </button>
+              </PermissionGate>
               <button
                 onClick={() => setShowTrashModal(false)}
                 className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm"

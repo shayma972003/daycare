@@ -19,6 +19,7 @@ import { PasswordRules, meetsRequiredRules } from "@/components/ui/PasswordRules
 import type { PermissionDefinition, PermissionCategory, CapabilityBundle } from "@/lib/permissions";
 import { CAPABILITY_BUNDLES, keysOutsideBundles } from "@/lib/permissions";
 import { useT } from "@/lib/i18n-provider";
+import { invalidatePermissions } from "@/lib/use-permissions";
 
 interface RoleRow {
   id: string;
@@ -152,6 +153,7 @@ export default function PermissionsPage() {
     setError(null);
     try {
       await axios.put(`/api/staff-accounts/${user.id}`, { roleId });
+      await invalidatePermissions();
       setNotice(t("permissions.roleUpdated", { name: user.name }));
       await load();
     } catch (err) {
@@ -399,6 +401,7 @@ function RolePermissionEditor({
     setSaving(true);
     try {
       await axios.put(`/api/roles/${role.id}`, { permissions: draft });
+      await invalidatePermissions();
       await onSaved(t("permissions.roleSaved", { role: role.nameAr }));
     } catch (err) {
       onError(describeApiError(err, t("permissions.saveFailed")));

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import axios from "axios";
 import { useT } from "@/lib/i18n-provider";
+import { modalSessionKey } from "@/lib/modal-session";
 
 interface LineItem {
   id: string;
@@ -60,9 +61,21 @@ function calcTotal(items: Array<{ qty: number | ""; price: number | "" }>) {
 }
 
 export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModalProps) {
+  if (!open) return null;
+  return (
+    <InvoiceModalContent
+      key={modalSessionKey("student-invoice", studentId)}
+      studentId={studentId}
+      onClose={onClose}
+      onIssued={onIssued}
+    />
+  );
+}
+
+function InvoiceModalContent({ studentId, onClose, onIssued }: Omit<InvoiceModalProps, "open">) {
   const t = useT();
   const [prefill, setPrefill] = useState<PrefillData | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -98,24 +111,15 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
 
   const [hasDiscount, setHasDiscount] = useState(false);
   // Stored on the invoice line, so it stays in the document language.
-  const [discountLabel, setDiscountLabel] = useState("التخفيض");
+  const [discountLabel, setDiscountLabel] = useState(() => t("fields.discount"));
   const [discountPercent, setDiscountPercent] = useState(15);
 
   const [hasVat, setHasVat] = useState(false);
 
   useEffect(() => {
-    if (!open) return;
-    setLoading(true);
-    setError(null);
-    setIncludeActivities(false);
-    setActivityItems([]);
-    setLineItems([{ id: "1", description: "", qty: 1, price: 0 }]);
-    setHasDiscount(false);
-    setDiscountLabel(t("fields.discount"));
-    setDiscountPercent(15);
-    setHasVat(false);
+    const controller = new AbortController();
     axios
-      .get<PrefillData>(`/api/invoices/prefill/${studentId}`)
+      .get<PrefillData>(`/api/invoices/prefill/${studentId}`, { signal: controller.signal })
       .then((res) => {
         const d = res.data;
         setPrefill(d);
@@ -137,30 +141,33 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
         setGuardianEmail(d.guardian.email ?? "");
         setPaymentMethod(d.student.paymentMethod ?? "");
       })
-      .catch(() => setError(t("common.loadFailed")))
-      .finally(() => setLoading(false));
-  }, [open, studentId, t]);
+      .catch((requestError: unknown) => {
+        if (!axios.isCancel(requestError)) setError(t("common.loadFailed"));
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, [studentId, t]);
 
-  useEffect(() => {
-    if (!prefill) return;
-    if (includeActivities) {
-      const acts = prefill.activities ?? [];
-      if (acts.length === 0) {
-        setNoActivities(true);
-        setActivityItems([]);
-      } else {
-        setNoActivities(false);
-        setActivityItems(
-          acts.map((a) => ({
-            id: a?.id ?? String(Math.random()),
-            description: a?.name ?? "",
-            qty: "" as const,
-            price: a?.fee ?? 0,
-          }))
-        );
-      }
+  function handleIncludeActivities(checked: boolean) {
+    setIncludeActivities(checked);
+    if (!checked) {
+      setNoActivities(false);
+      setActivityItems([]);
+      return;
     }
-  }, [includeActivities, prefill]);
+    const activities = prefill?.activities ?? [];
+    setNoActivities(activities.length === 0);
+    setActivityItems(
+      activities.map((activity) => ({
+        id: activity.id,
+        description: activity.name,
+        qty: "" as const,
+        price: activity.fee,
+      }))
+    );
+  }
 
   function addLineItem() {
     setLineItems((prev) => [
@@ -264,7 +271,7 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
   const grandTotal = baseTotalView + vatAmountView + activitiesTotalView - discountAmountView;
 
   return (
-    <Dialog.Root open={open} onOpenChange={(v) => !v && onClose()}>
+    <Dialog.Root open onOpenChange={(v) => !v && onClose()}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/50 z-50" />
         <Dialog.Content
@@ -563,7 +570,7 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
                   <input
                     type="checkbox"
                     checked={includeActivities}
-                    onChange={(e) => setIncludeActivities(e.target.checked)}
+                    onChange={(e) => handleIncludeActivities(e.target.checked)}
                     className="w-4 h-4 accent-[#F64651]"
                   />
                   <span className="text-sm font-medium text-[#111111]">{t("invoiceForm.addActivities")}</span>

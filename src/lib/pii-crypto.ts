@@ -34,12 +34,7 @@ const KEY_BYTES = 32;
 /** Version prefix so a future scheme change can be told apart from this one. */
 const FORMAT = "v1";
 
-let cachedKey: Buffer | null = null;
-let cachedPepper: string | null = null;
-
 function encryptionKey(): Buffer {
-  if (cachedKey) return cachedKey;
-
   const raw = process.env.PII_ENCRYPTION_KEY;
   if (!raw) {
     throw new Error(
@@ -53,19 +48,15 @@ function encryptionKey(): Buffer {
     throw new Error(`PII_ENCRYPTION_KEY must decode to ${KEY_BYTES} bytes (got ${key.length}).`);
   }
 
-  cachedKey = key;
   return key;
 }
 
 function indexPepper(): string {
-  if (cachedPepper) return cachedPepper;
-
   const pepper = process.env.PII_INDEX_PEPPER;
   if (!pepper || pepper.length < 32) {
     throw new Error("PII_INDEX_PEPPER is not set, or is shorter than 32 characters.");
   }
 
-  cachedPepper = pepper;
   return pepper;
 }
 
@@ -140,39 +131,45 @@ export function piiHashMatches(a: string | null, b: string | null): boolean {
 }
 
 export interface ProtectedIdNumber {
+  /** The legacy column remains in the schema but new writes always clear it. */
+  idNumber: null;
   encryptedIdNumber: string | null;
   idNumberHash: string | null;
 }
 
-let warnedMissingKeys = false;
-
 /**
- * Prepares an ID number for storage. An empty value clears both columns.
- *
- * Degrades rather than throws when the keys are absent: a deployment that has
- * not set them yet keeps working on the legacy plaintext column instead of
- * failing every student save. The warning fires once so it is visible without
- * flooding the log.
+ * Prepares an ID number for storage. An empty value clears all three columns.
+ * A non-empty value fails closed without keys in every environment. Development
+ * remains usable for records without an ID, but can never silently create new
+ * plaintext PII.
  */
 export function protectIdNumber(idNumber: string | null | undefined): ProtectedIdNumber {
   const trimmed = idNumber?.trim();
-  if (!trimmed) return { encryptedIdNumber: null, idNumberHash: null };
+  if (!trimmed) return { idNumber: null, encryptedIdNumber: null, idNumberHash: null };
 
   if (!piiCryptoConfigured()) {
-    if (!warnedMissingKeys) {
-      warnedMissingKeys = true;
-      console.warn(
-        "⚠️  PII_ENCRYPTION_KEY / PII_INDEX_PEPPER not set — ID numbers are being " +
-          "stored in plaintext only. Set both to enable encryption."
-      );
-    }
-    return { encryptedIdNumber: null, idNumberHash: null };
+    throw new Error(
+      "Cannot store an ID number until PII_ENCRYPTION_KEY and PII_INDEX_PEPPER are configured."
+    );
   }
 
   return {
+    idNumber: null,
     encryptedIdNumber: encryptPii(trimmed),
     idNumberHash: hashPii(trimmed),
   };
+}
+
+/**
+ * Reads a row during the transition away from the legacy plaintext column.
+ * New writes leave `idNumber` null; old rows remain readable until a separate,
+ * reviewable data migration encrypts them.
+ */
+export function revealIdNumber(value: {
+  idNumber: string | null;
+  encryptedIdNumber: string | null;
+}): string | null {
+  return decryptPii(value.encryptedIdNumber) ?? value.idNumber;
 }
 
 /** Masks an ID for display: only the last four digits are ever shown. */

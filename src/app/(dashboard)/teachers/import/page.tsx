@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
 import { Topbar } from "@/components/layout/Topbar";
 import { TEACHER_FIELD_ALIASES } from "@/lib/import-mapper";
 import { useT } from "@/lib/i18n-provider";
+import { importConfirmationPaths } from "@/lib/import-session";
 
 const ALL_TEACHER_FIELDS = Object.keys(TEACHER_FIELD_ALIASES);
 
@@ -150,31 +151,17 @@ export default function TeachersImportPage() {
   const [dragOver, setDragOver] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const confirmCalledRef = useRef(false);
-
-  // Step 4: auto-run confirm
-  useEffect(() => {
-    if (step === 4 && sessionId && !confirmCalledRef.current) {
-      confirmCalledRef.current = true;
-      runConfirm();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, sessionId]);
-
-  const runConfirm = useCallback(async () => {
-    if (!sessionId) return;
-    setLoading(true);
-    setError(null);
+  async function runConfirm(targetSessionId: string) {
+    const paths = importConfirmationPaths(targetSessionId);
     try {
-      await axios.post(`/api/import/${sessionId}/confirm`);
-      const res = await axios.get<ImportSession>(`/api/import/${sessionId}`);
+      await axios.post(paths.confirm);
+      const res = await axios.get<ImportSession>(paths.status);
       setSessionData(res.data);
       setStep(5);
     } catch (err) {
       setError(axios.isAxiosError(err) ? err.response?.data?.error ?? t("importer.importFailed") : t("importer.importFailed"));
-      setLoading(false);
     }
-  }, [sessionId, t]);
+  }
 
   async function handleFileUpload(file: File) {
     setLoading(true);
@@ -248,7 +235,6 @@ export default function TeachersImportPage() {
     setSessionData(null);
     setSelectedFile(null);
     setError(null);
-    confirmCalledRef.current = false;
     setStep(1);
   }
 
@@ -262,9 +248,9 @@ export default function TeachersImportPage() {
       const sesRes = await axios.get<ImportSession>(`/api/import/${sessionId}`);
       setSessionData(sesRes.data);
       if (sesRes.data.column_mapping) setMapping(sesRes.data.column_mapping);
-      // For teachers, skip review step - go directly to confirm (step 4)
-      confirmCalledRef.current = false;
+      // For teachers, skip review and confirm from this event boundary.
       setStep(4);
+      await runConfirm(sessionId);
     } catch (err) {
       setError(axios.isAxiosError(err) ? err.response?.data?.error ?? t("importer.validateFailed") : t("importer.validateFailed"));
     } finally {

@@ -194,7 +194,7 @@ async function enforceRoutePermission(permissions: string[]): Promise<void> {
   }
 
   if (!pathname || !pathname.startsWith("/api/")) return;
-  if (isUngated(pathname)) return;
+  if (isUngated(pathname, method)) return;
 
   const required = requirementFor(pathname, method);
   if (!required) return;

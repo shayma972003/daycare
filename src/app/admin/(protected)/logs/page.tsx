@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import axios from "axios";
 import { describeApiError } from "@/lib/api-error";
-import { formatAst } from "@/lib/datetime";
+import { astDateInputValue, formatAst } from "@/lib/datetime";
 
 interface LogEntry {
   id: string;
@@ -109,7 +109,7 @@ export default function LogsPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `logs${note ? `-page-${page + 1}` : ""}-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `logs${note ? `-page-${page + 1}` : ""}-${astDateInputValue()}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }

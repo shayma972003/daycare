@@ -14,6 +14,7 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { useT } from "@/lib/i18n-provider";
+import { astDateInputValue } from "@/lib/datetime";
 import type { AttendanceStatus } from "@/generated/prisma/enums";
 
 interface WeekResponse {
@@ -53,7 +54,7 @@ export function AttendanceDonut({ classId }: { classId?: string }) {
       .get<WeekResponse>(`/api/attendance/week?${params.toString()}`)
       .then((response) => {
         if (cancelled) return;
-        const today = new Date().toISOString().slice(0, 10);
+        const today = astDateInputValue();
         const tally = {
           PRESENT: 0,
           CHECKED_OUT: 0,
@@ -100,7 +101,7 @@ export function AttendanceDonut({ classId }: { classId?: string }) {
   const present = counts.PRESENT + counts.CHECKED_OUT;
 
   return (
-    <div className="relative" dir="rtl">
+    <div className="relative">
       <ResponsiveContainer width="100%" height={200}>
         <PieChart>
           <Pie
@@ -119,7 +120,7 @@ export function AttendanceDonut({ classId }: { classId?: string }) {
               is coerced here rather than asserted away. */}
           <Tooltip
             formatter={(value, name) => [t("home.childrenCount", { count: Number(value ?? 0) }), String(name ?? "")]}
-            contentStyle={{ direction: "rtl", fontSize: 12, borderRadius: 12 }}
+            contentStyle={{ fontSize: 12, borderRadius: 12 }}
           />
         </PieChart>
       </ResponsiveContainer>

@@ -238,7 +238,7 @@ export async function POST(request: Request) {
       ...(academicStage !== undefined && { academicStage: parseAcademicStage(academicStage) }),
       ...(ownedStageId !== null && { stageId: ownedStageId }),
       ...(period !== undefined && { period }),
-      ...(idNumber !== undefined && { idNumber, ...protectIdNumber(idNumber) }),
+      ...(idNumber !== undefined && protectIdNumber(idNumber)),
       ...(dateOfBirth !== undefined && { dateOfBirth: new Date(dateOfBirth) }),
       ...(nationality !== undefined && { nationality }),
       ...(gender !== undefined && { gender }),

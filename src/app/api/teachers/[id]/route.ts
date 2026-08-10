@@ -1,6 +1,7 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
+import { protectIdNumber, revealIdNumber } from "@/lib/pii-crypto";
 import { assertClassOwned, crossTenantResponse } from "@/lib/tenant-guard";
 import { astParts, astDateOnly } from "@/lib/datetime";
 import {
@@ -98,7 +99,16 @@ export async function GET(
       },
     });
 
-    return Response.json({ ...teacher, lateCountThisMonth }, { status: 200 });
+    return Response.json(
+      {
+        ...teacher,
+        idNumber: revealIdNumber(teacher),
+        encryptedIdNumber: undefined,
+        idNumberHash: undefined,
+        lateCountThisMonth,
+      },
+      { status: 200 }
+    );
   } catch (error) {
     console.error("Teacher [id] GET error:", error);
     return Response.json({ error: "حدث خطأ، يرجى المحاولة مجدداً" }, { status: 500 });
@@ -139,7 +149,7 @@ export async function PUT(
 
   if (data.name !== undefined) updateData.name = data.name;
   if ("period" in data) updateData.period = data.period ?? null;
-  if ("idNumber" in data) updateData.idNumber = data.idNumber ?? null;
+  if ("idNumber" in data) Object.assign(updateData, protectIdNumber(data.idNumber));
   if ("dateOfBirth" in data) {
     updateData.dateOfBirth = data.dateOfBirth ? new Date(data.dateOfBirth) : null;
   }

@@ -1,10 +1,18 @@
 import { prisma } from "@/lib/prisma";
 import { stampFileUrl } from "@/lib/file-token";
+import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ token: string }> }
 ) {
+  const limited = await rateLimit({
+    key: `enroll:verify-token:${clientIp(request)}`,
+    limit: 60,
+    windowMs: 15 * 60 * 1000,
+  });
+  if (!limited.ok) return tooManyRequests(limited.retryAfter);
+
   const { token } = await params;
 
   const rec = await prisma.enrollmentToken.findUnique({

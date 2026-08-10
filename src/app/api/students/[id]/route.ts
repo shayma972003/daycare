@@ -9,7 +9,7 @@ import {
 } from "@/lib/tenant-guard";
 import { parseAcademicStage, parseAttendanceType, parsePaymentStatus } from "@/lib/enum-labels";
 import { resolveStageId, foreignStageResponse } from "@/lib/academic-stage";
-import { protectIdNumber } from "@/lib/pii-crypto";
+import { protectIdNumber, revealIdNumber } from "@/lib/pii-crypto";
 import {
   STUDENT_STATUSES,
   buildStudentDeparture,
@@ -106,6 +106,9 @@ export async function GET(
     return Response.json(
       {
         ...student,
+        idNumber: revealIdNumber(student),
+        encryptedIdNumber: undefined,
+        idNumberHash: undefined,
         registration_fee: registrationFee,
         registration_fee_is_default: registrationFeeIsDefault,
         enrollmentDate: student.enrollment_date,
@@ -194,7 +197,6 @@ export async function PUT(
   }
   if ("period" in data) updateData.period = data.period ?? null;
   if ("idNumber" in data) {
-    updateData.idNumber = data.idNumber ?? null;
     Object.assign(updateData, protectIdNumber(data.idNumber));
   }
   if ("dateOfBirth" in data) {

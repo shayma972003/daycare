@@ -6,15 +6,22 @@ import { signOut, useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n-provider";
 import { LanguageSwitcher } from "@/components/layout/LanguageSwitcher";
-import { usePermissions } from "@/lib/use-permissions";
+import { PermissionGate } from "@/components/auth/PermissionGate";
+import { clearPermissions, usePermissions } from "@/lib/use-permissions";
 import { NAV_GROUPS } from "@/lib/nav";
+import { Drawer } from "@/components/ui/Drawer";
+import type { RefObject } from "react";
 
 interface SidebarProps {
   schoolName?: string | null;
   schoolLogo?: string | null;
 }
 
-export function Sidebar({ schoolName: schoolNameProp, schoolLogo }: SidebarProps = {}) {
+function SidebarContent({
+  schoolName: schoolNameProp,
+  schoolLogo,
+  onNavigate,
+}: SidebarProps & { onNavigate?: () => void }) {
   // Locale-aware translation — see src/lib/i18n.tsx.
   const t = useT();
   const pathname = usePathname();
@@ -27,7 +34,7 @@ export function Sidebar({ schoolName: schoolNameProp, schoolLogo }: SidebarProps
     t("app.name");
 
   return (
-    <aside className="fixed right-0 top-0 h-screen w-[220px] bg-navy flex flex-col z-40 overflow-hidden">
+    <div className="relative h-full w-full bg-navy flex flex-col overflow-hidden">
       {/* Faint dot pattern overlay */}
       <div
         className="absolute inset-0 pointer-events-none opacity-[0.02]"
@@ -77,14 +84,14 @@ export function Sidebar({ schoolName: schoolNameProp, schoolLogo }: SidebarProps
                       ? pathname === "/dashboard"
                       : pathname.startsWith(item.href);
 
-                  return (
+                  const link = (
                     <Link
-                      key={item.href}
                       href={item.href}
+                      onClick={onNavigate}
                       className={cn(
                         "flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition-all duration-150",
                         isActive
-                          ? "bg-white text-gray-900 font-bold shadow-sm border-r-[3px] border-r-coral"
+                          ? "bg-white text-gray-900 font-bold shadow-sm border-e-[3px] border-e-coral"
                           : "text-white/50 font-normal hover:text-white/80 hover:bg-white/5"
                       )}
                     >
@@ -97,6 +104,14 @@ export function Sidebar({ schoolName: schoolNameProp, schoolLogo }: SidebarProps
                       <span>{t(item.key)}</span>
                     </Link>
                   );
+
+                  return item.permission === null ? (
+                    <div key={item.href}>{link}</div>
+                  ) : (
+                    <PermissionGate key={item.href} permission={item.permission}>
+                      {link}
+                    </PermissionGate>
+                  );
                 })}
               </div>
             </div>
@@ -108,13 +123,55 @@ export function Sidebar({ schoolName: schoolNameProp, schoolLogo }: SidebarProps
       <div className="relative p-3 border-t border-white/5 space-y-1">
         <LanguageSwitcher />
         <button
-          onClick={() => signOut({ callbackUrl: "/login" })}
+          onClick={() => {
+            clearPermissions();
+            void signOut({ callbackUrl: "/login" });
+          }}
           className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-white/30 hover:text-white/60 hover:bg-white/5 text-sm transition-all"
         >
           <div className="w-2 h-2 rounded-full bg-white/10 flex-shrink-0" />
           <span>{t("auth.logout")}</span>
         </button>
       </div>
+    </div>
+  );
+}
+
+export function Sidebar(props: SidebarProps = {}) {
+  const t = useT();
+  return (
+    <aside
+      aria-label={t("layout.mainNavigation")}
+      className="fixed start-0 top-0 z-40 hidden h-screen w-[220px] overflow-hidden xl:flex"
+    >
+      <SidebarContent {...props} />
     </aside>
+  );
+}
+
+export function MobileSidebar({
+  open,
+  onClose,
+  returnFocusRef,
+  ...props
+}: SidebarProps & {
+  open: boolean;
+  onClose: () => void;
+  returnFocusRef: RefObject<HTMLButtonElement | null>;
+}) {
+  const t = useT();
+  return (
+    <Drawer
+      open={open}
+      onClose={onClose}
+      returnFocusRef={returnFocusRef}
+      title={props.schoolName ?? t("app.name")}
+      panelId="mobile-dashboard-navigation"
+      panelClassName="max-w-[min(20rem,calc(100vw-2.5rem))] bg-navy sm:max-w-[20rem] xl:hidden"
+      headerClassName="border-white/10 bg-navy [&_h2]:truncate [&_h2]:text-white [&_button]:text-white/70"
+      contentClassName="bg-navy p-0"
+    >
+      <SidebarContent {...props} onNavigate={onClose} />
+    </Drawer>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
 import { Topbar } from "@/components/layout/Topbar";
@@ -63,10 +63,11 @@ export default function ActivityLogsPage() {
     }
   }
 
-  const fetchLogs = useCallback(() => {
-    setLoading(true);
+  useEffect(() => {
+    const controller = new AbortController();
     axios
       .get<{ logs: LogEntry[]; total: number }>("/api/settings/logs", {
+        signal: controller.signal,
         params: {
           search: search || undefined,
           entity_type: entityType || undefined,
@@ -77,12 +78,11 @@ export default function ActivityLogsPage() {
         setLogs(res.data.logs);
         setTotal(res.data.total);
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
   }, [search, entityType, page]);
-
-  useEffect(() => {
-    fetchLogs();
-  }, [fetchLogs]);
 
   /**
    * Changing a filter returns to the first page.
@@ -92,8 +92,14 @@ export default function ActivityLogsPage() {
    * corrected itself, and fired a wasted request for that page on the way.
    */
   function applyFilter(change: () => void) {
+    setLoading(true);
     change();
     setPage(0);
+  }
+
+  function changePage(nextPage: number) {
+    setLoading(true);
+    setPage(nextPage);
   }
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -184,7 +190,7 @@ export default function ActivityLogsPage() {
           {totalPages > 1 && (
             <div className="flex justify-center items-center gap-2 mt-6">
               <button
-                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                onClick={() => changePage(Math.max(0, page - 1))}
                 disabled={page === 0}
                 className="px-4 py-2 rounded-md border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
               >
@@ -194,7 +200,7 @@ export default function ActivityLogsPage() {
                 {page + 1} / {totalPages}
               </span>
               <button
-                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                onClick={() => changePage(Math.min(totalPages - 1, page + 1))}
                 disabled={page >= totalPages - 1}
                 className="px-4 py-2 rounded-md border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
               >

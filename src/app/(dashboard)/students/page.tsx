@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import { useRouter } from "next/navigation";
 import { Topbar } from "@/components/layout/Topbar";
@@ -13,6 +13,18 @@ import { describeApiError } from "@/lib/api-error";
 import { useT, useLocale } from "@/lib/i18n-provider";
 import { useAcademicStages, useStageName } from "@/lib/use-academic-stages";
 import { formatAst } from "@/lib/datetime";
+import { usePermissions } from "@/lib/use-permissions";
+import { ENROLLMENT_MANAGE_PERMISSION } from "@/lib/enrollment-access";
+import { PermissionGate } from "@/components/auth/PermissionGate";
+import { DataErrorState, RefreshIndicator } from "@/components/ui/DataLoadState";
+import {
+  collectionView,
+  countedBulkOutcome,
+  exactBulkOutcome,
+  type BulkOutcome,
+  type CollectionStatus,
+} from "@/lib/collection-state";
+import { LatestRequest, type RequestTicket } from "@/lib/latest-request";
 
 type Student = {
   id: string;
@@ -28,6 +40,12 @@ type Student = {
 };
 
 type Class = { id: string; name: string };
+type StudentAttendance = {
+  studentId?: string;
+  id: string;
+  checkinAt: string | null;
+  checkoutAt: string | null;
+};
 
 type EnrollmentSubmission = {
   id: string;
@@ -52,6 +70,27 @@ type EnrollmentSubmission = {
   payment_method: string | null;
   submitted_at: string;
 };
+
+function studentBulkPermission(action: string): string | null {
+  if (action === "checkin" || action === "checkout") return "attendance.students";
+  if (action === "reminder") return "finance.manage";
+  if (action === "extend_subscription" || (PAYMENT_STATUSES as string[]).includes(action)) {
+    return "students.manage";
+  }
+  return null;
+}
+
+async function loadStudentAttendance(ticket: RequestTicket) {
+  const res = await axios.get<Array<StudentAttendance & { studentId: string }>>(
+    "/api/attendance/students/today",
+    { signal: ticket.signal }
+  );
+  const map: Record<string, StudentAttendance> = {};
+  res.data.forEach((attendance) => {
+    map[attendance.studentId] = attendance;
+  });
+  return map;
+}
 
 function LiveTimer({ from }: { from: string }) {
   const [elapsed, setElapsed] = useState(0);
@@ -80,10 +119,24 @@ export default function StudentsPage() {
   const stageName = useStageName();
   const { locale } = useLocale();
   const router = useRouter();
+  const { can } = usePermissions();
+  const canManageEnrollment = can(ENROLLMENT_MANAGE_PERMISSION);
+  const canManageAttendance = can("attendance.students");
   const [students, setStudents] = useState<Student[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [todayAtt, setTodayAtt] = useState<Record<string, { id: string; checkinAt: string | null; checkoutAt: string | null }>>({});
+  const [listStatus, setListStatus] = useState<CollectionStatus>("loading");
+  const [listError, setListError] = useState<string | null>(null);
+  const [listRefresh, setListRefresh] = useState(0);
+  const [studentRequests] = useState(() => new LatestRequest());
+  const [attendanceRequests] = useState(() => new LatestRequest());
+  const [todayAtt, setTodayAtt] = useState<Record<string, StudentAttendance>>({});
+  const [attendanceError, setAttendanceError] = useState<string | null>(null);
+  const [attendanceRefresh, setAttendanceRefresh] = useState(0);
+  const [classesError, setClassesError] = useState<string | null>(null);
+  const [classesRefresh, setClassesRefresh] = useState(0);
+  const [operationError, setOperationError] = useState<string | null>(null);
+  const [bulkOutcome, setBulkOutcome] = useState<(BulkOutcome & { message: string }) | null>(null);
+  const [bulkRunning, setBulkRunning] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
   const [classFilter, setClassFilter] = useState("");
@@ -97,7 +150,6 @@ export default function StudentsPage() {
   const [xlsxUploading, setXlsxUploading] = useState(false);
   const [xlsxResult, setXlsxResult] = useState<{ added: number; failed: number; errors: string[] } | null>(null);
   const xlsxInputRef = useRef<HTMLInputElement>(null);
-  const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Enrollment
@@ -109,6 +161,7 @@ export default function StudentsPage() {
 
   // Review queue
   const [submissions, setSubmissions] = useState<EnrollmentSubmission[]>([]);
+  const [submissionsRefresh, setSubmissionsRefresh] = useState(0);
   const [submissionsExpanded, setSubmissionsExpanded] = useState(false);
   const [reviewModalSub, setReviewModalSub] = useState<EnrollmentSubmission | null>(null);
   const [reviewClassId, setReviewClassId] = useState("");
@@ -148,49 +201,81 @@ export default function StudentsPage() {
     setReviewEdit((prev) => ({ ...prev, [key]: val }));
   }
 
-  const fetchSubmissions = useCallback(async () => {
-    try {
-      const res = await axios.get<EnrollmentSubmission[]>("/api/enrollment/submissions");
-      setSubmissions(res.data);
-    } catch { /* ignore */ }
-  }, []);
+  useEffect(() => {
+    const controller = new AbortController();
+    axios
+      .get<Class[]>("/api/classes", { signal: controller.signal })
+      .then((response) => {
+        setClasses(response.data);
+        setClassesError(null);
+      })
+      .catch((error: unknown) => {
+        if (!axios.isCancel(error)) setClassesError(t("classes.loadFailed"));
+      });
+    return () => controller.abort();
+  }, [classesRefresh, t]);
 
-  const fetchStudents = useCallback(async () => {
-    setLoading(true);
-    try {
+  useEffect(() => {
+    const ticket = studentRequests.begin();
+    const timer = setTimeout(() => {
       const params = new URLSearchParams();
       if (search) params.set("search", search);
       if (classFilter) params.set("classId", classFilter);
       if (statusFilter) params.set("paymentStatus", statusFilter);
       if (genderFilter) params.set("gender", genderFilter);
-      const res = await axios.get<Student[]>(`/api/students?${params}`);
-      setStudents(res.data);
-    } catch {
-      /* ignore */
-    } finally {
-      setLoading(false);
-    }
-  }, [search, classFilter, statusFilter, genderFilter]);
 
-  const fetchTodayAttendance = useCallback(async () => {
-    try {
-      const res = await axios.get<Array<{ studentId: string; id: string; checkinAt: string | null; checkoutAt: string | null }>>("/api/attendance/students/today");
-      const map: Record<string, { id: string; checkinAt: string | null; checkoutAt: string | null }> = {};
-      res.data.forEach((a) => { map[a.studentId] = a; });
-      setTodayAtt(map);
-    } catch { /* ignore */ }
-  }, []);
+      axios
+        .get<Student[]>(`/api/students?${params}`, { signal: ticket.signal })
+        .then((response) => {
+          ticket.commit(() => {
+            setStudents(response.data);
+            setListError(null);
+            setListStatus("ready");
+          });
+        })
+        .catch((error: unknown) => {
+          if (axios.isCancel(error)) return;
+          ticket.commit(() => {
+            setListError(describeApiError(error, t("common.error")));
+            setListStatus("error");
+          });
+        });
+    }, search ? 300 : 0);
+
+    return () => {
+      clearTimeout(timer);
+      ticket.cancel();
+    };
+  }, [search, classFilter, statusFilter, genderFilter, listRefresh, studentRequests, t]);
 
   useEffect(() => {
-    axios.get<Class[]>("/api/classes").then((r) => setClasses(r.data)).catch(() => {});
-    fetchTodayAttendance();
-    fetchSubmissions();
-  }, [fetchTodayAttendance, fetchSubmissions]);
+    if (!canManageAttendance) return;
+    const ticket = attendanceRequests.begin();
+    loadStudentAttendance(ticket)
+      .then((map) => {
+        ticket.commit(() => {
+          setTodayAtt(map);
+          setAttendanceError(null);
+        });
+      })
+      .catch((error: unknown) => {
+        if (axios.isCancel(error)) return;
+        ticket.commit(() => setAttendanceError(describeApiError(error, t("common.error"))));
+      });
+    return ticket.cancel;
+  }, [attendanceRefresh, attendanceRequests, canManageAttendance, t]);
 
   useEffect(() => {
-    if (searchTimeout.current) clearTimeout(searchTimeout.current);
-    searchTimeout.current = setTimeout(fetchStudents, 300);
-  }, [fetchStudents]);
+    if (!canManageEnrollment) return;
+    const controller = new AbortController();
+    axios
+      .get<EnrollmentSubmission[]>("/api/enrollment/submissions", { signal: controller.signal })
+      .then((response) => setSubmissions(response.data))
+      .catch((error: unknown) => {
+        if (!axios.isCancel(error)) setOperationError(describeApiError(error, t("common.error")));
+      });
+    return () => controller.abort();
+  }, [canManageEnrollment, submissionsRefresh, t]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -217,24 +302,69 @@ export default function StudentsPage() {
     else setSelected(new Set(students.map((s) => s.id)));
   };
 
+  function refreshStudents() {
+    setListStatus(students.length > 0 ? "refreshing" : "loading");
+    setListError(null);
+    setListRefresh((value) => value + 1);
+  }
+
+  async function refreshAttendance() {
+    const ticket = attendanceRequests.begin();
+    try {
+      const map = await loadStudentAttendance(ticket);
+      ticket.commit(() => {
+        setTodayAtt(map);
+        setAttendanceError(null);
+      });
+    } catch (error) {
+      if (!axios.isCancel(error)) {
+        ticket.commit(() => setAttendanceError(describeApiError(error, t("common.error"))));
+      }
+    }
+  }
+
+  function presentBulkOutcome(outcome: BulkOutcome) {
+    const detail = outcome.exactFailures
+      ? t("common.bulkExactFailuresRetained")
+      : t("common.bulkUnknownFailuresRetained");
+    setBulkOutcome({
+      ...outcome,
+      message: `${t("common.bulkResult", { succeeded: outcome.succeeded, failed: outcome.failed })} ${outcome.failed > 0 ? detail : ""}`,
+    });
+    setSelected(new Set(outcome.remainingSelection));
+    if (outcome.failed === 0) setBulkAction("");
+  }
+
   async function checkin(studentId: string) {
+    setOperationError(null);
     try {
       await axios.post("/api/attendance/students/checkin", { student_id: studentId });
-      fetchTodayAttendance();
-    } catch { /* ignore */ }
+      await refreshAttendance();
+    } catch (error) {
+      setOperationError(describeApiError(error, t("common.error")));
+    }
   }
   async function checkout(studentId: string) {
+    setOperationError(null);
     try {
       await axios.post("/api/attendance/students/checkout", { student_id: studentId });
-      fetchTodayAttendance();
-    } catch { /* ignore */ }
+      await refreshAttendance();
+    } catch (error) {
+      setOperationError(describeApiError(error, t("common.error")));
+    }
   }
   async function sendReminder(id: string) {
-    await axios.post(`/api/students/${id}/reminder`);
-    alert(t("common.sent"));
+    setOperationError(null);
+    try {
+      await axios.post(`/api/students/${id}/reminder`);
+      alert(t("common.sent"));
+    } catch (error) {
+      setOperationError(describeApiError(error, t("common.error")));
+    }
   }
 
   async function sendEnrollmentForm() {
+    if (!canManageEnrollment) return;
     setEnrollSending(true);
     setEnrollSuccess(null);
     setEnrollError(null);
@@ -253,7 +383,7 @@ export default function StudentsPage() {
   }
 
   async function approveSubmission() {
-    if (!reviewModalSub) return;
+    if (!canManageEnrollment || !reviewModalSub) return;
     setReviewApproving(true);
     try {
       const { date_of_birth_str, ...rest } = reviewEdit as Record<string, string>;
@@ -267,8 +397,8 @@ export default function StudentsPage() {
       setReviewClassId("");
     setReviewStageId("");
       setReviewEdit({});
-      fetchSubmissions();
-      fetchStudents();
+      setSubmissionsRefresh((value) => value + 1);
+      refreshStudents();
     } catch (err) {
       alert(axios.isAxiosError(err) ? err.response?.data?.error ?? t("common.somethingWentWrong") : t("common.somethingWentWrong"));
     } finally {
@@ -277,12 +407,15 @@ export default function StudentsPage() {
   }
 
   async function rejectSubmission(id: string) {
+    if (!canManageEnrollment) return;
     setReviewRejecting(true);
     try {
       await axios.post(`/api/enrollment/reject/${id}`);
       setReviewModalSub(null);
-      fetchSubmissions();
-    } catch { /* ignore */ }
+      setSubmissionsRefresh((value) => value + 1);
+    } catch (error) {
+      setOperationError(describeApiError(error, t("common.error")));
+    }
     finally { setReviewRejecting(false); }
   }
 
@@ -295,26 +428,40 @@ export default function StudentsPage() {
       return;
     }
 
-    if (["checkin", "checkout", "reminder"].includes(bulkAction)) {
-      for (const id of ids) {
-        if (bulkAction === "checkin") await axios.post("/api/attendance/students/checkin", { student_id: id }).catch(() => {});
-        if (bulkAction === "checkout") await axios.post("/api/attendance/students/checkout", { student_id: id }).catch(() => {});
-        if (bulkAction === "reminder") await axios.post(`/api/students/${id}/reminder`).catch(() => {});
+    setBulkRunning(true);
+    setBulkOutcome(null);
+    setOperationError(null);
+    try {
+      if (["checkin", "checkout", "reminder"].includes(bulkAction)) {
+        const results = await Promise.allSettled(
+          ids.map((id) => {
+            if (bulkAction === "checkin") {
+              return axios.post("/api/attendance/students/checkin", { student_id: id });
+            }
+            if (bulkAction === "checkout") {
+              return axios.post("/api/attendance/students/checkout", { student_id: id });
+            }
+            return axios.post(`/api/students/${id}/reminder`);
+          })
+        );
+        presentBulkOutcome(
+          exactBulkOutcome(ids, results.map((result) => result.status === "fulfilled"))
+        );
+        if (bulkAction !== "reminder") await refreshAttendance();
+      } else if ((PAYMENT_STATUSES as string[]).includes(bulkAction)) {
+        const response = await axios.put<{ updated: number }>("/api/students/bulk-status", {
+          ids,
+          paymentStatus: bulkAction,
+        });
+        presentBulkOutcome(countedBulkOutcome(ids, response.data.updated));
+        refreshStudents();
       }
-    } else if ((PAYMENT_STATUSES as string[]).includes(bulkAction)) {
-      // No longer silent: a rejected bulk update used to be swallowed whole, so
-      // the list simply refreshed unchanged with no indication anything failed.
-      try {
-        await axios.put("/api/students/bulk-status", { ids, paymentStatus: bulkAction });
-      } catch (err) {
-        alert(describeApiError(err, t("students.changeStatusFailed")));
-      }
+    } catch (error) {
+      setOperationError(describeApiError(error, t("students.changeStatusFailed")));
+      presentBulkOutcome(exactBulkOutcome(ids, ids.map(() => false)));
+    } finally {
+      setBulkRunning(false);
     }
-
-    fetchStudents();
-    fetchTodayAttendance();
-    setSelected(new Set());
-    setBulkAction("");
   }
 
   async function handleExtendSubscription() {
@@ -322,12 +469,17 @@ export default function StudentsPage() {
     if (!newEndDate || ids.length === 0) return;
     setIsExtending(true);
     try {
-      await axios.post("/api/students/bulk-extend", { ids, enrollmentEndDate: newEndDate });
-      setShowExtendModal(false);
-      setNewEndDate("");
-      setSelected(new Set());
-      setBulkAction("");
-      fetchStudents();
+      const response = await axios.post<{ updated: number }>("/api/students/bulk-extend", {
+        ids,
+        enrollmentEndDate: newEndDate,
+      });
+      const outcome = countedBulkOutcome(ids, response.data.updated);
+      presentBulkOutcome(outcome);
+      if (outcome.failed === 0) {
+        setShowExtendModal(false);
+        setNewEndDate("");
+      }
+      refreshStudents();
     } catch (err) {
       alert(axios.isAxiosError(err) ? err.response?.data?.error ?? t("common.somethingWentWrong") : t("common.somethingWentWrong"));
     } finally {
@@ -345,7 +497,7 @@ export default function StudentsPage() {
       fd.append("file", file);
       const res = await axios.post<{ added: number; failed: number; errors: string[] }>("/api/students/bulk", fd);
       setXlsxResult(res.data);
-      fetchStudents();
+      refreshStudents();
     } catch (err) {
       setXlsxResult({ added: 0, failed: 1, errors: [axios.isAxiosError(err) ? err.response?.data?.error ?? t("common.error") : t("common.error")] });
     } finally {
@@ -354,12 +506,21 @@ export default function StudentsPage() {
     }
   }
 
+  function prepareQueryChange(update: () => void) {
+    setListStatus(students.length > 0 ? "refreshing" : "loading");
+    setListError(null);
+    update();
+  }
+
+  const studentView = collectionView(listStatus, students.length);
+
   return (
-    <div dir="rtl" className="min-h-screen bg-brand-bg">
+    <div className="min-h-screen bg-brand-bg">
       <Topbar title={t("students.title")} />
-      <div className="p-6">
+      <div className="p-3 sm:p-4 lg:p-6">
 
         {/* ── Enrollment Submissions Review Queue ── */}
+        <PermissionGate permission={ENROLLMENT_MANAGE_PERMISSION}>
         {submissions.length > 0 && (
           <div className="mb-5 bg-white rounded-xl shadow-md overflow-hidden border border-amber-200">
             <button
@@ -375,9 +536,14 @@ export default function StudentsPage() {
               <span className="text-gray-400 text-xs">{submissionsExpanded ? "▲" : "▼"}</span>
             </button>
             {submissionsExpanded && (
-              <div className="overflow-x-auto border-t border-amber-100">
-                <table className="w-full text-sm">
-                  <thead className="bg-amber-50 text-right">
+              <div
+                role="region"
+                aria-label={t("home.pendingEnrollments")}
+                tabIndex={0}
+                className="max-w-full overflow-x-auto border-t border-amber-100"
+              >
+                <table className="w-full min-w-[720px] text-sm">
+                  <thead className="bg-amber-50 text-start">
                     <tr>
                       <th className="px-4 py-3 font-semibold text-gray-700">{t("students.fullName")}</th>
                       <th className="px-4 py-3 font-semibold text-gray-700">{t("students.guardianName")}</th>
@@ -422,6 +588,7 @@ export default function StudentsPage() {
             )}
           </div>
         )}
+        </PermissionGate>
 
         {/* Top bar */}
         <div className="flex flex-wrap items-center gap-3 mb-5">
@@ -429,12 +596,12 @@ export default function StudentsPage() {
             type="text"
             placeholder={t("students.searchPlaceholder")}
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => prepareQueryChange(() => setSearch(e.target.value))}
             className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111111] min-w-[200px]"
           />
           <select
             value={classFilter}
-            onChange={(e) => setClassFilter(e.target.value)}
+            onChange={(e) => prepareQueryChange(() => setClassFilter(e.target.value))}
             className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111111]"
           >
             <option value="">{t("students.filterByClass")}</option>
@@ -444,7 +611,7 @@ export default function StudentsPage() {
           </select>
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(e) => prepareQueryChange(() => setStatusFilter(e.target.value))}
             className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111111]"
           >
             <option value="">{t("students.filterByStatus")}</option>
@@ -458,7 +625,7 @@ export default function StudentsPage() {
           </select>
           <select
             value={genderFilter}
-            onChange={(e) => setGenderFilter(e.target.value)}
+            onChange={(e) => prepareQueryChange(() => setGenderFilter(e.target.value))}
             className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111111]"
           >
             <option value="">{t("common.all")}</option>
@@ -467,6 +634,7 @@ export default function StudentsPage() {
           </select>
 
           {/* Bulk action */}
+          <PermissionGate anyOf={["attendance.students", "finance.manage", "students.manage"]}>
           <div className="flex items-center gap-2">
             <select
               value={bulkAction}
@@ -474,60 +642,89 @@ export default function StudentsPage() {
               className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111111]"
             >
               <option value="">{t("students.bulkAction")}</option>
-              <option value="checkin">{t("students.bulkCheckin")}</option>
-              <option value="checkout">{t("students.bulkCheckout")}</option>
-              <option value="reminder">{t("students.bulkReminder")}</option>
-              <option value="PAID">{t("students.setStatus", { status: t("paymentStatus.PAID") })}</option>
-              <option value="LATE">{t("students.setStatus", { status: t("paymentStatus.LATE") })}</option>
-              <option value="CANCELLED">{t("students.setStatus", { status: t("paymentStatus.CANCELLED") })}</option>
-              {/* Same fix: `bulk-status` validates against the enum, so the
-                  Arabic value was rejected with a 422 that the `.catch(() => {})`
-                  below swallowed — the action appeared to work and changed
-                  nothing. */}
-              <option value="PENDING">{t("students.setStatus", { status: t("paymentStatus.PENDING") })}</option>
-              <option value="extend_subscription">{t("students.extendSubscription")}</option>
+              <PermissionGate permission="attendance.students">
+                <option value="checkin">{t("students.bulkCheckin")}</option>
+              </PermissionGate>
+              <PermissionGate permission="attendance.students">
+                <option value="checkout">{t("students.bulkCheckout")}</option>
+              </PermissionGate>
+              <PermissionGate permission="finance.manage">
+                <option value="reminder">{t("students.bulkReminder")}</option>
+              </PermissionGate>
+              <PermissionGate permission="students.manage">
+                <option value="PAID">{t("students.setStatus", { status: t("paymentStatus.PAID") })}</option>
+              </PermissionGate>
+              <PermissionGate permission="students.manage">
+                <option value="LATE">{t("students.setStatus", { status: t("paymentStatus.LATE") })}</option>
+              </PermissionGate>
+              <PermissionGate permission="students.manage">
+                <option value="CANCELLED">{t("students.setStatus", { status: t("paymentStatus.CANCELLED") })}</option>
+              </PermissionGate>
+              {/* The API validates enum values, while labels remain localized. */}
+              <PermissionGate permission="students.manage">
+                <option value="PENDING">{t("students.setStatus", { status: t("paymentStatus.PENDING") })}</option>
+              </PermissionGate>
+              <PermissionGate permission="students.manage">
+                <option value="extend_subscription">{t("students.extendSubscription")}</option>
+              </PermissionGate>
             </select>
-            <button
-              onClick={applyBulk}
-              disabled={!bulkAction || selected.size === 0}
-              className="px-3 py-2 bg-[#111111] text-white rounded-lg text-sm disabled:opacity-40"
-            >
-              {t("common.apply")}
-            </button>
+            {studentBulkPermission(bulkAction) ? (
+              <PermissionGate permission={studentBulkPermission(bulkAction) ?? undefined}>
+                <button
+                  onClick={applyBulk}
+                  disabled={selected.size === 0 || bulkRunning}
+                  className="px-3 py-2 bg-[#111111] text-white rounded-lg text-sm disabled:opacity-40"
+                >
+                  {bulkRunning ? t("common.loading") : t("common.apply")}
+                </button>
+              </PermissionGate>
+            ) : (
+              <button
+                disabled
+                className="px-3 py-2 bg-[#111111] text-white rounded-lg text-sm disabled:opacity-40"
+              >
+                {t("common.apply")}
+              </button>
+            )}
           </div>
+          </PermissionGate>
 
           {/* Add student dropdown button */}
-          <div className="relative mr-auto" ref={dropdownRef}>
+          <PermissionGate permission="students.manage">
+          <div className="relative ms-auto" ref={dropdownRef}>
             <button
               onClick={() => setDropdownOpen(!dropdownOpen)}
               className="flex items-center gap-1 px-4 py-2 bg-[#F64651] text-white rounded-lg text-sm font-medium hover:bg-[#D93A44] transition-colors"
             >
               + {t("students.addStudent")}
-              <span className="text-xs mr-1">▼</span>
+              <span className="text-xs ms-1">▼</span>
             </button>
             {dropdownOpen && (
-              <div className="absolute left-0 top-full mt-1 w-56 bg-white rounded-xl shadow-lg border border-gray-100 z-30 overflow-hidden">
+              <div className="absolute end-0 top-full mt-1 w-56 bg-white rounded-xl shadow-lg border border-gray-100 z-30 overflow-hidden">
                 <button
                   onClick={() => { setDropdownOpen(false); router.push("/students/new"); }}
-                  className="w-full text-right px-4 py-3 text-sm text-[#111111] hover:bg-gray-50 transition-colors border-b border-gray-100"
+                  className="w-full text-start px-4 py-3 text-sm text-[#111111] hover:bg-gray-50 transition-colors border-b border-gray-100"
                 >
                   {t("students.addStudentManually")}
                 </button>
                 <button
                   onClick={() => { setDropdownOpen(false); router.push("/students/import"); }}
-                  className="w-full text-right px-4 py-3 text-sm text-[#111111] hover:bg-gray-50 transition-colors border-b border-gray-100"
+                  className="w-full text-start px-4 py-3 text-sm text-[#111111] hover:bg-gray-50 transition-colors border-b border-gray-100"
                 >
                   {t("students.uploadStudentsFile")}
                 </button>
-                <button
-                  onClick={() => { setDropdownOpen(false); setEnrollmentModalOpen(true); setEnrollSuccess(null); setEnrollError(null); }}
-                  className="w-full text-right px-4 py-3 text-sm text-[#F64651] font-medium hover:bg-success-bg transition-colors"
-                >
-                  {t("students.sendRegistrationForm")}
-                </button>
+                <PermissionGate permission={ENROLLMENT_MANAGE_PERMISSION}>
+                  <button
+                    onClick={() => { setDropdownOpen(false); setEnrollmentModalOpen(true); setEnrollSuccess(null); setEnrollError(null); }}
+                    className="w-full text-start px-4 py-3 text-sm text-[#F64651] font-medium hover:bg-success-bg transition-colors"
+                  >
+                    {t("students.sendRegistrationForm")}
+                  </button>
+                </PermissionGate>
               </div>
             )}
           </div>
+          </PermissionGate>
 
           <input
             ref={xlsxInputRef}
@@ -537,6 +734,42 @@ export default function StudentsPage() {
             onChange={handleXlsxUpload}
           />
         </div>
+
+        {listStatus === "refreshing" && <RefreshIndicator label={t("common.loading")} />}
+        {listError && students.length > 0 && (
+          <DataErrorState message={listError} retryLabel={t("common.retry")} onRetry={refreshStudents} />
+        )}
+        {classesError && (
+          <DataErrorState
+            message={classesError}
+            retryLabel={t("common.retry")}
+            onRetry={() => setClassesRefresh((value) => value + 1)}
+          />
+        )}
+        {attendanceError && (
+          <DataErrorState
+            message={attendanceError}
+            retryLabel={t("common.retry")}
+            onRetry={() => setAttendanceRefresh((value) => value + 1)}
+          />
+        )}
+        {operationError && (
+          <div role="alert" className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+            {operationError}
+          </div>
+        )}
+        {bulkOutcome && (
+          <div
+            role="status"
+            className={`mb-4 p-3 rounded-lg text-sm border ${
+              bulkOutcome.failed > 0
+                ? "bg-orange-50 border-orange-200 text-orange-800"
+                : "bg-success-bg border-success-text/20 text-success-text"
+            }`}
+          >
+            {bulkOutcome.message}
+          </div>
+        )}
 
         {/* XLSX upload result */}
         {xlsxUploading && (
@@ -561,13 +794,29 @@ export default function StudentsPage() {
 
         {/* Table */}
         <div className="bg-white rounded-xl shadow-md overflow-hidden">
-          {loading ? (
+          {studentView === "loading" ? (
             <div className="flex justify-center items-center h-48">
               <div className="w-7 h-7 border-2 border-gray-200 border-t-[#F64651] rounded-full animate-spin" />
             </div>
+          ) : studentView === "error" ? (
+            <div className="p-5">
+              <DataErrorState
+                message={listError ?? t("common.error")}
+                retryLabel={t("common.retry")}
+                onRetry={refreshStudents}
+              />
+            </div>
+          ) : studentView === "empty" ? (
+            <EmptyState title={t("students.noStudentsYet")} description={t("students.noStudentsHint")} />
           ) : (
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-100 text-gray-500 text-right">
+            <div
+              role="region"
+              aria-label={t("students.title")}
+              tabIndex={0}
+              className="max-w-full overflow-x-auto"
+            >
+            <table className="w-full min-w-[900px] text-sm">
+              <thead className="bg-gray-50 border-b border-gray-100 text-gray-500 text-start">
                 <tr>
                   <th className="px-4 py-3 w-10">
                     <input
@@ -586,13 +835,6 @@ export default function StudentsPage() {
                 </tr>
               </thead>
               <tbody>
-                {students.length === 0 && (
-                  <tr>
-                    <td colSpan={7}>
-                      <EmptyState title={t("students.noStudentsYet")} description={t("students.noStudentsHint")} />
-                    </td>
-                  </tr>
-                )}
                 {students.map((student) => {
                   const att = todayAtt[student.id] ?? null;
                   const checkedIn = !!att?.checkinAt;
@@ -613,12 +855,14 @@ export default function StudentsPage() {
                           {checkedIn && !checkedOut && att?.checkinAt ? (
                             <>
                               <LiveTimer from={att.checkinAt} />
-                              <button
-                                onClick={() => checkout(student.id)}
-                                className="px-2 py-1 text-xs bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 transition-colors whitespace-nowrap"
-                              >
-                                {t("students.actions.checkout")}
-                              </button>
+                              <PermissionGate permission="attendance.students">
+                                <button
+                                  onClick={() => checkout(student.id)}
+                                  className="px-2 py-1 text-xs bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 transition-colors whitespace-nowrap"
+                                >
+                                  {t("students.actions.checkout")}
+                                </button>
+                              </PermissionGate>
                             </>
                           ) : checkedIn && checkedOut && att?.checkinAt && att?.checkoutAt ? (
                             <div className="flex flex-col gap-0.5">
@@ -628,12 +872,14 @@ export default function StudentsPage() {
                           ) : (
                             <div className="flex flex-col gap-1">
                               <span className="font-mono text-sm text-gray-300">00:00</span>
-                              <button
-                                onClick={() => checkin(student.id)}
-                                className="px-2 py-1 text-xs bg-success-bg text-success-text border border-success-text/20 rounded-lg hover:bg-success-bg transition-colors whitespace-nowrap"
-                              >
-                                {t("students.actions.checkin")}
-                              </button>
+                              <PermissionGate permission="attendance.students">
+                                <button
+                                  onClick={() => checkin(student.id)}
+                                  className="px-2 py-1 text-xs bg-success-bg text-success-text border border-success-text/20 rounded-lg hover:bg-success-bg transition-colors whitespace-nowrap"
+                                >
+                                  {t("students.actions.checkin")}
+                                </button>
+                              </PermissionGate>
                             </div>
                           )}
                         </div>
@@ -680,12 +926,14 @@ export default function StudentsPage() {
                           >
                             {t("students.actions.viewMore")}
                           </button>
-                          <button
-                            onClick={() => sendReminder(student.id)}
-                            className="px-2.5 py-1 text-xs border border-blue-500 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
-                          >
-                            {t("students.actions.sendReminder")}
-                          </button>
+                          <PermissionGate permission="finance.manage">
+                            <button
+                              onClick={() => sendReminder(student.id)}
+                              className="px-2.5 py-1 text-xs border border-blue-500 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
+                            >
+                              {t("students.actions.sendReminder")}
+                            </button>
+                          </PermissionGate>
                         </div>
                       </td>
                     </tr>
@@ -693,6 +941,7 @@ export default function StudentsPage() {
                 })}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       </div>
@@ -703,9 +952,9 @@ export default function StudentsPage() {
           className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
           onClick={(e) => { if (e.target === e.currentTarget) setShowExtendModal(false); }}
         >
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
-            <h3 className="font-bold text-[#111111] text-right mb-4">{t("students.extendSubscription")}</h3>
-            <p className="text-sm text-gray-500 text-right mb-4">
+          <div className="max-h-[calc(100dvh-2rem)] w-full max-w-sm overflow-y-auto rounded-2xl bg-white p-4 shadow-2xl sm:p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-bold text-[#111111] text-start mb-4">{t("students.extendSubscription")}</h3>
+            <p className="text-sm text-gray-500 text-start mb-4">
               {t("students.newEndDatePrompt")}
               <span className="text-gray-400 text-xs block mt-0.5">
                 {t("students.appliesToSelected", { count: selected.size })}
@@ -738,9 +987,10 @@ export default function StudentsPage() {
       )}
 
       {/* ── Enrollment Send Modal ── */}
+      <PermissionGate permission={ENROLLMENT_MANAGE_PERMISSION}>
       {enrollmentModalOpen && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setEnrollmentModalOpen(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="max-h-[calc(100dvh-2rem)] w-full max-w-sm overflow-y-auto rounded-2xl bg-white p-4 shadow-2xl sm:p-6" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-bold text-[#111111] mb-4">{t("students.sendFormTitle")}</h2>
             {enrollSuccess ? (
               <div className="text-center py-4">
@@ -801,11 +1051,13 @@ export default function StudentsPage() {
           </div>
         </div>
       )}
+      </PermissionGate>
 
       {/* ── Review Submission Modal ── */}
+      <PermissionGate permission={ENROLLMENT_MANAGE_PERMISSION}>
       {reviewModalSub && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setReviewModalSub(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-4 shadow-2xl sm:p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-lg font-bold text-[#111111]">{t("students.reviewRequestTitle")}</h2>
               <button onClick={() => setReviewModalSub(null)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
@@ -814,14 +1066,14 @@ export default function StudentsPage() {
             {/* Student Info */}
             <div className="bg-gray-50 rounded-xl p-4 mb-4 space-y-3">
               <h3 className="text-sm font-bold text-gray-700">{t("students.studentInfo")}</h3>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">{t("students.fullName")} *</label>
                   <input className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.full_name ?? ""} onChange={(e) => setRE("full_name", e.target.value)} />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">{t("students.idNumber")}</label>
-                  <input className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.id_number ?? ""} onChange={(e) => setRE("id_number", e.target.value)} />
+                  <input dir="ltr" className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.id_number ?? ""} onChange={(e) => setRE("id_number", e.target.value)} />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">{t("students.nationality")}</label>
@@ -847,9 +1099,9 @@ export default function StudentsPage() {
                     <option value="مسائي">{t("fields.evening")}</option>
                   </select>
                 </div>
-                <div className="col-span-2">
+                <div className="sm:col-span-2">
                   <label className="block text-xs text-gray-500 mb-1">{t("fields.dateOfBirth")}</label>
-                  <input type="date" className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={(reviewEdit as Record<string, string>).date_of_birth_str ?? ""} onChange={(e) => setRE("date_of_birth_str", e.target.value)} />
+                  <input type="date" dir="ltr" className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={(reviewEdit as Record<string, string>).date_of_birth_str ?? ""} onChange={(e) => setRE("date_of_birth_str", e.target.value)} />
                 </div>
               </div>
             </div>
@@ -870,8 +1122,8 @@ export default function StudentsPage() {
             {/* Guardian Info */}
             <div className="bg-blue-50 rounded-xl p-4 mb-4 space-y-3">
               <h3 className="text-sm font-bold text-gray-700">{t("studentProfile.guardianInfo")}</h3>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="col-span-2">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="sm:col-span-2">
                   <label className="block text-xs text-gray-500 mb-1">{t("students.guardianName")}</label>
                   <input className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.guardian_name ?? ""} onChange={(e) => setRE("guardian_name", e.target.value)} />
                 </div>
@@ -883,11 +1135,11 @@ export default function StudentsPage() {
                   <label className="block text-xs text-gray-500 mb-1">{t("fields.mobile2")}</label>
                   <input dir="ltr" className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.guardian_phone_2 ?? ""} onChange={(e) => setRE("guardian_phone_2", e.target.value)} />
                 </div>
-                <div className="col-span-2">
+                <div className="sm:col-span-2">
                   <label className="block text-xs text-gray-500 mb-1">{t("fields.email")}</label>
                   <input dir="ltr" type="email" className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.guardian_email ?? ""} onChange={(e) => setRE("guardian_email", e.target.value)} />
                 </div>
-                <div className="col-span-2">
+                <div className="sm:col-span-2">
                   <label className="block text-xs text-gray-500 mb-1">{t("fields.guardianName2")}</label>
                   <input className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.guardian_name_2 ?? ""} onChange={(e) => setRE("guardian_name_2", e.target.value)} />
                 </div>
@@ -905,7 +1157,7 @@ export default function StudentsPage() {
             {/* Registration Info */}
             <div className="bg-gray-50 rounded-xl p-4 mb-4 space-y-3">
               <h3 className="text-sm font-bold text-gray-700">{t("studentProfile.enrollmentInfo")}</h3>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">{t("students.attendanceType")}</label>
                   <select className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.attendance_type ?? ""} onChange={(e) => setRE("attendance_type", e.target.value)}>
@@ -979,6 +1231,7 @@ export default function StudentsPage() {
           </div>
         </div>
       )}
+      </PermissionGate>
     </div>
   );
 }

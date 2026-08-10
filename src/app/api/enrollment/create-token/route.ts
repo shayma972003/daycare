@@ -5,6 +5,7 @@ import { logAction } from "@/lib/activity-logger";
 import { normalizePhone } from "@/lib/phone-normalizer";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { env } from "@/lib/env";
+import { ENROLLMENT_MANAGE_PERMISSION } from "@/lib/enrollment-access";
 import {
   generateEnrollmentToken,
   generateOtp,
@@ -53,7 +54,10 @@ export async function POST(request: Request) {
       Response.json({ error: "Unauthorized" }, { status: 401 })
     );
   }
-  const schoolId = (session.user as { schoolId: string }).schoolId;
+  if (!session.can(ENROLLMENT_MANAGE_PERMISSION)) {
+    return Response.json({ error: "Forbidden", code: "FORBIDDEN" }, { status: 403 });
+  }
+  const schoolId = session.user.schoolId;
 
   let body: unknown;
   try {
@@ -123,7 +127,9 @@ export async function POST(request: Request) {
 
   if (!sent.success) {
     // Leaving a token behind that no one can reach only creates confusion later.
-    await prisma.enrollmentToken.delete({ where: { id: enrollmentToken.id } });
+    await prisma.enrollmentToken.deleteMany({
+      where: { id: enrollmentToken.id, school_id: schoolId },
+    });
     return Response.json(
       { error: "تعذر إرسال البريد. تحقق من إعدادات البريد وحاول مجدداً." },
       { status: 502 }

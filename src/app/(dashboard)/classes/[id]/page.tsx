@@ -6,6 +6,7 @@ import axios from "axios";
 import { Topbar } from "@/components/layout/Topbar";
 import { PeriodBadge } from "@/components/ui/StatusBadge";
 import { ClassDeleteConfirmModal } from "@/components/classes/ClassDeleteConfirmModal";
+import { PermissionGate } from "@/components/auth/PermissionGate";
 import { useT, useLocale } from "@/lib/i18n-provider";
 import { useAcademicStages, useStageName } from "@/lib/use-academic-stages";
 import { formatAst } from "@/lib/datetime";
@@ -57,6 +58,7 @@ export default function ClassProfilePage({
 
   const [cls, setCls] = useState<ClassData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [classRefresh, setClassRefresh] = useState(0);
   const [notFound, setNotFound] = useState(false);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -87,6 +89,7 @@ export default function ClassProfilePage({
   const [showAddStudentsModal, setShowAddStudentsModal] = useState(false);
   const [availableStudents, setAvailableStudents] = useState<AvailableStudent[]>([]);
   const [loadingAvailable, setLoadingAvailable] = useState(false);
+  const [availableError, setAvailableError] = useState<string | null>(null);
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [isAdding, setIsAdding] = useState(false);
 
@@ -103,24 +106,23 @@ export default function ClassProfilePage({
     setImagePreview(c.imageUrl ?? null);
   }
 
-  async function fetchClass() {
-    setLoading(true);
-    setNotFound(false);
-    try {
-      const res = await axios.get<ClassData>(`/api/classes/${id}`);
-      setCls(res.data);
-      fillForm(res.data);
-    } catch {
-      setNotFound(true);
-    } finally {
-      setLoading(false);
-    }
-  }
-
   useEffect(() => {
-    fetchClass();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+    const controller = new AbortController();
+    axios
+      .get<ClassData>(`/api/classes/${id}`, { signal: controller.signal })
+      .then((res) => {
+        setCls(res.data);
+        fillForm(res.data);
+        setNotFound(false);
+      })
+      .catch((requestError: unknown) => {
+        if (!axios.isCancel(requestError)) setNotFound(true);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, [classRefresh, id]);
 
   useEffect(() => {
     if (loading) return;
@@ -132,13 +134,33 @@ export default function ClassProfilePage({
 
   useEffect(() => {
     if (!showAddStudentsModal) return;
-    setLoadingAvailable(true);
+    const controller = new AbortController();
     axios
-      .get<AvailableStudent[]>(`/api/classes/${id}/available-students`)
-      .then((res) => setAvailableStudents(res.data))
-      .catch(() => setAvailableStudents([]))
-      .finally(() => setLoadingAvailable(false));
-  }, [showAddStudentsModal, id]);
+      .get<AvailableStudent[]>(`/api/classes/${id}/available-students`, { signal: controller.signal })
+      .then((res) => {
+        setAvailableStudents(res.data);
+        setAvailableError(null);
+      })
+      .catch((requestError: unknown) => {
+        if (!axios.isCancel(requestError)) setAvailableError(t("common.error"));
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoadingAvailable(false);
+      });
+    return () => controller.abort();
+  }, [showAddStudentsModal, id, t]);
+
+  function refreshClass() {
+    setLoading(true);
+    setNotFound(false);
+    setClassRefresh((value) => value + 1);
+  }
+
+  function openAddStudentsModal() {
+    setLoadingAvailable(true);
+    setAvailableError(null);
+    setShowAddStudentsModal(true);
+  }
 
   function toggleSelectStudent(studentId: string) {
     setSelectedStudentIds((prev) =>
@@ -153,7 +175,7 @@ export default function ClassProfilePage({
       await axios.post(`/api/classes/${id}/add-students`, { studentIds: selectedStudentIds });
       setShowAddStudentsModal(false);
       setSelectedStudentIds([]);
-      fetchClass();
+      refreshClass();
     } catch {
       setError(t("common.error"));
     } finally {
@@ -287,21 +309,25 @@ export default function ClassProfilePage({
 
           <div className="flex items-center gap-2">
             {!editing ? (
-              <button
-                onClick={startEditing}
-                className="px-4 py-2 border border-[#111111] text-[#111111] rounded-lg text-sm font-medium hover:bg-[#111111] hover:text-white transition-colors"
-              >
-                {t("classes.edit")}
-              </button>
+              <PermissionGate permission="classes.manage">
+                <button
+                  onClick={startEditing}
+                  className="px-4 py-2 border border-[#111111] text-[#111111] rounded-lg text-sm font-medium hover:bg-[#111111] hover:text-white transition-colors"
+                >
+                  {t("classes.edit")}
+                </button>
+              </PermissionGate>
             ) : (
               <>
-                <button
-                  onClick={saveEditing}
-                  disabled={saving || uploadingImage}
-                  className="px-4 py-2 bg-[#F64651] text-white rounded-lg text-sm font-medium hover:bg-[#D93A44] disabled:opacity-60 transition-colors"
-                >
-                  {saving ? t("common.loading") : t("classes.form.save")}
-                </button>
+                <PermissionGate permission="classes.manage">
+                  <button
+                    onClick={saveEditing}
+                    disabled={saving || uploadingImage}
+                    className="px-4 py-2 bg-[#F64651] text-white rounded-lg text-sm font-medium hover:bg-[#D93A44] disabled:opacity-60 transition-colors"
+                  >
+                    {saving ? t("common.loading") : t("classes.form.save")}
+                  </button>
+                </PermissionGate>
                 <button
                   onClick={cancelEditing}
                   disabled={saving}
@@ -311,13 +337,15 @@ export default function ClassProfilePage({
                 </button>
               </>
             )}
-            <button
-              onClick={openDeleteConfirm}
-              disabled={checkingDelete}
-              className="px-4 py-2 border border-red-500 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 disabled:opacity-60 transition-colors"
-            >
-              {checkingDelete ? t("common.loading") : t("classes.moveToTrash")}
-            </button>
+            <PermissionGate permission="classes.archive">
+              <button
+                onClick={openDeleteConfirm}
+                disabled={checkingDelete}
+                className="px-4 py-2 border border-red-500 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 disabled:opacity-60 transition-colors"
+              >
+                {checkingDelete ? t("common.loading") : t("classes.moveToTrash")}
+              </button>
+            </PermissionGate>
           </div>
         </div>
 
@@ -489,13 +517,15 @@ export default function ClassProfilePage({
         <div className="bg-white rounded-xl shadow-md p-6">
           <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
             <div className="flex items-center gap-3">
-              <button
-                onClick={() => setShowAddStudentsModal(true)}
-                title={t("classes.addStudents")}
-                className="w-8 h-8 rounded-full bg-[#F64651] text-white flex items-center justify-center text-lg font-bold hover:bg-[#D93A44] transition-colors"
-              >
-                +
-              </button>
+              <PermissionGate permission="classes.assign">
+                <button
+                  onClick={openAddStudentsModal}
+                  title={t("classes.addStudents")}
+                  className="w-8 h-8 rounded-full bg-[#F64651] text-white flex items-center justify-center text-lg font-bold hover:bg-[#D93A44] transition-colors"
+                >
+                  +
+                </button>
+              </PermissionGate>
               <h2 className="text-base font-bold text-[#111111]">{t("classes.enrolledHere")}</h2>
             </div>
             <div className="flex items-center gap-3">
@@ -569,6 +599,7 @@ export default function ClassProfilePage({
         </div>
       </div>
 
+      <PermissionGate permission="classes.assign">
       {showAddStudentsModal && (
         <div
           className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
@@ -598,6 +629,8 @@ export default function ClassProfilePage({
                 <div className="flex justify-center items-center h-32">
                   <div className="w-6 h-6 border-2 border-gray-200 border-t-[#F64651] rounded-full animate-spin" />
                 </div>
+              ) : availableError ? (
+                <p role="alert" className="text-center text-red-600 py-8 text-sm">{availableError}</p>
               ) : availableStudents.length === 0 ? (
                 <p className="text-center text-gray-400 py-8 text-sm">{t("classes.noAvailableStudents")}</p>
               ) : (
@@ -643,16 +676,19 @@ export default function ClassProfilePage({
           </div>
         </div>
       )}
+      </PermissionGate>
 
-      <ClassDeleteConfirmModal
-        isOpen={deleteTarget !== null}
-        className={deleteTarget?.name ?? ""}
-        assignedStudentsCount={deleteTarget?.studentsCount ?? 0}
-        deleting={deleting}
-        error={deleteError}
-        onConfirm={handleConfirmDelete}
-        onCancel={() => setDeleteTarget(null)}
-      />
+      <PermissionGate permission="classes.archive">
+        <ClassDeleteConfirmModal
+          isOpen={deleteTarget !== null}
+          className={deleteTarget?.name ?? ""}
+          assignedStudentsCount={deleteTarget?.studentsCount ?? 0}
+          deleting={deleting}
+          error={deleteError}
+          onConfirm={handleConfirmDelete}
+          onCancel={() => setDeleteTarget(null)}
+        />
+      </PermissionGate>
     </div>
   );
 }

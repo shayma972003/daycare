@@ -18,6 +18,10 @@
  */
 
 import { ALL_PERMISSIONS } from "@/lib/permissions";
+import {
+  ENROLLMENT_MANAGE_PERMISSION,
+  isPublicEnrollmentRoute,
+} from "@/lib/enrollment-access";
 
 export type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -43,7 +47,6 @@ export const UNGATED_PREFIXES = [
   "/api/auth",
   "/api/admin",
   "/api/mobile",
-  "/api/enrollment",
   "/api/files",
 ];
 
@@ -58,6 +61,21 @@ export const UNGATED_PREFIXES = [
 export const DEFAULT_REQUIREMENT: Requirement = ALL_PERMISSIONS;
 
 export const ROUTE_PERMISSIONS: Record<string, RouteRule> = {
+  // Public enrollment routes are method-aware in `isPublicEnrollmentRoute`.
+  // Everything below is an administrative operation inside a nursery session.
+  "/api/enrollment/create-token": {
+    methods: { POST: ENROLLMENT_MANAGE_PERMISSION },
+  },
+  "/api/enrollment/submissions": {
+    methods: { GET: ENROLLMENT_MANAGE_PERMISSION },
+  },
+  "/api/enrollment/approve/:id": {
+    methods: { POST: ENROLLMENT_MANAGE_PERMISSION },
+  },
+  "/api/enrollment/reject/:id": {
+    methods: { POST: ENROLLMENT_MANAGE_PERMISSION },
+  },
+
   // ── Students ────────────────────────────────────────────────────────────
   "/api/students": {
     methods: { GET: "students.view", POST: "students.manage" },
@@ -299,9 +317,11 @@ export function normalizePath(pathname: string): string {
   return clean.split("/").map(normalizeSegment).join("/");
 }
 
-export function isUngated(pathname: string): boolean {
-  return UNGATED_PREFIXES.some(
-    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+export function isUngated(pathname: string, method = "GET"): boolean {
+  return (
+    UNGATED_PREFIXES.some(
+      (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+    ) || isPublicEnrollmentRoute(pathname, method)
   );
 }
 

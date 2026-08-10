@@ -292,7 +292,6 @@ export async function POST(request: Request) {
           ...[
             createElement(Text, { style: styles.sectionTitle }, "بيانات الطالب"),
             maybeRow(true, "اسم الطالب", inv.student.name || "—"),
-            maybeRow(inv.student.idNumber, "الرقم الطلابي", inv.student.idNumber ?? ""),
             maybeRow(inv.student.className, "الصف", inv.student.className ?? ""),
             maybeRow(inv.guardian.name, "ولي الأمر", inv.guardian.name ?? ""),
             maybeRow(inv.guardian.phone1, "الجوال", inv.guardian.phone1 ?? ""),
@@ -404,6 +403,13 @@ export async function POST(request: Request) {
       const pdfBuffer = await renderToBuffer(pdfDoc as Parameters<typeof renderToBuffer>[0]);
       const fileUrl = savePdf(pdfBuffer);
 
+      // The PDF may display operational contact data, but the structured JSON
+      // must not become a second plaintext national-ID store.
+      const persistedInvoiceData = {
+        ...inv,
+        student: { ...inv.student, idNumber: null },
+      };
+
       const invoice = await prisma.invoice.create({
         data: {
           schoolId,
@@ -412,7 +418,7 @@ export async function POST(request: Request) {
           amount: inv.grandTotal,
           vat_amount: inv.vatAmount ?? 0,
           pdfUrl: fileUrl,
-          data: inv as object,
+          data: persistedInvoiceData as object,
         },
       });
 
@@ -496,7 +502,6 @@ export async function POST(request: Request) {
       type: "STUDENT",
       vatAmount: studentVatAmount,
       studentName: student.name,
-      studentId: student.idNumber,
       className: student.class?.name,
       guardianName: student.guardian?.name,
       guardianPhone: student.guardian?.phone1,
@@ -547,7 +552,6 @@ export async function POST(request: Request) {
           ...[
             createElement(Text, { style: styles.sectionTitle }, "بيانات الطالب"),
             createElement(View, { style: styles.row }, createElement(Text, { style: styles.label }, "اسم الطالب"), createElement(Text, { style: styles.value }, student.name ?? "")),
-            student.idNumber ? createElement(View, { style: styles.row }, createElement(Text, { style: styles.label }, "رقم الهوية"), createElement(Text, { style: styles.value }, student.idNumber)) : undefined,
             student.class?.name ? createElement(View, { style: styles.row }, createElement(Text, { style: styles.label }, "الفصل"), createElement(Text, { style: styles.value }, student.class.name)) : undefined,
             student.guardian?.name ? createElement(View, { style: styles.row }, createElement(Text, { style: styles.label }, "ولي الأمر"), createElement(Text, { style: styles.value }, student.guardian.name)) : undefined,
             student.guardian?.phone1 ? createElement(View, { style: styles.row }, createElement(Text, { style: styles.label }, "الهاتف"), createElement(Text, { style: styles.value }, student.guardian.phone1)) : undefined,
@@ -608,7 +612,6 @@ export async function POST(request: Request) {
     invoiceData = {
       type: "TEACHER",
       teacherName: teacher.name,
-      teacherId: teacher.idNumber,
       className: teacher.classes?.[0]?.name,
       baseSalary: teacher.monthlySalary,
       lateHours: teacher.lateHours,
@@ -648,7 +651,6 @@ export async function POST(request: Request) {
           ...[
             createElement(Text, { style: styles.sectionTitle }, "بيانات المعلم"),
             createElement(View, { style: styles.row }, createElement(Text, { style: styles.label }, "الاسم"), createElement(Text, { style: styles.value }, teacher.name ?? "")),
-            teacher.idNumber ? createElement(View, { style: styles.row }, createElement(Text, { style: styles.label }, "رقم الهوية"), createElement(Text, { style: styles.value }, teacher.idNumber)) : undefined,
             teacher.classes?.[0]?.name ? createElement(View, { style: styles.row }, createElement(Text, { style: styles.label }, "الفصل"), createElement(Text, { style: styles.value }, teacher.classes[0].name)) : undefined,
           ].filter(Boolean)
         ),

@@ -1,6 +1,7 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
+import { ENROLLMENT_MANAGE_PERMISSION } from "@/lib/enrollment-access";
 
 export async function POST(
   request: Request,
@@ -16,7 +17,10 @@ export async function POST(
       Response.json({ error: "Unauthorized" }, { status: 401 })
     );
   }
-  const schoolId = (session.user as { schoolId: string }).schoolId;
+  if (!session.can(ENROLLMENT_MANAGE_PERMISSION)) {
+    return Response.json({ error: "Forbidden", code: "FORBIDDEN" }, { status: 403 });
+  }
+  const schoolId = session.user.schoolId;
   const { submission_id } = await params;
 
   const sub = await prisma.enrollmentSubmission.findFirst({
@@ -24,8 +28,8 @@ export async function POST(
   });
   if (!sub) return Response.json({ error: "Not found" }, { status: 404 });
 
-  await prisma.enrollmentSubmission.update({
-    where: { id: submission_id },
+  await prisma.enrollmentSubmission.updateMany({
+    where: { id: submission_id, school_id: schoolId },
     data: { status: "rejected", reviewed_at: new Date() },
   });
 

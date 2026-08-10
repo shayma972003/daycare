@@ -28,6 +28,7 @@ import { useRouter } from "next/navigation";
 import axios from "axios";
 import { useT } from "@/lib/i18n-provider";
 import { usePermissions } from "@/lib/use-permissions";
+import { PermissionGate } from "@/components/auth/PermissionGate";
 
 interface SearchResult {
   kind: string;
@@ -109,12 +110,14 @@ export function CommandPalette() {
       label: t(`palette.${action.key}`),
       hint: t("palette.action"),
       href: action.href,
+      permission: action.permission,
     })),
     ...(query.trim().length >= 2 ? results : []).map((result) => ({
       id: `${result.kind}:${result.id}`,
       label: result.label,
       hint: t(`palette.kind.${result.kind}`),
       href: result.href,
+      permission: null,
     })),
   ];
 
@@ -171,27 +174,34 @@ export function CommandPalette() {
               {query.trim().length < 2 ? t("palette.hint") : t("palette.noResults")}
             </li>
           ) : (
-            rows.map((row, index) => (
-              <li key={row.id}>
-                <button
-                  onClick={() => go(row.href)}
-                  onMouseEnter={() => setCursor(index)}
-                  className={`w-full flex items-center gap-3 px-5 py-2.5 text-sm text-start transition-colors ${
-                    index === cursor ? "bg-[#E0F7FA]" : "hover:bg-gray-50"
-                  }`}
-                >
-                  <span className="flex-1 truncate text-gray-800">{row.label}</span>
-                  <span className="text-[11px] text-gray-400 shrink-0">{row.hint}</span>
-                </button>
-              </li>
-            ))
+            rows.map((row, index) => {
+              const item = (
+                <li key={row.id}>
+                  <button
+                    onClick={() => go(row.href)}
+                    onMouseEnter={() => setCursor(index)}
+                    className={`w-full flex items-center gap-3 px-5 py-2.5 text-sm text-start transition-colors ${
+                      index === cursor ? "bg-[#E0F7FA]" : "hover:bg-gray-50"
+                    }`}
+                  >
+                    <span className="flex-1 truncate text-gray-800">{row.label}</span>
+                    <span className="text-[11px] text-gray-400 shrink-0">{row.hint}</span>
+                  </button>
+                </li>
+              );
+              return row.permission ? (
+                <PermissionGate key={row.id} permission={row.permission}>
+                  {item}
+                </PermissionGate>
+              ) : item;
+            })
           )}
         </ul>
 
         <div className="px-5 py-2.5 border-t border-gray-100 text-[11px] text-gray-400 flex gap-4">
           <span>↑↓ {t("palette.navigate")}</span>
           <span>↵ {t("palette.openRow")}</span>
-          <span>esc {t("common.close")}</span>
+          <span><kbd dir="ltr">{t("palette.escapeKey")}</kbd> {t("common.close")}</span>
         </div>
       </div>
     </div>

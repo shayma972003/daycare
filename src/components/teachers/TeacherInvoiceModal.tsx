@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import axios from "axios";
 import { useT } from "@/lib/i18n-provider";
+import { modalSessionKey } from "@/lib/modal-session";
 
 interface TeacherLineItem {
   id: string;
@@ -72,8 +73,20 @@ function calcItemTotal(item: TeacherLineItem): number {
 }
 
 export function TeacherInvoiceModal({ open, teacherId, onClose, onIssued }: TeacherInvoiceModalProps) {
+  if (!open) return null;
+  return (
+    <TeacherInvoiceModalContent
+      key={modalSessionKey("teacher-invoice", teacherId)}
+      teacherId={teacherId}
+      onClose={onClose}
+      onIssued={onIssued}
+    />
+  );
+}
+
+function TeacherInvoiceModalContent({ teacherId, onClose, onIssued }: Omit<TeacherInvoiceModalProps, "open">) {
   const t = useT();
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -105,14 +118,9 @@ export function TeacherInvoiceModal({ open, teacherId, onClose, onIssued }: Teac
   const [lineItems, setLineItems] = useState<TeacherLineItem[]>([]);
 
   useEffect(() => {
-    if (!open) return;
-    setLoading(true);
-    setError(null);
-    setDueDate("");
-    setInvoiceStatus("مدفوع");
-
+    const controller = new AbortController();
     axios
-      .get<PrefillData>(`/api/invoices/prefill/teacher/${teacherId}`)
+      .get<PrefillData>(`/api/invoices/prefill/teacher/${teacherId}`, { signal: controller.signal })
       .then((res) => {
         const d = res.data;
         setSchoolName(d.school.name ?? "");
@@ -147,9 +155,14 @@ export function TeacherInvoiceModal({ open, teacherId, onClose, onIssued }: Teac
         };
         setLineItems([salaryRow, deductionRow]);
       })
-      .catch(() => setError(t("common.loadFailed")))
-      .finally(() => setLoading(false));
-  }, [open, teacherId, t]);
+      .catch((requestError: unknown) => {
+        if (!axios.isCancel(requestError)) setError(t("common.loadFailed"));
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, [teacherId, t]);
 
   function updateItem(id: string, field: keyof TeacherLineItem, value: unknown) {
     setLineItems((prev) => prev.map((r) => (r.id === id ? { ...r, [field]: value } : r)));
@@ -228,7 +241,7 @@ export function TeacherInvoiceModal({ open, teacherId, onClose, onIssued }: Teac
   }
 
   return (
-    <Dialog.Root open={open} onOpenChange={(v) => !v && onClose()}>
+    <Dialog.Root open onOpenChange={(v) => !v && onClose()}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/50 z-50" />
         <Dialog.Content

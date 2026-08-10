@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import axios from "axios";
 import { Topbar } from "@/components/layout/Topbar";
 import { formatCurrency } from "@/lib/utils";
@@ -54,13 +54,13 @@ function DetailList({ rows, emptyText }: { rows: { label: string; date: string; 
   if (rows.length === 0) return <p className="text-sm text-gray-400 text-center py-6">{emptyText}</p>;
   const sorted = [...rows].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   return (
-    <div className="mt-3 overflow-x-auto">
-      <table className="w-full text-sm">
+    <div role="region" aria-label={t("finance.item")} tabIndex={0} className="mt-3 max-w-full overflow-x-auto">
+      <table className="w-full min-w-[520px] text-sm">
         <thead>
           <tr className="border-b border-gray-100 bg-gray-50">
-            <th className="px-4 py-2 text-right font-medium text-gray-600">{t("finance.item")}</th>
-            <th className="px-4 py-2 text-right font-medium text-gray-600">{t("finance.date")}</th>
-            <th className="px-4 py-2 text-right font-medium text-gray-600">{t("finance.amount")}</th>
+            <th className="px-4 py-2 text-start font-medium text-gray-600">{t("finance.item")}</th>
+            <th className="px-4 py-2 text-start font-medium text-gray-600">{t("finance.date")}</th>
+            <th className="px-4 py-2 text-start font-medium text-gray-600">{t("finance.amount")}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-50">
@@ -68,7 +68,7 @@ function DetailList({ rows, emptyText }: { rows: { label: string; date: string; 
             <tr key={i}>
               <td className="px-4 py-2 text-gray-800">{r.label}</td>
               <td className="px-4 py-2 text-gray-500">{formatAst(new Date(r.date), { year: "numeric", month: "2-digit", day: "2-digit" }, locale)}</td>
-              <td className="px-4 py-2 font-bold text-gray-900">{formatCurrency(r.amount, locale)}</td>
+              <td className="px-4 py-2 font-bold text-gray-900" dir="ltr">{formatCurrency(r.amount, locale)}</td>
             </tr>
           ))}
         </tbody>
@@ -83,7 +83,7 @@ function KpiCard({ label, value, colorClass, bgClass }: { label: string; value: 
   return (
     <div className="bg-white rounded-xl shadow-card p-6 flex items-start justify-between gap-3">
       <div>
-        <p className="text-3xl font-bold text-gray-900">{value}</p>
+        <p className="text-3xl font-bold text-gray-900" dir="ltr">{value}</p>
         <p className="text-sm text-gray-500 font-medium mt-1">{label}</p>
       </div>
       <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${bgClass} ${colorClass}`}>
@@ -149,7 +149,7 @@ function AddExpenseForm({ onSaved, onCancel }: { onSaved: (e: Expense) => void; 
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">{t("finance.priceSar")} *</label>
-          <input type="number" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} required
+          <input type="number" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} required dir="ltr"
             className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651]" />
         </div>
         <div>
@@ -224,7 +224,7 @@ function EditExpenseRow({ expense, onSaved, onCancel }: { expense: Expense; onSa
       </td>
       <td className="px-4 py-2 text-xs text-gray-500">{expense.type === "monthly" ? t("finance.recurring") : t("finance.oneOff")}</td>
       <td className="px-4 py-2">
-        <input type="number" min="0" value={amount} onChange={(e) => setAmount(e.target.value)}
+        <input type="number" min="0" value={amount} onChange={(e) => setAmount(e.target.value)} dir="ltr"
           className="w-28 px-2 py-1 text-sm rounded border border-gray-200 focus:outline-none" />
       </td>
       <td className="px-4 py-2">
@@ -289,7 +289,7 @@ function pctBadge(pct: number | null, t: (key: string) => string) {
   if (pct === null) return <span className="text-gray-400 text-xs">{t("finance.noComparison")}</span>;
   const up = pct >= 0;
   return (
-    <span className={`text-xs font-bold ${up ? "text-emerald-600" : "text-red-500"}`}>
+    <span className={`text-xs font-bold ${up ? "text-emerald-600" : "text-red-500"}`} dir="ltr">
       {up ? "↑" : "↓"} {Math.abs(pct).toFixed(1)}%
     </span>
   );
@@ -307,7 +307,7 @@ function SectionCard({ title, children }: { title: string; children: React.React
 function SummaryRow({ label, value, valueClass }: { label: string; value: string; valueClass?: string }) {
   return (
     <div className="flex items-center justify-between text-sm py-1">
-      <span className={`font-bold ${valueClass ?? "text-gray-900"}`}>{value}</span>
+      <span className={`font-bold ${valueClass ?? "text-gray-900"}`} dir="ltr">{value}</span>
       <span className="text-gray-500">{label}</span>
     </div>
   );
@@ -340,7 +340,6 @@ function SummaryTab() {
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
     axios
       .get<DashboardSummary>(`/api/statistics/dashboard?type=${periodType}`)
       .then((r) => {
@@ -358,6 +357,18 @@ function SummaryTab() {
       cancelled = true;
     };
   }, [periodType, reloadKey, t]);
+
+  function changePeriod(nextPeriod: ReportPeriodType) {
+    setLoading(true);
+    setError(null);
+    setPeriodType(nextPeriod);
+  }
+
+  function retrySummary() {
+    setLoading(true);
+    setError(null);
+    setReloadKey((key) => key + 1);
+  }
 
   useEffect(() => {
     axios
@@ -413,7 +424,7 @@ function SummaryTab() {
         </p>
         <button
           type="button"
-          onClick={() => setReloadKey((k) => k + 1)}
+          onClick={retrySummary}
           className="px-5 py-2 rounded-lg bg-[#2F96A6] text-white text-sm font-medium hover:bg-[#26808e]"
         >
           {t("common.retry")}
@@ -436,7 +447,7 @@ function SummaryTab() {
       {/* Period selector */}
       <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
         {PERIOD_TABS.map((p) => (
-          <button key={p.key} onClick={() => setPeriodType(p.key)}
+          <button key={p.key} onClick={() => changePeriod(p.key)}
             className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${periodType === p.key ? "bg-white shadow text-[#111111]" : "text-gray-500 hover:text-gray-700"}`}>
             {t(p.labelKey)}
           </button>
@@ -485,14 +496,14 @@ function SummaryTab() {
         {/* التحصيل */}
         <SectionCard title={t("finance.collection")}>
           <div className="flex items-start justify-between py-1">
-            <div className="text-left">
+            <div className="text-end">
               <div className="flex flex-col gap-0.5">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-bold text-emerald-600">{formatCurrency(summary.collection.paid, locale)}</span>
+                  <span className="text-sm font-bold text-emerald-600" dir="ltr">{formatCurrency(summary.collection.paid, locale)}</span>
                   <span className="text-xs text-gray-400">{t("finance.netTotal")}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-bold text-emerald-600">{formatCurrency(summary.collection.paidWithVat, locale)}</span>
+                  <span className="text-sm font-bold text-emerald-600" dir="ltr">{formatCurrency(summary.collection.paidWithVat, locale)}</span>
                   <span className="text-xs text-gray-400">{t("finance.vatIncluded")}</span>
                 </div>
               </div>
@@ -573,17 +584,17 @@ function SummaryTab() {
           />
         )}
         {openPanel === "payments" && (
-          <div className="mt-3 overflow-x-auto">
+          <div role="region" aria-label={t("finance.payments")} tabIndex={0} className="mt-3 max-w-full overflow-x-auto">
             {combinedPayments.length === 0 ? (
               <p className="text-sm text-gray-400 text-center py-6">{t("finance.noMovements")}</p>
             ) : (
-              <table className="w-full text-sm">
+              <table className="w-full min-w-[620px] text-sm">
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50">
-                    <th className="px-4 py-2 text-right font-medium text-gray-600">{t("finance.type")}</th>
-                    <th className="px-4 py-2 text-right font-medium text-gray-600">{t("finance.item")}</th>
-                    <th className="px-4 py-2 text-right font-medium text-gray-600">{t("finance.date")}</th>
-                    <th className="px-4 py-2 text-right font-medium text-gray-600">{t("finance.amount")}</th>
+                    <th className="px-4 py-2 text-start font-medium text-gray-600">{t("finance.type")}</th>
+                    <th className="px-4 py-2 text-start font-medium text-gray-600">{t("finance.item")}</th>
+                    <th className="px-4 py-2 text-start font-medium text-gray-600">{t("finance.date")}</th>
+                    <th className="px-4 py-2 text-start font-medium text-gray-600">{t("finance.amount")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
@@ -592,7 +603,7 @@ function SummaryTab() {
                       <td className="px-4 py-2 text-gray-500">{t(`finance.${r.kind}Row`)}</td>
                       <td className="px-4 py-2 text-gray-800">{r.label}</td>
                       <td className="px-4 py-2 text-gray-500">{formatAst(new Date(r.date), { year: "numeric", month: "2-digit", day: "2-digit" }, locale)}</td>
-                      <td className={`px-4 py-2 font-bold ${r.kind === "revenue" ? "text-emerald-600" : "text-red-500"}`}>
+                      <td className={`px-4 py-2 font-bold ${r.kind === "revenue" ? "text-emerald-600" : "text-red-500"}`} dir="ltr">
                         {r.kind === "revenue" ? "+" : "-"} {formatCurrency(r.amount, locale)}
                       </td>
                     </tr>
@@ -614,13 +625,14 @@ function SummaryTab() {
         ) : reports.length === 0 ? (
           <div className="p-6 text-sm text-gray-400 text-center">{t("common.noData")}</div>
         ) : (
-          <table className="w-full text-sm">
+          <div role="region" aria-label={t("finance.exportedReports")} tabIndex={0} className="max-w-full overflow-x-auto">
+          <table className="w-full min-w-[680px] text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50">
-                <th className="px-5 py-3 text-right font-medium text-gray-600">{t("finance.fileName")}</th>
-                <th className="px-5 py-3 text-right font-medium text-gray-600">{t("finance.period")}</th>
-                <th className="px-5 py-3 text-right font-medium text-gray-600">{t("finance.issuedOn")}</th>
-                <th className="px-5 py-3 text-right font-medium text-gray-600">{t("common.actions")}</th>
+                <th className="px-5 py-3 text-start font-medium text-gray-600">{t("finance.fileName")}</th>
+                <th className="px-5 py-3 text-start font-medium text-gray-600">{t("finance.period")}</th>
+                <th className="px-5 py-3 text-start font-medium text-gray-600">{t("finance.issuedOn")}</th>
+                <th className="px-5 py-3 text-start font-medium text-gray-600">{t("common.actions")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -641,6 +653,7 @@ function SummaryTab() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>
@@ -661,16 +674,19 @@ function ExpensesTab() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const fetchExpenses = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await axios.get<Expense[]>("/api/expenses");
-      setExpenses(res.data);
-    } catch { /* silent */ }
-    finally { setLoading(false); }
+  useEffect(() => {
+    const controller = new AbortController();
+    axios
+      .get<Expense[]>("/api/expenses", { signal: controller.signal })
+      .then((res) => setExpenses(res.data))
+      .catch(() => {
+        // The tab retains its empty state; visible operation errors are handled separately.
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
   }, []);
-
-  useEffect(() => { fetchExpenses(); }, [fetchExpenses]);
 
   async function handleDelete(id: string) {
     setDeletingId(id);
@@ -701,8 +717,8 @@ function ExpensesTab() {
     <div className="space-y-4">
       {/* Confirm delete dialog */}
       {confirmDeleteId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-96 text-center space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-3 sm:p-4">
+          <div className="max-h-[calc(100dvh-2rem)] w-full max-w-sm space-y-4 overflow-y-auto rounded-2xl bg-white p-4 text-center shadow-xl sm:p-6">
             <p className="text-sm font-medium text-[#111111]">{t("finance.confirmDeleteExpense")}</p>
             <div className="flex gap-3 justify-center">
               <button onClick={() => handleDelete(confirmDeleteId)} disabled={!!deletingId}
@@ -743,16 +759,16 @@ function ExpensesTab() {
         ) : filtered.length === 0 ? (
           <div className="py-20 text-center text-sm text-gray-400">{t("common.noData")}</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div role="region" aria-label={t("finance.expenses")} tabIndex={0} className="max-w-full overflow-x-auto">
+            <table className="w-full min-w-[760px] text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50">
-                  <th className="px-4 py-3 text-right font-medium text-gray-600">{t("finance.title")}</th>
-                  <th className="px-4 py-3 text-right font-medium text-gray-600">{t("finance.type")}</th>
-                  <th className="px-4 py-3 text-right font-medium text-gray-600">{t("finance.price")}</th>
-                  <th className="px-4 py-3 text-right font-medium text-gray-600">{t("finance.startDate")}</th>
-                  <th className="px-4 py-3 text-right font-medium text-gray-600">{t("finance.status")}</th>
-                  <th className="px-4 py-3 text-right font-medium text-gray-600">{t("common.actions")}</th>
+                  <th className="px-4 py-3 text-start font-medium text-gray-600">{t("finance.title")}</th>
+                  <th className="px-4 py-3 text-start font-medium text-gray-600">{t("finance.type")}</th>
+                  <th className="px-4 py-3 text-start font-medium text-gray-600">{t("finance.price")}</th>
+                  <th className="px-4 py-3 text-start font-medium text-gray-600">{t("finance.startDate")}</th>
+                  <th className="px-4 py-3 text-start font-medium text-gray-600">{t("finance.status")}</th>
+                  <th className="px-4 py-3 text-start font-medium text-gray-600">{t("common.actions")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -768,7 +784,7 @@ function ExpensesTab() {
                       <td className="px-4 py-3 text-gray-600 text-xs">
                         {exp.type === "monthly" ? t("finance.monthlySubscription") : t("finance.onePayment")}
                       </td>
-                      <td className="px-4 py-3 text-gray-800 font-medium">{formatCurrency(exp.amount, locale)}</td>
+                      <td className="px-4 py-3 text-gray-800 font-medium" dir="ltr">{formatCurrency(exp.amount, locale)}</td>
                       <td className="px-4 py-3 text-gray-500 text-xs">
                         {formatAst(new Date(exp.start_date), { year: "numeric", month: "2-digit", day: "2-digit" }, locale)}
                       </td>
@@ -821,12 +837,12 @@ export default function StatisticsPage() {
   const [activeTab, setActiveTab] = useState<"summary" | "expenses">("summary");
 
   return (
-    <div dir="rtl" className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50">
       <Topbar title={t("statistics.title")} />
 
-      <div className="p-6 space-y-6">
+      <div className="space-y-6 p-3 sm:p-4 lg:p-6">
         {/* Tab navigation */}
-        <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
+        <div className="flex max-w-full gap-1 overflow-x-auto rounded-xl bg-gray-100 p-1 sm:w-fit">
           <button
             onClick={() => setActiveTab("summary")}
             className={`px-5 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === "summary" ? "bg-white shadow text-[#111111]" : "text-gray-500 hover:text-gray-700"}`}

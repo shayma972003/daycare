@@ -9,6 +9,7 @@ import axios from "axios";
 import { Topbar } from "@/components/layout/Topbar";
 import { useT } from "@/lib/i18n-provider";
 import { FormErrors, collectMessages } from "@/components/ui/FormErrors";
+import { astDateInputValue } from "@/lib/datetime";
 
 
 type Class = { id: string; name: string };
@@ -64,7 +65,7 @@ export default function NewTeacherPage() {
     defaultValues: {
       period: "MORNING",
       paymentMethod: "CASH",
-      joinDate: new Date().toISOString().slice(0, 10),
+      joinDate: astDateInputValue(),
       monthlySalary: 0,
       lateDeductionRate: 0,
     },

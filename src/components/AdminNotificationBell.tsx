@@ -50,9 +50,23 @@ export default function AdminNotificationBell() {
   }
 
   useEffect(() => {
-    load();
-    const interval = setInterval(load, 60000);
-    return () => clearInterval(interval);
+    let active = true;
+    const refresh = () => {
+      axios
+        .get<NotifData>("/api/notifications/admin-messages")
+        .then((res) => {
+          if (active) setData(res.data);
+        })
+        .catch(() => {
+          // Notifications are non-critical; the next poll retries.
+        });
+    };
+    refresh();
+    const interval = setInterval(refresh, 60000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
   }, []);
 
   // Close on outside click

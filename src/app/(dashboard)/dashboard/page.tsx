@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import axios from "axios";
 import { useRouter } from "next/navigation";
 import { Topbar } from "@/components/layout/Topbar";
@@ -12,6 +12,13 @@ import { useT, useLocale } from "@/lib/i18n-provider";
 import { formatAst } from "@/lib/datetime";
 import { SetupChecklist } from "@/components/dashboard/SetupChecklist";
 import { TodayTasks, useDashboardTasks } from "@/components/dashboard/TodayTasks";
+import { usePermissions } from "@/lib/use-permissions";
+import { ENROLLMENT_MANAGE_PERMISSION } from "@/lib/enrollment-access";
+import { PermissionGate } from "@/components/auth/PermissionGate";
+import { DataErrorState, RefreshIndicator } from "@/components/ui/DataLoadState";
+import { collectionView, type CollectionStatus } from "@/lib/collection-state";
+import { LatestRequest } from "@/lib/latest-request";
+import { describeApiError } from "@/lib/api-error";
 
 
 interface NotificationLog {
@@ -27,18 +34,31 @@ type EnrollmentNotif = { id: string; full_name: string; submitted_at: string };
 
 const PAGE_SIZE = 15;
 
+function buildLogsUrl(skip: number) {
+  const params = new URLSearchParams();
+  params.set("source", "activity");
+  params.set("skip", String(skip));
+  params.set("take", String(PAGE_SIZE));
+  return `/api/notifications?${params.toString()}`;
+}
+
 export default function HomePage() {
   const { locale } = useLocale();
   // Locale-aware translation — see src/lib/i18n.tsx.
   const t = useT();
   const router = useRouter();
+  const { can } = usePermissions();
+  const canManageEnrollment = can(ENROLLMENT_MANAGE_PERMISSION);
   // One request covers both the checklist and the task list.
   const { tasks, setup, loading: tasksLoading } = useDashboardTasks();
   const [currentActivities, setCurrentActivities] = useState<Activity[]>([]);
   const [pastActivities, setPastActivities] = useState<Activity[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [activityStatus, setActivityStatus] = useState<CollectionStatus>("loading");
+  const [activityError, setActivityError] = useState<string | null>(null);
+  const [activityRefresh, setActivityRefresh] = useState(0);
+  const [activityRequests] = useState(() => new LatestRequest());
   const [pendingEnrollments, setPendingEnrollments] = useState<EnrollmentNotif[]>([]);
+  const [enrollmentError, setEnrollmentError] = useState<string | null>(null);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
@@ -46,7 +66,11 @@ export default function HomePage() {
   const [logs, setLogs] = useState<NotificationLog[]>([]);
   const [logsTotal, setLogsTotal] = useState(0);
   const [logsSkip, setLogsSkip] = useState(0);
-  const [loadingLogs, setLoadingLogs] = useState(true);
+  const [logStatus, setLogStatus] = useState<CollectionStatus>("loading");
+  const [logError, setLogError] = useState<string | null>(null);
+  const [logRefresh, setLogRefresh] = useState(0);
+  const [logRequests] = useState(() => new LatestRequest());
+  const [moreLogRequests] = useState(() => new LatestRequest());
   const [loadingMoreLogs, setLoadingMoreLogs] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
@@ -57,66 +81,111 @@ export default function HomePage() {
   const [filterStatus, setFilterStatus] = useState<"" | "SENT" | "FAILED">("");
   const [filterType, setFilterType] = useState<"" | "WHATSAPP" | "EMAIL">("");
 
-  const buildLogsUrl = useCallback(
-    (skip: number) => {
-      const params = new URLSearchParams();
-      params.set("source", "activity");
-      params.set("skip", String(skip));
-      params.set("take", String(PAGE_SIZE));
-      return `/api/notifications?${params.toString()}`;
-    },
-    []
-  );
-
-  const fetchLogs = useCallback(
-    async (skip = 0, append = false) => {
-      if (skip === 0) setLoadingLogs(true);
-      else setLoadingMoreLogs(true);
-      try {
-        const res = await axios.get<{ logs: NotificationLog[]; total: number }>(
-          buildLogsUrl(skip)
-        );
-        setLogs((prev) => (append ? [...prev, ...res.data.logs] : res.data.logs));
-        setLogsTotal(res.data.total);
-        setLogsSkip(skip + res.data.logs.length);
-      } catch { /* silent */ }
-      finally {
-        setLoadingLogs(false);
-        setLoadingMoreLogs(false);
-      }
-    },
-    [buildLogsUrl]
-  );
-
-  const fetchActivities = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [currentRes, pastRes] = await Promise.all([
-        axios.get<Activity[]>("/api/activities?dateFilter=current"),
-        axios.get<Activity[]>("/api/activities?dateFilter=past"),
-      ]);
-      setCurrentActivities(currentRes.data);
-      setPastActivities(pastRes.data);
-    } catch {
-      setError(t("common.error"));
-    } finally {
-      setLoading(false);
-    }
-  }, [t]);
-
-  useEffect(() => { fetchActivities(); }, [fetchActivities]);
-  useEffect(() => { fetchLogs(0, false); }, [fetchLogs]);
   useEffect(() => {
-    axios.get<EnrollmentNotif[]>("/api/enrollment/submissions")
-      .then((r) => setPendingEnrollments(r.data))
-      .catch(() => {});
-  }, []);
+    const ticket = activityRequests.begin();
+    Promise.all([
+      axios.get<Activity[]>("/api/activities?dateFilter=current", { signal: ticket.signal }),
+      axios.get<Activity[]>("/api/activities?dateFilter=past", { signal: ticket.signal }),
+    ])
+      .then(([currentRes, pastRes]) => {
+        ticket.commit(() => {
+          setCurrentActivities(currentRes.data);
+          setPastActivities(pastRes.data);
+          setActivityError(null);
+          setActivityStatus("ready");
+        });
+      })
+      .catch((requestError: unknown) => {
+        if (axios.isCancel(requestError)) return;
+        ticket.commit(() => {
+          setActivityError(describeApiError(requestError, t("common.error")));
+          setActivityStatus("error");
+        });
+      });
+    return ticket.cancel;
+  }, [activityRefresh, activityRequests, t]);
+
+  useEffect(() => {
+    const ticket = logRequests.begin();
+    axios
+      .get<{ logs: NotificationLog[]; total: number }>(buildLogsUrl(0), { signal: ticket.signal })
+      .then((res) => {
+        ticket.commit(() => {
+          setLogs(res.data.logs);
+          setLogsTotal(res.data.total);
+          setLogsSkip(res.data.logs.length);
+          setLogError(null);
+          setLogStatus("ready");
+        });
+      })
+      .catch((requestError: unknown) => {
+        if (axios.isCancel(requestError)) return;
+        ticket.commit(() => {
+          setLogError(describeApiError(requestError, t("common.error")));
+          setLogStatus("error");
+        });
+      });
+    return ticket.cancel;
+  }, [logRefresh, logRequests, t]);
+
+  useEffect(() => {
+    if (!canManageEnrollment) return;
+    const controller = new AbortController();
+    axios.get<EnrollmentNotif[]>("/api/enrollment/submissions", { signal: controller.signal })
+      .then((r) => {
+        setPendingEnrollments(r.data);
+        setEnrollmentError(null);
+      })
+      .catch((requestError: unknown) => {
+        if (!axios.isCancel(requestError)) {
+          setEnrollmentError(describeApiError(requestError, t("common.error")));
+        }
+      });
+    return () => controller.abort();
+  }, [canManageEnrollment, t]);
 
   const openAddModal = () => { setSelectedActivity(null); setModalOpen(true); };
   const openEditModal = (activity: Activity) => { setSelectedActivity(activity); setModalOpen(true); };
   const handleModalClose = () => { setModalOpen(false); setSelectedActivity(null); };
-  const handleSaved = () => { fetchActivities(); };
+  const handleSaved = () => {
+    setActivityStatus(currentActivities.length + pastActivities.length > 0 ? "refreshing" : "loading");
+    setActivityError(null);
+    setActivityRefresh((value) => value + 1);
+  };
+
+  function retryActivities() {
+    setActivityStatus(currentActivities.length + pastActivities.length > 0 ? "refreshing" : "loading");
+    setActivityError(null);
+    setActivityRefresh((value) => value + 1);
+  }
+
+  function retryLogs() {
+    setLogStatus(logs.length > 0 ? "refreshing" : "loading");
+    setLogError(null);
+    setLogRefresh((value) => value + 1);
+  }
+
+  async function loadMoreLogs() {
+    const ticket = moreLogRequests.begin();
+    setLoadingMoreLogs(true);
+    setLogError(null);
+    try {
+      const res = await axios.get<{ logs: NotificationLog[]; total: number }>(buildLogsUrl(logsSkip), {
+        signal: ticket.signal,
+      });
+      ticket.commit(() => {
+        setLogs((previous) => [...previous, ...res.data.logs]);
+        setLogsTotal(res.data.total);
+        setLogsSkip((skip) => skip + res.data.logs.length);
+      });
+    } catch (requestError) {
+      if (!axios.isCancel(requestError)) {
+        ticket.commit(() => setLogError(describeApiError(requestError, t("common.error"))));
+      }
+    } finally {
+      ticket.commit(() => setLoadingMoreLogs(false));
+    }
+  }
 
   async function handleDeleteOne(id: string) {
     setDeletingId(id);
@@ -124,7 +193,9 @@ export default function HomePage() {
       await axios.delete(`/api/notifications/log/${id}`);
       setLogs((prev) => prev.filter((l) => l.id !== id));
       setLogsTotal((t) => t - 1);
-    } catch { /* silent */ }
+    } catch (requestError) {
+      setLogError(describeApiError(requestError, t("common.error")));
+    }
     finally {
       setDeletingId(null);
       setConfirmDeleteId(null);
@@ -138,7 +209,9 @@ export default function HomePage() {
       setLogs([]);
       setLogsTotal(0);
       setLogsSkip(0);
-    } catch { /* silent */ }
+    } catch (requestError) {
+      setLogError(describeApiError(requestError, t("common.error")));
+    }
     finally {
       setDeletingBulk(false);
       setConfirmBulkDelete(false);
@@ -151,9 +224,11 @@ export default function HomePage() {
     if (filterType && log.type !== filterType) return false;
     return true;
   });
+  const activityView = collectionView(activityStatus, currentActivities.length + pastActivities.length);
+  const logView = collectionView(logStatus, logs.length);
 
   return (
-    <div dir="rtl" className="min-h-screen bg-brand-bg">
+    <div className="min-h-screen bg-brand-bg">
       <Topbar title={t("home.title")} />
 
       {/* Confirm delete one */}
@@ -195,11 +270,7 @@ export default function HomePage() {
         </div>
       )}
 
-      <div className="p-6 space-y-8">
-        {error && (
-          <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">{error}</div>
-        )}
-
+      <div className="space-y-8 p-3 sm:p-4 lg:p-6">
         {/* Setup first, and only while it is unfinished — a school still filling
             in its rooms has nothing useful in the task list below yet. */}
         {setup && <SetupChecklist steps={setup.steps} />}
@@ -210,6 +281,12 @@ export default function HomePage() {
         </section>
 
         {/* ── طلبات التسجيل المعلقة ── */}
+        <PermissionGate permission={ENROLLMENT_MANAGE_PERMISSION}>
+        {enrollmentError && (
+          <div role="alert" className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">
+            {enrollmentError}
+          </div>
+        )}
         {pendingEnrollments.length > 0 && (
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
             <div className="flex items-center justify-between flex-wrap gap-3">
@@ -249,26 +326,40 @@ export default function HomePage() {
             )}
           </div>
         )}
+        </PermissionGate>
 
-        {loading ? (
+        <section className="bg-white rounded-xl shadow-md p-6">
+          <h2 className="text-base font-bold text-[#111111] mb-2">{t("home.todayAttendance")}</h2>
+          <AttendanceDonut />
+        </section>
+
+        {activityStatus === "refreshing" && <RefreshIndicator label={t("common.loading")} />}
+        {activityError && activityView === "content" && (
+          <DataErrorState message={activityError} retryLabel={t("common.retry")} onRetry={retryActivities} />
+        )}
+        {activityView === "loading" ? (
           <div className="flex items-center justify-center h-64">
             <div className="flex flex-col items-center gap-3 text-gray-400">
               <div className="w-8 h-8 border-2 border-gray-200 border-t-[#F64651] rounded-full animate-spin" />
               <span className="text-sm">{t("common.loading")}</span>
             </div>
           </div>
+        ) : activityView === "error" ? (
+          <DataErrorState
+            message={activityError ?? t("common.error")}
+            retryLabel={t("common.retry")}
+            onRetry={retryActivities}
+          />
         ) : (
           <>
             {/* Today's register at a glance — task 2.17. Above the activities
                 because "who is in the building" is the first question of the
                 day, every day. */}
-            <section className="bg-white rounded-xl shadow-md p-6">
-              <h2 className="text-base font-bold text-[#111111] mb-2">{t("home.todayAttendance")}</h2>
-              <AttendanceDonut />
-            </section>
-
             <section>
               <h2 className="text-base font-bold text-[#111111] mb-4">{t("home.currentActivities")}</h2>
+              {currentActivities.length === 0 && (
+                <p className="text-sm text-gray-400 py-6 text-center">{t("common.noData")}</p>
+              )}
               <ActivityGrid activities={currentActivities} onAdd={openAddModal} onSelect={openEditModal} />
             </section>
 
@@ -280,6 +371,8 @@ export default function HomePage() {
                 <ActivityGrid activities={pastActivities} onSelect={openEditModal} />
               )}
             </section>
+          </>
+        )}
 
             {/* ── سجل إشعارات الفعاليات ─────────────────────────────── */}
             <section>
@@ -315,26 +408,36 @@ export default function HomePage() {
                 </div>
               </div>
 
+              {logStatus === "refreshing" && <RefreshIndicator label={t("common.loading")} />}
+              {logError && logView === "content" && (
+                <DataErrorState message={logError} retryLabel={t("common.retry")} onRetry={retryLogs} />
+              )}
               <div className="bg-white rounded-xl shadow-md overflow-hidden">
-                {loadingLogs ? (
+                {logView === "loading" ? (
                   <div className="flex items-center justify-center py-10 text-gray-400 text-sm gap-2">
                     <div className="w-5 h-5 border-2 border-gray-200 border-t-[#F64651] rounded-full animate-spin" />
                     {t("common.loading")}
                   </div>
+                ) : logView === "error" ? (
+                  <DataErrorState
+                    message={logError ?? t("common.error")}
+                    retryLabel={t("common.retry")}
+                    onRetry={retryLogs}
+                  />
                 ) : visibleLogs.length === 0 ? (
                   <div className="py-10 text-center text-sm text-gray-400">{t("common.noData")}</div>
                 ) : (
                   <>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
+                    <div role="region" aria-label={t("home.activityLog")} tabIndex={0} className="max-w-full overflow-x-auto">
+                      <table className="w-full min-w-[720px] text-sm">
                         <thead>
                           <tr className="border-b border-gray-100 bg-gray-50">
-                            <th className="px-4 py-3 text-right font-medium text-gray-600">{t("home.recipient")}</th>
-                            <th className="px-4 py-3 text-right font-medium text-gray-600">{t("home.type")}</th>
-                            <th className="px-4 py-3 text-right font-medium text-gray-600">{t("home.content")}</th>
-                            <th className="px-4 py-3 text-right font-medium text-gray-600 whitespace-nowrap">{t("home.sentAt")}</th>
-                            <th className="px-4 py-3 text-right font-medium text-gray-600">{t("home.status")}</th>
-                            <th className="px-4 py-3 text-right font-medium text-gray-600"></th>
+                            <th className="px-4 py-3 text-start font-medium text-gray-600">{t("home.recipient")}</th>
+                            <th className="px-4 py-3 text-start font-medium text-gray-600">{t("home.type")}</th>
+                            <th className="px-4 py-3 text-start font-medium text-gray-600">{t("home.content")}</th>
+                            <th className="px-4 py-3 text-start font-medium text-gray-600 whitespace-nowrap">{t("home.sentAt")}</th>
+                            <th className="px-4 py-3 text-start font-medium text-gray-600">{t("home.status")}</th>
+                            <th className="px-4 py-3 text-start font-medium text-gray-600"></th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50">
@@ -370,7 +473,7 @@ export default function HomePage() {
                     {logs.length < logsTotal && (
                       <div className="px-4 py-3 border-t border-gray-50 text-center">
                         <button
-                          onClick={() => fetchLogs(logsSkip, true)}
+                          onClick={loadMoreLogs}
                           disabled={loadingMoreLogs}
                           className="px-6 py-2 border border-gray-200 text-gray-600 hover:bg-gray-50 rounded-xl text-sm font-medium transition-all disabled:opacity-60"
                         >
@@ -382,8 +485,6 @@ export default function HomePage() {
                 )}
               </div>
             </section>
-          </>
-        )}
       </div>
 
       <ActivityFormModal open={modalOpen} onClose={handleModalClose} activity={selectedActivity} onSaved={handleSaved} />

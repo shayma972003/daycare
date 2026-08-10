@@ -37,6 +37,11 @@ export function directionFor(locale: Locale): "rtl" | "ltr" {
   return locale === "ar" ? "rtl" : "ltr";
 }
 
+/** A forward navigation glyph follows reading direction; decorative icons do not. */
+export function forwardArrowFor(locale: Locale): "←" | "→" {
+  return directionFor(locale) === "rtl" ? "←" : "→";
+}
+
 function lookup(dictionary: unknown, key: string): string | null {
   let current: unknown = dictionary;
   for (const part of key.split(".")) {

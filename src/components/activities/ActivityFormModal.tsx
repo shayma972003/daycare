@@ -10,6 +10,7 @@ import { describeApiError } from "@/lib/api-error";
 import type { Activity } from "./ActivityGrid";
 import { useT } from "@/lib/i18n-provider";
 import { useAcademicStages, useStageName } from "@/lib/use-academic-stages";
+import { PermissionGate } from "@/components/auth/PermissionGate";
 
 /**
  * An emptied number box is zero, not `NaN`.
@@ -510,15 +511,15 @@ export function ActivityFormModal({
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   {t("home.activityForm.fee")}
                 </label>
-                <div className="relative">
+                <div className="relative" dir="ltr">
                   <input
                     type="number"
                     min={0}
                     step="0.01"
                     {...register("fee", { setValueAs: emptyToZero })}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651] pl-12"
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 pe-12 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651]"
                   />
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">
+                  <span className="absolute end-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">
                     {t("common.sar")}
                   </span>
                 </div>
@@ -662,6 +663,7 @@ export function ActivityFormModal({
   
               {/* Action buttons */}
               <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
+                <PermissionGate permission="schedule.manage">
                 <button
                   type="submit"
                   disabled={saving || uploadingImage || loadingDetails}
@@ -675,12 +677,14 @@ export function ActivityFormModal({
                       ? t("home.activityForm.saveAndSend")
                       : t("common.save")}
                 </button>
+                </PermissionGate>
   
                 {/* Sends for an already-saved programme without re-saving it.
                     The handler existed with no button after the form was
                     extracted for embedding, so the whole "send it a week later"
                     path was unreachable. */}
                 {isEdit && (
+                  <PermissionGate permission="schedule.manage">
                   <button
                     type="button"
                     onClick={handleSendNow}
@@ -690,9 +694,11 @@ export function ActivityFormModal({
                   >
                     {sending ? t("common.loading") : t("activities.sendNow")}
                   </button>
+                  </PermissionGate>
                 )}
 
                 {isEdit && (
+                  <PermissionGate permission="schedule.delete">
                   <button
                     type="button"
                     onClick={handleDelete}
@@ -701,6 +707,7 @@ export function ActivityFormModal({
                   >
                     {deleting ? t("common.loading") : t("home.activityForm.deleteActivity")}
                   </button>
+                  </PermissionGate>
                 )}
               </div>
             </form>
@@ -714,8 +721,7 @@ export function ActivityFormModal({
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
         <Dialog.Content
-          dir="rtl"
-          className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-white rounded-2xl shadow-modal w-full max-w-xl max-h-[90vh] overflow-y-auto p-6 focus:outline-none animate-scale-in"
+          className="fixed inset-x-4 top-1/2 mx-auto -translate-y-1/2 z-50 bg-white rounded-2xl shadow-modal w-auto max-w-xl max-h-[90vh] overflow-y-auto p-6 focus:outline-none animate-scale-in sm:inset-x-0 sm:w-full"
         >
           <Dialog.Description className="sr-only">
             {t("activities.modalLabel")}

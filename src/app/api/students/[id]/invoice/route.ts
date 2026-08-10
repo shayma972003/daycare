@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
 import { VAT_RATE } from "@/lib/finance";
 import { findInvoiceThisMonth, duplicateInvoiceResponse } from "@/lib/invoice-duplicates";
+import { astDateInputValue } from "@/lib/datetime";
 
 export async function POST(
   request: Request,
@@ -44,7 +45,7 @@ export async function POST(
   ]);
   const monthlyStudentFee = settings?.monthlyStudentFee ?? 0;
 
-  const issueDate = new Date().toISOString().split("T")[0];
+  const issueDate = astDateInputValue();
 
   /**
    * VAT is computed and stored, not left at the column default.

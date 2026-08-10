@@ -4,6 +4,17 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import { astDateInputValue } from "@/lib/datetime";
 import { modalSessionKey } from "@/lib/modal-session";
+import { useT } from "@/lib/i18n-provider";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  closeDialogOnOpenChange,
+} from "@/components/ui/Dialog";
 
 interface LineItem {
   id: string;
@@ -68,6 +79,7 @@ export function AdminInvoiceModal({ open, schoolId, onClose, onIssued }: AdminIn
 }
 
 function AdminInvoiceModalContent({ schoolId, onClose, onIssued }: Omit<AdminInvoiceModalProps, "open">) {
+  const t = useT();
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -207,15 +219,32 @@ function AdminInvoiceModalContent({ schoolId, onClose, onIssued }: Omit<AdminInv
     }
   }
 
+  const dismissBlocked = generating;
+
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" dir="rtl">
-      <div className="bg-[#1e1e2e] rounded-2xl border border-white/10 w-full max-w-3xl max-h-[92vh] overflow-y-auto p-6">
-        <div className="flex items-center justify-between mb-5">
-          <h3 className="text-lg font-bold text-white">إنشاء فاتورة</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-white text-xl font-bold w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10 transition-colors">
-            ×
-          </button>
-        </div>
+    <Dialog
+      open
+      onOpenChange={(nextOpen) => closeDialogOnOpenChange(nextOpen, dismissBlocked, onClose)}
+    >
+      <DialogContent
+        dismissBlocked={dismissBlocked}
+        overlayClassName="bg-black/60"
+        className="max-w-3xl border border-white/10 bg-[#1e1e2e] p-4 sm:p-6"
+      >
+        <DialogDescription className="sr-only">{t("invoiceForm.ariaTitleAdmin")}</DialogDescription>
+        <DialogHeader className="mb-5 items-center">
+          <DialogTitle className="text-white">{t("invoiceForm.issueAdmin")}</DialogTitle>
+          <DialogClose asChild>
+            <button
+              type="button"
+              disabled={dismissBlocked}
+              aria-label={t("common.close")}
+              className="text-gray-400 hover:text-white text-xl font-bold w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              ×
+            </button>
+          </DialogClose>
+        </DialogHeader>
 
         {loading ? (
           <div className="flex justify-center py-12">
@@ -279,11 +308,11 @@ function AdminInvoiceModalContent({ schoolId, onClose, onIssued }: Omit<AdminInv
                 <table className="w-full text-sm">
                   <thead className="bg-indigo-600 text-white">
                     <tr>
-                      <th className="px-3 py-2 text-right">الوصف</th>
-                      <th className="px-3 py-2 text-right w-20">الكمية</th>
-                      <th className="px-3 py-2 text-right w-24">السعر</th>
-                      <th className="px-3 py-2 text-right w-24">ضريبة (15%)</th>
-                      <th className="px-3 py-2 text-right w-24">الإجمالي</th>
+                      <th className="px-3 py-2 text-start">الوصف</th>
+                      <th className="px-3 py-2 text-start w-20">الكمية</th>
+                      <th className="px-3 py-2 text-start w-24">السعر</th>
+                      <th className="px-3 py-2 text-start w-24">ضريبة (15%)</th>
+                      <th className="px-3 py-2 text-start w-24">الإجمالي</th>
                       <th className="px-3 py-2 w-8"></th>
                     </tr>
                   </thead>
@@ -356,7 +385,7 @@ function AdminInvoiceModalContent({ schoolId, onClose, onIssued }: Omit<AdminInv
             </div>
 
             {/* Actions */}
-            <div className="flex items-center gap-3 pt-2 border-t border-white/10">
+            <DialogFooter className="border-white/10 pt-2">
               <button
                 type="button"
                 onClick={handleGenerate}
@@ -365,18 +394,20 @@ function AdminInvoiceModalContent({ schoolId, onClose, onIssued }: Omit<AdminInv
               >
                 {generating ? "جاري الإصدار..." : "إصدار الفاتورة"}
               </button>
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-5 py-2.5 border border-white/10 rounded-xl text-sm text-gray-300 hover:bg-white/5 transition-colors"
-              >
-                إلغاء
-              </button>
-            </div>
+              <DialogClose asChild>
+                <button
+                  type="button"
+                  disabled={dismissBlocked}
+                  className="px-5 py-2.5 border border-white/10 rounded-xl text-sm text-gray-300 hover:bg-white/5 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {t("common.cancel")}
+                </button>
+              </DialogClose>
+            </DialogFooter>
           </div>
         )}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

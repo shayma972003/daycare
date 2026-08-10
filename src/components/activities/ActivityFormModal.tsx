@@ -3,7 +3,15 @@
 import { useEffect, useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import axios from "axios";
-import * as Dialog from "@radix-ui/react-dialog";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  closeDialogOnOpenChange,
+} from "@/components/ui/Dialog";
 
 import { VariableReference } from "@/components/ui/VariableReference";
 import { describeApiError } from "@/lib/api-error";
@@ -716,30 +724,31 @@ export function ActivityFormModal({
   // Embedded: the caller supplies the dialog and the heading.
   if (embedded) return body;
 
+  const dismissBlocked = saving || uploadingImage || sending || deleting;
+
   return (
-    <Dialog.Root open={open} onOpenChange={(v) => !v && onClose()}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
-        <Dialog.Content
-          className="fixed inset-x-4 top-1/2 mx-auto -translate-y-1/2 z-50 bg-white rounded-2xl shadow-modal w-auto max-w-xl max-h-[90vh] overflow-y-auto p-6 focus:outline-none animate-scale-in sm:inset-x-0 sm:w-full"
-        >
-          <Dialog.Description className="sr-only">
-            {t("activities.modalLabel")}
-          </Dialog.Description>
-          <div className="flex items-center justify-between mb-5">
-            <Dialog.Title className="text-lg font-bold text-[#111111]">
-              {t("home.activityForm.title")}
-            </Dialog.Title>
-            <Dialog.Close asChild>
-              <button className="text-gray-400 hover:text-gray-600 text-xl font-bold w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors">
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => closeDialogOnOpenChange(nextOpen, dismissBlocked, onClose)}
+    >
+        <DialogContent dismissBlocked={dismissBlocked} overlayClassName="bg-black/40" className="max-w-xl p-6">
+          <DialogDescription className="sr-only">{t("activities.modalLabel")}</DialogDescription>
+          <DialogHeader className="mb-5 items-center">
+            <DialogTitle>{t("home.activityForm.title")}</DialogTitle>
+            <DialogClose asChild>
+              <button
+                type="button"
+                disabled={dismissBlocked}
+                aria-label={t("common.close")}
+                className="text-gray-400 hover:text-gray-600 text-xl font-bold w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+              >
                 ×
               </button>
-            </Dialog.Close>
-          </div>
+            </DialogClose>
+          </DialogHeader>
 
           {body}
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+        </DialogContent>
+    </Dialog>
   );
 }

@@ -15,10 +15,19 @@
 
 import { useState } from "react";
 import axios from "axios";
-import { Drawer } from "@/components/ui/Drawer";
 import { describeApiError } from "@/lib/api-error";
 import { useT } from "@/lib/i18n-provider";
 import { useAcademicStages, useStageName } from "@/lib/use-academic-stages";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  closeDialogOnOpenChange,
+} from "@/components/ui/Dialog";
 
 const inputCls =
   "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2F96A6]";
@@ -69,7 +78,23 @@ export function QuickAddClass({
   }
 
   return (
-    <Drawer open={open} onClose={onClose} title={t("classes.addClass")}>
+    <Dialog open={open} onOpenChange={(nextOpen) => closeDialogOnOpenChange(nextOpen, saving, onClose)}>
+      <DialogContent dismissBlocked={saving} className="max-w-md p-5 sm:p-6">
+        <DialogDescription className="sr-only">{t("classes.openFullForm")}</DialogDescription>
+        <DialogHeader className="mb-5 items-center">
+          <DialogTitle>{t("classes.addClass")}</DialogTitle>
+          <DialogClose asChild>
+            <button
+              type="button"
+              disabled={saving}
+              aria-label={t("common.close")}
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-xl font-bold text-gray-400 hover:bg-gray-100 hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              ×
+            </button>
+          </DialogClose>
+        </DialogHeader>
+
       <form onSubmit={submit} className="space-y-4">
         {error && (
           <p role="alert" className="text-sm text-red-600">
@@ -116,7 +141,7 @@ export function QuickAddClass({
           </select>
         </div>
 
-        <div className="flex items-center gap-3 pt-2">
+        <DialogFooter className="pt-4">
           <button
             type="submit"
             disabled={saving || !name.trim()}
@@ -124,25 +149,29 @@ export function QuickAddClass({
           >
             {saving ? t("careForm.saving") : t("common.save")}
           </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-5 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm"
-          >
-            {t("common.cancel")}
-          </button>
-        </div>
+          <DialogClose asChild>
+            <button
+              type="button"
+              disabled={saving}
+              className="px-5 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {t("common.cancel")}
+            </button>
+          </DialogClose>
+        </DialogFooter>
 
-        {/* The full form is not hidden — the drawer covers the common case, and
+        {/* The full form is not hidden — the quick dialog covers the common case, and
             anything it leaves out is one link away. */}
         <button
           type="button"
           onClick={onNeedFullForm}
-          className="text-xs text-[#2F96A6] hover:underline pt-1"
+          disabled={saving}
+          className="text-xs text-[#2F96A6] hover:underline pt-1 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {t("classes.openFullForm")}
         </button>
       </form>
-    </Drawer>
+      </DialogContent>
+    </Dialog>
   );
 }

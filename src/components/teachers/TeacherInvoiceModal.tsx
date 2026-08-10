@@ -1,7 +1,16 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import * as Dialog from "@radix-ui/react-dialog";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  closeDialogOnOpenChange,
+} from "@/components/ui/Dialog";
 import axios from "axios";
 import { useT } from "@/lib/i18n-provider";
 import { modalSessionKey } from "@/lib/modal-session";
@@ -240,24 +249,29 @@ function TeacherInvoiceModalContent({ teacherId, onClose, onIssued }: Omit<Teach
     }
   }
 
-  return (
-    <Dialog.Root open onOpenChange={(v) => !v && onClose()}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/50 z-50" />
-        <Dialog.Content
-          dir="rtl"
-          className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-white rounded-2xl shadow-modal w-full max-w-3xl max-h-[92vh] overflow-y-auto p-6 focus:outline-none animate-scale-in"
-        >
-          <Dialog.Description className="sr-only">{t("invoiceForm.ariaTitleStaff")}</Dialog.Description>
+  const dismissBlocked = generating;
 
-          <div className="flex items-center justify-between mb-5">
-            <Dialog.Title className="text-lg font-bold text-[#111111]">{t("invoiceForm.issueStaff")}</Dialog.Title>
-            <Dialog.Close asChild>
-              <button className="text-gray-400 hover:text-gray-600 text-xl font-bold w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors">
+  return (
+    <Dialog
+      open
+      onOpenChange={(nextOpen) => closeDialogOnOpenChange(nextOpen, dismissBlocked, onClose)}
+    >
+        <DialogContent dismissBlocked={dismissBlocked} className="max-w-3xl p-4 sm:p-6">
+          <DialogDescription className="sr-only">{t("invoiceForm.ariaTitleStaff")}</DialogDescription>
+
+          <DialogHeader className="mb-5 items-center">
+            <DialogTitle>{t("invoiceForm.issueStaff")}</DialogTitle>
+            <DialogClose asChild>
+              <button
+                type="button"
+                disabled={dismissBlocked}
+                aria-label={t("common.close")}
+                className="text-gray-400 hover:text-gray-600 text-xl font-bold w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+              >
                 ×
               </button>
-            </Dialog.Close>
-          </div>
+            </DialogClose>
+          </DialogHeader>
 
           {loading ? (
             <div className="flex justify-center py-12">
@@ -266,7 +280,7 @@ function TeacherInvoiceModalContent({ teacherId, onClose, onIssued }: Omit<Teach
           ) : (
             <div className="space-y-5">
               {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded mb-4 text-sm text-right">
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded mb-4 text-sm text-start">
                   {error}
                 </div>
               )}
@@ -374,10 +388,10 @@ function TeacherInvoiceModalContent({ teacherId, onClose, onIssued }: Omit<Teach
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 border-b border-gray-100 text-gray-500">
                       <tr>
-                        <th className="px-3 py-2 text-right">{t("fields.description")}</th>
-                        <th className="px-3 py-2 text-right w-28">{t("students.profile.lateHours")}</th>
-                        <th className="px-3 py-2 text-right w-24">{t("finance.price")}</th>
-                        <th className="px-3 py-2 text-right w-28">{t("fields.total")}</th>
+                        <th className="px-3 py-2 text-start">{t("fields.description")}</th>
+                        <th className="px-3 py-2 text-start w-28">{t("students.profile.lateHours")}</th>
+                        <th className="px-3 py-2 text-start w-24">{t("finance.price")}</th>
+                        <th className="px-3 py-2 text-start w-28">{t("fields.total")}</th>
                         <th className="px-3 py-2 w-8"></th>
                       </tr>
                     </thead>
@@ -466,7 +480,7 @@ function TeacherInvoiceModalContent({ teacherId, onClose, onIssued }: Omit<Teach
               </div>
 
               {/* Action buttons */}
-              <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
+              <DialogFooter className="pt-2">
                 <button
                   type="button"
                   onClick={handleGenerate}
@@ -475,18 +489,19 @@ function TeacherInvoiceModalContent({ teacherId, onClose, onIssued }: Omit<Teach
                 >
                   {generating ? t("invoiceForm.issuing") : t("invoiceForm.issueAction")}
                 </button>
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="px-5 py-2.5 border border-red-300 text-red-600 rounded-xl text-sm hover:bg-red-50 transition-colors"
-                >
-                  {t("common.cancel")}
-                </button>
-              </div>
+                <DialogClose asChild>
+                  <button
+                    type="button"
+                    disabled={dismissBlocked}
+                    className="px-5 py-2.5 border border-red-300 text-red-600 rounded-xl text-sm hover:bg-red-50 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {t("common.cancel")}
+                  </button>
+                </DialogClose>
+              </DialogFooter>
             </div>
           )}
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+        </DialogContent>
+    </Dialog>
   );
 }

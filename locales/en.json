@@ -1071,6 +1071,8 @@
   "invoiceForm": {
     "ariaTitle": "Issue an invoice for this child",
     "ariaTitleStaff": "Issue an invoice for this staff member",
+    "ariaTitleAdmin": "Issue an invoice for this nursery",
+    "issueAdmin": "Create an invoice for the nursery",
     "issue": "Issue an invoice",
     "issueStaff": "Issue an invoice — staff",
     "schoolDetails": "Nursery details",

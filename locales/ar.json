@@ -1071,6 +1071,8 @@
   "invoiceForm": {
     "ariaTitle": "نافذة إصدار فاتورة للطالب",
     "ariaTitleStaff": "نافذة إصدار فاتورة للمعلم",
+    "ariaTitleAdmin": "نافذة إصدار فاتورة للحضانة",
+    "issueAdmin": "إنشاء فاتورة للحضانة",
     "issue": "إصدار فاتورة",
     "issueStaff": "إصدار فاتورة — معلم",
     "schoolDetails": "بيانات الحضانة",

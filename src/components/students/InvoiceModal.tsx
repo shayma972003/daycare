@@ -1,7 +1,16 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import * as Dialog from "@radix-ui/react-dialog";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  closeDialogOnOpenChange,
+} from "@/components/ui/Dialog";
 import axios from "axios";
 import { useT } from "@/lib/i18n-provider";
 import { modalSessionKey } from "@/lib/modal-session";
@@ -269,24 +278,28 @@ function InvoiceModalContent({ studentId, onClose, onIssued }: Omit<InvoiceModal
   const discountAmountView = hasDiscount ? (baseTotalView * discountPercent) / 100 : 0;
   const vatAmountView = hasVat ? baseTotalView * 0.15 : 0;
   const grandTotal = baseTotalView + vatAmountView + activitiesTotalView - discountAmountView;
+  const dismissBlocked = generating;
 
   return (
-    <Dialog.Root open onOpenChange={(v) => !v && onClose()}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/50 z-50" />
-        <Dialog.Content
-          dir="rtl"
-          className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-white rounded-2xl shadow-modal w-full max-w-3xl max-h-[92vh] overflow-y-auto p-6 focus:outline-none animate-scale-in"
-        >
-          <Dialog.Description className="sr-only">{t("invoiceForm.ariaTitle")}</Dialog.Description>
-          <div className="flex items-center justify-between mb-5">
-            <Dialog.Title className="text-lg font-bold text-[#111111]">{t("invoiceForm.issue")}</Dialog.Title>
-            <Dialog.Close asChild>
-              <button className="text-gray-400 hover:text-gray-600 text-xl font-bold w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors">
+    <Dialog
+      open
+      onOpenChange={(nextOpen) => closeDialogOnOpenChange(nextOpen, dismissBlocked, onClose)}
+    >
+        <DialogContent dismissBlocked={dismissBlocked} className="max-w-3xl p-4 sm:p-6">
+          <DialogDescription className="sr-only">{t("invoiceForm.ariaTitle")}</DialogDescription>
+          <DialogHeader className="mb-5 items-center">
+            <DialogTitle>{t("invoiceForm.issue")}</DialogTitle>
+            <DialogClose asChild>
+              <button
+                type="button"
+                disabled={dismissBlocked}
+                aria-label={t("common.close")}
+                className="text-gray-400 hover:text-gray-600 text-xl font-bold w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+              >
                 ×
               </button>
-            </Dialog.Close>
-          </div>
+            </DialogClose>
+          </DialogHeader>
 
           {loading ? (
             <div className="flex justify-center py-12">
@@ -412,10 +425,10 @@ function InvoiceModalContent({ studentId, onClose, onIssued }: Omit<InvoiceModal
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 border-b border-gray-100 text-gray-500">
                       <tr>
-                        <th className="px-3 py-2 text-right">{t("fields.description")}</th>
-                        <th className="px-3 py-2 text-right w-20">{t("careForm.amount")}</th>
-                        <th className="px-3 py-2 text-right w-24">{t("finance.price")}</th>
-                        <th className="px-3 py-2 text-right w-24">{t("fields.total")}</th>
+                        <th className="px-3 py-2 text-start">{t("fields.description")}</th>
+                        <th className="px-3 py-2 text-start w-20">{t("careForm.amount")}</th>
+                        <th className="px-3 py-2 text-start w-24">{t("finance.price")}</th>
+                        <th className="px-3 py-2 text-start w-24">{t("fields.total")}</th>
                         <th className="px-3 py-2 w-8"></th>
                       </tr>
                     </thead>
@@ -502,7 +515,7 @@ function InvoiceModalContent({ studentId, onClose, onIssued }: Omit<InvoiceModal
                       )}
                       {hasVat && (
                         <tr className="border-t border-dashed border-gray-200">
-                          <td className="px-3 py-2 text-right text-sm">{t("invoiceForm.vat")}</td>
+                          <td className="px-3 py-2 text-start text-sm">{t("invoiceForm.vat")}</td>
                           <td className="px-3 py-2 text-center text-gray-300 text-sm">—</td>
                           <td className="px-3 py-2 text-center text-sm text-gray-500">15%</td>
                           <td className="px-3 py-2 text-center">
@@ -590,10 +603,10 @@ function InvoiceModalContent({ studentId, onClose, onIssued }: Omit<InvoiceModal
                         <table className="w-full text-sm">
                           <thead className="bg-gray-50 border-b border-gray-100 text-gray-500">
                             <tr>
-                              <th className="px-3 py-2 text-right">{t("fields.description")}</th>
-                              <th className="px-3 py-2 text-right w-20">{t("careForm.amount")}</th>
-                              <th className="px-3 py-2 text-right w-24">{t("finance.price")}</th>
-                              <th className="px-3 py-2 text-right w-24">{t("fields.total")}</th>
+                              <th className="px-3 py-2 text-start">{t("fields.description")}</th>
+                              <th className="px-3 py-2 text-start w-20">{t("careForm.amount")}</th>
+                              <th className="px-3 py-2 text-start w-24">{t("finance.price")}</th>
+                              <th className="px-3 py-2 text-start w-24">{t("fields.total")}</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -648,7 +661,7 @@ function InvoiceModalContent({ studentId, onClose, onIssued }: Omit<InvoiceModal
               </div>
 
               {/* Grand total */}
-              <div className="text-right space-y-1 mt-3 pt-3 border-t border-gray-100">
+              <div className="text-start space-y-1 mt-3 pt-3 border-t border-gray-100">
                 <div className="flex justify-between text-sm text-gray-500">
                   <span>{baseTotalView.toFixed(2)} {t("finance.sar")}</span>
                   <span>{t("fields.subtotal")}</span>
@@ -678,7 +691,7 @@ function InvoiceModalContent({ studentId, onClose, onIssued }: Omit<InvoiceModal
               </div>
 
               {/* Action buttons */}
-              <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
+              <DialogFooter className="pt-2">
                 <button
                   type="button"
                   onClick={handleGenerate}
@@ -687,18 +700,19 @@ function InvoiceModalContent({ studentId, onClose, onIssued }: Omit<InvoiceModal
                 >
                   {generating ? t("invoiceForm.issuing") : t("invoiceForm.issueAction")}
                 </button>
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="px-5 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-                >
-                  {t("common.cancel")}
-                </button>
-              </div>
+                <DialogClose asChild>
+                  <button
+                    type="button"
+                    disabled={dismissBlocked}
+                    className="px-5 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {t("common.cancel")}
+                  </button>
+                </DialogClose>
+              </DialogFooter>
             </div>
           )}
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+        </DialogContent>
+    </Dialog>
   );
 }

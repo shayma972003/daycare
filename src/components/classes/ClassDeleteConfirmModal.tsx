@@ -1,7 +1,16 @@
 "use client";
 
-import { useEffect } from "react";
+import { useRef } from "react";
 import { useT } from "@/lib/i18n-provider";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogTitle,
+  closeDialogOnOpenChange,
+} from "@/components/ui/Dialog";
 
 interface Props {
   isOpen: boolean;
@@ -23,85 +32,62 @@ export function ClassDeleteConfirmModal({
   onCancel,
 }: Props) {
   const t = useT();
-  useEffect(() => {
-    if (!isOpen) return;
-    document.body.style.overflow = "hidden";
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape" && !deleting) onCancel();
-    }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.body.style.overflow = "";
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isOpen, deleting, onCancel]);
+  const cancelButtonRef = useRef<HTMLButtonElement>(null);
 
   if (!isOpen) return null;
 
   return (
-    <div
-      role="presentation"
-      style={{ position: "fixed", inset: 0, zIndex: 100 }}
-      className="bg-black/40 flex items-center justify-center p-4"
-      onClick={() => {
-        if (!deleting) onCancel();
-      }}
+    <Dialog
+      open
+      onOpenChange={(nextOpen) => closeDialogOnOpenChange(nextOpen, deleting, onCancel)}
     >
-      <div
+      <DialogContent
         role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="class-delete-confirm-title"
-        dir="rtl"
-        style={{ position: "relative", zIndex: 101 }}
-        className="bg-white rounded-2xl shadow-modal p-6 w-full max-w-md text-right space-y-4 animate-scale-in"
-        onClick={(e) => e.stopPropagation()}
+        dismissBlocked={deleting}
+        className="max-w-md space-y-4 p-5 text-start sm:p-6"
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          cancelButtonRef.current?.focus();
+        }}
       >
-        {assignedStudentsCount > 0 ? (
-          <>
-            <h2 id="class-delete-confirm-title" className="text-sm font-medium text-[#111111]">
-              {t("classes.containsStudents", { n: String(assignedStudentsCount) })}
-            </h2>
-            <p className="text-sm text-gray-600 whitespace-pre-line">
-              {t("classes.deleteWarning")}
-            </p>
-          </>
-        ) : (
-          <h2 id="class-delete-confirm-title" className="text-sm font-medium text-[#111111]">
-            {t("classes.trashNotice", { name: className })}
-          </h2>
-        )}
+        <DialogTitle className="text-base">
+          {assignedStudentsCount > 0
+            ? t("classes.containsStudents", { n: String(assignedStudentsCount) })
+            : t("common.delete")}
+        </DialogTitle>
+        <DialogDescription className="whitespace-pre-line text-gray-600">
+          {assignedStudentsCount > 0
+            ? t("classes.deleteWarning")
+            : t("classes.trashNotice", { name: className })}
+        </DialogDescription>
 
         {error && (
-          <div className="p-2.5 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
+          <div role="alert" className="p-2.5 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
             {error}
           </div>
         )}
 
-        <div className="flex gap-3 justify-center pt-1">
+        <DialogFooter className="justify-center pt-3">
           <button
             type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onConfirm();
-            }}
+            onClick={onConfirm}
             disabled={deleting}
             className="px-5 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {deleting ? "..." : t("common.delete")}
           </button>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (!deleting) onCancel();
-            }}
-            disabled={deleting}
-            className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm hover:bg-gray-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            {t("common.cancel")}
-          </button>
-        </div>
-      </div>
-    </div>
+          <DialogClose asChild>
+            <button
+              ref={cancelButtonRef}
+              type="button"
+              disabled={deleting}
+              className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm hover:bg-gray-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {t("common.cancel")}
+            </button>
+          </DialogClose>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

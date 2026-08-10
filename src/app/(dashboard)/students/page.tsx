@@ -25,6 +25,16 @@ import {
   type CollectionStatus,
 } from "@/lib/collection-state";
 import { LatestRequest, type RequestTicket } from "@/lib/latest-request";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  closeDialogOnOpenChange,
+} from "@/components/ui/Dialog";
 
 type Student = {
   id: string;
@@ -151,6 +161,9 @@ export default function StudentsPage() {
   const [xlsxResult, setXlsxResult] = useState<{ added: number; failed: number; errors: string[] } | null>(null);
   const xlsxInputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const addStudentButtonRef = useRef<HTMLButtonElement>(null);
+  const bulkApplyButtonRef = useRef<HTMLButtonElement>(null);
+  const bulkActionSelectRef = useRef<HTMLSelectElement>(null);
 
   // Enrollment
   const [enrollmentModalOpen, setEnrollmentModalOpen] = useState(false);
@@ -164,14 +177,42 @@ export default function StudentsPage() {
   const [submissionsRefresh, setSubmissionsRefresh] = useState(0);
   const [submissionsExpanded, setSubmissionsExpanded] = useState(false);
   const [reviewModalSub, setReviewModalSub] = useState<EnrollmentSubmission | null>(null);
+  const [reviewModalOpen, setReviewModalOpen] = useState(false);
   const [reviewClassId, setReviewClassId] = useState("");
   const [reviewStageId, setReviewStageId] = useState("");
   const [reviewApproving, setReviewApproving] = useState(false);
   const [reviewRejecting, setReviewRejecting] = useState(false);
   const [reviewEdit, setReviewEdit] = useState<Partial<EnrollmentSubmission & { date_of_birth_str: string }>>({});
+  const reviewCancelRef = useRef<HTMLButtonElement>(null);
+  const reviewOpenerRef = useRef<HTMLButtonElement>(null);
 
-  function openReviewModal(sub: EnrollmentSubmission) {
+  function closeExtendModal() {
+    setShowExtendModal(false);
+    setNewEndDate("");
+  }
+
+  function closeEnrollmentModal() {
+    setEnrollmentModalOpen(false);
+    setEnrollEmail("");
+    setEnrollSuccess(null);
+    setEnrollError(null);
+  }
+
+  function closeReviewModal() {
+    setReviewModalOpen(false);
+  }
+
+  function resetReviewModal() {
+    setReviewModalSub(null);
+    setReviewClassId("");
+    setReviewStageId("");
+    setReviewEdit({});
+  }
+
+  function openReviewModal(sub: EnrollmentSubmission, opener: HTMLButtonElement) {
+    reviewOpenerRef.current = opener;
     setReviewModalSub(sub);
+    setReviewModalOpen(true);
     setReviewClassId("");
     setReviewStageId("");
     setReviewEdit({
@@ -393,10 +434,7 @@ export default function StudentsPage() {
         stage_id: reviewStageId || undefined,
         date_of_birth: date_of_birth_str || undefined,
       });
-      setReviewModalSub(null);
-      setReviewClassId("");
-    setReviewStageId("");
-      setReviewEdit({});
+      closeReviewModal();
       setSubmissionsRefresh((value) => value + 1);
       refreshStudents();
     } catch (err) {
@@ -411,7 +449,7 @@ export default function StudentsPage() {
     setReviewRejecting(true);
     try {
       await axios.post(`/api/enrollment/reject/${id}`);
-      setReviewModalSub(null);
+      closeReviewModal();
       setSubmissionsRefresh((value) => value + 1);
     } catch (error) {
       setOperationError(describeApiError(error, t("common.error")));
@@ -476,8 +514,7 @@ export default function StudentsPage() {
       const outcome = countedBulkOutcome(ids, response.data.updated);
       presentBulkOutcome(outcome);
       if (outcome.failed === 0) {
-        setShowExtendModal(false);
-        setNewEndDate("");
+        closeExtendModal();
       }
       refreshStudents();
     } catch (err) {
@@ -513,6 +550,7 @@ export default function StudentsPage() {
   }
 
   const studentView = collectionView(listStatus, students.length);
+  const reviewPending = reviewApproving || reviewRejecting;
 
   return (
     <div className="min-h-screen bg-brand-bg">
@@ -566,7 +604,7 @@ export default function StudentsPage() {
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
                             <button
-                              onClick={() => openReviewModal(sub)}
+                              onClick={(event) => openReviewModal(sub, event.currentTarget)}
                               className="px-3 py-1.5 text-xs bg-[#111111] text-white rounded-lg hover:bg-[#2a3460] transition-colors"
                             >
                               {t("common.review")}
@@ -637,6 +675,7 @@ export default function StudentsPage() {
           <PermissionGate anyOf={["attendance.students", "finance.manage", "students.manage"]}>
           <div className="flex items-center gap-2">
             <select
+              ref={bulkActionSelectRef}
               value={bulkAction}
               onChange={(e) => setBulkAction(e.target.value)}
               className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111111]"
@@ -671,6 +710,7 @@ export default function StudentsPage() {
             {studentBulkPermission(bulkAction) ? (
               <PermissionGate permission={studentBulkPermission(bulkAction) ?? undefined}>
                 <button
+                  ref={bulkApplyButtonRef}
                   onClick={applyBulk}
                   disabled={selected.size === 0 || bulkRunning}
                   className="px-3 py-2 bg-[#111111] text-white rounded-lg text-sm disabled:opacity-40"
@@ -680,6 +720,7 @@ export default function StudentsPage() {
               </PermissionGate>
             ) : (
               <button
+                ref={bulkApplyButtonRef}
                 disabled
                 className="px-3 py-2 bg-[#111111] text-white rounded-lg text-sm disabled:opacity-40"
               >
@@ -693,6 +734,7 @@ export default function StudentsPage() {
           <PermissionGate permission="students.manage">
           <div className="relative ms-auto" ref={dropdownRef}>
             <button
+              ref={addStudentButtonRef}
               onClick={() => setDropdownOpen(!dropdownOpen)}
               className="flex items-center gap-1 px-4 py-2 bg-[#F64651] text-white rounded-lg text-sm font-medium hover:bg-[#D93A44] transition-colors"
             >
@@ -947,19 +989,33 @@ export default function StudentsPage() {
       </div>
 
       {/* ── Extend Subscription Modal ── */}
-      {showExtendModal && (
-        <div
-          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
-          onClick={(e) => { if (e.target === e.currentTarget) setShowExtendModal(false); }}
+      <Dialog
+        open={showExtendModal}
+        onOpenChange={(nextOpen) =>
+          closeDialogOnOpenChange(nextOpen, isExtending, closeExtendModal)
+        }
+      >
+        <DialogContent
+          dismissBlocked={isExtending}
+          className="max-h-[calc(100dvh-2rem)] max-w-sm p-4 sm:p-6"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            if (bulkApplyButtonRef.current && !bulkApplyButtonRef.current.disabled) {
+              bulkApplyButtonRef.current.focus();
+            } else {
+              bulkActionSelectRef.current?.focus();
+            }
+          }}
         >
-          <div className="max-h-[calc(100dvh-2rem)] w-full max-w-sm overflow-y-auto rounded-2xl bg-white p-4 shadow-2xl sm:p-6" onClick={(e) => e.stopPropagation()}>
-            <h3 className="font-bold text-[#111111] text-start mb-4">{t("students.extendSubscription")}</h3>
-            <p className="text-sm text-gray-500 text-start mb-4">
-              {t("students.newEndDatePrompt")}
-              <span className="text-gray-400 text-xs block mt-0.5">
-                {t("students.appliesToSelected", { count: selected.size })}
-              </span>
-            </p>
+            <DialogHeader className="mb-4 flex-col gap-1">
+              <DialogTitle>{t("students.extendSubscription")}</DialogTitle>
+              <DialogDescription>
+                {t("students.newEndDatePrompt")}
+                <span className="text-gray-400 text-xs block mt-0.5">
+                  {t("students.appliesToSelected", { count: selected.size })}
+                </span>
+              </DialogDescription>
+            </DialogHeader>
             <input
               type="date"
               dir="ltr"
@@ -967,31 +1023,48 @@ export default function StudentsPage() {
               onChange={(e) => setNewEndDate(e.target.value)}
               className="w-full px-4 py-2.5 rounded-lg border border-gray-200 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-[#F64651]"
             />
-            <div className="flex gap-3 justify-start">
+            <DialogFooter className="justify-start pt-3">
+              <DialogClose asChild>
+                <button
+                  type="button"
+                  disabled={isExtending}
+                  className="px-4 py-2.5 rounded-lg border border-gray-200 text-gray-600 text-sm hover:bg-gray-50 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {t("common.cancel")}
+                </button>
+              </DialogClose>
               <button
-                onClick={() => { setShowExtendModal(false); setNewEndDate(""); }}
-                className="px-4 py-2.5 rounded-lg border border-gray-200 text-gray-600 text-sm hover:bg-gray-50 transition-colors"
-              >
-                {t("common.cancel")}
-              </button>
-              <button
+                type="button"
                 onClick={handleExtendSubscription}
                 disabled={!newEndDate || isExtending}
                 className="px-4 py-2.5 rounded-lg bg-[#F64651] text-white text-sm hover:bg-[#D93A44] disabled:opacity-50 transition-colors"
               >
                 {isExtending ? t("common.updating") : t("common.approve")}
               </button>
-            </div>
-          </div>
-        </div>
-      )}
+            </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Enrollment Send Modal ── */}
       <PermissionGate permission={ENROLLMENT_MANAGE_PERMISSION}>
-      {enrollmentModalOpen && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setEnrollmentModalOpen(false)}>
-          <div className="max-h-[calc(100dvh-2rem)] w-full max-w-sm overflow-y-auto rounded-2xl bg-white p-4 shadow-2xl sm:p-6" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-bold text-[#111111] mb-4">{t("students.sendFormTitle")}</h2>
+        <Dialog
+          open={enrollmentModalOpen}
+          onOpenChange={(nextOpen) =>
+            closeDialogOnOpenChange(nextOpen, enrollSending, closeEnrollmentModal)
+          }
+        >
+          <DialogContent
+            dismissBlocked={enrollSending}
+            className="max-h-[calc(100dvh-2rem)] max-w-sm p-4 sm:p-6"
+            onCloseAutoFocus={(event) => {
+              event.preventDefault();
+              addStudentButtonRef.current?.focus();
+            }}
+          >
+            <DialogHeader className="mb-4 flex-col gap-1">
+              <DialogTitle>{t("students.sendFormTitle")}</DialogTitle>
+              <DialogDescription>{t("students.formEmailHint")}</DialogDescription>
+            </DialogHeader>
             {enrollSuccess ? (
               <div className="text-center py-4">
                 <div className="w-14 h-14 bg-success-bg rounded-full flex items-center justify-center mx-auto mb-3">
@@ -1000,12 +1073,14 @@ export default function StudentsPage() {
                 <p className="text-sm text-gray-700 font-medium">
                   {t("students.linkSentTo")} <span dir="ltr" className="font-mono">{enrollSuccess}</span>
                 </p>
-                <button
-                  onClick={() => setEnrollmentModalOpen(false)}
-                  className="mt-4 w-full py-2.5 bg-[#111111] text-white rounded-xl text-sm font-medium"
-                >
-                  {t("common.close")}
-                </button>
+                <DialogClose asChild>
+                  <button
+                    type="button"
+                    className="mt-4 w-full py-2.5 bg-[#111111] text-white rounded-xl text-sm font-medium"
+                  >
+                    {t("common.close")}
+                  </button>
+                </DialogClose>
               </div>
             ) : (
               <>
@@ -1015,8 +1090,9 @@ export default function StudentsPage() {
                     returned nothing. The parent still gives their number inside
                     the form itself, which is unchanged. */}
                 <div className="mb-5">
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">{t("common.email")} <span className="text-red-500">*</span></label>
+                  <label htmlFor="enrollment-email" className="block text-sm font-medium text-gray-700 mb-1.5">{t("common.email")} <span className="text-red-500">*</span></label>
                   <input
+                    id="enrollment-email"
                     type="email"
                     dir="ltr"
                     value={enrollEmail}
@@ -1024,44 +1100,77 @@ export default function StudentsPage() {
                     placeholder="example@email.com"
                     className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651]"
                   />
-                  <p className="mt-1.5 text-xs text-gray-500">
-                    {t("students.formEmailHint")}
-                  </p>
                 </div>
                 {enrollError && (
-                  <p className="mb-3 text-sm text-red-600 bg-red-50 p-2.5 rounded-lg">{enrollError}</p>
+                  <p role="alert" className="mb-3 text-sm text-red-600 bg-red-50 p-2.5 rounded-lg">{enrollError}</p>
                 )}
-                <div className="flex gap-2">
+                <DialogFooter className="pt-3">
                   <button
+                    type="button"
                     onClick={sendEnrollmentForm}
                     disabled={enrollSending || !enrollEmail.trim()}
                     className="flex-1 py-2.5 bg-[#F64651] text-white rounded-xl text-sm font-medium hover:bg-[#D93A44] disabled:opacity-50 transition-colors"
                   >
                     {enrollSending ? t("common.sending") : t("students.sendLink")}
                   </button>
-                  <button
-                    onClick={() => setEnrollmentModalOpen(false)}
-                    className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm hover:bg-gray-50 transition-colors"
-                  >
-                    {t("common.cancel")}
-                  </button>
-                </div>
+                  <DialogClose asChild>
+                    <button
+                      type="button"
+                      disabled={enrollSending}
+                      className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm hover:bg-gray-50 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {t("common.cancel")}
+                    </button>
+                  </DialogClose>
+                </DialogFooter>
               </>
             )}
-          </div>
-        </div>
-      )}
+          </DialogContent>
+        </Dialog>
       </PermissionGate>
 
       {/* ── Review Submission Modal ── */}
       <PermissionGate permission={ENROLLMENT_MANAGE_PERMISSION}>
-      {reviewModalSub && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setReviewModalSub(null)}>
-          <div className="max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-4 shadow-2xl sm:p-6" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-lg font-bold text-[#111111]">{t("students.reviewRequestTitle")}</h2>
-              <button onClick={() => setReviewModalSub(null)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
-            </div>
+        <Dialog
+          open={reviewModalOpen}
+          onOpenChange={(nextOpen) =>
+            closeDialogOnOpenChange(nextOpen, reviewPending, closeReviewModal)
+          }
+        >
+        {reviewModalSub && (
+          <DialogContent
+            key={`review:${reviewModalSub.id}`}
+            dismissBlocked={reviewPending}
+            className="max-h-[calc(100dvh-2rem)] max-w-lg p-4 sm:p-6"
+            onOpenAutoFocus={(event) => {
+              event.preventDefault();
+              reviewCancelRef.current?.focus();
+            }}
+            onCloseAutoFocus={(event) => {
+              event.preventDefault();
+              resetReviewModal();
+              reviewOpenerRef.current?.focus();
+            }}
+          >
+            <DialogHeader className="mb-5 items-center">
+              <div>
+                <DialogTitle>{t("students.reviewRequestTitle")}</DialogTitle>
+                <DialogDescription className="sr-only">
+                  {t("students.studentInfo")}: {reviewModalSub.full_name}
+                </DialogDescription>
+              </div>
+              <DialogClose asChild>
+                <button
+                  ref={reviewCancelRef}
+                  type="button"
+                  disabled={reviewPending}
+                  aria-label={t("common.close")}
+                  className="text-gray-400 hover:text-gray-600 text-xl disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  ✕
+                </button>
+              </DialogClose>
+            </DialogHeader>
 
             {/* Student Info */}
             <div className="bg-gray-50 rounded-xl p-4 mb-4 space-y-3">
@@ -1212,25 +1321,27 @@ export default function StudentsPage() {
             </div>
 
             {/* Actions */}
-            <div className="flex gap-3">
+            <DialogFooter className="pt-3">
               <button
+                type="button"
                 onClick={approveSubmission}
-                disabled={reviewApproving}
+                disabled={reviewPending}
                 className="flex-1 py-3 bg-[#F64651] text-white rounded-xl text-sm font-bold hover:bg-[#D93A44] disabled:opacity-50 transition-colors"
               >
                 {reviewApproving ? t("reviewForm.accepting") : t("reviewForm.acceptAndActivate")}
               </button>
               <button
+                type="button"
                 onClick={() => rejectSubmission(reviewModalSub.id)}
-                disabled={reviewRejecting}
+                disabled={reviewPending}
                 className="flex-1 py-3 border-2 border-red-300 text-red-600 rounded-xl text-sm font-bold hover:bg-red-50 disabled:opacity-50 transition-colors"
               >
                 {reviewRejecting ? "..." : t("common.reject")}
               </button>
-            </div>
-          </div>
-        </div>
-      )}
+            </DialogFooter>
+          </DialogContent>
+        )}
+        </Dialog>
       </PermissionGate>
     </div>
   );

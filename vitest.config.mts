@@ -4,11 +4,8 @@ import { fileURLToPath } from "node:url";
 /**
  * Unit tests (tasks 0.54, 1.14ب, D3.12).
  *
- * Scope is deliberately narrow: **pure functions only**. No database, no Next.js
- * request context, no rendering. Those need a test database and a fixture story
- * of their own, and the value here is not in having many tests — it is in
- * pinning the handful of calculations that are easy to get wrong and impossible
- * to eyeball.
+ * Most tests run in Node. Component tests opt into jsdom per file so pure logic
+ * stays fast and no suite receives browser globals it does not need.
  *
  * The functions covered are the ones where a silent error costs real money or
  * real privacy: when a child's data expires, when a fee falls due, what a report
@@ -46,7 +43,7 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["tests/**/*.test.ts"],
+    include: ["tests/**/*.test.ts", "tests/**/*.test.tsx"],
     // The suite is fast on purpose; a slow suite is one nobody runs before
     // pushing.
     testTimeout: 5000,

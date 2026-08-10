@@ -18,6 +18,15 @@ import axios from "axios";
 import { describeApiError } from "@/lib/api-error";
 import { WEEKDAY_LABEL_KEYS } from "@/lib/attendance-schedule";
 import { useT } from "@/lib/i18n-provider";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogTitle,
+  closeDialogOnOpenChange,
+} from "@/components/ui/Dialog";
 
 interface Teacher {
   id: string;
@@ -217,11 +226,19 @@ export function ShiftsPanel({ teacherId }: { teacherId?: string }) {
       </div>
 
       {editing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-xs space-y-4">
-            <h3 className="font-bold text-[#111111]">
+        <Dialog
+          open
+          onOpenChange={(nextOpen) =>
+            closeDialogOnOpenChange(nextOpen, saving, () => setEditing(null))
+          }
+        >
+          <DialogContent dismissBlocked={saving} overlayClassName="bg-black/40" className="max-w-xs space-y-4 p-6">
+            <DialogTitle>
               {data?.teachers.find((t) => t.id === editing.teacherId)?.name} — {editing.date}
-            </h3>
+            </DialogTitle>
+            <DialogDescription className="sr-only">
+              {t("shifts.editDescription")}
+            </DialogDescription>
 
             <div>
               <label className="block text-xs text-gray-500 mb-1">{t("common.from")}</label>
@@ -247,8 +264,9 @@ export function ShiftsPanel({ teacherId }: { teacherId?: string }) {
               />
             </div>
 
-            <div className="flex gap-2 pt-1">
+            <DialogFooter className="pt-3">
               <button
+                type="button"
                 onClick={save}
                 disabled={saving}
                 className="flex-1 px-4 py-2.5 bg-[#2F96A6] text-white rounded-xl text-sm font-medium hover:bg-[#26808e] disabled:opacity-60"
@@ -257,6 +275,7 @@ export function ShiftsPanel({ teacherId }: { teacherId?: string }) {
               </button>
               {shiftFor(editing.teacherId, editing.date) && (
                 <button
+                  type="button"
                   onClick={remove}
                   disabled={saving}
                   className="px-4 py-2.5 border border-red-200 text-red-600 rounded-xl text-sm hover:bg-red-50"
@@ -264,15 +283,18 @@ export function ShiftsPanel({ teacherId }: { teacherId?: string }) {
                   {t("common.delete")}
                 </button>
               )}
-              <button
-                onClick={() => setEditing(null)}
-                className="px-4 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm"
-              >
-                {t("common.cancel")}
-              </button>
-            </div>
-          </div>
-        </div>
+              <DialogClose asChild>
+                <button
+                  type="button"
+                  disabled={saving}
+                  className="px-4 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {t("common.cancel")}
+                </button>
+              </DialogClose>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
     </>
   );

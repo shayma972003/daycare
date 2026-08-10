@@ -681,6 +681,7 @@
     "deleteFailed": "Could not delete the event",
     "editEvent": "Edit event",
     "newEvent": "New event",
+    "dialogDescription": "Create or edit a calendar entry and its schedule.",
     "allClassesHint": "(leave empty = all classes)",
     "allDay": "All day",
     "typeLESSON": "Lesson",
@@ -721,6 +722,7 @@
     "loadFailed": "Could not load the shifts",
     "saveFailed": "Could not save the shift",
     "deleteFailed": "Could not delete the shift",
+    "editDescription": "Edit the start and end time for this shift.",
     "noActiveStaff": "No active staff",
     "manage": "Rota",
     "forThisTeacher": "This week's shifts"

@@ -68,6 +68,8 @@ interface ActivityFormModalProps {
   onClose: () => void;
   activity: Activity | null;
   onSaved: () => void;
+  /** Lets an embedding dialog block dismissal while this form is mutating. */
+  onDismissBlockedChange?: (blocked: boolean) => void;
   /**
    * Renders the fields alone, with no dialog around them.
    *
@@ -86,6 +88,7 @@ export function ActivityFormModal({
   activity,
   onSaved,
   embedded,
+  onDismissBlockedChange,
 }: ActivityFormModalProps) {
   // Locale-aware translation — see src/lib/i18n.tsx.
   const t = useT();
@@ -391,6 +394,19 @@ export function ActivityFormModal({
       setDeleting(false);
     }
   };
+
+  const dismissBlocked = saving || uploadingImage || sending || deleting;
+
+  useEffect(() => {
+    onDismissBlockedChange?.(dismissBlocked);
+  }, [dismissBlocked, onDismissBlockedChange]);
+
+  useEffect(
+    () => () => {
+      onDismissBlockedChange?.(false);
+    },
+    [onDismissBlockedChange]
+  );
 
   const body = (
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -723,8 +739,6 @@ export function ActivityFormModal({
 
   // Embedded: the caller supplies the dialog and the heading.
   if (embedded) return body;
-
-  const dismissBlocked = saving || uploadingImage || sending || deleting;
 
   return (
     <Dialog

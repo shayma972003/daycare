@@ -681,6 +681,7 @@
     "deleteFailed": "تعذر حذف الحدث",
     "editEvent": "تعديل الحدث",
     "newEvent": "حدث جديد",
+    "dialogDescription": "إنشاء أو تعديل حدث وموعده في التقويم.",
     "allClassesHint": "(بدون تحديد = كل الفصول)",
     "allDay": "طوال اليوم",
     "typeLESSON": "درس",
@@ -721,6 +722,7 @@
     "loadFailed": "تعذر تحميل المناوبات",
     "saveFailed": "تعذر حفظ المناوبة",
     "deleteFailed": "تعذر حذف المناوبة",
+    "editDescription": "تعديل وقت بداية المناوبة ونهايتها.",
     "noActiveStaff": "لا يوجد طاقم نشط",
     "manage": "المناوبات",
     "forThisTeacher": "مناوبات هذا الأسبوع"

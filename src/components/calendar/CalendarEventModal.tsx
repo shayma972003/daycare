@@ -18,6 +18,16 @@ import { useT } from "@/lib/i18n-provider";
 import { ActivityFormModal } from "@/components/activities/ActivityFormModal";
 import type { Activity as ActivityRecord } from "@/components/activities/ActivityGrid";
 import { PermissionGate } from "@/components/auth/PermissionGate";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  closeDialogOnOpenChange,
+} from "@/components/ui/Dialog";
 
 interface EventRow {
   id: string;
@@ -46,15 +56,7 @@ const toInput = astInputValue;
 const inputCls =
   "w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2F96A6]";
 
-export function CalendarEventModal({
-  event,
-  activity,
-  defaultDate,
-  classes,
-  teachers,
-  onClose,
-  onSaved,
-}: {
+interface CalendarEventModalProps {
   event: EventRow | null;
   /**
    * An existing programme to edit, opened from the calendar.
@@ -71,7 +73,27 @@ export function CalendarEventModal({
   teachers: Option[];
   onClose: () => void;
   onSaved: () => void;
-}) {
+}
+
+export function CalendarEventModal(props: CalendarEventModalProps) {
+  const sessionKey = props.event
+    ? `event:${props.event.id}`
+    : props.activity
+      ? `activity:${props.activity.id}`
+      : `new:${props.defaultDate.toISOString()}`;
+
+  return <CalendarEventModalContent key={sessionKey} {...props} />;
+}
+
+function CalendarEventModalContent({
+  event,
+  activity,
+  defaultDate,
+  classes,
+  teachers,
+  onClose,
+  onSaved,
+}: CalendarEventModalProps) {
   const t = useT();
   const isEdit = Boolean(event) || Boolean(activity);
 
@@ -93,6 +115,7 @@ export function CalendarEventModal({
   const [classIds, setClassIds] = useState<string[]>(event?.classIds ?? []);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [embeddedDismissBlocked, setEmbeddedDismissBlocked] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const isAnnouncement = type === "ANNOUNCEMENT";
@@ -146,20 +169,36 @@ export function CalendarEventModal({
     }
   }
 
+  const dismissBlocked = saving || deleting || embeddedDismissBlocked;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4">
-      <div
-        className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:max-w-md max-h-[92vh] overflow-y-auto"
-        dir="rtl"
+    <Dialog
+      open
+      onOpenChange={(nextOpen) => closeDialogOnOpenChange(nextOpen, dismissBlocked, onClose)}
+    >
+      <DialogContent
+        dismissBlocked={dismissBlocked}
+        overlayClassName="bg-black/40"
+        className="inset-x-0 bottom-0 top-auto mx-0 w-full max-w-none translate-y-0 rounded-b-none rounded-t-2xl p-0 sm:inset-x-4 sm:bottom-auto sm:top-1/2 sm:mx-auto sm:max-w-md sm:-translate-y-1/2 sm:rounded-2xl"
       >
-        <div className="sticky top-0 bg-white border-b border-gray-100 px-5 py-4 flex items-center">
-          <h3 className="font-bold text-[#111111] flex-1">
+        <DialogHeader className="sticky top-0 z-10 items-center border-b border-gray-100 bg-white px-5 py-4">
+          <DialogTitle className="flex-1">
             {isEdit ? t("calendar.editEvent") : t("calendar.newEvent")}
-          </h3>
-          <button onClick={onClose} className="text-gray-400 text-xl leading-none px-2">
-            ×
-          </button>
-        </div>
+          </DialogTitle>
+          <DialogDescription className="sr-only">
+            {t("calendar.dialogDescription")}
+          </DialogDescription>
+          <DialogClose asChild>
+            <button
+              type="button"
+              disabled={dismissBlocked}
+              aria-label={t("common.close")}
+              className="text-gray-400 text-xl leading-none px-2 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              ×
+            </button>
+          </DialogClose>
+        </DialogHeader>
 
         <div className="p-5 space-y-4">
           {error && (
@@ -228,6 +267,7 @@ export function CalendarEventModal({
               activity={activity ?? null}
               onClose={onClose}
               onSaved={onSaved}
+              onDismissBlockedChange={setEmbeddedDismissBlocked}
             />
           </div>
 
@@ -336,13 +376,14 @@ export function CalendarEventModal({
           </div>
         </div>
 
-        <div
-          className={`sticky bottom-0 bg-white border-t border-gray-100 px-5 py-4 flex gap-3 ${
+        <DialogFooter
+          className={`sticky bottom-0 bg-white px-5 py-4 ${
             programme ? "hidden" : ""
           }`}
         >
           <PermissionGate permission="schedule.manage">
             <button
+              type="button"
               onClick={submit}
               disabled={saving || !title.trim() || !startAt}
               className="flex-1 px-5 py-3 bg-[#2F96A6] text-white rounded-xl text-sm font-bold hover:bg-[#26808e] disabled:opacity-60"
@@ -353,6 +394,7 @@ export function CalendarEventModal({
           {isEdit && (
             <PermissionGate permission="schedule.delete">
               <button
+                type="button"
                 onClick={remove}
                 disabled={deleting}
                 className="px-5 py-3 border border-red-200 text-red-600 rounded-xl text-sm hover:bg-red-50 disabled:opacity-60"
@@ -361,14 +403,17 @@ export function CalendarEventModal({
               </button>
             </PermissionGate>
           )}
-          <button
-            onClick={onClose}
-            className="px-5 py-3 border border-gray-200 text-gray-600 rounded-xl text-sm"
-          >
-            {t("common.cancel")}
-          </button>
-        </div>
-      </div>
-    </div>
+          <DialogClose asChild>
+            <button
+              type="button"
+              disabled={dismissBlocked}
+              className="px-5 py-3 border border-gray-200 text-gray-600 rounded-xl text-sm disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {t("common.cancel")}
+            </button>
+          </DialogClose>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

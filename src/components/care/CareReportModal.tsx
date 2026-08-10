@@ -26,6 +26,16 @@ import {
 } from "@/lib/care-reports";
 import type { CareReportType } from "@/generated/prisma/enums";
 import { useT } from "@/lib/i18n-provider";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  closeDialogOnOpenChange,
+} from "@/components/ui/Dialog";
 
 interface Props {
   type: CareReportType;
@@ -47,6 +57,27 @@ const inputCls =
   "w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2F96A6]";
 
 export function CareReportModal({
+  type,
+  studentIds,
+  studentLabel,
+  onClose,
+  onSaved,
+}: Props) {
+  const sessionKey = `${type}:${studentIds.join(",")}`;
+
+  return (
+    <CareReportModalContent
+      key={sessionKey}
+      type={type}
+      studentIds={studentIds}
+      studentLabel={studentLabel}
+      onClose={onClose}
+      onSaved={onSaved}
+    />
+  );
+}
+
+function CareReportModalContent({
   type,
   studentIds,
   studentLabel,
@@ -140,24 +171,37 @@ export function CareReportModal({
     }
   }
 
+  const dismissBlocked = saving || uploading;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4">
+    <Dialog
+      open
+      onOpenChange={(nextOpen) => closeDialogOnOpenChange(nextOpen, dismissBlocked, onClose)}
+    >
       {/* Bottom sheet on a phone, centred dialog on a desktop — the teacher's
           screen is the phone. */}
-      <div
-        className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:max-w-md max-h-[92vh] overflow-y-auto"
-        dir="rtl"
+      <DialogContent
+        dismissBlocked={dismissBlocked}
+        overlayClassName="bg-black/40"
+        className="inset-x-0 bottom-0 top-auto mx-0 w-full max-w-none translate-y-0 rounded-b-none rounded-t-2xl p-0 sm:inset-x-4 sm:bottom-auto sm:top-1/2 sm:mx-auto sm:max-w-md sm:-translate-y-1/2 sm:rounded-2xl"
       >
-        <div className="sticky top-0 bg-white border-b border-gray-100 px-5 py-4 flex items-center gap-3">
+        <DialogHeader className="sticky top-0 z-10 items-center border-b border-gray-100 bg-white px-5 py-4">
           <Icon name={CARE_TYPE_ICON_NAMES[type]} size={24} className={CARE_TYPE_COLORS[type]} />
           <div className="flex-1">
-            <h3 className="font-bold text-[#111111]">{t(CARE_TYPE_LABEL_KEYS[type])}</h3>
-            <p className="text-xs text-gray-500">{studentLabel}</p>
+            <DialogTitle>{t(CARE_TYPE_LABEL_KEYS[type])}</DialogTitle>
+            <DialogDescription className="text-xs">{studentLabel}</DialogDescription>
           </div>
-          <button onClick={onClose} className="text-gray-400 text-xl leading-none px-2">
-            ×
-          </button>
-        </div>
+          <DialogClose asChild>
+            <button
+              type="button"
+              disabled={dismissBlocked}
+              aria-label={t("common.close")}
+              className="text-gray-400 text-xl leading-none px-2 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              ×
+            </button>
+          </DialogClose>
+        </DialogHeader>
 
         <div className="p-5 space-y-4">
           {error && (
@@ -406,23 +450,27 @@ export function CareReportModal({
           )}
         </div>
 
-        <div className="sticky bottom-0 bg-white border-t border-gray-100 px-5 py-4 flex gap-3">
+        <DialogFooter className="sticky bottom-0 bg-white px-5 py-4">
           <button
+            type="button"
             onClick={submit}
-            disabled={saving}
+            disabled={dismissBlocked}
             className="flex-1 px-5 py-3 bg-[#2F96A6] text-white rounded-xl text-sm font-bold hover:bg-[#26808e] disabled:opacity-60"
           >
             {saving ? t("careForm.saving") : t("careForm.submit")}
           </button>
-          <button
-            onClick={onClose}
-            className="px-5 py-3 border border-gray-200 text-gray-600 rounded-xl text-sm"
-          >
-            {t("common.cancel")}
-          </button>
-        </div>
-      </div>
-    </div>
+          <DialogClose asChild>
+            <button
+              type="button"
+              disabled={dismissBlocked}
+              className="px-5 py-3 border border-gray-200 text-gray-600 rounded-xl text-sm disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {t("common.cancel")}
+            </button>
+          </DialogClose>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

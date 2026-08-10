@@ -18,11 +18,19 @@
  * the part of it a thumb reaches.
  */
 
-import { useEffect } from "react";
 import { CARE_REPORT_TYPES, CARE_TYPE_LABEL_KEYS, CARE_TYPE_COLORS } from "@/lib/care-reports";
 import { Icon, CARE_TYPE_ICON_NAMES } from "@/components/ui/Icon";
 import { useT } from "@/lib/i18n-provider";
 import type { CareReportType } from "@/generated/prisma/enums";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  closeDialogOnOpenChange,
+} from "@/components/ui/Dialog";
 
 export function QuickCareSheet({
   childName,
@@ -35,51 +43,37 @@ export function QuickCareSheet({
 }) {
   const t = useT();
 
-  // Escape closes it, and the body does not scroll behind it.
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", onKey);
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = previous;
-    };
-  }, [onClose]);
-
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center sm:justify-center">
-      <div
-        className="absolute inset-0 bg-black/40"
-        onClick={onClose}
-        aria-hidden
-      />
-
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={t("care.quickFor", { name: childName })}
-        className="relative w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl p-5 pb-7 sm:pb-5 space-y-4 shadow-modal animate-[slideUp_.18s_ease-out]"
+    <Dialog open onOpenChange={(nextOpen) => closeDialogOnOpenChange(nextOpen, false, onClose)}>
+      <DialogContent
+        overlayClassName="bg-black/40"
+        className="inset-x-0 bottom-0 top-auto mx-0 w-full max-w-none translate-y-0 rounded-b-none rounded-t-2xl p-5 pb-7 animate-[slideUp_.18s_ease-out] sm:inset-x-4 sm:bottom-auto sm:top-1/2 sm:mx-auto sm:max-w-md sm:-translate-y-1/2 sm:rounded-2xl sm:pb-5"
       >
         {/* The grab handle is the affordance that says "drag me down" on a phone. */}
         <div aria-hidden className="sm:hidden w-10 h-1 rounded-full bg-gray-200 mx-auto" />
 
-        <div className="flex items-baseline justify-between gap-3">
-          <h3 className="font-bold text-[#111111]">{childName}</h3>
-          <button
-            onClick={onClose}
-            className="text-sm text-gray-400 hover:text-gray-600 px-2 py-1"
-          >
-            {t("common.close")}
-          </button>
-        </div>
+        <DialogHeader className="mt-4 items-baseline">
+          <div>
+            <DialogTitle>{childName}</DialogTitle>
+            <DialogDescription className="sr-only">
+              {t("care.quickFor", { name: childName })}
+            </DialogDescription>
+          </div>
+          <DialogClose asChild>
+            <button
+              type="button"
+              className="text-sm text-gray-400 hover:text-gray-600 px-2 py-1"
+            >
+              {t("common.close")}
+            </button>
+          </DialogClose>
+        </DialogHeader>
 
         <div className="grid grid-cols-4 gap-2">
           {CARE_REPORT_TYPES.map((type) => (
             <button
               key={type}
+              type="button"
               onClick={() => onPick(type)}
               className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-gray-100 hover:border-[#2F96A6] hover:bg-[#E0F7FA] active:bg-[#E0F7FA] transition-all"
             >
@@ -90,7 +84,7 @@ export function QuickCareSheet({
             </button>
           ))}
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -650,7 +650,7 @@ model Shift {
 /// column here and a line there rather than a reinterpretation of one total.
 model StorageUsage {
   schoolId String @id
-  school   School @relation(fields: [schoolId], references: [id])
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   studentFilesBytes Int @default(0)
   careReportBytes   Int @default(0)
@@ -848,7 +848,7 @@ model School {
   /// never on `id`, so a reporting query cannot reach back into operational
   /// rows. NOTE: because it lives beside the real id in the same database this
   /// is pseudonymisation, not anonymisation — the data is still personal data.
-  analyticsId String @unique @default(uuid())
+  analyticsId String @unique @default(dbgenerated("(gen_random_uuid())::text"))
 
   /// Operational
   name      String
@@ -1362,14 +1362,16 @@ model Class {
   attendances     Attendance[]
 
   @@index([schoolId, deletedAt])
+  @@index([schoolId, archivedAt])
   @@index([teacherId])
+  @@index([stageId])
 }
 
 model Teacher {
   id String @id @default(cuid())
 
   /// Analytics — pseudonymous handle; see the note on School.analyticsId.
-  analyticsId String @unique @default(uuid())
+  analyticsId String @unique @default(dbgenerated("(gen_random_uuid())::text"))
 
   /// PII
   name     String
@@ -1531,7 +1533,7 @@ model Student {
   id String @id @default(cuid())
 
   /// Analytics — pseudonymous handle; see the note on School.analyticsId.
-  analyticsId String @unique @default(uuid())
+  analyticsId String @unique @default(dbgenerated("(gen_random_uuid())::text"))
 
   /// PII
   name       String
@@ -1649,6 +1651,7 @@ model Student {
   @@index([schoolId, deletedAt])
   @@index([schoolId, isActive])
   @@index([classId])
+  @@index([stageId])
   /// Drives the nightly sweep: due records only, already-anonymised skipped.
   @@index([retentionUntil, anonymizedAt])
   @@index([schoolId, status])
@@ -1681,6 +1684,7 @@ model Activity {
   activityInvites ActivityInvite[]
 
   @@index([schoolId])
+  @@index([stageId])
 }
 
 model ActivityInvite {

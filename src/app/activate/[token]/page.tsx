@@ -2,36 +2,31 @@
 
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import axios from "axios";
 import { PasswordRules, meetsRequiredRules } from "@/components/ui/PasswordRules";
 import { PASSWORD_MIN_MESSAGE } from "@/lib/password-policy";
+import { useLocale } from "@/lib/i18n-provider";
 
-/**
- * Redeeming an invitation.
- *
- * One page for both kinds of account — a teacher and a parent arrive here the
- * same way and do the same thing. Only the closing line differs, because what
- * they do next differs: staff carry on to the dashboard, parents to the app.
- *
- * Deliberately not translated through `useT`: the recipient has never signed in,
- * so there is no locale cookie to read and no settings screen where they could
- * have chosen one. Arabic is the product's default and this page is three
- * sentences long.
- */
 interface Invite {
-  kind: "staff" | "guardian";
+  kind: "school_admin" | "staff" | "guardian";
   name: string;
   email: string;
   schoolName: string;
 }
 
-export default function ActivatePage({ params }: { params: Promise<{ token: string }> }) {
+export default function ActivatePage({
+  params,
+}: {
+  params: Promise<{ token: string }>;
+}) {
   const { token } = use(params);
+  const router = useRouter();
+  const { t } = useLocale();
 
   const [invite, setInvite] = useState<Invite | null>(null);
   const [checking, setChecking] = useState(true);
   const [invalid, setInvalid] = useState(false);
-
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [show, setShow] = useState(false);
@@ -39,32 +34,36 @@ export default function ActivatePage({ params }: { params: Promise<{ token: stri
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
 
-  // Checked before the form is drawn: asking someone to choose a password and
-  // only then telling them the link expired is the wrong order.
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
+
     axios
-      .get<Invite>(`/api/activate/${encodeURIComponent(token)}`)
-      .then((res) => {
-        if (!cancelled) setInvite(res.data);
+      .get<Invite>(`/api/activate/${encodeURIComponent(token)}`, {
+        signal: controller.signal,
       })
-      .catch(() => {
-        if (!cancelled) setInvalid(true);
+      .then((response) => setInvite(response.data))
+      .catch((requestError) => {
+        if (!axios.isCancel(requestError)) setInvalid(true);
       })
       .finally(() => {
-        if (!cancelled) setChecking(false);
+        if (!controller.signal.aborted) setChecking(false);
       });
-    return () => {
-      cancelled = true;
-    };
+
+    return () => controller.abort();
   }, [token]);
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
+  useEffect(() => {
+    if (!done || invite?.kind !== "school_admin") return;
+    const redirect = window.setTimeout(() => router.replace("/login"), 1500);
+    return () => window.clearTimeout(redirect);
+  }, [done, invite?.kind, router]);
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
     setError("");
 
     if (password !== confirm) {
-      setError("كلمتا المرور غير متطابقتين");
+      setError(t("activation.passwordsDiffer"));
       return;
     }
     if (!meetsRequiredRules(password)) {
@@ -76,125 +75,152 @@ export default function ActivatePage({ params }: { params: Promise<{ token: stri
     try {
       await axios.post(`/api/activate/${encodeURIComponent(token)}`, { password });
       setDone(true);
-    } catch (err) {
+    } catch (requestError) {
       setError(
-        axios.isAxiosError(err)
-          ? err.response?.data?.error ?? "تعذّر إكمال العملية"
-          : "تعذّر إكمال العملية"
+        axios.isAxiosError(requestError)
+          ? requestError.response?.data?.error ?? t("activation.genericError")
+          : t("activation.genericError")
       );
       setSaving(false);
     }
   }
 
+  const invitationTitle =
+    invite?.kind === "school_admin"
+      ? t("activation.schoolAdminTitle")
+      : invite?.kind === "guardian"
+        ? t("activation.guardianTitle")
+        : t("activation.staffTitle");
+
+  const invitationBody =
+    invite?.kind === "school_admin"
+      ? t("activation.schoolAdminBody", { school: invite.schoolName })
+      : invite?.kind === "guardian"
+        ? t("activation.guardianBody", { school: invite.schoolName })
+        : t("activation.staffBody", { school: invite?.schoolName ?? "" });
+
   return (
-    <div dir="rtl" className="min-h-screen bg-[#1a2340] flex items-center justify-center p-4">
+    <main className="flex min-h-screen items-center justify-center bg-[#1a2340] p-4">
       <div className="w-full max-w-md">
-        <div className="flex flex-col items-center mb-8 gap-3">
-          <div className="w-16 h-16 bg-white/10 rounded-2xl border-2 border-white/20" />
-          <h1 className="text-white text-xl font-bold tracking-wide">نظام إدارة الحضانة</h1>
+        <div className="mb-8 flex flex-col items-center gap-3">
+          <div className="h-16 w-16 rounded-2xl border-2 border-white/20 bg-white/10" />
+          <h1 className="text-xl font-bold tracking-wide text-white">
+            {t("activation.productName")}
+          </h1>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-2xl p-8">
+        <section className="rounded-2xl bg-white p-6 shadow-2xl sm:p-8">
           {checking ? (
-            <p className="text-center text-sm text-gray-500 py-6">جارٍ التحقق من الدعوة…</p>
+            <p role="status" className="py-6 text-center text-sm text-gray-500">
+              {t("activation.checking")}
+            </p>
           ) : invalid ? (
-            <div className="text-center space-y-4">
-              <h2 className="text-lg font-bold text-[#1a2340]">الدعوة غير صالحة</h2>
-              <p className="text-sm text-gray-500 leading-relaxed">
-                قد يكون الرابط منتهي الصلاحية أو مستخدَماً من قبل. اطلبي من الحضانة إعادة إرسال
-                الدعوة.
+            <div className="space-y-4 text-center">
+              <h2 className="text-lg font-bold text-[#1a2340]">
+                {t("activation.invalidTitle")}
+              </h2>
+              <p className="text-sm leading-relaxed text-gray-500">
+                {t("activation.invalidBody")}
               </p>
               <Link href="/login" className="inline-block text-sm text-[#1a2340] underline">
-                تسجيل الدخول
+                {t("activation.signIn")}
               </Link>
             </div>
           ) : done ? (
-            <div className="text-center space-y-4">
-              <h2 className="text-lg font-bold text-[#1a2340]">تم تفعيل حسابك</h2>
-              {/* The next step is not the same for both, so it is not phrased as
-                  if it were. */}
-              <p className="text-sm text-gray-500 leading-relaxed">
+            <div className="space-y-4 text-center">
+              <h2 className="text-lg font-bold text-[#1a2340]">
+                {t("activation.successTitle")}
+              </h2>
+              <p className="text-sm leading-relaxed text-gray-500">
                 {invite?.kind === "guardian"
-                  ? "افتحي التطبيق وسجّلي الدخول ببريدك وكلمة المرور التي اخترتِها."
-                  : "يمكنك الآن تسجيل الدخول ببريدك وكلمة المرور التي اخترتِها."}
+                  ? t("activation.guardianSuccessBody")
+                  : t("activation.successBody")}
               </p>
-              {invite?.kind === "staff" && (
+              {invite?.kind !== "guardian" && (
+                <p role="status" className="text-xs text-gray-400">
+                  {t("activation.redirecting")}
+                </p>
+              )}
+              {invite?.kind !== "guardian" && (
                 <Link
                   href="/login"
-                  className="inline-block w-full py-3 bg-[#22c55e] hover:bg-[#16a34a] text-white rounded-xl font-bold text-sm transition-all"
+                  className="inline-block w-full rounded-xl bg-[#22c55e] py-3 text-sm font-bold text-white transition-all hover:bg-[#16a34a]"
                 >
-                  تسجيل الدخول
+                  {t("activation.signIn")}
                 </Link>
               )}
             </div>
           ) : (
             <>
-              <h2 className="text-lg font-bold text-[#1a2340] mb-2 text-center">
-                مرحباً {invite?.name}
+              <p className="mb-2 text-center text-sm font-semibold text-[#16a34a]">
+                {invitationTitle}
+              </p>
+              <h2 className="mb-2 text-center text-lg font-bold text-[#1a2340]">
+                {t("activation.welcome", { name: invite?.name ?? "" })}
               </h2>
-              <p className="text-sm text-gray-500 text-center mb-6 leading-relaxed">
-                دعتك {invite?.schoolName || "الحضانة"} لإنشاء حسابك. اختاري كلمة مرور للدخول.
+              <p className="mb-6 text-center text-sm leading-relaxed text-gray-500">
+                {invitationBody}
               </p>
 
               <form onSubmit={submit} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    البريد الإلكتروني
+                  <label htmlFor="activation-email" className="mb-1.5 block text-sm font-medium text-gray-700">
+                    {t("activation.email")}
                   </label>
-                  {/* Shown, not editable: it is the identity the invitation was
-                      issued against, and changing it here would mean anyone with
-                      the link could point the account elsewhere. */}
                   <input
+                    id="activation-email"
                     type="email"
                     value={invite?.email ?? ""}
                     readOnly
                     dir="ltr"
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-500 text-sm"
+                    className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-500"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    كلمة المرور
+                  <label htmlFor="activation-password" className="mb-1.5 block text-sm font-medium text-gray-700">
+                    {t("activation.password")}
                   </label>
                   <div className="relative">
                     <input
+                      id="activation-password"
                       type={show ? "text" : "password"}
                       value={password}
-                      onChange={(e) => setPassword(e.target.value)}
+                      onChange={(event) => setPassword(event.target.value)}
                       required
-                      placeholder="••••••••"
+                      autoComplete="new-password"
                       dir="ltr"
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] text-sm transition-all pr-12"
+                      className="w-full rounded-xl border border-gray-200 px-4 py-3 pe-12 text-sm transition-all focus:outline-none focus:ring-2 focus:ring-[#1a2340]"
                     />
                     <button
                       type="button"
-                      onClick={() => setShow((v) => !v)}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs font-medium"
+                      onClick={() => setShow((current) => !current)}
+                      className="absolute end-3 top-1/2 -translate-y-1/2 text-xs font-medium text-gray-400 hover:text-gray-600"
                     >
-                      {show ? "إخفاء" : "إظهار"}
+                      {show ? t("activation.hide") : t("activation.show")}
                     </button>
                   </div>
                   <PasswordRules value={password} />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    تأكيد كلمة المرور
+                  <label htmlFor="activation-confirm" className="mb-1.5 block text-sm font-medium text-gray-700">
+                    {t("activation.confirmPassword")}
                   </label>
                   <input
+                    id="activation-confirm"
                     type={show ? "text" : "password"}
                     value={confirm}
-                    onChange={(e) => setConfirm(e.target.value)}
+                    onChange={(event) => setConfirm(event.target.value)}
                     required
-                    placeholder="••••••••"
+                    autoComplete="new-password"
                     dir="ltr"
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] text-sm transition-all"
+                    className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm transition-all focus:outline-none focus:ring-2 focus:ring-[#1a2340]"
                   />
                 </div>
 
                 {error && (
-                  <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 text-center">
+                  <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-center text-sm text-red-700">
                     {error}
                   </div>
                 )}
@@ -202,15 +228,15 @@ export default function ActivatePage({ params }: { params: Promise<{ token: stri
                 <button
                   type="submit"
                   disabled={saving}
-                  className="w-full py-3 bg-[#22c55e] hover:bg-[#16a34a] text-white rounded-xl font-bold text-sm transition-all disabled:opacity-60"
+                  className="w-full rounded-xl bg-[#22c55e] py-3 text-sm font-bold text-white transition-all hover:bg-[#16a34a] disabled:opacity-60"
                 >
-                  {saving ? "جارٍ الحفظ…" : "تعيين كلمة المرور"}
+                  {saving ? t("activation.saving") : t("activation.save")}
                 </button>
               </form>
             </>
           )}
-        </div>
+        </section>
       </div>
-    </div>
+    </main>
   );
 }

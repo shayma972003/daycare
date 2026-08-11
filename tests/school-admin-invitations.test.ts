@@ -125,7 +125,7 @@ afterEach(() => {
 describe("school administrator invitation state", () => {
   it("accepts a valid invitation and rejects expired, used, and revoked states identically", async () => {
     await expect(findSchoolAdminInvite(TOKEN)).resolves.toEqual({
-      kind: "staff",
+      kind: "school_admin",
       name: "Owner",
       email: "owner@example.com",
       schoolName: "School One",
@@ -160,7 +160,7 @@ describe("atomic school administrator activation", () => {
     const result = await redeemSchoolAdminInvite(TOKEN, "new-password");
 
     expect(result).toEqual({
-      kind: "staff",
+      kind: "school_admin",
       name: "Owner",
       email: "owner@example.com",
       schoolName: "School One",

@@ -30,7 +30,7 @@ import { GET, POST } from "@/app/api/activate/[token]/route";
 
 const TOKEN = "B".repeat(32);
 const subject = {
-  kind: "staff" as const,
+  kind: "school_admin" as const,
   name: "Owner",
   email: "owner@example.com",
   schoolName: "School One",
@@ -101,7 +101,7 @@ describe("public school administrator invitation routes", () => {
       TOKEN,
       "valid-password"
     );
-    expect(result).toEqual({ kind: "staff", email: "owner@example.com" });
+    expect(result).toEqual({ kind: "school_admin", email: "owner@example.com" });
     expect(JSON.stringify(result)).not.toMatch(/token|hash|password/i);
   });
 

@@ -4,7 +4,7 @@ import { hashInviteToken, mintInvite } from "@/lib/invitations";
 import { BCRYPT_COST } from "@/lib/password-policy";
 
 export interface SchoolAdminInviteView {
-  kind: "staff";
+  kind: "school_admin";
   name: string;
   email: string;
   schoolName: string;
@@ -80,7 +80,7 @@ export async function findSchoolAdminInvite(
   if (!invitation || !isUsable(invitation, new Date())) return null;
 
   return {
-    kind: "staff",
+    kind: "school_admin",
     name: invitation.user.name,
     email: invitation.user.email,
     schoolName: invitation.school.name,
@@ -192,7 +192,7 @@ export async function redeemSchoolAdminInvite(
       });
 
       return {
-        kind: "staff" as const,
+        kind: "school_admin" as const,
         name: invitation.user.name,
         email: invitation.user.email,
         schoolName: invitation.school.name,
@@ -268,7 +268,7 @@ export async function rotateSchoolAdminInvite(
     });
 
     return {
-      kind: "staff" as const,
+      kind: "school_admin" as const,
       token: minted.token,
       expiresAt: minted.expiresAt,
       userId: owner.id,

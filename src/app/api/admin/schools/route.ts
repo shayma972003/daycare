@@ -5,6 +5,29 @@ import { z } from "zod";
 import { mintInvite } from "@/lib/invitations";
 import { env } from "@/lib/env";
 
+export type SchoolAdminInvitationStatus =
+  | "active"
+  | "pending"
+  | "expired"
+  | "revoked"
+  | "none";
+
+export function schoolAdminInvitationStatus(input: {
+  acceptedAt: Date | null;
+  passwordSet: boolean;
+  invitation?: {
+    expiresAt: Date;
+    usedAt: Date | null;
+    revokedAt: Date | null;
+  } | null;
+}, now = new Date()): SchoolAdminInvitationStatus {
+  if (input.acceptedAt || input.passwordSet) return "active";
+  if (!input.invitation || input.invitation.usedAt) return "none";
+  if (input.invitation.revokedAt) return "revoked";
+  if (input.invitation.expiresAt <= now) return "expired";
+  return "pending";
+}
+
 export async function GET(request: Request) {
   const session = await verifyAdminSessionFromRequest(request);
   if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
@@ -13,6 +36,16 @@ export async function GET(request: Request) {
     include: {
       subscription_plan: { select: { id: true, name: true, price: true } },
       _count: { select: { students: { where: { isActive: true } }, teachers: { where: { isActive: true } }, classes: true } },
+      users: {
+        take: 1,
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        select: { acceptedAt: true, password: true },
+      },
+      school_admin_invitations: {
+        take: 1,
+        orderBy: { createdAt: "desc" },
+        select: { expiresAt: true, usedAt: true, revokedAt: true },
+      },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -30,6 +63,11 @@ export async function GET(request: Request) {
       studentCount: s._count.students,
       teacherCount: s._count.teachers,
       classCount: s._count.classes,
+      invitation_status: schoolAdminInvitationStatus({
+        acceptedAt: s.users[0]?.acceptedAt ?? null,
+        passwordSet: Boolean(s.users[0]?.password),
+        invitation: s.school_admin_invitations[0] ?? null,
+      }),
     }))
   );
 }

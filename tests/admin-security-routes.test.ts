@@ -102,7 +102,11 @@ import {
 } from "@/lib/admin-auth";
 import { POST as loginAdmin } from "@/app/api/admin/auth/login/route";
 import { POST as logoutAdmin } from "@/app/api/admin/auth/logout/route";
-import { POST as createSchool } from "@/app/api/admin/schools/route";
+import {
+  GET as listSchools,
+  POST as createSchool,
+  schoolAdminInvitationStatus,
+} from "@/app/api/admin/schools/route";
 import { POST as resendSchoolInvite } from "@/app/api/admin/schools/[id]/invite/route";
 import { POST as changeAdminPassword } from "@/app/api/admin/settings/password/route";
 
@@ -156,6 +160,7 @@ beforeEach(() => {
   });
   mocks.userFindUnique.mockResolvedValue(null);
   mocks.schoolCreate.mockResolvedValue({ id: "school-1", name: "Test School" });
+  mocks.schoolFindMany.mockResolvedValue([]);
   mocks.schoolFindUnique.mockResolvedValue({ id: "school-1", name: "Test School" });
   mocks.userCreate.mockResolvedValue({ id: "user-1" });
   mocks.userFindFirst.mockResolvedValue({
@@ -290,6 +295,102 @@ describe("admin sessions and authentication routes", () => {
 });
 
 describe("admin school creation", () => {
+  it("returns only a derived invitation state in the school list", async () => {
+    mocks.schoolFindMany.mockResolvedValueOnce([
+      {
+        id: "school-1",
+        name: "Test School",
+        email: "school.admin@example.com",
+        subscription_plan: null,
+        subscription_status: "active",
+        renewal_date: null,
+        last_login_at: null,
+        createdAt: new Date("2026-08-11T00:00:00.000Z"),
+        _count: { students: 0, teachers: 0, classes: 0 },
+        users: [{ acceptedAt: null }],
+        school_admin_invitations: [
+          {
+            expiresAt: new Date("2026-08-20T00:00:00.000Z"),
+            usedAt: null,
+            revokedAt: null,
+          },
+        ],
+      },
+    ]);
+
+    const response = await listSchools(
+      await authenticatedRequest("/api/admin/schools")
+    );
+    const result = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(result[0].invitation_status).toBe("pending");
+    expect(JSON.stringify(result)).not.toMatch(/token|hash/i);
+    expect(mocks.schoolFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: expect.objectContaining({
+          users: expect.objectContaining({
+            select: { acceptedAt: true, password: true },
+          }),
+          school_admin_invitations: {
+            take: 1,
+            orderBy: { createdAt: "desc" },
+            select: { expiresAt: true, usedAt: true, revokedAt: true },
+          },
+        }),
+      })
+    );
+  });
+
+  it("derives every invitation state without exposing invitation internals", () => {
+    const now = new Date("2026-08-11T12:00:00.000Z");
+    expect(schoolAdminInvitationStatus({ acceptedAt: now, passwordSet: false }, now)).toBe("active");
+    expect(schoolAdminInvitationStatus({ acceptedAt: null, passwordSet: true }, now)).toBe("active");
+    expect(
+      schoolAdminInvitationStatus(
+        {
+          acceptedAt: null,
+          passwordSet: false,
+          invitation: {
+            expiresAt: new Date("2026-08-12T00:00:00.000Z"),
+            usedAt: null,
+            revokedAt: null,
+          },
+        },
+        now
+      )
+    ).toBe("pending");
+    expect(
+      schoolAdminInvitationStatus(
+        {
+          acceptedAt: null,
+          passwordSet: false,
+          invitation: {
+            expiresAt: new Date("2026-08-10T00:00:00.000Z"),
+            usedAt: null,
+            revokedAt: null,
+          },
+        },
+        now
+      )
+    ).toBe("expired");
+    expect(
+      schoolAdminInvitationStatus(
+        {
+          acceptedAt: null,
+          passwordSet: false,
+          invitation: {
+            expiresAt: new Date("2026-08-12T00:00:00.000Z"),
+            usedAt: null,
+            revokedAt: now,
+          },
+        },
+        now
+      )
+    ).toBe("revoked");
+    expect(schoolAdminInvitationStatus({ acceptedAt: null, passwordSet: false }, now)).toBe("none");
+  });
+
   it("rejects an unauthenticated request before opening a transaction", async () => {
     const response = await createSchool(
       new Request("http://localhost/api/admin/schools", {

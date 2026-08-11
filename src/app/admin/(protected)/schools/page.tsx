@@ -1,8 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import axios from "axios";
 import Link from "next/link";
+import { useLocale, useT } from "@/lib/i18n-provider";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/Dialog";
+
+type InvitationStatus = "active" | "pending" | "expired" | "revoked" | "none";
 
 interface SchoolRow {
   id: string;
@@ -15,12 +26,21 @@ interface SchoolRow {
   createdAt: string;
   studentCount: number;
   teacherCount: number;
+  invitation_status: InvitationStatus;
 }
 
 interface CreatedAccount {
   name: string;
   email: string;
-  tempPassword: string;
+  emailDelivery: "sent" | "failed";
+}
+
+interface CreateSchoolResponse {
+  id: string;
+  name: string;
+  email: string;
+  invitationStatus: "pending";
+  emailDelivery: "sent" | "failed";
 }
 
 const STATUS_LABELS: Record<string, { label: string; cls: string }> = {
@@ -68,6 +88,7 @@ const EMPTY_FORM: CreateSchoolForm = {
 const WIZARD_STEPS = ["بيانات الحساب", "الهوية التجارية", "معلومات المدرسة", "الضريبة والزكاة"];
 
 function CreateSchoolModal({ onClose, onCreated }: { onClose: () => void; onCreated: (s: SchoolRow) => void }) {
+  const t = useT();
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<CreateSchoolForm>(EMPTY_FORM);
   const [loading, setLoading] = useState(false);
@@ -93,7 +114,7 @@ function CreateSchoolModal({ onClose, onCreated }: { onClose: () => void; onCrea
     setError("");
     setLoading(true);
     try {
-      const res = await axios.post<SchoolRow & { tempPassword: string }>("/api/admin/schools", {
+      const res = await axios.post<CreateSchoolResponse>("/api/admin/schools", {
         schoolName: form.schoolName,
         email: form.email,
         contactNumber: form.contactNumber || undefined,
@@ -114,37 +135,84 @@ function CreateSchoolModal({ onClose, onCreated }: { onClose: () => void; onCrea
         financialYear: form.financialYear || undefined,
         taxPeriod: form.taxPeriod || undefined,
       });
-      setCreated({ name: form.schoolName, email: form.email, tempPassword: res.data.tempPassword });
-      onCreated(res.data);
+      setCreated({
+        name: res.data.name,
+        email: res.data.email,
+        emailDelivery: res.data.emailDelivery,
+      });
+      onCreated({
+        id: res.data.id,
+        name: res.data.name,
+        email: res.data.email,
+        plan: null,
+        subscription_status: "active",
+        renewal_date: null,
+        last_login_at: null,
+        createdAt: new Date().toISOString(),
+        studentCount: 0,
+        teacherCount: 0,
+        invitation_status: "pending",
+      });
     } catch (err) {
-      setError(axios.isAxiosError(err) ? err.response?.data?.error ?? "حدث خطأ" : "حدث خطأ");
+      if (axios.isAxiosError(err) && err.response?.status === 409) {
+        setError(t("adminSchools.duplicateEmail"));
+      } else {
+        setError(t("adminSchools.genericError"));
+      }
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" dir="rtl">
-      <div className="bg-[#1e1e2e] border border-white/10 rounded-2xl w-full max-w-lg p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="text-white font-bold text-lg">إنشاء حساب جديد</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-white text-xl font-bold w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10">×</button>
-        </div>
+    <DialogContent
+      dismissBlocked={loading}
+      className="max-w-lg border border-white/10 bg-[#1e1e2e] p-6 text-white shadow-2xl"
+      overlayClassName="bg-black/60"
+    >
+        <DialogHeader className="mb-5">
+          <div>
+            <DialogTitle className="text-white">{t("adminSchools.createTitle")}</DialogTitle>
+            <DialogDescription className="mt-1 text-gray-400">
+              {t("adminSchools.createDescription")}
+            </DialogDescription>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={loading}
+            aria-label={t("adminSchools.close")}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-xl font-bold text-gray-400 hover:bg-white/10 hover:text-white disabled:opacity-50"
+          >
+            ×
+          </button>
+        </DialogHeader>
 
         {created ? (
           <div className="space-y-4">
-            <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 space-y-2">
-              <p className="text-emerald-400 font-bold text-sm">✓ تم إنشاء الحساب بنجاح</p>
-              <p className="text-gray-300 text-sm">المنشأة: <span className="text-white font-medium">{created.name}</span></p>
-              <p className="text-gray-300 text-sm">البريد: <span className="text-white font-medium" dir="ltr">{created.email}</span></p>
-              <div className="mt-3 bg-[#0f0f1a] rounded-lg p-3">
-                <p className="text-gray-400 text-xs mb-1">كلمة المرور المؤقتة</p>
-                <p className="text-yellow-400 font-mono text-lg tracking-widest">{created.tempPassword}</p>
-              </div>
-              <p className="text-gray-500 text-xs mt-2">تم إرسال بيانات الدخول للبريد الإلكتروني إن كان Resend مُفعّلاً.</p>
+            <div
+              role="status"
+              className={`rounded-xl border p-4 space-y-2 ${
+                created.emailDelivery === "sent"
+                  ? "border-emerald-500/30 bg-emerald-500/10"
+                  : "border-amber-500/30 bg-amber-500/10"
+              }`}
+            >
+              <p className={`font-bold text-sm ${created.emailDelivery === "sent" ? "text-emerald-400" : "text-amber-300"}`}>
+                {created.emailDelivery === "sent"
+                  ? t("adminSchools.createdSentTitle")
+                  : t("adminSchools.createdFailedTitle")}
+              </p>
+              <p className="text-gray-300 text-sm">{t("adminSchools.schoolLabel")}: <span className="text-white font-medium">{created.name}</span></p>
+              <p className="text-gray-300 text-sm">{t("adminSchools.emailLabel")}: <span className="text-white font-medium" dir="ltr">{created.email}</span></p>
+              <p className="text-gray-400 text-xs mt-2">
+                {created.emailDelivery === "sent"
+                  ? t("adminSchools.createdSentBody")
+                  : t("adminSchools.createdFailedBody")}
+              </p>
             </div>
             <button onClick={onClose} className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-sm transition-colors">
-              إغلاق
+              {t("adminSchools.close")}
             </button>
           </div>
         ) : (
@@ -312,7 +380,7 @@ function CreateSchoolModal({ onClose, onCreated }: { onClose: () => void; onCrea
             <div className="flex gap-3 pt-1">
               {step > 0 && (
                 <button type="button" onClick={() => setStep((s) => s - 1)} className="px-5 py-2.5 border border-white/10 rounded-xl text-sm text-gray-400 hover:bg-white/5 transition-colors">
-                  السابق
+                  {t("adminSchools.previous")}
                 </button>
               )}
               {step < WIZARD_STEPS.length - 1 ? (
@@ -322,7 +390,7 @@ function CreateSchoolModal({ onClose, onCreated }: { onClose: () => void; onCrea
                   onClick={() => setStep((s) => s + 1)}
                   className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-sm transition-colors disabled:opacity-40"
                 >
-                  التالي
+                  {t("adminSchools.next")}
                 </button>
               ) : (
                 <button
@@ -331,26 +399,32 @@ function CreateSchoolModal({ onClose, onCreated }: { onClose: () => void; onCrea
                   onClick={handleSubmit}
                   className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-sm transition-colors disabled:opacity-60"
                 >
-                  {loading ? "جارٍ الإنشاء…" : "إنشاء الحساب"}
+                  {loading ? t("adminSchools.submitting") : t("adminSchools.submit")}
                 </button>
               )}
-              <button type="button" onClick={onClose} className="px-5 py-2.5 border border-white/10 rounded-xl text-sm text-gray-400 hover:bg-white/5 transition-colors">
-                إلغاء
+              <button type="button" disabled={loading} onClick={onClose} className="px-5 py-2.5 border border-white/10 rounded-xl text-sm text-gray-400 hover:bg-white/5 transition-colors disabled:opacity-50">
+                {t("adminSchools.cancel")}
               </button>
             </div>
           </div>
         )}
-      </div>
-    </div>
+    </DialogContent>
   );
 }
 
 export default function AdminSchoolsPage() {
+  const t = useT();
+  const { locale } = useLocale();
   const [schools, setSchools] = useState<SchoolRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [showCreate, setShowCreate] = useState(false);
+  const [resending, setResending] = useState<Record<string, boolean>>({});
+  const [inviteMessages, setInviteMessages] = useState<
+    Record<string, { kind: "success" | "warning" | "error"; text: string }>
+  >({});
+  const resendInFlight = useRef(new Set<string>());
 
   useEffect(() => {
     axios.get<SchoolRow[]>("/api/admin/schools").then((r) => setSchools(r.data)).finally(() => setLoading(false));
@@ -362,7 +436,55 @@ export default function AdminSchoolsPage() {
     return matchSearch && matchStatus;
   });
 
+  async function resendInvitation(school: SchoolRow) {
+    if (school.invitation_status === "active" || resendInFlight.current.has(school.id)) {
+      return;
+    }
+
+    resendInFlight.current.add(school.id);
+    setResending((current) => ({ ...current, [school.id]: true }));
+    setInviteMessages((current) => {
+      const next = { ...current };
+      delete next[school.id];
+      return next;
+    });
+
+    try {
+      const response = await axios.post<{
+        invitationStatus: "pending";
+        emailDelivery: "sent" | "failed";
+      }>(`/api/admin/schools/${school.id}/invite`);
+
+      setSchools((current) =>
+        current.map((item) =>
+          item.id === school.id
+            ? { ...item, invitation_status: response.data.invitationStatus }
+            : item
+        )
+      );
+      setInviteMessages((current) => ({
+        ...current,
+        [school.id]: {
+          kind: response.data.emailDelivery === "sent" ? "success" : "warning",
+          text:
+            response.data.emailDelivery === "sent"
+              ? t("adminSchools.resendSent")
+              : t("adminSchools.resendFailed"),
+        },
+      }));
+    } catch {
+      setInviteMessages((current) => ({
+        ...current,
+        [school.id]: { kind: "error", text: t("adminSchools.resendError") },
+      }));
+    } finally {
+      resendInFlight.current.delete(school.id);
+      setResending((current) => ({ ...current, [school.id]: false }));
+    }
+  }
+
   return (
+    <Dialog open={showCreate} onOpenChange={setShowCreate}>
     <div className="p-8 space-y-6">
       {showCreate && (
         <CreateSchoolModal
@@ -373,15 +495,19 @@ export default function AdminSchoolsPage() {
 
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">المدارس</h1>
-          <p className="text-gray-400 text-sm mt-1">{schools.length} مدرسة مسجلة</p>
+          <h1 className="text-2xl font-bold text-white">{t("adminSchools.title")}</h1>
+          <p className="text-gray-400 text-sm mt-1">
+            {t("adminSchools.registeredCount", { count: schools.length })}
+          </p>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-sm transition-colors"
-        >
-          + إنشاء حساب جديد
-        </button>
+        <DialogTrigger asChild>
+          <button
+            type="button"
+            className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-sm transition-colors"
+          >
+            + {t("adminSchools.createAccount")}
+          </button>
+        </DialogTrigger>
       </div>
 
       {/* Filters */}
@@ -390,7 +516,7 @@ export default function AdminSchoolsPage() {
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="ابحث بالاسم أو البريد..."
+          placeholder={t("adminSchools.searchPlaceholder")}
           className="bg-[#1e1e2e] border border-white/10 rounded-xl px-4 py-2.5 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-indigo-500 w-72"
         />
         <select
@@ -398,7 +524,7 @@ export default function AdminSchoolsPage() {
           onChange={(e) => setStatusFilter(e.target.value)}
           className="bg-[#1e1e2e] border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500"
         >
-          <option value="">كل الحالات</option>
+          <option value="">{t("adminSchools.allStatuses")}</option>
           <option value="active">نشط</option>
           <option value="suspended">موقوف</option>
           <option value="expired">منتهٍ</option>
@@ -409,18 +535,19 @@ export default function AdminSchoolsPage() {
       {/* Table */}
       <div className="bg-[#1e1e2e] rounded-2xl border border-white/5 overflow-hidden">
         {loading ? (
-          <div className="p-8 text-gray-400 text-sm text-center">جاري التحميل...</div>
+          <div className="p-8 text-gray-400 text-sm text-center">{t("adminSchools.loading")}</div>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-white/5">
-                <th className="px-5 py-4 text-right text-gray-400 font-medium">المدرسة</th>
-                <th className="px-5 py-4 text-right text-gray-400 font-medium">الخطة</th>
-                <th className="px-5 py-4 text-right text-gray-400 font-medium">الحالة</th>
-                <th className="px-5 py-4 text-right text-gray-400 font-medium">الطلاب</th>
-                <th className="px-5 py-4 text-right text-gray-400 font-medium">التجديد</th>
-                <th className="px-5 py-4 text-right text-gray-400 font-medium">آخر دخول</th>
-                <th className="px-5 py-4 text-right text-gray-400 font-medium">إجراءات</th>
+                <th className="px-5 py-4 text-start text-gray-400 font-medium">{t("adminSchools.school")}</th>
+                <th className="px-5 py-4 text-start text-gray-400 font-medium">{t("adminSchools.plan")}</th>
+                <th className="px-5 py-4 text-start text-gray-400 font-medium">{t("adminSchools.subscriptionStatus")}</th>
+                <th className="px-5 py-4 text-start text-gray-400 font-medium">{t("adminSchools.invitation")}</th>
+                <th className="px-5 py-4 text-start text-gray-400 font-medium">{t("adminSchools.students")}</th>
+                <th className="px-5 py-4 text-start text-gray-400 font-medium">{t("adminSchools.renewal")}</th>
+                <th className="px-5 py-4 text-start text-gray-400 font-medium">{t("adminSchools.lastLogin")}</th>
+                <th className="px-5 py-4 text-start text-gray-400 font-medium">{t("adminSchools.actions")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
@@ -436,24 +563,67 @@ export default function AdminSchoolsPage() {
                     <td className="px-5 py-4">
                       <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${status.cls}`}>{status.label}</span>
                     </td>
+                    <td className="px-5 py-4">
+                      <span
+                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
+                          s.invitation_status === "active"
+                            ? "bg-emerald-500/20 text-emerald-300"
+                            : s.invitation_status === "pending"
+                              ? "bg-blue-500/20 text-blue-300"
+                              : s.invitation_status === "expired"
+                                ? "bg-amber-500/20 text-amber-300"
+                                : "bg-gray-500/20 text-gray-300"
+                        }`}
+                      >
+                        {t(`adminSchools.invitationStatus.${s.invitation_status}`)}
+                      </span>
+                    </td>
                     <td className="px-5 py-4 text-gray-300">{s.studentCount}</td>
                     <td className="px-5 py-4 text-gray-300">
-                      {s.renewal_date ? new Date(s.renewal_date).toLocaleDateString("ar-SA") : "—"}
+                      {s.renewal_date ? new Date(s.renewal_date).toLocaleDateString(locale === "ar" ? "ar-SA" : "en-US") : "—"}
                     </td>
                     <td className="px-5 py-4 text-gray-300">
-                      {s.last_login_at ? new Date(s.last_login_at).toLocaleDateString("ar-SA") : "—"}
+                      {s.last_login_at ? new Date(s.last_login_at).toLocaleDateString(locale === "ar" ? "ar-SA" : "en-US") : "—"}
                     </td>
                     <td className="px-5 py-4">
-                      <Link href={`/admin/schools/${s.id}`} className="text-indigo-400 hover:text-indigo-300 text-xs font-medium">
-                        عرض
-                      </Link>
+                      <div className="flex min-w-36 flex-col items-start gap-2">
+                        <Link href={`/admin/schools/${s.id}`} className="text-indigo-400 hover:text-indigo-300 text-xs font-medium">
+                          {t("adminSchools.view")}
+                        </Link>
+                        {s.invitation_status !== "active" && (
+                          <button
+                            type="button"
+                            disabled={Boolean(resending[s.id])}
+                            onClick={() => resendInvitation(s)}
+                            className="text-xs font-medium text-amber-300 hover:text-amber-200 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {resending[s.id]
+                              ? t("adminSchools.resending")
+                              : t("adminSchools.resend")}
+                          </button>
+                        )}
+                        {inviteMessages[s.id] && (
+                          <p
+                            role={inviteMessages[s.id].kind === "error" ? "alert" : "status"}
+                            className={`max-w-52 text-xs ${
+                              inviteMessages[s.id].kind === "success"
+                                ? "text-emerald-300"
+                                : inviteMessages[s.id].kind === "warning"
+                                  ? "text-amber-300"
+                                  : "text-red-300"
+                            }`}
+                          >
+                            {inviteMessages[s.id].text}
+                          </p>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );
               })}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-5 py-8 text-center text-gray-500">لا توجد نتائج</td>
+                  <td colSpan={8} className="px-5 py-8 text-center text-gray-500">{t("adminSchools.noResults")}</td>
                 </tr>
               )}
             </tbody>
@@ -461,5 +631,6 @@ export default function AdminSchoolsPage() {
         )}
       </div>
     </div>
+    </Dialog>
   );
 }

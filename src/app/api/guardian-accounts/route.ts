@@ -1,26 +1,60 @@
+import { z } from "zod";
 import { requireSession, sessionErrorResponse } from "@/lib/session";
+import { assertCan } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
-import { logAction } from "@/lib/activity-logger";
+import { activityLogData } from "@/lib/activity-logger";
 import { sendEmail } from "@/lib/notifications";
 import { normalizePhone } from "@/lib/phone-normalizer";
 import { env } from "@/lib/env";
 import { mintInvite, accountState } from "@/lib/invitations";
-import { z } from "zod";
+import { clientIp, rateLimit, tooManyRequests } from "@/lib/rate-limit";
 
-/**
- * Guardian portal accounts (task 1.9).
- *
- * The flow is: the nursery creates the child → invites the guardian by email →
- * the guardian signs in with their phone number and an emailed code. There is no
- * self-registration: a parent cannot claim a child, the nursery grants access.
- * That is the only defensible direction for an account that can read a child's
- * daily reports.
- */
+const createSchema = z
+  .object({
+    guardianId: z.string().min(1),
+    email: z.string().email().optional(),
+    phone: z.string().min(6).max(20).optional(),
+  })
+  .strict();
 
+const emailSchema = z.string().trim().email();
+
+class GuardianNotEligibleError extends Error {}
+class GuardianEmailRequiredError extends Error {}
+
+function isUniqueConflict(error: unknown): boolean {
+  return Boolean(error && typeof error === "object" && "code" in error && error.code === "P2002");
+}
+
+function invitationEmail(args: {
+  name: string;
+  schoolName: string;
+  email: string;
+  token: string;
+}): string {
+  const appUrl = env.NEXT_PUBLIC_APP_URL ?? "";
+  return [
+    `مرحبًا ${args.name}،`,
+    "",
+    `دعتك ${args.schoolName || "الحضانة"} لمتابعة تقارير طفلك عبر التطبيق.`,
+    "",
+    "اضغطي الرابط لتعيين كلمة المرور الخاصة بك:",
+    appUrl ? `${appUrl}/activate/${args.token}` : "",
+    "",
+    `ثم سجّلي الدخول في التطبيق بالبريد: ${args.email}`,
+    "",
+    "الرابط صالح لمدة 7 أيام، ولا يعمل إلا مرة واحدة.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+/** Lists only guardians and accounts belonging to the caller's school. */
 export async function GET() {
   let session;
   try {
     session = await requireSession();
+    assertCan(session, "students.guardians");
   } catch (error) {
     return (
       sessionErrorResponse(error) ??
@@ -38,12 +72,21 @@ export async function GET() {
       email: true,
       phone1: true,
       students: {
-        where: { deletedAt: null },
+        where: { schoolId, deletedAt: null, anonymizedAt: null },
         select: { id: true, name: true },
       },
-      account: {
+    },
+  });
+
+  // Keep the tenant predicate on the account query even before the database
+  // migration is deployed. A malformed legacy row must never ride through a
+  // relation selected only by guardianId.
+  const accounts = guardians.length
+    ? await prisma.guardianAccount.findMany({
+        where: { schoolId, guardianId: { in: guardians.map(({ id }) => id) } },
         select: {
           id: true,
+          guardianId: true,
           email: true,
           phone: true,
           acceptedAt: true,
@@ -51,44 +94,40 @@ export async function GET() {
           inviteExpiresAt: true,
           lastLoginAt: true,
         },
-      },
-    },
-  });
+      })
+    : [];
+  const accountByGuardian = new Map(accounts.map((account) => [account.guardianId, account]));
 
   return Response.json(
-    guardians.map((guardian) => ({
-      guardianId: guardian.id,
-      name: guardian.name,
-      email: guardian.email,
-      phone: guardian.phone1,
-      children: guardian.students,
-      account: guardian.account
-        ? {
-            id: guardian.account.id,
-            email: guardian.account.email,
-            phone: guardian.account.phone,
-            // The same four states the staff list reports, from the same helper
-            // — an invitation that quietly expired is not the same thing as one
-            // still waiting, and the nursery needs to see which it is.
-            status: accountState(guardian.account),
-            inviteExpiresAt: guardian.account.inviteExpiresAt,
-            lastLoginAt: guardian.account.lastLoginAt,
-          }
-        : null,
-    }))
+    guardians.map((guardian) => {
+      const account = accountByGuardian.get(guardian.id) ?? null;
+      return {
+        guardianId: guardian.id,
+        name: guardian.name,
+        email: guardian.email,
+        phone: guardian.phone1,
+        children: guardian.students,
+        account: account
+          ? {
+              id: account.id,
+              email: account.email,
+              phone: account.phone,
+              status: accountState(account),
+              inviteExpiresAt: account.inviteExpiresAt,
+              lastLoginAt: account.lastLoginAt,
+            }
+          : null,
+      };
+    })
   );
 }
 
-const createSchema = z.object({
-  guardianId: z.string().min(1),
-  email: z.string().email().optional(),
-  phone: z.string().min(6).max(20).optional(),
-});
-
+/** Creates a pending guardian login and its hashed invitation atomically. */
 export async function POST(request: Request) {
   let session;
   try {
     session = await requireSession();
+    assertCan(session, "students.guardians");
   } catch (error) {
     return (
       sessionErrorResponse(error) ??
@@ -103,131 +142,150 @@ export async function POST(request: Request) {
   } catch {
     return Response.json({ error: "Invalid JSON" }, { status: 400 });
   }
-
   const parsed = createSchema.safeParse(body);
   if (!parsed.success) {
     return Response.json({ error: parsed.error.flatten() }, { status: 422 });
   }
 
-  const guardian = await prisma.guardian.findFirst({
-    where: { id: parsed.data.guardianId, schoolId, deletedAt: null },
-    include: {
-      account: { select: { id: true } },
-      students: { where: { deletedAt: null }, select: { id: true } },
-      school: { select: { name: true } },
-    },
-  });
-  if (!guardian) {
-    return Response.json({ error: "ولي الأمر غير موجود" }, { status: 404 });
+  for (const key of [
+    `guardian-account-create:${schoolId}:${parsed.data.guardianId}`,
+    `guardian-account-create:ip:${clientIp(request)}`,
+  ]) {
+    const limited = await rateLimit({ key, limit: 5, windowMs: 60 * 60 * 1000 });
+    if (!limited.ok) return tooManyRequests(limited.retryAfter);
   }
 
-  // An account with no children would sign in to an empty portal and, worse,
-  // would keep whatever access a later mis-linked child gave it.
-  if (guardian.students.length === 0) {
-    return Response.json(
-      { error: "لا يوجد أطفال مرتبطون بولي الأمر هذا" },
-      { status: 409 }
-    );
-  }
-
-  const email = (parsed.data.email ?? guardian.email ?? "").toLowerCase().trim();
-  if (!email) {
-    return Response.json(
-      { error: "لا يوجد بريد إلكتروني لولي الأمر — أضفه أولاً" },
-      { status: 422 }
-    );
-  }
-
-  const phone = parsed.data.phone
-    ? normalizePhone(parsed.data.phone)
-    : guardian.phone1
-      ? normalizePhone(guardian.phone1)
-      : null;
-
-  /**
-   * The phone is no longer required.
-   *
-   * It used to be the sign-in identifier, and an account without one was
-   * unusable — so this route refused to create it. Sign-in is by email now, so
-   * a missing phone costs nothing: it is kept only as a contact detail.
-   *
-   * Which also removes a contradiction a nursery could see: the code always
-   * went to the email, yet a parent with an email and no phone could not be
-   * invited at all.
-   */
-
-  // `GuardianAccount.email` is unique across the platform, so a clash may be
-  // with another tenant. The message does not say which — the same
-  // enumeration reasoning as the staff route.
-  const emailTaken = await prisma.guardianAccount.findFirst({
-    where: { email, NOT: { guardianId: guardian.id } },
-    select: { id: true },
-  });
-  if (emailTaken) {
-    return Response.json({ error: "البريد مستخدم في حساب آخر" }, { status: 409 });
-  }
-
-  // Minted by the shared helper, so staff and guardian invitations cannot drift
-  // apart in token length, hashing or lifetime.
   const invite = mintInvite();
+  let account: {
+    id: string;
+    email: string;
+    phone: string | null;
+    guardianName: string;
+    schoolName: string;
+  };
 
-  const account = await prisma.guardianAccount.upsert({
-    where: { guardianId: guardian.id },
-    create: {
-      schoolId,
-      guardianId: guardian.id,
-      email,
-      phone,
-      inviteTokenHash: invite.tokenHash,
-      inviteExpiresAt: invite.expiresAt,
-    },
-    // Re-inviting refreshes the token rather than creating a second account, and
-    // deliberately does not clear `acceptedAt`: resending the email to a parent
-    // who already signed in must not lock them out.
-    update: {
-      email,
-      phone,
-      inviteTokenHash: invite.tokenHash,
-      inviteExpiresAt: invite.expiresAt,
-    },
-    select: { id: true, email: true, phone: true },
-  });
+  try {
+    account = await prisma.$transaction(async (tx) => {
+      const guardian = await tx.guardian.findFirst({
+        where: {
+          id: parsed.data.guardianId,
+          schoolId,
+          deletedAt: null,
+          anonymizedAt: null,
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone1: true,
+          school: { select: { name: true } },
+          students: {
+            where: {
+              schoolId,
+              status: "ACTIVE",
+              deletedAt: null,
+              anonymizedAt: null,
+            },
+            take: 1,
+            select: { id: true },
+          },
+          links: {
+            where: {
+              student: {
+                is: {
+                  schoolId,
+                  status: "ACTIVE",
+                  deletedAt: null,
+                  anonymizedAt: null,
+                },
+              },
+            },
+            take: 1,
+            select: { studentId: true },
+          },
+        },
+      });
 
-  const appUrl = env.NEXT_PUBLIC_APP_URL ?? "";
+      if (!guardian || (guardian.students.length === 0 && guardian.links.length === 0)) {
+        throw new GuardianNotEligibleError();
+      }
+
+      const emailResult = emailSchema.safeParse(parsed.data.email ?? guardian.email ?? "");
+      if (!emailResult.success) throw new GuardianEmailRequiredError();
+      const email = emailResult.data.toLowerCase();
+      const phone = parsed.data.phone
+        ? normalizePhone(parsed.data.phone)
+        : guardian.phone1
+          ? normalizePhone(guardian.phone1)
+          : null;
+
+      const created = await tx.guardianAccount.create({
+        data: {
+          schoolId,
+          guardianId: guardian.id,
+          email,
+          phone,
+          passwordHash: null,
+          acceptedAt: null,
+          inviteTokenHash: invite.tokenHash,
+          inviteExpiresAt: invite.expiresAt,
+        },
+        select: { id: true, email: true, phone: true },
+      });
+
+      await tx.activityLog.create({
+        data: activityLogData({
+          school_id: schoolId,
+          action: `إنشاء دعوة حساب ولي أمر: ${guardian.name}`,
+          entity_type: "guardian_account",
+          entity_id: created.id,
+          entity_name: guardian.name,
+          performed_by: session.user.name ?? "المدير",
+          request,
+        }),
+      });
+
+      return {
+        ...created,
+        guardianName: guardian.name,
+        schoolName: guardian.school?.name ?? "",
+      };
+    });
+  } catch (error) {
+    if (error instanceof GuardianEmailRequiredError) {
+      return Response.json({ error: "يجب تسجيل بريد إلكتروني صالح لولي الأمر" }, { status: 422 });
+    }
+    if (error instanceof GuardianNotEligibleError) {
+      return Response.json({ error: "ولي الأمر غير مؤهل لإنشاء حساب" }, { status: 409 });
+    }
+    // Both guardianId and email are globally unique today. Do not reveal
+    // whether a collision belongs to this school or a different tenant.
+    if (isUniqueConflict(error)) {
+      return Response.json({ error: "تعذر إنشاء الحساب بهذه البيانات" }, { status: 409 });
+    }
+    throw error;
+  }
+
   const delivered = await sendEmail(
-    email,
-    `دعوة للانضمام إلى بوابة ${guardian.school?.name ?? "الحضانة"}`,
-    [
-      `مرحباً ${guardian.name}،`,
-      "",
-      `دعتك ${guardian.school?.name ?? "الحضانة"} لمتابعة تقارير طفلك عبر التطبيق.`,
-      "",
-      "اضغطي الرابط لتعيين كلمة المرور الخاصة بك:",
-      // Was `/portal?invite=…`, which no route ever read — the token was minted,
-      // emailed, and silently ignored. This link is the one that redeems it.
-      appUrl ? `${appUrl}/activate/${invite.token}` : "",
-      "",
-      `ثم سجّلي الدخول في التطبيق بالبريد: ${email}`,
-      "",
-      "الرابط صالح لمدة 7 أيام، ولا يعمل إلا مرة واحدة.",
-    ]
-      .filter(Boolean)
-      .join("\n"),
-    guardian.school?.name ?? ""
+    account.email,
+    `دعوة للانضمام إلى بوابة ${account.schoolName || "الحضانة"}`,
+    invitationEmail({
+      name: account.guardianName,
+      schoolName: account.schoolName,
+      email: account.email,
+      token: invite.token,
+    }),
+    account.schoolName
   );
 
-  await logAction({
-    school_id: schoolId,
-    action: `دعوة ولي أمر إلى البوابة: ${guardian.name}`,
-    entity_type: "guardian_account",
-    entity_id: account.id,
-    entity_name: guardian.name,
-    performed_by: session.user.name ?? "المدير",
-    request,
-  });
-
   return Response.json(
-    { ...account, invitationSent: delivered.success },
-    { status: 201 }
+    {
+      id: account.id,
+      email: account.email,
+      phone: account.phone,
+      invitationSent: delivered.success,
+      deliveryStatus: delivered.success ? "sent" : "failed",
+    },
+    { status: delivered.success ? 201 : 207 }
   );
 }

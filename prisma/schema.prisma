@@ -1161,9 +1161,9 @@ model SchoolAdminInvitation {
 model GuardianAccount {
   id         String   @id @default(cuid())
   schoolId   String
-  school     School   @relation(fields: [schoolId], references: [id])
+  school     School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   guardianId String   @unique
-  guardian   Guardian @relation(fields: [guardianId], references: [id])
+  guardian   Guardian @relation(fields: [guardianId, schoolId], references: [id, schoolId], onDelete: Cascade)
 
   /// PII — the sign-in identifiers.
   email String  @unique
@@ -1185,7 +1185,9 @@ model GuardianAccount {
   updatedAt  DateTime  @updatedAt
 
   devices DeviceToken[]
+  resetTokens PasswordResetToken[]
 
+  @@unique([guardianId, schoolId])
   @@index([schoolId])
   @@index([phone])
 }
@@ -1284,9 +1286,11 @@ model RefreshToken {
 }
 
 model PasswordResetToken {
-  id     String @id @default(cuid())
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                String           @id @default(cuid())
+  userId            String?
+  user              User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  guardianAccountId String?
+  guardianAccount   GuardianAccount? @relation(fields: [guardianAccountId], references: [id], onDelete: Cascade)
 
   // sha256 of the OTP — never store the code itself. Lookup is by userId, so a
   // bare 6-digit code is useless without knowing whose account it belongs to.
@@ -1296,6 +1300,7 @@ model PasswordResetToken {
   createdAt DateTime @default(now())
 
   @@index([userId])
+  @@index([guardianAccountId])
 }
 
 model Settings {
@@ -1463,7 +1468,7 @@ model Teacher {
 model Guardian {
   id        String    @id @default(cuid())
   schoolId  String
-  school    School    @relation(fields: [schoolId], references: [id])
+  school    School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   name      String
   phone1    String?
   phone2    String?
@@ -1488,6 +1493,7 @@ model Guardian {
   links    StudentGuardian[]
   account  GuardianAccount?
 
+  @@unique([id, schoolId])
   @@index([schoolId, deletedAt])
   @@index([schoolId, phone1])
 }

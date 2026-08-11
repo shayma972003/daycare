@@ -1,14 +1,15 @@
+import { createHash, randomInt } from "crypto";
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/notifications";
-import { z } from "zod";
-import { randomInt, createHash } from "crypto";
 import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
 
 const schema = z.object({
   identifier: z.string().min(1, "أدخل البريد الإلكتروني أو رقم الجوال"),
+  /** Defaults to staff so the existing web form keeps its current contract. */
+  kind: z.enum(["staff", "guardian"]).default("staff"),
 });
 
-/** OTP is valid for 15 minutes — long enough to fetch an email, short enough to limit exposure. */
 const OTP_TTL_MS = 15 * 60 * 1000;
 
 function generateOTP(): string {
@@ -28,15 +29,15 @@ export async function POST(request: Request) {
   }
 
   const parsed = schema.safeParse(body);
-  if (!parsed.success)
+  if (!parsed.success) {
     return Response.json({ error: "أدخل البريد الإلكتروني أو رقم الجوال" }, { status: 422 });
+  }
 
   const identifier = parsed.data.identifier.trim();
+  const kind = parsed.data.kind;
 
-  // Two limits: one stops a single address being spammed with reset mails, the
-  // other stops one host from cycling through many addresses.
   for (const key of [
-    `forgot:id:${identifier.toLowerCase()}`,
+    `forgot:${kind}:id:${identifier.toLowerCase()}`,
     `forgot:ip:${clientIp(request)}`,
   ]) {
     const limited = await rateLimit({ key, limit: 5, windowMs: 15 * 60 * 1000 });
@@ -44,52 +45,57 @@ export async function POST(request: Request) {
   }
 
   const isEmail = identifier.includes("@");
-
-  let user: {
+  let subject: {
     id: string;
     email: string;
     acceptedAt: Date | null;
     disabledAt: Date | null;
   } | null = null;
 
-  if (isEmail) {
-    user = await prisma.user.findUnique({
+  if (kind === "guardian") {
+    // Guardian recovery is email-only. Unknown identifiers and phone numbers
+    // receive the same public response to avoid account enumeration.
+    subject = isEmail
+      ? await prisma.guardianAccount.findUnique({
+          where: { email: identifier.toLowerCase() },
+          select: { id: true, email: true, acceptedAt: true, disabledAt: true },
+        })
+      : null;
+  } else if (isEmail) {
+    subject = await prisma.user.findUnique({
       where: { email: identifier.toLowerCase() },
       select: { id: true, email: true, acceptedAt: true, disabledAt: true },
     });
   } else {
-    // Phone lookup resolves through the school's contact number.
     const school = await prisma.school.findFirst({
       where: { contactNumber: identifier },
       include: {
         users: {
           take: 1,
           orderBy: { createdAt: "asc" },
-          select: {
-            id: true,
-            email: true,
-            acceptedAt: true,
-            disabledAt: true,
-          },
+          select: { id: true, email: true, acceptedAt: true, disabledAt: true },
         },
       },
     });
-    user = school?.users[0] ?? null;
+    subject = school?.users[0] ?? null;
   }
 
-  // Always report success — revealing whether an account exists is an enumeration oracle.
-  if (!user || !user.acceptedAt || user.disabledAt) {
+  // Always report success for unknown, pending, or disabled accounts.
+  if (!subject || !subject.acceptedAt || subject.disabledAt) {
     return Response.json({ success: true });
   }
 
   const otp = generateOTP();
+  const subjectWhere =
+    kind === "guardian"
+      ? { guardianAccountId: subject.id }
+      : { userId: subject.id };
 
-  // One live token per user: issuing a new code invalidates the previous one.
   await prisma.$transaction([
-    prisma.passwordResetToken.deleteMany({ where: { userId: user.id } }),
+    prisma.passwordResetToken.deleteMany({ where: subjectWhere }),
     prisma.passwordResetToken.create({
       data: {
-        userId: user.id,
+        ...subjectWhere,
         tokenHash: hashOTP(otp),
         expiresAt: new Date(Date.now() + OTP_TTL_MS),
       },
@@ -97,17 +103,17 @@ export async function POST(request: Request) {
   ]);
 
   const delivery = await sendEmail(
-    user.email,
+    subject.email,
     "رمز إعادة تعيين كلمة المرور",
     `رمز إعادة تعيين كلمة المرور: ${otp}\nصالح لمدة 15 دقيقة. لا تشاركه مع أحد.`,
     "نظام إدارة الروضة"
   );
 
   if (!delivery.success) {
-    await prisma.passwordResetToken.deleteMany({ where: { userId: user.id } });
-    console.error("[forgot-password] failed to deliver reset code");
+    await prisma.passwordResetToken.deleteMany({ where: subjectWhere });
+    console.error("[forgot-password] failed to deliver reset code", { kind });
     return Response.json(
-      { error: "تعذر إرسال رمز إعادة التعيين. حاول مجدداً." },
+      { error: "تعذر إرسال رمز إعادة التعيين. حاول مجددًا." },
       { status: 502 }
     );
   }

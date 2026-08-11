@@ -262,6 +262,9 @@ export async function redeemInvite(
       if (claimed.count !== 1) throw new InviteNoLongerUsableError();
 
       await tx.refreshToken.deleteMany({ where: { guardianAccountId: guardian.id } });
+      await tx.passwordResetToken.deleteMany({
+        where: { guardianAccountId: guardian.id },
+      });
 
       return {
         kind: "guardian" as const,

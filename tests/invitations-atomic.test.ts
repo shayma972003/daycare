@@ -196,6 +196,52 @@ describe("guardian invitation compatibility", () => {
     expect(mocks.refreshDeleteMany).toHaveBeenCalledWith({
       where: { guardianAccountId: "guardian-account-1" },
     });
+    expect(mocks.resetDeleteMany).toHaveBeenCalledWith({
+      where: { guardianAccountId: "guardian-account-1" },
+    });
     expect(mocks.twoFaDeleteMany).not.toHaveBeenCalled();
+  });
+
+  it("rejects an expired guardian invitation before the CAS write", async () => {
+    mocks.userFindUnique.mockResolvedValueOnce(null);
+    mocks.guardianFindUnique.mockResolvedValueOnce(
+      guardian({
+        acceptedAt: null,
+        inviteExpiresAt: new Date("2026-08-10T12:00:00.000Z"),
+      })
+    );
+
+    await expect(redeemInvite(TOKEN, "Guardian-password-1!")).resolves.toBeNull();
+    expect(mocks.guardianUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it("allows exactly one of two concurrent guardian invitation claims", async () => {
+    mocks.userFindUnique.mockResolvedValue(null);
+    mocks.guardianFindUnique.mockResolvedValue(guardian({ acceptedAt: null }));
+    let claims = 0;
+    mocks.guardianUpdateMany.mockImplementation(async () => ({
+      count: ++claims === 1 ? 1 : 0,
+    }));
+
+    const results = await Promise.all([
+      redeemInvite(TOKEN, "Guardian-password-1!"),
+      redeemInvite(TOKEN, "Guardian-password-2!"),
+    ]);
+    expect(results.filter(Boolean)).toHaveLength(1);
+    expect(results.filter((value) => value === null)).toHaveLength(1);
+    expect(mocks.refreshDeleteMany).toHaveBeenCalledTimes(1);
+    expect(mocks.resetDeleteMany).toHaveBeenCalledTimes(1);
+  });
+
+  it("rolls back guardian acceptance when session invalidation fails", async () => {
+    mocks.userFindUnique.mockResolvedValueOnce(null);
+    mocks.guardianFindUnique.mockResolvedValueOnce(guardian({ acceptedAt: null }));
+    mocks.refreshDeleteMany.mockRejectedValueOnce(new Error("session cleanup failed"));
+
+    await expect(redeemInvite(TOKEN, "Guardian-password-1!")).rejects.toThrow(
+      "session cleanup failed"
+    );
+    expect(mocks.transaction).toHaveBeenCalledTimes(1);
+    expect(mocks.resetDeleteMany).not.toHaveBeenCalled();
   });
 });

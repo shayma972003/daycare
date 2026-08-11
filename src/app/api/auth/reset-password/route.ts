@@ -1,7 +1,7 @@
-import { prisma } from "@/lib/prisma";
+import { createHash, timingSafeEqual } from "crypto";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
-import { createHash, timingSafeEqual } from "crypto";
+import { prisma } from "@/lib/prisma";
 import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
 import { BCRYPT_COST, passwordSchema } from "@/lib/password-policy";
 
@@ -9,11 +9,11 @@ const schema = z.object({
   identifier: z.string().min(1, "أدخل البريد الإلكتروني أو رقم الجوال"),
   otp: z.string().length(6, "رمز التحقق يجب أن يكون 6 أرقام"),
   newPassword: passwordSchema,
+  /** Defaults to staff so the existing web form remains backward-compatible. */
+  kind: z.enum(["staff", "guardian"]).default("staff"),
 });
 
-/** After this many wrong guesses the token is burned and a new one must be requested. */
 const MAX_ATTEMPTS = 5;
-
 const GENERIC_ERROR = "رمز التحقق غير صحيح أو منتهي الصلاحية";
 
 function hashOTP(otp: string): string {
@@ -21,10 +21,9 @@ function hashOTP(otp: string): string {
 }
 
 function hashesMatch(a: string, b: string): boolean {
-  const bufA = Buffer.from(a, "hex");
-  const bufB = Buffer.from(b, "hex");
-  if (bufA.length !== bufB.length) return false;
-  return timingSafeEqual(bufA, bufB);
+  const left = Buffer.from(a, "hex");
+  const right = Buffer.from(b, "hex");
+  return left.length === right.length && timingSafeEqual(left, right);
 }
 
 export async function POST(request: Request) {
@@ -36,14 +35,12 @@ export async function POST(request: Request) {
   }
 
   const parsed = schema.safeParse(body);
-  if (!parsed.success)
+  if (!parsed.success) {
     return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 422 });
+  }
 
-  const { otp, newPassword } = parsed.data;
+  const { otp, newPassword, kind } = parsed.data;
   const identifier = parsed.data.identifier.trim();
-
-  // The per-token attempt counter below already caps guesses for one code; this
-  // stops a host cycling through many accounts' codes in parallel.
   const limited = await rateLimit({
     key: `reset:ip:${clientIp(request)}`,
     limit: 20,
@@ -51,16 +48,21 @@ export async function POST(request: Request) {
   });
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
-  // Resolve the account first — the OTP is only ever checked against one user's
-  // token, so a 6-digit code alone can never unlock an arbitrary account.
-  let userId: string | null = null;
-
-  if (identifier.includes("@")) {
+  let subjectId: string | null = null;
+  if (kind === "guardian") {
+    const account = identifier.includes("@")
+      ? await prisma.guardianAccount.findUnique({
+          where: { email: identifier.toLowerCase() },
+          select: { id: true, acceptedAt: true, disabledAt: true },
+        })
+      : null;
+    subjectId = account?.acceptedAt && !account.disabledAt ? account.id : null;
+  } else if (identifier.includes("@")) {
     const user = await prisma.user.findUnique({
       where: { email: identifier.toLowerCase() },
       select: { id: true, acceptedAt: true, disabledAt: true },
     });
-    userId = user?.acceptedAt && !user.disabledAt ? user.id : null;
+    subjectId = user?.acceptedAt && !user.disabledAt ? user.id : null;
   } else {
     const school = await prisma.school.findFirst({
       where: { contactNumber: identifier },
@@ -73,15 +75,17 @@ export async function POST(request: Request) {
       },
     });
     const owner = school?.users[0];
-    userId = owner?.acceptedAt && !owner.disabledAt ? owner.id : null;
+    subjectId = owner?.acceptedAt && !owner.disabledAt ? owner.id : null;
   }
 
-  if (!userId) {
-    return Response.json({ error: GENERIC_ERROR }, { status: 400 });
-  }
+  if (!subjectId) return Response.json({ error: GENERIC_ERROR }, { status: 400 });
 
+  const subjectWhere =
+    kind === "guardian"
+      ? { guardianAccountId: subjectId }
+      : { userId: subjectId };
   const tokenRecord = await prisma.passwordResetToken.findFirst({
-    where: { userId },
+    where: subjectWhere,
     orderBy: { createdAt: "desc" },
   });
 
@@ -95,7 +99,7 @@ export async function POST(request: Request) {
   if (tokenRecord.attempts >= MAX_ATTEMPTS) {
     await prisma.passwordResetToken.delete({ where: { id: tokenRecord.id } });
     return Response.json(
-      { error: "تم تجاوز عدد المحاولات المسموح بها. اطلب رمزاً جديداً." },
+      { error: "تم تجاوز عدد المحاولات المسموح بها. اطلب رمزًا جديدًا." },
       { status: 429 }
     );
   }
@@ -108,16 +112,25 @@ export async function POST(request: Request) {
     return Response.json({ error: GENERIC_ERROR }, { status: 400 });
   }
 
-  const hashedPassword = await bcrypt.hash(newPassword, BCRYPT_COST);
-
-  await prisma.$transaction([
-    prisma.user.update({
-      where: { id: tokenRecord.userId },
-      data: { password: hashedPassword },
-    }),
-    // Burn every outstanding token for this user, not just the one consumed.
-    prisma.passwordResetToken.deleteMany({ where: { userId: tokenRecord.userId } }),
-  ]);
+  const passwordHash = await bcrypt.hash(newPassword, BCRYPT_COST);
+  if (kind === "guardian") {
+    await prisma.$transaction([
+      prisma.guardianAccount.update({
+        where: { id: subjectId },
+        data: { passwordHash },
+      }),
+      prisma.passwordResetToken.deleteMany({ where: { guardianAccountId: subjectId } }),
+      prisma.refreshToken.deleteMany({ where: { guardianAccountId: subjectId } }),
+    ]);
+  } else {
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: subjectId },
+        data: { password: passwordHash },
+      }),
+      prisma.passwordResetToken.deleteMany({ where: { userId: subjectId } }),
+    ]);
+  }
 
   return Response.json({ success: true });
 }

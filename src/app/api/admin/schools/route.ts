@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/notifications";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
+import { randomBytes } from "node:crypto";
+import { BCRYPT_COST } from "@/lib/password-policy";
 
 export async function GET(request: Request) {
   const session = await verifyAdminSessionFromRequest(request);
@@ -62,9 +64,21 @@ const createSchema = z.object({
   taxPeriod: z.string().optional(),
 });
 
-function generateTempPassword(length = 10): string {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
-  return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+function generateTempPassword(): string {
+  // 144 bits from the operating system CSPRNG; base64url is safe to copy from
+  // an email and avoids punctuation commonly altered by clients.
+  return randomBytes(18).toString("base64url");
+}
+
+class DuplicateAdminEmailError extends Error {}
+
+function isUniqueConstraintError(error: unknown): boolean {
+  return Boolean(
+    error &&
+      typeof error === "object" &&
+      "code" in error &&
+      (error as { code: string }).code === "P2002"
+  );
 }
 
 export async function POST(request: Request) {
@@ -88,32 +102,60 @@ export async function POST(request: Request) {
   } = parsed.data;
   const email = rawEmail.toLowerCase().trim();
 
-  const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing)
-    return Response.json({ error: "البريد الإلكتروني مستخدم بالفعل" }, { status: 409 });
-
   const tempPassword = generateTempPassword();
-  const hashedPassword = await bcrypt.hash(tempPassword, 12);
+  const hashedPassword = await bcrypt.hash(tempPassword, BCRYPT_COST);
 
-  const school = await prisma.school.create({
-    data: {
-      name: schoolName,
-      email,
-      contactNumber: contactNumber ?? null,
-      ...(planId ? { plan_id: planId } : {}),
-      legalName, commercialRegistration, nationalUnifiedNumber, entityType, businessActivities,
-      schoolType, educationStages, licenseNumber, branch, address,
-      vatRegistered, vatNumber, zatcaUnifiedNumber, zakatStatus, financialYear, taxPeriod,
-    },
-  });
+  let school: { id: string; name: string };
+  try {
+    school = await prisma.$transaction(async (tx) => {
+      const existing = await tx.user.findUnique({ where: { email } });
+      if (existing) throw new DuplicateAdminEmailError();
 
-  await prisma.user.create({
-    data: { name: schoolName, email, password: hashedPassword, role: "admin", schoolId: school.id },
-  });
+      const createdSchool = await tx.school.create({
+        data: {
+          name: schoolName,
+          email,
+          contactNumber: contactNumber ?? null,
+          ...(planId ? { plan_id: planId } : {}),
+          legalName, commercialRegistration, nationalUnifiedNumber, entityType, businessActivities,
+          schoolType, educationStages, licenseNumber, branch, address,
+          vatRegistered, vatNumber, zatcaUnifiedNumber, zakatStatus, financialYear, taxPeriod,
+        },
+        select: { id: true, name: true },
+      });
 
-  await prisma.adminActivityLog.create({
-    data: { school_id: school.id, action: "school_created", performed_by: "super_admin", metadata: { email } },
-  });
+      await tx.user.create({
+        data: {
+          name: schoolName,
+          email,
+          password: hashedPassword,
+          role: "admin",
+          schoolId: createdSchool.id,
+        },
+      });
+
+      await tx.adminActivityLog.create({
+        data: {
+          school_id: createdSchool.id,
+          action: "school_created",
+          performed_by: "super_admin",
+          metadata: { email, adminId: session.adminId },
+        },
+      });
+
+      return createdSchool;
+    });
+  } catch (error) {
+    if (error instanceof DuplicateAdminEmailError || isUniqueConstraintError(error)) {
+      return Response.json(
+        { error: "البريد الإلكتروني مستخدم بالفعل" },
+        { status: 409 }
+      );
+    }
+
+    console.error("[admin-schools] creation failed");
+    return Response.json({ error: "تعذر إنشاء الحضانة" }, { status: 500 });
+  }
 
   // Send credentials by email (fire-and-forget — don't fail if email fails)
   sendEmail(
@@ -121,7 +163,14 @@ export async function POST(request: Request) {
     "بيانات تسجيل الدخول — نظام إدارة الروضة",
     `مرحباً،\n\nتم إنشاء حسابكم في نظام إدارة الروضة.\n\nبيانات الدخول:\nالبريد الإلكتروني: ${email}\nكلمة المرور المؤقتة: ${tempPassword}\n\nيُرجى تغيير كلمة المرور بعد أول تسجيل دخول من صفحة الإعدادات.`,
     "نظام إدارة الروضة"
-  ).catch(() => {});
+  ).catch(() => {
+    // The account is committed already; report delivery failure internally
+    // without logging the address or temporary credential.
+    console.error("[admin-schools] credential email delivery failed", school.id);
+  });
 
-  return Response.json({ id: school.id, name: school.name, email, tempPassword }, { status: 201 });
+  return Response.json(
+    { id: school.id, name: school.name, email, tempPassword },
+    { status: 201, headers: { "Cache-Control": "no-store" } }
+  );
 }

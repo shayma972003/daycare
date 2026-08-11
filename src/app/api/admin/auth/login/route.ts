@@ -55,12 +55,13 @@ export async function POST(request: Request) {
 
   await resetRateLimit(lockKey);
 
-  const token = await signAdminToken(admin.id);
+  const token = await signAdminToken(admin.id, admin.password_hash);
 
   return new Response(JSON.stringify({ success: true }), {
     status: 200,
     headers: {
       "Content-Type": "application/json",
+      "Cache-Control": "no-store",
       "Set-Cookie": buildAdminCookieHeader(token),
     },
   });

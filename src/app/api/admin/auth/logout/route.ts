@@ -5,6 +5,7 @@ export async function POST() {
     status: 200,
     headers: {
       "Content-Type": "application/json",
+      "Cache-Control": "no-store",
       "Set-Cookie": buildAdminLogoutCookieHeader(),
     },
   });

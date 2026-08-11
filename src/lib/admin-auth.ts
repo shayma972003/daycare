@@ -1,4 +1,5 @@
 import { SignJWT, jwtVerify } from "jose";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { env } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
@@ -14,14 +15,37 @@ const COOKIE_NAME = IS_PROD ? "__Host-admin_token" : "admin_token";
 
 const SECRET = new TextEncoder().encode(env.ADMIN_JWT_SECRET);
 const ISSUER = "daycare-admin";
+const AUDIENCE = "daycare-admin-panel";
 const ROLE = "superadmin";
 const MAX_AGE_SECONDS = 8 * 3600;
 
-export async function signAdminToken(adminId: string): Promise<string> {
-  return new SignJWT({ role: ROLE })
+/**
+ * Binds a stateless JWT to the current password hash without exposing that
+ * hash in the cookie. Changing the password changes this HMAC and invalidates
+ * every older admin session immediately, without a new schema column.
+ */
+function sessionVersion(passwordHash: string): string {
+  return createHmac("sha256", env.ADMIN_JWT_SECRET)
+    .update(passwordHash)
+    .digest("base64url");
+}
+
+function safeEqual(left: string, right: string): boolean {
+  const leftBytes = Buffer.from(left);
+  const rightBytes = Buffer.from(right);
+  if (leftBytes.length !== rightBytes.length) return false;
+  return timingSafeEqual(leftBytes, rightBytes);
+}
+
+export async function signAdminToken(
+  adminId: string,
+  passwordHash: string
+): Promise<string> {
+  return new SignJWT({ role: ROLE, sessionVersion: sessionVersion(passwordHash) })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(adminId)
     .setIssuer(ISSUER)
+    .setAudience(AUDIENCE)
     .setIssuedAt()
     .setExpirationTime("8h")
     .sign(SECRET);
@@ -33,14 +57,29 @@ export async function signAdminToken(adminId: string): Promise<string> {
  */
 async function verifyToken(token: string): Promise<{ adminId: string } | null> {
   try {
-    const { payload } = await jwtVerify(token, SECRET, { issuer: ISSUER });
-    if (!payload.sub || payload.role !== ROLE) return null;
+    const { payload } = await jwtVerify(token, SECRET, {
+      issuer: ISSUER,
+      audience: AUDIENCE,
+      algorithms: ["HS256"],
+    });
+    if (
+      !payload.sub ||
+      payload.role !== ROLE ||
+      typeof payload.sessionVersion !== "string"
+    ) {
+      return null;
+    }
 
     const admin = await prisma.superAdmin.findUnique({
       where: { id: payload.sub },
-      select: { id: true },
+      select: { id: true, password_hash: true },
     });
-    if (!admin) return null;
+    if (
+      !admin ||
+      !safeEqual(payload.sessionVersion, sessionVersion(admin.password_hash))
+    ) {
+      return null;
+    }
 
     return { adminId: admin.id };
   } catch {

@@ -47,7 +47,7 @@ export async function POST(
               // The room's lead teacher, so staff hear about an activity they
               // are expected to run. Until now the message went to guardians
               // only and the teacher found out when the children arrived.
-              teacher: { select: { id: true, name: true, phone1: true, phone2: true, email: true } },
+              teacher: { select: { id: true, name: true, email: true } },
             },
           },
         },
@@ -65,6 +65,8 @@ export async function POST(
   const template = activity.message ?? "لديك نشاط جديد: <activity_name>";
 
   const notificationsSent: string[] = [];
+  let failed = 0;
+  let skipped = 0;
 
   /**
    * No invited classes means the whole school.
@@ -83,7 +85,7 @@ export async function POST(
             where: { isActive: true, deletedAt: null },
             include: { guardian: true },
           },
-          teacher: { select: { id: true, name: true, phone1: true, phone2: true, email: true } },
+          teacher: { select: { id: true, name: true, email: true } },
         },
       })
     : activity.activityInvites.map((invite) => invite.class);
@@ -91,7 +93,6 @@ export async function POST(
   for (const room of notifyGuardians ? guardianClasses : []) {
     for (const student of room.students) {
       const guardianName = student.guardian?.name ?? student.name;
-      const phone = student.guardian?.phone1 ?? student.guardian?.phone2 ?? null;
       const email = student.guardian?.email ?? null;
 
       const vars = buildMessageVars({
@@ -117,10 +118,9 @@ export async function POST(
         },
       });
 
-      await sendNotification(
+      const delivery = await sendNotification(
         schoolId,
         guardianName,
-        phone,
         email,
         template,
         vars,
@@ -129,7 +129,9 @@ export async function POST(
         { studentId: student.id }
       );
 
-      notificationsSent.push(student.name);
+      if (delivery.status === "sent") notificationsSent.push(student.name);
+      else if (delivery.status === "no_email") skipped++;
+      else failed++;
     }
   }
 
@@ -161,10 +163,9 @@ export async function POST(
         },
       });
 
-      await sendNotification(
+      const delivery = await sendNotification(
         schoolId,
         teacher.name,
-        teacher.phone1 ?? teacher.phone2 ?? null,
         teacher.email ?? null,
         template,
         vars,
@@ -172,7 +173,9 @@ export async function POST(
         "activity",
         {}
       );
-      notificationsSent.push(teacher.name);
+      if (delivery.status === "sent") notificationsSent.push(teacher.name);
+      else if (delivery.status === "no_email") skipped++;
+      else failed++;
     }
   }
 
@@ -186,5 +189,21 @@ export async function POST(
     request,
   });
 
-  return Response.json({ success: true, notified: notificationsSent.length });
+  const status =
+    failed === 0
+      ? notificationsSent.length === 0 && skipped > 0
+        ? 422
+        : 200
+      : notificationsSent.length > 0
+        ? 207
+        : 502;
+  return Response.json(
+    {
+      success: failed === 0 && skipped === 0,
+      notified: notificationsSent.length,
+      failed,
+      skipped,
+    },
+    { status }
+  );
 }

@@ -86,12 +86,21 @@ export async function POST(request: Request) {
     }),
   ]);
 
-  await sendEmail(
+  const delivery = await sendEmail(
     user.email,
     "رمز إعادة تعيين كلمة المرور",
     `رمز إعادة تعيين كلمة المرور: ${otp}\nصالح لمدة 15 دقيقة. لا تشاركه مع أحد.`,
     "نظام إدارة الروضة"
   );
+
+  if (!delivery.success) {
+    await prisma.passwordResetToken.deleteMany({ where: { userId: user.id } });
+    console.error("[forgot-password] failed to deliver reset code");
+    return Response.json(
+      { error: "تعذر إرسال رمز إعادة التعيين. حاول مجدداً." },
+      { status: 502 }
+    );
+  }
 
   return Response.json({ success: true });
 }

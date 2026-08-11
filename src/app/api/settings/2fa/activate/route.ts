@@ -58,16 +58,11 @@ export async function POST(request: Request) {
     return Response.json({ error: "رمز التحقق غير صحيح" }, { status: 400 });
   }
 
-  const school = await prisma.school.findUnique({ where: { id: schoolId } });
-  if (!school?.phoneNumber) {
-    return Response.json({ error: "يجب إضافة رقم الجوال في معلومات المنشأة أولاً" }, { status: 400 });
-  }
-
   await Promise.all([
     prisma.twoFASession.update({ where: { id: twoFaSession.id }, data: { verified: true } }),
     prisma.school.update({
       where: { id: schoolId },
-      data: { twoFaEnabled: true, twoFaPhone: `+966${school.phoneNumber}` },
+      data: { twoFaEnabled: true },
     }),
   ]);
 

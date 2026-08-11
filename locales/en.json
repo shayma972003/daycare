@@ -552,7 +552,6 @@
       "sendCode": "Send the code",
       "code": "Verification code",
       "enabled": "Two-factor authentication is on ✓",
-      "needPhone": "Add a mobile number under school information before turning this on",
       "sendFailed": "Could not send the code",
       "wrongCode": "That code is not correct"
     },
@@ -577,7 +576,7 @@
     "storageLink": "Storage →",
     "backToSettings": "← Back to settings",
     "passwordChanged": "Password changed successfully",
-    "twoFactorHint": "Protect your account with an extra layer: a code sent to your phone at every sign-in.",
+    "twoFactorHint": "Protect your account with an extra layer: a code sent to your account email at every sign-in.",
     "variablesHint": "Write the variable in the message and it is replaced with the real value when sent.",
     "needsReassignment": "\n{n} children need a class assigned",
     "restoredStudents": "{n} children restored",
@@ -587,7 +586,7 @@
     "restoreAllStudents": "Restore all deleted children? ({n})",
     "restoreAllClasses": "Restore all deleted classes? ({n})",
     "restoreAllTeachers": "Restore all deleted teachers? ({n})",
-    "codeWillBeSentTo": "A verification code will be sent to: {phone}",
+    "codeWillBeSentTo": "A verification code will be sent to your registered account email",
     "daysCount": "{n} days"
   },
   "periods": {

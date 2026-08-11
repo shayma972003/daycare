@@ -80,12 +80,24 @@ export async function POST(request: Request) {
     },
   });
 
-  await sendEmail(
+  const delivery = await sendEmail(
     rec.sent_to_email,
     `رمز تحقق جديد — ${rec.school.name}`,
     buildOtpMessage(rec.school.name, otp, `${env.APP_URL}/enroll/${token}`),
     rec.school.name
   );
+
+  if (!delivery.success) {
+    await prisma.enrollmentToken.update({
+      where: { token },
+      data: { otp_expires_at: new Date(0) },
+    });
+    console.error("[enrollment-otp] failed to deliver code", rec.school_id);
+    return Response.json(
+      { error: "تعذر إرسال رمز التحقق عبر البريد. حاول مجدداً." },
+      { status: 502 }
+    );
+  }
 
   return Response.json({ success: true });
 }

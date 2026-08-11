@@ -45,8 +45,6 @@ export async function POST(
       id: true,
       name: true,
       email: true,
-      phone1: true,
-      phone2: true,
       monthlySalary: true,
       lateHours: true,
       lateDeductionRate: true,
@@ -82,10 +80,9 @@ export async function POST(
     "مع تحيات <school_name>",
   ].join("\n");
 
-  await sendNotification(
+  const delivery = await sendNotification(
     schoolId,
     teacher.name,
-    teacher.phone1 ?? teacher.phone2 ?? null,
     email,
     template,
     {
@@ -100,6 +97,13 @@ export async function POST(
     "teacher_salary",
     { teacherId: teacher.id }
   );
+
+  if (delivery.status !== "sent") {
+    return Response.json(
+      { error: "تعذر إرسال البريد. حاول مجدداً." },
+      { status: delivery.status === "no_email" ? 422 : 502 }
+    );
+  }
 
   await logAction({
     school_id: schoolId,

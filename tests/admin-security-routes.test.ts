@@ -145,7 +145,7 @@ beforeEach(() => {
   );
   mocks.bcryptCompare.mockResolvedValue(false);
   mocks.bcryptHash.mockResolvedValue(NEW_HASH);
-  mocks.sendEmail.mockResolvedValue(undefined);
+  mocks.sendEmail.mockResolvedValue({ success: true });
   mocks.rateLimit.mockResolvedValue({ ok: true, remaining: 4, retryAfter: 0 });
   mocks.resetRateLimit.mockResolvedValue(undefined);
   mocks.clientIp.mockReturnValue("127.0.0.1");
@@ -312,6 +312,7 @@ describe("admin school creation", () => {
       }),
     });
     expect(mocks.sendEmail).toHaveBeenCalledTimes(1);
+    expect(result.emailDelivery).toBe("sent");
   });
 
   it("uses OS randomness even if Math.random is predictable", async () => {
@@ -349,6 +350,18 @@ describe("admin school creation", () => {
     expect(mocks.transaction).toHaveBeenCalledTimes(1);
     expect(mocks.adminActivityCreate).not.toHaveBeenCalled();
     expect(mocks.sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("reports credential email failure explicitly after the school is created", async () => {
+    mocks.sendEmail.mockResolvedValue({ success: false, error: "provider unavailable" });
+
+    const response = await createSchool(
+      await authenticatedRequest("/api/admin/schools", validSchoolBody())
+    );
+    const result = await response.json();
+
+    expect(response.status).toBe(207);
+    expect(result.emailDelivery).toBe("failed");
   });
 
   it("returns a conflict for a concurrent unique-email failure", async () => {

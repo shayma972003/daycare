@@ -91,14 +91,6 @@ const envSchema = z.object({
   R2_SECRET_ACCESS_KEY: optional(z.string()),
   R2_BUCKET: optional(z.string()),
 
-  // ─── WhatsApp (Twilio) — off unless explicitly enabled ─────────────────────
-  ENABLE_WHATSAPP: z
-    .string()
-    .optional()
-    .transform((v) => v === "true"),
-  TWILIO_ACCOUNT_SID: optional(z.string()),
-  TWILIO_AUTH_TOKEN: optional(z.string()),
-  TWILIO_WHATSAPP_FROM: optional(z.string()),
 }).superRefine((value, ctx) => {
   if (value.NODE_ENV !== "production") return;
 
@@ -196,12 +188,4 @@ export const emailEnabled = emailProvider !== "none";
  */
 export const storageEnabled = Boolean(
   env.R2_ACCOUNT_ID && env.R2_ACCESS_KEY_ID && env.R2_SECRET_ACCESS_KEY && env.R2_BUCKET
-);
-
-/** WhatsApp is explicitly enabled *and* fully configured. */
-export const whatsappEnabled = Boolean(
-  env.ENABLE_WHATSAPP &&
-    env.TWILIO_ACCOUNT_SID &&
-    env.TWILIO_AUTH_TOKEN &&
-    env.TWILIO_WHATSAPP_FROM
 );

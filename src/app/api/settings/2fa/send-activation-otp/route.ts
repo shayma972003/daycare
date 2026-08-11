@@ -1,6 +1,6 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { sendWhatsApp } from "@/lib/notifications";
+import { sendEmail } from "@/lib/notifications";
 import bcrypt from "bcryptjs";
 import { randomInt } from "crypto";
 
@@ -20,10 +20,12 @@ export async function POST() {
     );
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
-
-  const school = await prisma.school.findUnique({ where: { id: schoolId } });
-  if (!school?.phoneNumber) {
-    return Response.json({ error: "يجب إضافة رقم الجوال في معلومات المنشأة أولاً" }, { status: 400 });
+  const email = session.user.email;
+  if (!email) {
+    return Response.json(
+      { error: "يجب إضافة بريد إلكتروني إلى حسابك أولاً" },
+      { status: 400 }
+    );
   }
 
   const lastSession = await prisma.twoFASession.findFirst({
@@ -40,16 +42,30 @@ export async function POST() {
   const twoFaSession = await prisma.twoFASession.create({
     data: {
       schoolId,
+      userId: session.user.id,
       purpose: "ACTIVATE",
       otpCodeHash,
       expiresAt: new Date(Date.now() + 10 * 60 * 1000),
     },
   });
 
-  await sendWhatsApp(
-    `+966${school.phoneNumber}`,
-    `رمز التحقق بخطوتين: ${otp}\nصالح لمدة 10 دقائق. لا تشاركه مع أحد.`
+  const delivery = await sendEmail(
+    email,
+    "رمز تفعيل التحقق بخطوتين",
+    `رمز التحقق بخطوتين: ${otp}\nصالح لمدة 10 دقائق. لا تشاركه مع أحد.`,
+    session.user.schoolName
   );
+
+  if (!delivery.success) {
+    await prisma.twoFASession.deleteMany({
+      where: { id: twoFaSession.id, schoolId, purpose: "ACTIVATE" },
+    });
+    console.error("[2fa-activation] failed to deliver activation code", schoolId);
+    return Response.json(
+      { error: "تعذر إرسال رمز التحقق عبر البريد. حاول مجدداً." },
+      { status: 502 }
+    );
+  }
 
   return Response.json({ twoFaSessionId: twoFaSession.id });
 }

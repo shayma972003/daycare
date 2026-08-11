@@ -132,18 +132,6 @@ export async function POST(request: Request) {
     },
   });
 
-  // In-app notification log for admin
-  await prisma.notificationLog.create({
-    data: {
-      schoolId: rec.school_id,
-      recipientName: formData.full_name,
-      type: "WHATSAPP",
-      content: `طلب تسجيل جديد: ${formData.full_name} — في انتظار المراجعة`,
-      status: "SENT",
-      source: "enrollment",
-    },
-  });
-
   return Response.json({
     success: true,
     submission_id: submission.id,

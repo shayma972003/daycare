@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { replaceVariables } from "@/lib/utils";
 import { type MessageContext } from "@/lib/message-variables";
-import { env, emailEnabled, emailProvider, whatsappEnabled } from "@/lib/env";
+import { env, emailEnabled, emailProvider } from "@/lib/env";
 
 export type NotificationVars = Record<string, string>;
 export type { MessageContext };
@@ -21,46 +21,6 @@ const HTML_ESCAPES: Record<string, string> = {
  */
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (c) => HTML_ESCAPES[c]);
-}
-
-/**
- * WhatsApp is disabled for now (cost) — kept intact behind ENABLE_WHATSAPP so a
- * future release can turn it back on without rewriting call sites.
- */
-export async function sendWhatsApp(
-  to: string,
-  body: string
-): Promise<{ success: boolean; error?: string }> {
-  try {
-    if (!whatsappEnabled) {
-      return { success: false, error: "WhatsApp disabled" };
-    }
-
-    const accountSid = env.TWILIO_ACCOUNT_SID!;
-    const authToken = env.TWILIO_AUTH_TOKEN!;
-    const from = env.TWILIO_WHATSAPP_FROM!;
-
-    const response = await fetch(
-      `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString("base64")}`,
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: new URLSearchParams({
-          From: from,
-          To: `whatsapp:${to}`,
-          Body: body,
-        }),
-      }
-    );
-
-    if (!response.ok) return { success: false, error: await response.text() };
-    return { success: true };
-  } catch (err) {
-    return { success: false, error: String(err) };
-  }
 }
 
 export async function sendEmail(
@@ -140,64 +100,57 @@ export interface NotificationSubject {
   teacherId?: string | null;
 }
 
+export type NotificationDeliveryResult =
+  | { status: "sent" }
+  | { status: "failed"; reason: "email_delivery" | "delivery_log" }
+  | { status: "no_email" };
+
 export async function sendNotification(
   schoolId: string,
   recipientName: string,
-  phone: string | null,
   email: string | null,
   template: string,
   vars: NotificationVars,
   schoolName: string,
   source: string = "other",
   subject: NotificationSubject = {}
-) {
+): Promise<NotificationDeliveryResult> {
   const message = replaceVariables(template, vars as Record<string, string>);
   const subjectColumns = {
     studentId: subject.studentId ?? null,
     teacherId: subject.teacherId ?? null,
   };
 
-  const results: Array<Promise<void>> = [];
+  if (!email) return { status: "no_email" };
 
-  // Skipped entirely while WhatsApp is disabled, so the log does not fill with
-  // FAILED rows for a channel nobody is paying for.
-  if (phone && whatsappEnabled) {
-    results.push(
-      sendWhatsApp(phone, message).then(async (res) => {
-        await prisma.notificationLog.create({
-          data: {
-            schoolId,
-            recipientName,
-            type: "WHATSAPP",
-            content: message,
-            status: res.success ? "SENT" : "FAILED",
-            source,
-            ...subjectColumns,
-          },
-        });
-      })
-    );
+  const delivery = await sendEmail(
+    email,
+    `رسالة من ${schoolName}`,
+    message,
+    schoolName
+  );
+
+  try {
+    await prisma.notificationLog.create({
+      data: {
+        schoolId,
+        recipientName,
+        type: "EMAIL",
+        content: message,
+        status: delivery.success ? "SENT" : "FAILED",
+        source,
+        ...subjectColumns,
+      },
+    });
+  } catch {
+    console.error("[notifications] failed to record email delivery", {
+      schoolId,
+      source,
+    });
+    return { status: "failed", reason: "delivery_log" };
   }
 
-  if (email) {
-    results.push(
-      sendEmail(email, `رسالة من ${schoolName}`, message, schoolName).then(
-        async (res) => {
-          await prisma.notificationLog.create({
-            data: {
-              schoolId,
-              recipientName,
-              type: "EMAIL",
-              content: message,
-              status: res.success ? "SENT" : "FAILED",
-              source,
-              ...subjectColumns,
-            },
-          });
-        }
-      )
-    );
-  }
-
-  await Promise.allSettled(results);
+  return delivery.success
+    ? { status: "sent" }
+    : { status: "failed", reason: "email_delivery" };
 }

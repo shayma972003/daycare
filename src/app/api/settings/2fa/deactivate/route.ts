@@ -54,7 +54,7 @@ export async function POST(request: Request) {
 
   await prisma.school.update({
     where: { id: schoolId },
-    data: { twoFaEnabled: false, twoFaPhone: null },
+    data: { twoFaEnabled: false },
   });
 
   await logAction({

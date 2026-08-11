@@ -157,20 +157,27 @@ export async function POST(request: Request) {
     return Response.json({ error: "تعذر إنشاء الحضانة" }, { status: 500 });
   }
 
-  // Send credentials by email (fire-and-forget — don't fail if email fails)
-  sendEmail(
+  const emailDelivery = await sendEmail(
     email,
     "بيانات تسجيل الدخول — نظام إدارة الروضة",
     `مرحباً،\n\nتم إنشاء حسابكم في نظام إدارة الروضة.\n\nبيانات الدخول:\nالبريد الإلكتروني: ${email}\nكلمة المرور المؤقتة: ${tempPassword}\n\nيُرجى تغيير كلمة المرور بعد أول تسجيل دخول من صفحة الإعدادات.`,
     "نظام إدارة الروضة"
-  ).catch(() => {
-    // The account is committed already; report delivery failure internally
-    // without logging the address or temporary credential.
+  );
+  if (!emailDelivery.success) {
     console.error("[admin-schools] credential email delivery failed", school.id);
-  });
+  }
 
   return Response.json(
-    { id: school.id, name: school.name, email, tempPassword },
-    { status: 201, headers: { "Cache-Control": "no-store" } }
+    {
+      id: school.id,
+      name: school.name,
+      email,
+      tempPassword,
+      emailDelivery: emailDelivery.success ? "sent" : "failed",
+    },
+    {
+      status: emailDelivery.success ? 201 : 207,
+      headers: { "Cache-Control": "no-store" },
+    }
   );
 }

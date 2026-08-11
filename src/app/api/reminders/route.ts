@@ -53,7 +53,7 @@ export async function GET(request: Request) {
         name: true,
         enrollmentEndDate: true,
         billingCycle: true,
-        guardian: { select: { name: true, email: true, phone1: true } },
+        guardian: { select: { name: true, email: true } },
       },
     });
 
@@ -94,7 +94,7 @@ export async function GET(request: Request) {
         take: 1,
         select: { due_date: true, amount: true },
       },
-      guardian: { select: { name: true, email: true, phone1: true } },
+      guardian: { select: { name: true, email: true } },
     },
   });
 
@@ -166,7 +166,7 @@ export async function POST(request: Request) {
         registration_fee: true,
         enrollmentEndDate: true,
         guardian: {
-          select: { name: true, name_2: true, email: true, phone1: true, phone2: true },
+          select: { name: true, name_2: true, email: true },
         },
       },
     }),
@@ -189,14 +189,10 @@ export async function POST(request: Request) {
 
   let sent = 0;
   let skipped = 0;
+  let failed = 0;
 
   for (const student of students) {
     const email = student.guardian?.email ?? null;
-    if (!email) {
-      skipped++;
-      continue;
-    }
-
     const vars = buildMessageVars({
       student: {
         name: student.name,
@@ -211,10 +207,9 @@ export async function POST(request: Request) {
       },
     });
 
-    await sendNotification(
+    const delivery = await sendNotification(
       schoolId,
       student.guardian?.name ?? "ولي الأمر",
-      student.guardian?.phone1 ?? null,
       email,
       template,
       vars,
@@ -222,7 +217,9 @@ export async function POST(request: Request) {
       parsed.data.kind === "renewal" ? "renewal" : "reminder",
       { studentId: student.id }
     );
-    sent++;
+    if (delivery.status === "sent") sent++;
+    else if (delivery.status === "no_email") skipped++;
+    else failed++;
   }
 
   await logAction({
@@ -236,5 +233,9 @@ export async function POST(request: Request) {
     request,
   });
 
-  return Response.json({ sent, skipped });
+  const status = failed === 0 ? 200 : sent > 0 ? 207 : 502;
+  return Response.json(
+    { success: failed === 0, sent, failed, skipped },
+    { status }
+  );
 }

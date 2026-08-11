@@ -180,6 +180,9 @@ export const authOptions: NextAuthOptions = {
             );
 
             if (!sent.success) {
+              await prisma.twoFASession.deleteMany({
+                where: { id: twoFaSession.id, userId: user.id, purpose: "LOGIN" },
+              });
               console.error("[auth] failed to deliver 2FA code", user.schoolId);
               throw new Error("2FA_DELIVERY_FAILED");
             }

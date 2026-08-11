@@ -96,12 +96,21 @@ export async function POST(request: Request) {
     },
   });
 
-  await sendEmail(
+  const delivery = await sendEmail(
     recipient,
     "رمز التحقق بخطوتين",
     `رمز التحقق بخطوتين: ${otp}\nصالح لمدة 10 دقائق. لا تشاركه مع أحد.`,
     session.school.name
   );
+
+  if (!delivery.success) {
+    await prisma.twoFASession.deleteMany({ where: { id: session.id } });
+    console.error("[2fa-resend] failed to deliver code", session.schoolId);
+    return Response.json(
+      { error: "تعذر إرسال رمز التحقق عبر البريد. سجّل الدخول من جديد." },
+      { status: 502 }
+    );
+  }
 
   return Response.json({ success: true, twoFaSessionId: session.id });
 }

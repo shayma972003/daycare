@@ -142,7 +142,6 @@ export default function SettingsPage() {
 
   // 2FA / security state
   const [twoFaEnabled, setTwoFaEnabled] = useState(false);
-  const [phoneWarning, setPhoneWarning] = useState("");
   const [showActivateModal, setShowActivateModal] = useState(false);
   const [activateStep, setActivateStep] = useState<"confirm" | "otp">("confirm");
   const [activateSessionId, setActivateSessionId] = useState("");
@@ -373,11 +372,6 @@ export default function SettingsPage() {
       setShowDeactivateModal(true);
       return;
     }
-    if (!phoneNumber) {
-      setPhoneWarning(t("settings.twoFa.needPhone"));
-      return;
-    }
-    setPhoneWarning("");
     setActivateStep("confirm");
     setActivateOtp("");
     setActivateError("");
@@ -647,8 +641,8 @@ export default function SettingsPage() {
 
             {activateStep === "confirm" ? (
               <>
-                <p className="text-sm text-gray-600 text-center" dir="ltr">
-                  {t("settings.codeWillBeSentTo", { phone: `+966${phoneNumber}` })}
+                <p className="text-sm text-gray-600 text-center">
+                  {t("settings.codeWillBeSentTo")}
                 </p>
                 {activateError && (
                   <p className="text-red-600 text-sm text-center">{activateError}</p>
@@ -1072,11 +1066,6 @@ export default function SettingsPage() {
                   </button>
                 </div>
 
-                {phoneWarning && (
-                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700">
-                    {phoneWarning}
-                  </div>
-                )}
                 {twoFaSuccessMsg && (
                   <div className="p-3 bg-success-bg border border-success-text/20 rounded-xl text-sm text-success-text">
                     {twoFaSuccessMsg}

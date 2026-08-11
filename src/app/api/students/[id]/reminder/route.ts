@@ -42,7 +42,6 @@ export async function POST(
   const schoolName = school?.name ?? "الروضة";
 
   const guardianName = student.guardian?.name ?? student.name;
-  const phone = student.guardian?.phone1 ?? student.guardian?.phone2 ?? null;
   const email = student.guardian?.email ?? null;
 
   const vars = buildMessageVars({
@@ -62,10 +61,9 @@ export async function POST(
     },
   });
 
-  await sendNotification(
+  const delivery = await sendNotification(
     schoolId,
     guardianName,
-    phone,
     email,
     reminderTemplate,
     vars,
@@ -75,6 +73,19 @@ export async function POST(
     // retention sweep can clear the name from this log later.
     { studentId: student.id }
   );
+
+  if (delivery.status === "no_email") {
+    return Response.json(
+      { error: "لا يوجد بريد إلكتروني مسجّل لولي الأمر" },
+      { status: 422 }
+    );
+  }
+  if (delivery.status === "failed") {
+    return Response.json(
+      { error: "تعذر إرسال البريد. حاول مجدداً." },
+      { status: 502 }
+    );
+  }
 
   await logAction({
     school_id: schoolId,

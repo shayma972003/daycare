@@ -51,14 +51,10 @@ vi.mock("bcryptjs", () => ({
   default: { hash: mocks.bcryptHash },
 }));
 
-vi.mock("@/lib/rate-limit", () => ({
+vi.mock("@/lib/rate-limit", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/rate-limit")>()),
   rateLimit: mocks.rateLimit,
   clientIp: () => "127.0.0.1",
-  tooManyRequests: (retryAfter: number) =>
-    Response.json(
-      { error: "limited" },
-      { status: 429, headers: { "Retry-After": String(retryAfter) } }
-    ),
 }));
 
 vi.mock("@/lib/r2", () => ({
@@ -80,7 +76,7 @@ beforeEach(() => {
   mocks.twoFaCreate.mockResolvedValue({ id: "2fa-session-1" });
   mocks.twoFaDeleteMany.mockResolvedValue({ count: 1 });
   mocks.bcryptHash.mockResolvedValue("otp-hash");
-  mocks.rateLimit.mockResolvedValue({ ok: true, remaining: 10, retryAfter: 0 });
+  mocks.rateLimit.mockResolvedValue({ status: "allowed", remaining: 10, retryAfter: 0 });
   mocks.requireSession.mockResolvedValue({
     user: {
       id: "user-1",

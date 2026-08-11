@@ -3,7 +3,7 @@ import { sendEmail } from "@/lib/notifications";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { randomInt } from "crypto";
-import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
+import { rateLimit, clientIp, rateLimitResponse } from "@/lib/rate-limit";
 
 const schema = z.object({
   twoFaSessionId: z.string().min(1),
@@ -35,7 +35,8 @@ export async function POST(request: Request) {
     limit: 10,
     windowMs: 15 * 60 * 1000,
   });
-  if (!limited.ok) return tooManyRequests(limited.retryAfter);
+  const limitedResponse = rateLimitResponse(limited);
+  if (limitedResponse) return limitedResponse;
 
   const session = await prisma.twoFASession.findUnique({
     where: { id: parsed.data.twoFaSessionId },

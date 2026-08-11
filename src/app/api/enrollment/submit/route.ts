@@ -5,7 +5,7 @@ import { z } from "zod";
 import { normalizePhone } from "@/lib/phone-normalizer";
 import { astDayStart } from "@/lib/datetime";
 import { keyFromUrl, schoolIdFromKey } from "@/lib/r2";
-import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
+import { rateLimit, clientIp, rateLimitResponse } from "@/lib/rate-limit";
 
 const schema = z.object({
   token: z.string().min(1),
@@ -39,7 +39,8 @@ export async function POST(request: Request) {
     limit: 20,
     windowMs: 60 * 60 * 1000,
   });
-  if (!limited.ok) return tooManyRequests(limited.retryAfter);
+  const limitedResponse = rateLimitResponse(limited);
+  if (limitedResponse) return limitedResponse;
 
   let body: unknown;
   try {

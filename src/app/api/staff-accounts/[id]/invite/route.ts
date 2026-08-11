@@ -5,7 +5,7 @@ import { activityLogData } from "@/lib/activity-logger";
 import { sendEmail } from "@/lib/notifications";
 import { mintInvite } from "@/lib/invitations";
 import { ALL_PERMISSIONS } from "@/lib/permissions";
-import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
+import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { env } from "@/lib/env";
 
 class StaffInviteNotFoundError extends Error {}
@@ -37,9 +37,10 @@ export async function POST(
     limit: 5,
     windowMs: 60 * 60 * 1000,
   });
-  if (!limited.ok) {
-    return tooManyRequests(limited.retryAfter, "تم تجاوز عدد محاولات إرسال الدعوة");
-  }
+  const limitedResponse = rateLimitResponse(limited, {
+    limitedMessage: "تم تجاوز عدد محاولات إرسال الدعوة",
+  });
+  if (limitedResponse) return limitedResponse;
 
   const invite = mintInvite();
   let user: {

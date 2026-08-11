@@ -10,8 +10,8 @@ import { BCRYPT_COST, passwordSchema } from "@/lib/password-policy";
 import {
   clientIp,
   rateLimit,
+  rateLimitResponse,
   resetRateLimit,
-  tooManyRequests,
 } from "@/lib/rate-limit";
 
 const schema = z.object({
@@ -31,7 +31,8 @@ export async function POST(request: Request) {
     { key: `admin-password:ip:${clientIp(request)}`, limit: 10 },
   ]) {
     const limited = await rateLimit({ key, limit, windowMs: 15 * 60 * 1000 });
-    if (!limited.ok) return tooManyRequests(limited.retryAfter);
+    const limitedResponse = rateLimitResponse(limited);
+    if (limitedResponse) return limitedResponse;
   }
 
   let body: unknown;

@@ -20,10 +20,10 @@ vi.mock("@/lib/invitations", () => ({
   redeemInvite: mocks.redeemInvite,
 }));
 
-vi.mock("@/lib/rate-limit", () => ({
+vi.mock("@/lib/rate-limit", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/rate-limit")>()),
   rateLimit: mocks.rateLimit,
   clientIp: mocks.clientIp,
-  tooManyRequests: mocks.tooManyRequests,
 }));
 
 import { GET, POST } from "@/app/api/activate/[token]/route";
@@ -42,7 +42,7 @@ function context(token = TOKEN) {
 
 beforeEach(() => {
   for (const value of Object.values(mocks)) value.mockReset();
-  mocks.rateLimit.mockResolvedValue({ ok: true, remaining: 9, retryAfter: 0 });
+  mocks.rateLimit.mockResolvedValue({ status: "allowed", remaining: 9, retryAfter: 0 });
   mocks.clientIp.mockReturnValue("127.0.0.1");
   mocks.tooManyRequests.mockImplementation((retryAfter: number) =>
     Response.json(
@@ -106,7 +106,7 @@ describe("public school administrator invitation routes", () => {
   });
 
   it("does not query invitation storage when the public rate limit is exceeded", async () => {
-    mocks.rateLimit.mockResolvedValueOnce({ ok: false, remaining: 0, retryAfter: 90 });
+    mocks.rateLimit.mockResolvedValueOnce({ status: "limited", remaining: 0, retryAfter: 90 });
 
     const response = await POST(
       new Request(`http://localhost/api/activate/${TOKEN}`, {

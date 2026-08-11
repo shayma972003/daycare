@@ -1,7 +1,7 @@
 import { verifyAdminSessionFromRequest } from "@/lib/admin-auth";
 import { env } from "@/lib/env";
 import { sendEmail } from "@/lib/notifications";
-import { clientIp, rateLimit, tooManyRequests } from "@/lib/rate-limit";
+import { clientIp, rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import {
   rotateSchoolAdminInvite,
   SchoolAdminAlreadyActiveError,
@@ -30,7 +30,8 @@ export async function POST(
     { key: `school-admin-invite:ip:${clientIp(request)}`, limit: 20 },
   ]) {
     const limited = await rateLimit({ key, limit, windowMs: 15 * 60 * 1000 });
-    if (!limited.ok) return tooManyRequests(limited.retryAfter);
+    const limitedResponse = rateLimitResponse(limited);
+    if (limitedResponse) return limitedResponse;
   }
 
   let invitation;

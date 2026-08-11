@@ -6,7 +6,12 @@ import { createHash } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/notifications";
 import { logAction } from "@/lib/activity-logger";
-import { rateLimit, resetRateLimit } from "@/lib/rate-limit";
+import {
+  rateLimit,
+  rateLimitResetResponse,
+  rateLimitResponse,
+  resetRateLimit,
+} from "@/lib/rate-limit";
 import { astDayStart } from "@/lib/datetime";
 
 function generateOTP(): string {
@@ -29,6 +34,7 @@ const SIGNAL_ERRORS = [
   "2FA_REQUIRED:",
   "2FA_DELIVERY_FAILED",
   "ACCOUNT_LOCKED",
+  "RATE_LIMIT_UNAVAILABLE",
   "SUBSCRIPTION_SUSPENDED",
   "SUBSCRIPTION_EXPIRED",
 ];
@@ -130,8 +136,13 @@ export const authOptions: NextAuthOptions = {
             limit: MAX_LOGIN_ATTEMPTS,
             windowMs: LOGIN_LOCKOUT_MS,
           });
-          if (!attempt.ok) {
-            throw new Error("ACCOUNT_LOCKED");
+          const limitedResponse = rateLimitResponse(attempt);
+          if (limitedResponse) {
+            throw new Error(
+              limitedResponse.status === 503
+                ? "RATE_LIMIT_UNAVAILABLE"
+                : "ACCOUNT_LOCKED"
+            );
           }
 
           const user = await prisma.user.findUnique({
@@ -149,7 +160,8 @@ export const authOptions: NextAuthOptions = {
 
           // Credentials are correct — clear the counter so an earlier typo does
           // not carry over into the next sign-in.
-          await resetRateLimit(lockKey);
+          const resetResponse = rateLimitResetResponse(await resetRateLimit(lockKey));
+          if (resetResponse) throw new Error("RATE_LIMIT_UNAVAILABLE");
 
           // The admin panel writes `subscription_status` and `renewal_date` but
           // nothing ever read them, so a suspended or expired school kept full

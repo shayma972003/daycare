@@ -2,7 +2,7 @@ import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { sendNotification } from "@/lib/notifications";
 import { logAction } from "@/lib/activity-logger";
-import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
+import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { formatAst } from "@/lib/datetime";
 
 /**
@@ -37,7 +37,8 @@ export async function POST(
     limit: 5,
     windowMs: 60 * 60 * 1000,
   });
-  if (!limited.ok) return tooManyRequests(limited.retryAfter);
+  const limitedResponse = rateLimitResponse(limited);
+  if (limitedResponse) return limitedResponse;
 
   const teacher = await prisma.teacher.findFirst({
     where: { id, schoolId, deletedAt: null },

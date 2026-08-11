@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/notifications";
 import { logAction } from "@/lib/activity-logger";
 import { normalizePhone } from "@/lib/phone-normalizer";
-import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
+import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { env } from "@/lib/env";
 import { ENROLLMENT_MANAGE_PERMISSION } from "@/lib/enrollment-access";
 import {
@@ -81,7 +81,8 @@ export async function POST(request: Request) {
     limit: 30,
     windowMs: 60 * 60 * 1000,
   });
-  if (!limited.ok) return tooManyRequests(limited.retryAfter);
+  const limitedResponse = rateLimitResponse(limited);
+  if (limitedResponse) return limitedResponse;
 
   const { phone, email } = parsed.data;
 

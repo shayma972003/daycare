@@ -120,6 +120,7 @@
     "passwordChanged": "Your password was changed. You can sign in now.",
     "otpSendFailed": "We could not send the code to your address. Please contact support.",
     "lockedOut": "The account is locked after several failed attempts. Try again in 15 minutes.",
+    "rateLimitUnavailable": "The sign-in service is temporarily unavailable. Please try again shortly.",
     "suspended": "This nursery’s subscription is suspended. Contact support to restore it.",
     "expired": "This nursery’s subscription has ended. Renew it to continue.",
     "badCredentials": "That email or password is not correct",

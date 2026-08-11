@@ -27,11 +27,10 @@ vi.mock("@/lib/file-upload", () => ({
   MAX_ENROLLMENT_FILE_BYTES: 1024,
 }));
 
-vi.mock("@/lib/rate-limit", () => ({
+vi.mock("@/lib/rate-limit", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/rate-limit")>()),
   rateLimit: mocks.rateLimit,
   clientIp: () => "127.0.0.1",
-  tooManyRequests: (retryAfter: number) =>
-    Response.json({ error: "limited" }, { status: 429, headers: { "Retry-After": String(retryAfter) } }),
 }));
 
 import { GET as verifyToken } from "@/app/api/enrollment/verify-token/[token]/route";
@@ -44,10 +43,27 @@ beforeEach(() => {
   mocks.update.mockReset();
   mocks.storeUpload.mockReset();
   mocks.rateLimit.mockReset();
-  mocks.rateLimit.mockResolvedValue({ ok: true, remaining: 10, retryAfter: 0 });
+  mocks.rateLimit.mockResolvedValue({ status: "allowed", remaining: 10, retryAfter: 0 });
 });
 
 describe("public enrollment handlers", () => {
+  it("returns 503 before reading enrollment data when the limiter store is unavailable", async () => {
+    mocks.rateLimit.mockResolvedValueOnce({
+      status: "unavailable",
+      remaining: 0,
+      retryAfter: 10,
+    });
+
+    const response = await verifyToken(
+      new Request("http://localhost/api/enrollment/verify-token/public-token"),
+      { params: Promise.resolve({ token: "public-token" }) }
+    );
+    expect(response.status).toBe(503);
+    expect(response.headers.get("Retry-After")).toBe("10");
+    expect(mocks.findUnique).not.toHaveBeenCalled();
+    expect(await response.text()).not.toContain("public-token");
+  });
+
   it("lets a parent validate a live enrollment token without a dashboard session", async () => {
     mocks.findUnique.mockResolvedValue({
       expires_at: new Date(Date.now() + 60_000),

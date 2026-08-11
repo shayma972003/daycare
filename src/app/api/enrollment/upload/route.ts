@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
+import { rateLimit, clientIp, rateLimitResponse } from "@/lib/rate-limit";
 import {
   storeUpload,
   isFailure,
@@ -39,7 +39,8 @@ export async function POST(request: Request) {
     limit: 20,
     windowMs: 60 * 60 * 1000,
   });
-  if (!limited.ok) return tooManyRequests(limited.retryAfter);
+  const limitedResponse = rateLimitResponse(limited);
+  if (limitedResponse) return limitedResponse;
 
   let formData: FormData;
   try {

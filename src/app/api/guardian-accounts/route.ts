@@ -7,7 +7,7 @@ import { sendEmail } from "@/lib/notifications";
 import { normalizePhone } from "@/lib/phone-normalizer";
 import { env } from "@/lib/env";
 import { mintInvite, accountState } from "@/lib/invitations";
-import { clientIp, rateLimit, tooManyRequests } from "@/lib/rate-limit";
+import { clientIp, rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 const createSchema = z
   .object({
@@ -152,7 +152,8 @@ export async function POST(request: Request) {
     `guardian-account-create:ip:${clientIp(request)}`,
   ]) {
     const limited = await rateLimit({ key, limit: 5, windowMs: 60 * 60 * 1000 });
-    if (!limited.ok) return tooManyRequests(limited.retryAfter);
+    const limitedResponse = rateLimitResponse(limited);
+    if (limitedResponse) return limitedResponse;
   }
 
   const invite = mintInvite();

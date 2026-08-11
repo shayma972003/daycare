@@ -1,5 +1,11 @@
 import { prisma } from "@/lib/prisma";
-import { rateLimit, resetRateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
+import {
+  rateLimit,
+  resetRateLimit,
+  clientIp,
+  rateLimitResetResponse,
+  rateLimitResponse,
+} from "@/lib/rate-limit";
 import { issueTokenPair, claimsForSubject } from "@/lib/mobile-auth";
 import { grants } from "@/lib/permissions";
 import bcrypt from "bcryptjs";
@@ -66,7 +72,8 @@ export async function POST(request: Request) {
   // The same key the web sign-in uses, so attempts across both clients share one
   // counter — otherwise the app would be a way to get five more guesses.
   const attempt = await rateLimit({ key: lockKey, limit: MAX_ATTEMPTS, windowMs: LOCKOUT_MS });
-  if (!attempt.ok) return tooManyRequests(attempt.retryAfter);
+  const limitedResponse = rateLimitResponse(attempt);
+  if (limitedResponse) return limitedResponse;
 
   if (kind === "guardian") {
     const account = await prisma.guardianAccount.findUnique({
@@ -94,7 +101,8 @@ export async function POST(request: Request) {
       return Response.json({ error: "الحساب معطَّل" }, { status: 403 });
     }
 
-    await resetRateLimit(lockKey);
+    const resetResponse = rateLimitResetResponse(await resetRateLimit(lockKey));
+    if (resetResponse) return resetResponse;
 
     // Re-read through the shared helper rather than trusting the row above: it
     // is what also checks the school's subscription, and one definition of "may
@@ -148,7 +156,8 @@ export async function POST(request: Request) {
     return Response.json({ error: "بيانات الدخول غير صحيحة" }, { status: 401 });
   }
 
-  await resetRateLimit(lockKey);
+  const resetResponse = rateLimitResetResponse(await resetRateLimit(lockKey));
+  if (resetResponse) return resetResponse;
 
   if (user.disabledAt) {
     return Response.json({ error: "الحساب معطَّل" }, { status: 403 });

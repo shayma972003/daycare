@@ -58,7 +58,9 @@ function LoginForm() {
 
     setLoading(false);
 
-    if (result?.error) {
+    if (result?.status === 503) {
+      setError(t("auth.rateLimitUnavailable"));
+    } else if (result?.error) {
       if (result.error.startsWith("2FA_REQUIRED:")) {
         const parts = result.error.split(":");
         setTwoFaSessionId(parts[1]);

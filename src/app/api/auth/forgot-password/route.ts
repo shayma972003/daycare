@@ -2,7 +2,7 @@ import { createHash, randomInt } from "crypto";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/notifications";
-import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
+import { rateLimit, clientIp, rateLimitResponse } from "@/lib/rate-limit";
 
 const schema = z.object({
   identifier: z.string().min(1, "أدخل البريد الإلكتروني أو رقم الجوال").optional(),
@@ -51,7 +51,8 @@ export async function POST(request: Request) {
     `forgot:ip:${clientIp(request)}`,
   ]) {
     const limited = await rateLimit({ key, limit: 5, windowMs: 15 * 60 * 1000 });
-    if (!limited.ok) return tooManyRequests(limited.retryAfter);
+    const limitedResponse = rateLimitResponse(limited);
+    if (limitedResponse) return limitedResponse;
   }
 
   const isEmail = identifier.includes("@");

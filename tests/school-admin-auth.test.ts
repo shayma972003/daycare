@@ -43,11 +43,11 @@ vi.mock("bcryptjs", () => ({
   default: { compare: mocks.bcryptCompare, hash: vi.fn() },
 }));
 
-vi.mock("@/lib/rate-limit", () => ({
+vi.mock("@/lib/rate-limit", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/rate-limit")>()),
   rateLimit: mocks.rateLimit,
   resetRateLimit: mocks.resetRateLimit,
   clientIp: mocks.clientIp,
-  tooManyRequests: mocks.tooManyRequests,
 }));
 
 vi.mock("@/lib/notifications", () => ({ sendEmail: mocks.sendEmail }));
@@ -93,8 +93,8 @@ const request = { body: {}, query: {}, headers: {}, method: "POST" };
 
 beforeEach(() => {
   for (const value of Object.values(mocks)) value.mockReset();
-  mocks.rateLimit.mockResolvedValue({ ok: true, remaining: 4, retryAfter: 0 });
-  mocks.resetRateLimit.mockResolvedValue(undefined);
+  mocks.rateLimit.mockResolvedValue({ status: "allowed", remaining: 4, retryAfter: 0 });
+  mocks.resetRateLimit.mockResolvedValue({ status: "reset" });
   mocks.clientIp.mockReturnValue("127.0.0.1");
   mocks.bcryptCompare.mockResolvedValue(true);
   mocks.schoolUpdate.mockResolvedValue({});
@@ -103,6 +103,19 @@ beforeEach(() => {
 });
 
 describe("school administrator activation guard", () => {
+  it("fails closed with a distinct signal when the web-login limiter store is unavailable", async () => {
+    mocks.rateLimit.mockResolvedValueOnce({
+      status: "unavailable",
+      remaining: 0,
+      retryAfter: 10,
+    });
+
+    await expect(
+      authorize({ email: "owner@example.com", password: "ValidPass1!" }, request)
+    ).rejects.toThrow("RATE_LIMIT_UNAVAILABLE");
+    expect(mocks.userFindUnique).not.toHaveBeenCalled();
+  });
+
   it("does not allow a pending invited account to sign in even with a matching hash", async () => {
     mocks.userFindUnique.mockResolvedValue(user(null));
 
@@ -171,6 +184,18 @@ describe("school administrator activation guard", () => {
       role: "admin",
     });
     expect(mocks.resetRateLimit).toHaveBeenCalledWith("login:owner@example.com");
+  });
+
+  it("does not create a web session when the successful-login reset fails", async () => {
+    mocks.userFindUnique.mockResolvedValue(user(new Date()));
+    mocks.resetRateLimit.mockResolvedValueOnce({ status: "unavailable" });
+
+    await expect(
+      authorize(
+        { email: "owner@example.com", password: "chosen-password" },
+        request
+      )
+    ).rejects.toThrow("RATE_LIMIT_UNAVAILABLE");
   });
 
   it("rejects a stale 2FA bypass session for an account that is not activated", async () => {

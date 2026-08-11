@@ -2,7 +2,7 @@ import { createHash, timingSafeEqual } from "crypto";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
+import { rateLimit, clientIp, rateLimitResponse } from "@/lib/rate-limit";
 import { BCRYPT_COST, passwordSchema } from "@/lib/password-policy";
 
 const schema = z.object({
@@ -46,7 +46,8 @@ export async function POST(request: Request) {
     limit: 20,
     windowMs: 15 * 60 * 1000,
   });
-  if (!limited.ok) return tooManyRequests(limited.retryAfter);
+  const limitedResponse = rateLimitResponse(limited);
+  if (limitedResponse) return limitedResponse;
 
   let subjectId: string | null = null;
   if (kind === "guardian") {

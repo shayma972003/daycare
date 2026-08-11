@@ -88,11 +88,11 @@ vi.mock("bcryptjs", () => ({
 
 vi.mock("@/lib/notifications", () => ({ sendEmail: mocks.sendEmail }));
 
-vi.mock("@/lib/rate-limit", () => ({
+vi.mock("@/lib/rate-limit", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/rate-limit")>()),
   rateLimit: mocks.rateLimit,
   resetRateLimit: mocks.resetRateLimit,
   clientIp: mocks.clientIp,
-  tooManyRequests: mocks.tooManyRequests,
 }));
 
 import {
@@ -182,8 +182,8 @@ beforeEach(() => {
   mocks.bcryptCompare.mockResolvedValue(false);
   mocks.bcryptHash.mockResolvedValue(NEW_HASH);
   mocks.sendEmail.mockResolvedValue({ success: true });
-  mocks.rateLimit.mockResolvedValue({ ok: true, remaining: 4, retryAfter: 0 });
-  mocks.resetRateLimit.mockResolvedValue(undefined);
+  mocks.rateLimit.mockResolvedValue({ status: "allowed", remaining: 4, retryAfter: 0 });
+  mocks.resetRateLimit.mockResolvedValue({ status: "reset" });
   mocks.clientIp.mockReturnValue("127.0.0.1");
   mocks.tooManyRequests.mockImplementation((retryAfter: number) =>
     Response.json(
@@ -270,7 +270,7 @@ describe("admin sessions and authentication routes", () => {
   });
 
   it("rate-limits admin login before reading the privileged account", async () => {
-    mocks.rateLimit.mockResolvedValueOnce({ ok: false, remaining: 0, retryAfter: 60 });
+    mocks.rateLimit.mockResolvedValueOnce({ status: "limited", remaining: 0, retryAfter: 60 });
 
     const response = await loginAdmin(
       new Request("http://localhost/api/admin/auth/login", {
@@ -282,6 +282,42 @@ describe("admin sessions and authentication routes", () => {
 
     expect(response.status).toBe(429);
     expect(mocks.superAdminFindUnique).not.toHaveBeenCalled();
+  });
+
+  it("returns 503 when the admin-login limiter store is unavailable", async () => {
+    mocks.rateLimit.mockResolvedValueOnce({
+      status: "unavailable",
+      remaining: 0,
+      retryAfter: 10,
+    });
+    const response = await loginAdmin(
+      new Request("http://localhost/api/admin/auth/login", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: "admin@example.test", password: "ValidPass1!" }),
+      })
+    );
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("Retry-After")).toBe("10");
+    expect(mocks.superAdminFindUnique).not.toHaveBeenCalled();
+    expect(await response.text()).not.toContain("admin@example.test");
+  });
+
+  it("does not issue an admin session when the successful-login reset fails", async () => {
+    mocks.bcryptCompare.mockResolvedValueOnce(true);
+    mocks.resetRateLimit.mockResolvedValueOnce({ status: "unavailable" });
+    const response = await loginAdmin(
+      new Request("http://localhost/api/admin/auth/login", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: "admin@example.com", password: "ValidPass1!" }),
+      })
+    );
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("Retry-After")).toBe("10");
+    expect(response.headers.get("set-cookie")).toBeNull();
   });
 
   it("clears the same session cookie on logout without caching the response", async () => {
@@ -550,7 +586,7 @@ describe("admin school invitation rotation", () => {
   });
 
   it("rate-limits resend requests before rotating an invitation", async () => {
-    mocks.rateLimit.mockResolvedValueOnce({ ok: false, remaining: 0, retryAfter: 60 });
+    mocks.rateLimit.mockResolvedValueOnce({ status: "limited", remaining: 0, retryAfter: 60 });
 
     const response = await resendSchoolInvite(
       await authenticatedRequest("/api/admin/schools/school-1/invite"),

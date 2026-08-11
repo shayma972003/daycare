@@ -41,10 +41,10 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 vi.mock("@/lib/notifications", () => ({ sendEmail: mocks.sendEmail }));
-vi.mock("@/lib/rate-limit", () => ({
+vi.mock("@/lib/rate-limit", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/rate-limit")>()),
   rateLimit: mocks.rateLimit,
   clientIp: mocks.clientIp,
-  tooManyRequests: mocks.tooManyRequests,
 }));
 vi.mock("bcryptjs", () => ({ default: { hash: mocks.bcryptHash } }));
 
@@ -70,7 +70,7 @@ beforeEach(() => {
   for (const mock of Object.values(mocks)) mock.mockReset();
   mocks.guardianFindUnique.mockResolvedValue(account);
   mocks.userFindUnique.mockResolvedValue(null);
-  mocks.rateLimit.mockResolvedValue({ ok: true, remaining: 4, retryAfter: 0 });
+  mocks.rateLimit.mockResolvedValue({ status: "allowed", remaining: 4, retryAfter: 0 });
   mocks.clientIp.mockReturnValue("127.0.0.1");
   mocks.sendEmail.mockResolvedValue({ success: true });
   mocks.tokenDeleteMany.mockResolvedValue({ count: 1 });
@@ -84,6 +84,25 @@ beforeEach(() => {
 });
 
 describe("guardian password recovery", () => {
+  it("returns 503 without resolving an account when the limiter store is unavailable", async () => {
+    mocks.rateLimit.mockResolvedValueOnce({
+      status: "unavailable",
+      remaining: 0,
+      retryAfter: 10,
+    });
+
+    const response = await forgotPassword(
+      request("/api/auth/forgot-password", {
+        email: "guardian@example.test",
+        kind: "guardian",
+      })
+    );
+    expect(response.status).toBe(503);
+    expect(response.headers.get("Retry-After")).toBe("10");
+    expect(mocks.guardianFindUnique).not.toHaveBeenCalled();
+    expect(await response.text()).not.toContain("guardian@example.test");
+  });
+
   it("issues the reset token for the guardian subject and emails the account address", async () => {
     const response = await forgotPassword(
       request("/api/auth/forgot-password", {

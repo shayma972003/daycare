@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
-import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
+import { rateLimit, clientIp, rateLimitResponse } from "@/lib/rate-limit";
 import { passwordSchema, BCRYPT_COST } from "@/lib/password-policy";
 import { ROLE_TEMPLATES } from "@/lib/permissions";
 
@@ -40,7 +40,8 @@ export async function POST(request: Request) {
       limit: 5,
       windowMs: 60 * 60 * 1000,
     });
-    if (!limited.ok) return tooManyRequests(limited.retryAfter);
+    const limitedResponse = rateLimitResponse(limited);
+    if (limitedResponse) return limitedResponse;
 
     const { schoolName, password } = parsed.data;
     const email = parsed.data.email.toLowerCase().trim();

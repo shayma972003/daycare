@@ -23,11 +23,11 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 vi.mock("bcryptjs", () => ({ default: { compare: mocks.bcryptCompare } }));
-vi.mock("@/lib/rate-limit", () => ({
+vi.mock("@/lib/rate-limit", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/rate-limit")>()),
   rateLimit: mocks.rateLimit,
   resetRateLimit: mocks.resetRateLimit,
   clientIp: mocks.clientIp,
-  tooManyRequests: mocks.tooManyRequests,
 }));
 vi.mock("@/lib/mobile-auth", () => ({
   claimsForSubject: mocks.claimsForSubject,
@@ -60,8 +60,8 @@ beforeEach(() => {
     school: { name: "School One" },
   });
   mocks.bcryptCompare.mockResolvedValue(true);
-  mocks.rateLimit.mockResolvedValue({ ok: true, remaining: 4, retryAfter: 0 });
-  mocks.resetRateLimit.mockResolvedValue(undefined);
+  mocks.rateLimit.mockResolvedValue({ status: "allowed", remaining: 4, retryAfter: 0 });
+  mocks.resetRateLimit.mockResolvedValue({ status: "reset" });
   mocks.clientIp.mockReturnValue("127.0.0.1");
   mocks.claimsForSubject.mockResolvedValue({
     sub: "guardian-account-1",
@@ -73,6 +73,28 @@ beforeEach(() => {
 });
 
 describe("guardian mobile login after invitation acceptance", () => {
+  it("returns 503 before reading the account when the limiter store is unavailable", async () => {
+    mocks.rateLimit.mockResolvedValueOnce({
+      status: "unavailable",
+      remaining: 0,
+      retryAfter: 10,
+    });
+
+    const response = await mobileLogin(loginRequest());
+    expect(response.status).toBe(503);
+    expect(response.headers.get("Retry-After")).toBe("10");
+    expect(mocks.accountFindUnique).not.toHaveBeenCalled();
+    expect(await response.text()).not.toContain("guardian@example.test");
+  });
+
+  it("does not issue tokens when the successful-login reset fails", async () => {
+    mocks.resetRateLimit.mockResolvedValueOnce({ status: "unavailable" });
+    const response = await mobileLogin(loginRequest());
+    expect(response.status).toBe(503);
+    expect(response.headers.get("Retry-After")).toBe("10");
+    expect(mocks.issueTokenPair).not.toHaveBeenCalled();
+  });
+
   it("issues a guardian session for an accepted account with its chosen password", async () => {
     const response = await mobileLogin(loginRequest());
     const body = await response.json();

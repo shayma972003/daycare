@@ -2,7 +2,13 @@ import { prisma } from "@/lib/prisma";
 import { signAdminToken, buildAdminCookieHeader } from "@/lib/admin-auth";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
-import { rateLimit, resetRateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
+import {
+  rateLimit,
+  resetRateLimit,
+  clientIp,
+  rateLimitResetResponse,
+  rateLimitResponse,
+} from "@/lib/rate-limit";
 
 /**
  * Constant-time-ish guard against user enumeration: when no admin matches we
@@ -40,7 +46,8 @@ export async function POST(request: Request) {
     { key: `admin-login:ip:${clientIp(request)}`, limit: 10 },
   ]) {
     const limited = await rateLimit({ key, limit, windowMs: 15 * 60 * 1000 });
-    if (!limited.ok) return tooManyRequests(limited.retryAfter);
+    const limitedResponse = rateLimitResponse(limited);
+    if (limitedResponse) return limitedResponse;
   }
 
   const admin = await prisma.superAdmin.findUnique({ where: { email } });
@@ -53,7 +60,8 @@ export async function POST(request: Request) {
     );
   }
 
-  await resetRateLimit(lockKey);
+  const resetResponse = rateLimitResetResponse(await resetRateLimit(lockKey));
+  if (resetResponse) return resetResponse;
 
   const token = await signAdminToken(admin.id, admin.password_hash);
 

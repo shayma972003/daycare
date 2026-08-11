@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { stampFileUrl } from "@/lib/file-token";
 import { z } from "zod";
 import { createHash } from "crypto";
-import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
+import { rateLimit, clientIp, rateLimitResponse } from "@/lib/rate-limit";
 import { otpMatches, MAX_OTP_ATTEMPTS } from "@/lib/enrollment-otp";
 
 const schema = z.object({
@@ -32,7 +32,8 @@ export async function POST(request: Request) {
     limit: 20,
     windowMs: 15 * 60 * 1000,
   });
-  if (!limited.ok) return tooManyRequests(limited.retryAfter);
+  const limitedResponse = rateLimitResponse(limited);
+  if (limitedResponse) return limitedResponse;
 
   const rec = await prisma.enrollmentToken.findUnique({
     where: { token },

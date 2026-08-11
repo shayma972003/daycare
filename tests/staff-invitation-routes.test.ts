@@ -74,9 +74,9 @@ vi.mock("@/lib/invitations", () => ({
   }),
   accountState: vi.fn(),
 }));
-vi.mock("@/lib/rate-limit", () => ({
+vi.mock("@/lib/rate-limit", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/rate-limit")>()),
   rateLimit: mocks.rateLimit,
-  tooManyRequests: mocks.tooManyRequests,
 }));
 vi.mock("@/lib/activity-logger", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/activity-logger")>();
@@ -158,7 +158,7 @@ beforeEach(() => {
     async (operation: (tx: typeof mocks.tx) => Promise<unknown>) => operation(mocks.tx)
   );
   mocks.sendEmail.mockResolvedValue({ success: true });
-  mocks.rateLimit.mockResolvedValue({ ok: true, remaining: 4, retryAfter: 0 });
+  mocks.rateLimit.mockResolvedValue({ status: "allowed", remaining: 4, retryAfter: 0 });
   mocks.tooManyRequests.mockImplementation((retryAfter: number) =>
     Response.json({ error: "Too many" }, { status: 429, headers: { "Retry-After": String(retryAfter) } })
   );
@@ -382,7 +382,7 @@ describe("staff invitation rotation", () => {
   });
 
   it("does not read the account after the rate limit is exceeded", async () => {
-    mocks.rateLimit.mockResolvedValueOnce({ ok: false, remaining: 0, retryAfter: 60 });
+    mocks.rateLimit.mockResolvedValueOnce({ status: "limited", remaining: 0, retryAfter: 60 });
     const { request, context } = resendRequest();
     const response = await resendStaffInvite(request, context);
     expect(response.status).toBe(429);

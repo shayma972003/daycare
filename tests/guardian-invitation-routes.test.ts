@@ -70,9 +70,9 @@ vi.mock("@/lib/invitations", () => ({
   accountState: (account: { disabledAt: Date | null; acceptedAt: Date | null }) =>
     account.disabledAt ? "disabled" : account.acceptedAt ? "active" : "invited",
 }));
-vi.mock("@/lib/rate-limit", () => ({
+vi.mock("@/lib/rate-limit", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/rate-limit")>()),
   rateLimit: mocks.rateLimit,
-  tooManyRequests: mocks.tooManyRequests,
   clientIp: mocks.clientIp,
 }));
 
@@ -148,7 +148,7 @@ beforeEach(() => {
   mocks.requireSession.mockResolvedValue(session);
   mocks.sessionErrorResponse.mockReturnValue(null);
   mocks.clientIp.mockReturnValue("127.0.0.1");
-  mocks.rateLimit.mockResolvedValue({ ok: true, remaining: 4, retryAfter: 0 });
+  mocks.rateLimit.mockResolvedValue({ status: "allowed", remaining: 4, retryAfter: 0 });
   mocks.tooManyRequests.mockImplementation((retryAfter: number) =>
     Response.json({ error: "Too many" }, { status: 429, headers: { "Retry-After": String(retryAfter) } })
   );
@@ -303,7 +303,7 @@ describe("guardian account creation", () => {
   });
 
   it("rate-limits creation before opening a transaction", async () => {
-    mocks.rateLimit.mockResolvedValueOnce({ ok: false, remaining: 0, retryAfter: 60 });
+    mocks.rateLimit.mockResolvedValueOnce({ status: "limited", remaining: 0, retryAfter: 60 });
     const response = await createGuardianAccount(createRequest({ guardianId: "guardian-1" }));
     expect(response.status).toBe(429);
     expect(mocks.transaction).not.toHaveBeenCalled();

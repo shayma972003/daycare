@@ -4,7 +4,7 @@ import {
   redeemSchoolAdminInvite,
 } from "@/lib/school-admin-invitations";
 import { passwordSchema } from "@/lib/password-policy";
-import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
+import { rateLimit, clientIp, rateLimitResponse } from "@/lib/rate-limit";
 import { z } from "zod";
 
 /**
@@ -28,7 +28,8 @@ export async function GET(
     limit: 30,
     windowMs: 15 * 60 * 1000,
   });
-  if (!limit.ok) return tooManyRequests(limit.retryAfter);
+  const limitedResponse = rateLimitResponse(limit);
+  if (limitedResponse) return limitedResponse;
 
   const subject =
     (await findSchoolAdminInvite(token)) ?? (await findInvite(token));
@@ -67,7 +68,8 @@ export async function POST(
     limit: 10,
     windowMs: 15 * 60 * 1000,
   });
-  if (!limit.ok) return tooManyRequests(limit.retryAfter);
+  const limitedResponse = rateLimitResponse(limit);
+  if (limitedResponse) return limitedResponse;
 
   let body: unknown;
   try {

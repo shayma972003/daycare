@@ -152,7 +152,12 @@ export async function POST(request: Request) {
   const [school, settings, students] = await Promise.all([
     prisma.school.findUnique({
       where: { id: schoolId },
-      select: { name: true, studentCheckinTime: true, studentCheckoutTime: true },
+      select: {
+        name: true,
+        email: true,
+        studentCheckinTime: true,
+        studentCheckoutTime: true,
+      },
     }),
     prisma.settings.findUnique({
       where: { schoolId },
@@ -215,7 +220,8 @@ export async function POST(request: Request) {
       vars,
       school?.name ?? "",
       parsed.data.kind === "renewal" ? "renewal" : "reminder",
-      { studentId: student.id }
+      { studentId: student.id },
+      school?.email
     );
     if (delivery.status === "sent") sent++;
     else if (delivery.status === "no_email") skipped++;

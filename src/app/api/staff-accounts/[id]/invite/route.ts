@@ -49,6 +49,7 @@ export async function POST(
     email: string;
     roleName: string | null;
     schoolName: string;
+    schoolEmail: string | null;
   };
 
   try {
@@ -66,7 +67,7 @@ export async function POST(
           disabledAt: true,
           roleId: true,
           roleRef: { select: { nameAr: true, permissions: true } },
-          school: { select: { name: true } },
+          school: { select: { name: true, email: true } },
         },
       });
       if (!target) throw new StaffInviteNotFoundError();
@@ -125,6 +126,7 @@ export async function POST(
         email: target.email,
         roleName: target.roleRef?.nameAr ?? null,
         schoolName: target.school?.name ?? "",
+        schoolEmail: target.school?.email ?? null,
       };
     });
   } catch (error) {
@@ -164,7 +166,15 @@ export async function POST(
     ]
       .filter(Boolean)
       .join("\n"),
-    user.schoolName
+    user.schoolName,
+    {
+      sender: {
+        kind: "school",
+        displayName: user.schoolName,
+        replyTo: user.schoolEmail,
+      },
+      language: "ar",
+    }
   );
 
   return Response.json(

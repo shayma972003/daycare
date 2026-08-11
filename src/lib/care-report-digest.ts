@@ -49,7 +49,7 @@ export async function sendDailyDigests(now: Date = new Date()): Promise<DigestRe
           guardian: { select: { id: true, name: true, email: true } },
         },
       },
-      school: { select: { id: true, name: true } },
+      school: { select: { id: true, name: true, email: true } },
     },
   });
 
@@ -63,6 +63,7 @@ export async function sendDailyDigests(now: Date = new Date()): Promise<DigestRe
     {
       email: string;
       schoolName: string;
+      schoolEmail: string | null;
       children: Map<string, ChildSummary>;
       reportIds: string[];
     }
@@ -79,6 +80,7 @@ export async function sendDailyDigests(now: Date = new Date()): Promise<DigestRe
       bucket = {
         email: guardian.email,
         schoolName: report.school?.name ?? "الحضانة",
+        schoolEmail: report.school?.email ?? null,
         children: new Map(),
         reportIds: [],
       };
@@ -108,7 +110,15 @@ export async function sendDailyDigests(now: Date = new Date()): Promise<DigestRe
         bucket.email,
         `ملخص يوم ${bucket.schoolName}`,
         body,
-        bucket.schoolName
+        bucket.schoolName,
+        {
+          sender: {
+            kind: "school",
+            displayName: bucket.schoolName,
+            replyTo: bucket.schoolEmail,
+          },
+          language: "ar",
+        }
       );
 
       if (!sent.success) {

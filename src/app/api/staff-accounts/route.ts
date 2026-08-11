@@ -162,7 +162,7 @@ export async function POST(request: Request) {
 
   const school = await prisma.school.findUnique({
     where: { id: schoolId },
-    select: { name: true },
+    select: { name: true, email: true },
   });
 
   const invite = mintInvite();
@@ -226,7 +226,15 @@ export async function POST(request: Request) {
     ]
       .filter(Boolean)
       .join("\n"),
-    school?.name ?? ""
+    school?.name ?? "",
+    {
+      sender: {
+        kind: "school",
+        displayName: school?.name,
+        replyTo: school?.email,
+      },
+      language: "ar",
+    }
   );
 
   return Response.json(

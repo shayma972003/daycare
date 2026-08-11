@@ -71,7 +71,8 @@ export async function POST(
     "reminder",
     // The message goes to the guardian but is about the child — recorded so the
     // retention sweep can clear the name from this log later.
-    { studentId: student.id }
+    { studentId: student.id },
+    school?.email
   );
 
   if (delivery.status === "no_email") {

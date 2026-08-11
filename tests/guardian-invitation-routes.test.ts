@@ -98,7 +98,7 @@ const eligibleGuardian = {
   name: "Guardian One",
   email: "guardian@example.test",
   phone1: "+966500000000",
-  school: { name: "School One" },
+  school: { name: "School One", email: "school@example.test" },
   students: [{ id: "student-1" }],
   links: [],
 };
@@ -113,7 +113,7 @@ const pendingAccount = {
   disabledAt: null,
   inviteTokenHash: "old-invite-hash",
   inviteExpiresAt: new Date("2026-08-10T12:00:00.000Z"),
-  school: { name: "School One" },
+  school: { name: "School One", email: "school@example.test" },
   guardian: {
     name: "Guardian One",
     deletedAt: null,
@@ -243,7 +243,15 @@ describe("guardian account creation", () => {
       "guardian@example.test",
       expect.any(String),
       expect.stringContaining("/activate/raw-guardian-invite-token"),
-      "School One"
+      "School One",
+      {
+        sender: {
+          kind: "school",
+          displayName: "School One",
+          replyTo: "school@example.test",
+        },
+        language: "ar",
+      }
     );
     expect(body).toMatchObject({ invitationSent: true, deliveryStatus: "sent" });
     expect(JSON.stringify(body)).not.toMatch(/token|hash|password/i);

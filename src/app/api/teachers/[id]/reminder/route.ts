@@ -63,7 +63,7 @@ export async function POST(
 
   const school = await prisma.school.findUnique({
     where: { id: schoolId },
-    select: { name: true },
+    select: { name: true, email: true },
   });
   const schoolName = school?.name ?? "الحضانة";
 
@@ -96,7 +96,8 @@ export async function POST(
     },
     schoolName,
     "teacher_salary",
-    { teacherId: teacher.id }
+    { teacherId: teacher.id },
+    school?.email
   );
 
   if (delivery.status !== "sent") {

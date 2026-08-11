@@ -110,7 +110,7 @@ const pendingTarget = {
   disabledAt: null,
   roleId: "role-1",
   roleRef: { nameAr: "موظف", permissions: ["students.view"] },
-  school: { name: "School One" },
+  school: { name: "School One", email: "school@example.test" },
 };
 
 function createRequest(body: Record<string, unknown>) {
@@ -143,7 +143,10 @@ beforeEach(() => {
     permissions: ["students.view"],
   });
   mocks.teacherFindFirst.mockResolvedValue({ id: "teacher-1" });
-  mocks.schoolFindUnique.mockResolvedValue({ name: "School One" });
+  mocks.schoolFindUnique.mockResolvedValue({
+    name: "School One",
+    email: "school@example.test",
+  });
   mocks.userCreate.mockResolvedValue({
     id: "staff-1",
     name: "Staff One",
@@ -193,7 +196,15 @@ describe("staff account creation by invitation", () => {
       "staff@example.test",
       expect.any(String),
       expect.stringContaining("/activate/raw-staff-invite-token"),
-      "School One"
+      "School One",
+      {
+        sender: {
+          kind: "school",
+          displayName: "School One",
+          replyTo: "school@example.test",
+        },
+        language: "ar",
+      }
     );
     expect(result).toEqual({
       id: "staff-1",

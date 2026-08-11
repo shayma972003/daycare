@@ -163,6 +163,7 @@ export async function POST(request: Request) {
     phone: string | null;
     guardianName: string;
     schoolName: string;
+    schoolEmail: string | null;
   };
 
   try {
@@ -179,7 +180,7 @@ export async function POST(request: Request) {
           name: true,
           email: true,
           phone1: true,
-          school: { select: { name: true } },
+          school: { select: { name: true, email: true } },
           students: {
             where: {
               schoolId,
@@ -250,6 +251,7 @@ export async function POST(request: Request) {
         ...created,
         guardianName: guardian.name,
         schoolName: guardian.school?.name ?? "",
+        schoolEmail: guardian.school?.email ?? null,
       };
     });
   } catch (error) {
@@ -276,7 +278,15 @@ export async function POST(request: Request) {
       email: account.email,
       token: invite.token,
     }),
-    account.schoolName
+    account.schoolName,
+    {
+      sender: {
+        kind: "school",
+        displayName: account.schoolName,
+        replyTo: account.schoolEmail,
+      },
+      language: "ar",
+    }
   );
 
   return Response.json(

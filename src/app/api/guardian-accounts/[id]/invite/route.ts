@@ -42,7 +42,13 @@ export async function POST(
   if (limitedResponse) return limitedResponse;
 
   const invite = mintInvite();
-  let target: { id: string; email: string; name: string; schoolName: string };
+  let target: {
+    id: string;
+    email: string;
+    name: string;
+    schoolName: string;
+    schoolEmail: string | null;
+  };
 
   try {
     target = await prisma.$transaction(async (tx) => {
@@ -58,7 +64,7 @@ export async function POST(
           disabledAt: true,
           inviteTokenHash: true,
           inviteExpiresAt: true,
-          school: { select: { name: true } },
+          school: { select: { name: true, email: true } },
           guardian: {
             select: {
               name: true,
@@ -142,6 +148,7 @@ export async function POST(
         email: account.email,
         name: account.guardian.name,
         schoolName: account.school?.name ?? "",
+        schoolEmail: account.school?.email ?? null,
       };
     });
   } catch (error) {
@@ -180,7 +187,15 @@ export async function POST(
     ]
       .filter(Boolean)
       .join("\n"),
-    target.schoolName
+    target.schoolName,
+    {
+      sender: {
+        kind: "school",
+        displayName: target.schoolName,
+        replyTo: target.schoolEmail,
+      },
+      language: "ar",
+    }
   );
 
   return Response.json(

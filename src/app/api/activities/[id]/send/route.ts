@@ -126,7 +126,8 @@ export async function POST(
         vars,
         schoolName,
         "activity",
-        { studentId: student.id }
+        { studentId: student.id },
+        school?.email
       );
 
       if (delivery.status === "sent") notificationsSent.push(student.name);
@@ -171,7 +172,8 @@ export async function POST(
         vars,
         schoolName,
         "activity",
-        {}
+        {},
+        school?.email
       );
       if (delivery.status === "sent") notificationsSent.push(teacher.name);
       else if (delivery.status === "no_email") skipped++;

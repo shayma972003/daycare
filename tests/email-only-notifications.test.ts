@@ -116,7 +116,8 @@ describe("email-only notification delivery", () => {
       { child_name: "Maha" },
       "Test School",
       "reminder",
-      { studentId: "student-1" }
+      { studentId: "student-1" },
+      "school@example.com"
     );
 
     expect(result).toEqual({ status: "sent" });
@@ -126,6 +127,8 @@ describe("email-only notification delivery", () => {
       String((mocks.fetch.mock.calls[0][1] as RequestInit).body)
     );
     expect(requestBody.to).toBe("guardian@example.com");
+    expect(requestBody.from).toContain("no-reply@example.com");
+    expect(requestBody.reply_to).toBe("school@example.com");
     expect(mocks.notificationCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
         type: "EMAIL",
@@ -175,6 +178,7 @@ describe("email 2FA activation", () => {
       String((mocks.fetch.mock.calls[0][1] as RequestInit).body)
     );
     expect(requestBody.to).toBe("owner@example.com");
+    expect(requestBody).not.toHaveProperty("reply_to");
     expect(mocks.twoFaCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
         schoolId: "school-1",

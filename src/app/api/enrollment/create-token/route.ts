@@ -98,7 +98,7 @@ export async function POST(request: Request) {
 
   const school = await prisma.school.findUnique({
     where: { id: schoolId },
-    select: { name: true },
+    select: { name: true, email: true },
   });
   if (!school) return Response.json({ error: "School not found" }, { status: 404 });
 
@@ -123,7 +123,15 @@ export async function POST(request: Request) {
     email,
     `نموذج تسجيل — ${school.name}`,
     buildOtpMessage(school.name, otp, enrollUrl),
-    school.name
+    school.name,
+    {
+      sender: {
+        kind: "school",
+        displayName: school.name,
+        replyTo: school.email,
+      },
+      language: "ar",
+    }
   );
 
   if (!sent.success) {

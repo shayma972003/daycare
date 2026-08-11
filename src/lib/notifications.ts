@@ -1,7 +1,9 @@
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { replaceVariables } from "@/lib/utils";
 import { type MessageContext } from "@/lib/message-variables";
 import { env, emailEnabled, emailProvider } from "@/lib/env";
+import { platformName, type PlatformLanguage } from "@/lib/branding";
 
 export type NotificationVars = Record<string, string>;
 export type { MessageContext };
@@ -14,20 +16,75 @@ const HTML_ESCAPES: Record<string, string> = {
   "'": "&#39;",
 };
 
+const replyToSchema = z.string().trim().max(254).email();
+
+export type EmailSender =
+  | { kind: "platform"; displayName?: string | null }
+  | {
+      kind: "school";
+      displayName?: string | null;
+      replyTo?: string | null;
+    };
+
+export interface SendEmailOptions {
+  sender?: EmailSender;
+  language?: PlatformLanguage;
+}
+
 /**
  * Message bodies and school names are user-controlled and land inside an HTML
  * email. Without escaping, a crafted name or template injects markup into every
  * recipient's inbox.
  */
 function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (c) => HTML_ESCAPES[c]);
+  return value.replace(/[&<>"']/g, (character) => HTML_ESCAPES[character]);
+}
+
+/** Remove control characters before a value is placed in an email header. */
+function sanitizeHeaderText(value: string): string {
+  return value
+    .replace(/[\r\n]+/g, " ")
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 160);
+}
+
+function safeReplyTo(value: string | null | undefined): string | undefined {
+  if (!value || /[\r\n\u0000-\u001f\u007f]/.test(value)) return undefined;
+  const parsed = replyToSchema.safeParse(value);
+  return parsed.success ? parsed.data : undefined;
+}
+
+function quotedMailbox(displayName: string, email: string): string {
+  const escapedName = displayName.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  return `"${escapedName}" <${email}>`;
+}
+
+function senderDisplayName(
+  schoolName: string,
+  sender: EmailSender,
+  language: PlatformLanguage
+): string {
+  const platform = platformName(language);
+
+  if (sender.kind === "school") {
+    const requestedName = sanitizeHeaderText(sender.displayName ?? schoolName);
+    if (!requestedName) return platform;
+    return language === "en"
+      ? `${requestedName} via ${platform}`
+      : `${requestedName} عبر ${platform}`;
+  }
+
+  return sanitizeHeaderText(sender.displayName ?? "") || platform;
 }
 
 export async function sendEmail(
   to: string,
   subject: string,
   body: string,
-  schoolName: string
+  schoolName: string,
+  options: SendEmailOptions = {}
 ): Promise<{ success: boolean; error?: string }> {
   try {
     if (!emailEnabled) {
@@ -35,13 +92,25 @@ export async function sendEmail(
       return { success: false, error: "Email not configured" };
     }
 
-    const from = env.FROM_EMAIL!;
+    const language = options.language ?? "ar";
+    const sender = options.sender ?? { kind: "platform" as const };
+    const from = quotedMailbox(
+      senderDisplayName(schoolName, sender, language),
+      env.FROM_EMAIL!
+    );
+    const replyTo = sender.kind === "school" ? safeReplyTo(sender.replyTo) : undefined;
+    const safeSubject = sanitizeHeaderText(subject);
+    const direction = language === "ar" ? "rtl" : "ltr";
+    const footer =
+      language === "ar"
+        ? `تم الإرسال بواسطة ${platformName("ar")}`
+        : `Sent via ${platformName("en")}`;
 
     const html = `
 <!DOCTYPE html>
-<html dir="rtl" lang="ar">
+<html dir="${direction}" lang="${language}">
 <head><meta charset="UTF-8"><style>
-body{font-family:'Tajawal',Arial,sans-serif;background:#f4f6fb;margin:0;padding:20px;direction:rtl}
+body{font-family:'Tajawal',Arial,sans-serif;background:#f4f6fb;margin:0;padding:20px;direction:${direction}}
 .container{max-width:600px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.08)}
 .header{background:#1a2340;padding:24px;text-align:center}
 .header h1{color:#fff;margin:0;font-size:20px}
@@ -52,7 +121,7 @@ body{font-family:'Tajawal',Arial,sans-serif;background:#f4f6fb;margin:0;padding:
 <div class="container">
   <div class="header"><h1>${escapeHtml(schoolName)}</h1></div>
   <div class="body"><p>${escapeHtml(body).replace(/\n/g, "<br>")}</p></div>
-  <div class="footer">تم الإرسال بواسطة نظام إدارة الروضة</div>
+  <div class="footer">${escapeHtml(footer)}</div>
 </div>
 </body>
 </html>`;
@@ -67,7 +136,13 @@ body{font-family:'Tajawal',Arial,sans-serif;background:#f4f6fb;margin:0;padding:
         auth: { user: env.SMTP_USER!, pass: env.SMTP_PASSWORD! },
       });
 
-      await transport.sendMail({ from, to, subject, html });
+      await transport.sendMail({
+        from,
+        to,
+        subject: safeSubject,
+        html,
+        ...(replyTo ? { replyTo } : {}),
+      });
       return { success: true };
     }
 
@@ -77,13 +152,19 @@ body{font-family:'Tajawal',Arial,sans-serif;background:#f4f6fb;margin:0;padding:
         Authorization: `Bearer ${env.RESEND_API_KEY!}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ from, to, subject, html }),
+      body: JSON.stringify({
+        from,
+        to,
+        subject: safeSubject,
+        html,
+        ...(replyTo ? { reply_to: replyTo } : {}),
+      }),
     });
 
-    if (!response.ok) return { success: false, error: await response.text() };
+    if (!response.ok) return { success: false, error: "Email delivery failed" };
     return { success: true };
-  } catch (err) {
-    return { success: false, error: String(err) };
+  } catch {
+    return { success: false, error: "Email delivery failed" };
   }
 }
 
@@ -92,8 +173,7 @@ body{font-family:'Tajawal',Arial,sans-serif;background:#f4f6fb;margin:0;padding:
  *
  * A payment reminder goes to a guardian but concerns a child, and the logged
  * body quotes that child by name. Recording the subject is what lets the
- * retention sweep find these rows years later — without it the name outlives
- * anonymisation in every reminder ever sent. See docs/DATA_LIFECYCLE.md.
+ * retention sweep find these rows years later without preserving that name.
  */
 export interface NotificationSubject {
   studentId?: string | null;
@@ -113,7 +193,8 @@ export async function sendNotification(
   vars: NotificationVars,
   schoolName: string,
   source: string = "other",
-  subject: NotificationSubject = {}
+  subject: NotificationSubject = {},
+  schoolEmail?: string | null
 ): Promise<NotificationDeliveryResult> {
   const message = replaceVariables(template, vars as Record<string, string>);
   const subjectColumns = {
@@ -127,7 +208,15 @@ export async function sendNotification(
     email,
     `رسالة من ${schoolName}`,
     message,
-    schoolName
+    schoolName,
+    {
+      sender: {
+        kind: "school",
+        displayName: schoolName,
+        replyTo: schoolEmail,
+      },
+      language: "ar",
+    }
   );
 
   try {

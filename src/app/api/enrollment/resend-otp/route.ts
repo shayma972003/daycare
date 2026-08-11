@@ -37,7 +37,7 @@ export async function POST(request: Request) {
 
   const rec = await prisma.enrollmentToken.findUnique({
     where: { token },
-    include: { school: { select: { name: true } } },
+    include: { school: { select: { name: true, email: true } } },
   });
 
   if (!rec) return Response.json({ error: "invalid" }, { status: 404 });
@@ -85,7 +85,15 @@ export async function POST(request: Request) {
     rec.sent_to_email,
     `رمز تحقق جديد — ${rec.school.name}`,
     buildOtpMessage(rec.school.name, otp, `${env.APP_URL}/enroll/${token}`),
-    rec.school.name
+    rec.school.name,
+    {
+      sender: {
+        kind: "school",
+        displayName: rec.school.name,
+        replyTo: rec.school.email,
+      },
+      language: "ar",
+    }
   );
 
   if (!delivery.success) {

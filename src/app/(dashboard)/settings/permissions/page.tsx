@@ -10,12 +10,28 @@
  * prevent.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type RefObject,
+} from "react";
 import axios from "axios";
 import { Topbar } from "@/components/layout/Topbar";
 import { GuardianAccounts } from "@/components/accounts/GuardianAccounts";
+import { PermissionGate } from "@/components/auth/PermissionGate";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  closeDialogOnOpenChange,
+} from "@/components/ui/Dialog";
 import { describeApiError } from "@/lib/api-error";
-import { PasswordRules, meetsRequiredRules } from "@/components/ui/PasswordRules";
 import type { PermissionDefinition, PermissionCategory, CapabilityBundle } from "@/lib/permissions";
 import { CAPABILITY_BUNDLES, keysOutsideBundles } from "@/lib/permissions";
 import { useT } from "@/lib/i18n-provider";
@@ -42,10 +58,15 @@ interface StaffRow {
   email: string;
   teacherId: string | null;
   disabled: boolean;
-  /** Four states, not a boolean — see accountState() in src/lib/invitations.ts. */
+  /** Five states, not a boolean — see accountState() in src/lib/invitations.ts. */
   state: "none" | "invited" | "expired" | "active" | "disabled";
   isSelf: boolean;
   role: { id: string; nameAr: string; isOwner: boolean } | null;
+}
+
+interface PageNotice {
+  message: string;
+  tone: "success" | "warning";
 }
 
 /**
@@ -55,12 +76,12 @@ interface StaffRow {
  * flag, and they need opposite responses: wait, or send again. Keeping them
  * apart here is the whole reason the API reports a state rather than a boolean.
  */
-const STATE_LABEL: Record<StaffRow["state"], { text: string; className: string }> = {
-  active: { text: "مفعَّل", className: "text-emerald-600" },
-  invited: { text: "بانتظار قبول الدعوة", className: "text-amber-600" },
-  expired: { text: "انتهت صلاحية الدعوة", className: "text-orange-600" },
-  none: { text: "بلا دعوة", className: "text-gray-500" },
-  disabled: { text: "معطَّل", className: "text-red-500" },
+const STATE_CLASS: Record<StaffRow["state"], string> = {
+  active: "text-emerald-600",
+  invited: "text-amber-600",
+  expired: "text-orange-600",
+  none: "text-gray-500",
+  disabled: "text-red-500",
 };
 
 const OWNER_WILDCARD = "*";
@@ -70,12 +91,14 @@ export default function PermissionsPage() {
   const [data, setData] = useState<RolesResponse | null>(null);
   const [staff, setStaff] = useState<StaffRow[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<PageNotice | null>(null);
 
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
   const [showInvite, setShowInvite] = useState(false);
+  const inviteTriggerRef = useRef<HTMLButtonElement>(null);
   /** The id currently being invited, so only that row's button shows progress. */
   const [inviting, setInviting] = useState<string | null>(null);
+  const invitingIds = useRef(new Set<string>());
 
   const load = useCallback(async () => {
     try {
@@ -126,27 +149,39 @@ export default function PermissionsPage() {
   }
 
   async function resendInvite(user: StaffRow) {
+    if (invitingIds.current.has(user.id)) return;
+    invitingIds.current.add(user.id);
     setError(null);
     setNotice(null);
     setInviting(user.id);
     try {
-      const res = await axios.post<{ sent: boolean }>(
+      const res = await axios.post<{ sent: boolean; deliveryStatus: "sent" | "failed" }>(
         `/api/staff-accounts/${user.id}/invite`
       );
-      // Said plainly when the mail did not go out: the token was rotated either
-      // way, so silence here would leave the nursery waiting for a message that
-      // is never coming.
-      setNotice(
-        res.data.sent
-          ? `أُرسلت الدعوة إلى ${user.email}`
-          : "أُنشئت الدعوة لكن تعذّر إرسال البريد — تحقّقي من إعدادات البريد"
+      setStaff((current) =>
+        current.map((row) => (row.id === user.id ? { ...row, state: "invited" } : row))
       );
-      await load();
+      setNotice({
+        message: res.data.sent
+          ? t("permissions.resendSent", { email: user.email })
+          : t("permissions.resendFailed", { email: user.email }),
+        tone: res.data.sent ? "success" : "warning",
+      });
     } catch (err) {
-      setError(describeApiError(err, "تعذّر إرسال الدعوة"));
+      setError(describeApiError(err, t("permissions.resendError")));
     } finally {
+      invitingIds.current.delete(user.id);
       setInviting(null);
     }
+  }
+
+  function canResendInvite(user: StaffRow) {
+    return (
+      !user.disabled &&
+      !user.isSelf &&
+      !user.role?.isOwner &&
+      (user.state === "none" || user.state === "invited" || user.state === "expired")
+    );
   }
 
   async function changeRole(user: StaffRow, roleId: string) {
@@ -154,7 +189,10 @@ export default function PermissionsPage() {
     try {
       await axios.put(`/api/staff-accounts/${user.id}`, { roleId });
       await invalidatePermissions();
-      setNotice(t("permissions.roleUpdated", { name: user.name }));
+      setNotice({
+        message: t("permissions.roleUpdated", { name: user.name }),
+        tone: "success",
+      });
       await load();
     } catch (err) {
       setError(describeApiError(err, t("permissions.roleChangeFailed")));
@@ -169,18 +207,25 @@ export default function PermissionsPage() {
     : {};
 
   return (
-    <div dir="rtl" className="min-h-screen bg-brand-bg">
+    <div className="min-h-screen bg-brand-bg">
       <Topbar title={t("permissions.title")} />
 
-      <div className="p-6 space-y-6">
+      <div className="space-y-6 p-3 sm:p-6">
         {error && (
           <div role="alert" className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">
             {error}
           </div>
         )}
         {notice && (
-          <div role="status" className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-700">
-            {notice}
+          <div
+            role="status"
+            className={`rounded-xl border p-3 text-sm ${
+              notice.tone === "success"
+                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                : "border-amber-200 bg-amber-50 text-amber-800"
+            }`}
+          >
+            {notice.message}
           </div>
         )}
 
@@ -189,15 +234,18 @@ export default function PermissionsPage() {
         ) : (
           <>
             {/* ── Staff accounts ─────────────────────────────────────────── */}
-            <section className="bg-white rounded-2xl shadow-sm p-6">
-              <div className="flex items-center justify-between mb-4">
+            <section className="rounded-2xl bg-white p-4 shadow-sm sm:p-6">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <h2 className="font-bold text-[#111111]">{t("permissions.staffAccounts")}</h2>
-                <button
-                  onClick={() => setShowInvite(true)}
-                  className="px-4 py-2 bg-[#2F96A6] text-white rounded-xl text-sm font-medium hover:bg-[#26808e]"
-                >
-                  {t("permissions.addAccount")}
-                </button>
+                <PermissionGate permission="staff.manage">
+                  <button
+                    ref={inviteTriggerRef}
+                    onClick={() => setShowInvite(true)}
+                    className="px-4 py-2 bg-[#2F96A6] text-white rounded-xl text-sm font-medium hover:bg-[#26808e]"
+                  >
+                    {t("permissions.addAccount")}
+                  </button>
+                </PermissionGate>
               </div>
 
               <div className="overflow-x-auto">
@@ -205,7 +253,7 @@ export default function PermissionsPage() {
                   <thead>
                     <tr className="border-b border-gray-100 text-gray-500">
                       {[t("students.columns.name"), t("fields.mail"), t("fields.role"), t("home.status"), ""].map((h) => (
-                        <th key={h} className="px-3 py-2 text-right font-medium">{h}</th>
+                        <th key={h} className="px-3 py-2 text-start font-medium">{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -222,52 +270,73 @@ export default function PermissionsPage() {
                             // The owner's role is fixed — see the guard on the API.
                             <span className="text-gray-500">{user.role.nameAr}</span>
                           ) : (
-                            <select
-                              value={user.role?.id ?? ""}
-                              onChange={(e) => changeRole(user, e.target.value)}
-                              className="border border-gray-200 rounded-lg px-2 py-1 text-sm"
+                            <PermissionGate
+                              permission="staff.manage"
+                              fallback={
+                                <span className="text-gray-500">
+                                  {user.role?.nameAr ?? t("permissions.noRole")}
+                                </span>
+                              }
                             >
-                              <option value="" disabled>{t("permissions.noRole")}</option>
-                              {data.roles
-                                .filter((role) => !role.permissions.includes(OWNER_WILDCARD))
-                                .map((role) => (
-                                  <option key={role.id} value={role.id}>{role.nameAr}</option>
-                                ))}
-                            </select>
+                              <select
+                                aria-label={t("permissions.changeRoleFor", { name: user.name })}
+                                value={user.role?.id ?? ""}
+                                onChange={(e) => changeRole(user, e.target.value)}
+                                className="border border-gray-200 rounded-lg px-2 py-1 text-sm"
+                              >
+                                <option value="" disabled>{t("permissions.noRole")}</option>
+                                {data.roles
+                                  .filter((role) => !role.permissions.includes(OWNER_WILDCARD))
+                                  .map((role) => (
+                                    <option key={role.id} value={role.id}>{role.nameAr}</option>
+                                  ))}
+                              </select>
+                            </PermissionGate>
                           )}
                         </td>
                         <td className="px-3 py-3">
-                          <span className={STATE_LABEL[user.state].className}>
-                            {STATE_LABEL[user.state].text}
+                          <span className={STATE_CLASS[user.state]}>
+                            {t(`permissions.accountStates.${user.state}`)}
                           </span>
                         </td>
                         <td className="px-3 py-3">
-                          <div className="flex items-center gap-3">
-                            {/* Offered for anyone who has not signed in yet, and
-                                for an account that predates invitations whose
-                                password has been lost. */}
-                            {!user.disabled && user.state !== "active" && (
-                              <button
-                                onClick={() => resendInvite(user)}
-                                disabled={inviting === user.id}
-                                className="text-xs text-[#2F96A6] hover:underline disabled:opacity-50"
-                              >
-                                {inviting === user.id
-                                  ? "جارٍ الإرسال…"
-                                  : user.state === "none"
-                                    ? "إرسال دعوة"
-                                    : "إعادة إرسال الدعوة"}
-                              </button>
-                            )}
-                            {!user.role?.isOwner && !user.isSelf && (
-                              <button
-                                onClick={() => setDisabled(user, !user.disabled)}
-                                className="text-xs text-[#2F96A6] hover:underline"
-                              >
-                                {user.disabled ? t("permissions.enable") : t("permissions.disable")}
-                              </button>
-                            )}
-                          </div>
+                          <PermissionGate permission="staff.manage">
+                            <div className="flex flex-wrap items-center gap-3">
+                              {canResendInvite(user) && (
+                                <button
+                                  onClick={() => resendInvite(user)}
+                                  disabled={inviting === user.id}
+                                  aria-label={t(
+                                    user.state === "none"
+                                      ? "permissions.sendInviteFor"
+                                      : "permissions.resendInviteFor",
+                                    { name: user.name }
+                                  )}
+                                  className="text-xs text-[#2F96A6] hover:underline disabled:opacity-50"
+                                >
+                                  {inviting === user.id
+                                    ? t("permissions.sendingInvite")
+                                    : user.state === "none"
+                                      ? t("permissions.sendInvite")
+                                      : t("permissions.resendInvite")}
+                                </button>
+                              )}
+                              {!user.role?.isOwner && !user.isSelf && (
+                                <button
+                                  onClick={() => setDisabled(user, !user.disabled)}
+                                  aria-label={t(
+                                    user.disabled
+                                      ? "permissions.enableAccountFor"
+                                      : "permissions.disableAccountFor",
+                                    { name: user.name }
+                                  )}
+                                  className="text-xs text-[#2F96A6] hover:underline"
+                                >
+                                  {user.disabled ? t("permissions.enable") : t("permissions.disable")}
+                                </button>
+                              )}
+                            </div>
+                          </PermissionGate>
                         </td>
                       </tr>
                     ))}
@@ -318,7 +387,7 @@ export default function PermissionsPage() {
                   grouped={grouped}
                   categoryLabels={data.categoryLabels}
                   onSaved={async (message) => {
-                    setNotice(message);
+                    setNotice({ message, tone: "success" });
                     setError(null);
                     await load();
                   }}
@@ -333,10 +402,11 @@ export default function PermissionsPage() {
       {showInvite && data && (
         <InviteStaffModal
           roles={data.roles.filter((r) => !r.permissions.includes(OWNER_WILDCARD))}
+          returnFocusRef={inviteTriggerRef}
           onClose={() => setShowInvite(false)}
-          onCreated={(message) => {
+          onCreated={(message, delivered) => {
             setShowInvite(false);
-            setNotice(message);
+            setNotice({ message, tone: delivered ? "success" : "warning" });
             load();
           }}
         />
@@ -505,19 +575,20 @@ function RolePermissionEditor({
 
 function InviteStaffModal({
   roles,
+  returnFocusRef,
   onClose,
   onCreated,
 }: {
   roles: RoleRow[];
+  returnFocusRef: RefObject<HTMLButtonElement | null>;
   onClose: () => void;
-  onCreated: (message: string) => void;
+  onCreated: (message: string, delivered: boolean) => void;
 }) {
   const t = useT();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [roleId, setRoleId] = useState(roles[0]?.id ?? "");
   const [teacherId, setTeacherId] = useState("");
-  const [password, setPassword] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [teachers, setTeachers] = useState<{ id: string; name: string }[]>([]);
@@ -544,131 +615,159 @@ function InviteStaffModal({
     };
   }, []);
 
-  // Blank means "generate one and email it", so the rules only gate a password
-  // the user actually typed.
-  const passwordOk = password.length === 0 || meetsRequiredRules(password);
-
-  async function submit() {
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (saving) return;
     setSaving(true);
     setError(null);
     try {
-      const res = await axios.post<{ invitationSent: boolean }>("/api/staff-accounts", {
+      const res = await axios.post<{
+        invitationSent: boolean;
+        deliveryStatus: "sent" | "failed";
+      }>("/api/staff-accounts", {
         name,
         email,
         roleId,
         ...(teacherId ? { teacherId } : {}),
-        ...(password ? { password } : {}),
       });
+      const delivered = res.status === 201 && res.data.invitationSent;
       onCreated(
-        res.data.invitationSent
+        delivered
           ? t("permissions.accountCreated", { email })
-          : t("permissions.accountCreatedNoEmail", { email })
+          : t("permissions.accountCreatedNoEmail", { email }),
+        delivered
       );
     } catch (err) {
-      setError(describeApiError(err, t("permissions.createFailed")));
+      if (axios.isAxiosError(err) && err.response?.status === 409) {
+        setError(t("permissions.emailInUse"));
+      } else if (axios.isAxiosError(err) && err.response?.status === 422) {
+        setError(describeApiError(err, t("permissions.validationFailed")));
+      } else {
+        setError(describeApiError(err, t("permissions.createFailed")));
+      }
+    } finally {
       setSaving(false);
     }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md space-y-4" dir="rtl">
-        <h3 className="font-bold text-[#111111]">{t("permissions.newAccount")}</h3>
+    <Dialog
+      open
+      onOpenChange={(nextOpen) => closeDialogOnOpenChange(nextOpen, saving, onClose)}
+    >
+      <DialogContent
+        dismissBlocked={saving}
+        className="max-w-md p-0"
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          returnFocusRef.current?.focus();
+        }}
+      >
+        <form onSubmit={submit} className="flex max-h-[calc(100dvh-1.5rem)] flex-col">
+          <DialogHeader className="p-6 pb-3">
+            <div className="space-y-1">
+              <DialogTitle>{t("permissions.newAccount")}</DialogTitle>
+              <DialogDescription>{t("permissions.inviteExplanation")}</DialogDescription>
+            </div>
+          </DialogHeader>
 
-        {error && (
-          <div role="alert" className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">
-            {error}
+          <div className="space-y-4 overflow-y-auto px-6 pb-6">
+            {error && (
+              <div
+                role="alert"
+                className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-600"
+              >
+                {error}
+              </div>
+            )}
+
+            <div>
+              <label htmlFor="staff-account-name" className="mb-1 block text-xs text-gray-500">
+                {t("fields.name")}
+              </label>
+              <input
+                id="staff-account-name"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                autoComplete="name"
+                required
+                className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="staff-account-email" className="mb-1 block text-xs text-gray-500">
+                {t("fields.email")}
+              </label>
+              <input
+                id="staff-account-email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                type="email"
+                dir="ltr"
+                autoComplete="email"
+                required
+                className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="staff-account-role" className="mb-1 block text-xs text-gray-500">
+                {t("fields.role")}
+              </label>
+              <select
+                id="staff-account-role"
+                value={roleId}
+                onChange={(event) => setRoleId(event.target.value)}
+                required
+                className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+              >
+                {roles.map((role) => (
+                  <option key={role.id} value={role.id}>{role.nameAr}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="staff-account-teacher" className="mb-1 block text-xs text-gray-500">
+                {t("permissions.linkTeacher")} {t("permissions.optional")}
+              </label>
+              <select
+                id="staff-account-teacher"
+                value={teacherId}
+                onChange={(event) => setTeacherId(event.target.value)}
+                className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+              >
+                <option value="">{t("permissions.administrativeAccount")}</option>
+                {teachers.map((teacher) => (
+                  <option key={teacher.id} value={teacher.id}>{teacher.name}</option>
+                ))}
+              </select>
+              <p className="mt-1 text-[11px] leading-relaxed text-gray-400">
+                {t("permissions.teacherLinkHelp")}
+              </p>
+            </div>
           </div>
-        )}
 
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">{t("fields.name")}</label>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm"
-          />
-        </div>
-
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">{t("fields.email")}</label>
-          <input
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            type="email"
-            dir="ltr"
-            className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm"
-          />
-        </div>
-
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">{t("fields.role")}</label>
-          <select
-            value={roleId}
-            onChange={(e) => setRoleId(e.target.value)}
-            className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm"
-          >
-            {roles.map((role) => (
-              <option key={role.id} value={role.id}>{role.nameAr}</option>
-            ))}
-          </select>
-        </div>
-
-        {/* The link that was missing.
-            `User.teacherId` existed and the API accepted it, but this form never
-            sent one — so every staff login was unattached to a staff record, and
-            a care report filed from the app was stored against nobody. It also
-            decides whose roster the app shows: linked accounts see their own
-            classes, office accounts see the school. */}
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">
-            ربط بسجلّ معلّمة <span className="text-gray-400">(اختياري)</span>
-          </label>
-          <select
-            value={teacherId}
-            onChange={(e) => setTeacherId(e.target.value)}
-            className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm"
-          >
-            <option value="">حساب إداري — بلا سجلّ معلّمة</option>
-            {teachers.map((teacher) => (
-              <option key={teacher.id} value={teacher.id}>{teacher.name}</option>
-            ))}
-          </select>
-          <p className="text-[11px] text-gray-400 mt-1 leading-relaxed">
-            المعلّمة المرتبطة ترى أطفال فصولها فقط في التطبيق، وتُنسب تقارير الرعاية إليها.
-          </p>
-        </div>
-
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">
-            {t("fields.password")} <span className="text-gray-400">{t("permissions.passwordHint")}</span>
-          </label>
-          <input
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            type="password"
-            dir="ltr"
-            className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm"
-          />
-          {password.length > 0 && <PasswordRules value={password} />}
-        </div>
-
-        <div className="flex gap-3 justify-end pt-1">
-          <button
-            onClick={onClose}
-            className="px-5 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm"
-          >
-            {t("common.cancel")}
-          </button>
-          <button
-            onClick={submit}
-            disabled={saving || !name || !email || !roleId || !passwordOk}
-            className="px-5 py-2 bg-[#2F96A6] text-white rounded-xl text-sm font-medium hover:bg-[#26808e] disabled:opacity-60"
-          >
-            {saving ? t("permissions.creating") : t("common.create")}
-          </button>
-        </div>
-      </div>
-    </div>
+          <DialogFooter className="justify-end px-6 py-4">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={saving}
+              className="rounded-xl border border-gray-200 px-5 py-2 text-sm text-gray-600 disabled:opacity-60"
+            >
+              {t("common.cancel")}
+            </button>
+            <button
+              type="submit"
+              disabled={saving || !name || !email || !roleId}
+              className="rounded-xl bg-[#2F96A6] px-5 py-2 text-sm font-medium text-white hover:bg-[#26808e] disabled:opacity-60"
+            >
+              {saving ? t("permissions.creating") : t("permissions.createAndInvite")}
+            </button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

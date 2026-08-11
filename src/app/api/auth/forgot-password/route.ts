@@ -5,9 +5,17 @@ import { sendEmail } from "@/lib/notifications";
 import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
 
 const schema = z.object({
-  identifier: z.string().min(1, "أدخل البريد الإلكتروني أو رقم الجوال"),
+  identifier: z.string().min(1, "أدخل البريد الإلكتروني أو رقم الجوال").optional(),
+  email: z.string().email().optional(),
   /** Defaults to staff so the existing web form keeps its current contract. */
   kind: z.enum(["staff", "guardian"]).default("staff"),
+}).superRefine((value, context) => {
+  if (value.kind === "guardian" && !value.email) {
+    context.addIssue({ code: "custom", path: ["email"], message: "أدخل البريد الإلكتروني" });
+  }
+  if (value.kind === "staff" && !value.identifier) {
+    context.addIssue({ code: "custom", path: ["identifier"], message: "أدخل البريد الإلكتروني أو رقم الجوال" });
+  }
 });
 
 const OTP_TTL_MS = 15 * 60 * 1000;
@@ -33,8 +41,10 @@ export async function POST(request: Request) {
     return Response.json({ error: "أدخل البريد الإلكتروني أو رقم الجوال" }, { status: 422 });
   }
 
-  const identifier = parsed.data.identifier.trim();
   const kind = parsed.data.kind;
+  const identifier = kind === "guardian"
+    ? parsed.data.email!.trim()
+    : parsed.data.identifier!.trim();
 
   for (const key of [
     `forgot:${kind}:id:${identifier.toLowerCase()}`,

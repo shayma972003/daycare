@@ -1,21 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 import axios from "axios";
-import { describeApiError } from "@/lib/api-error";
+import { PermissionGate } from "@/components/auth/PermissionGate";
+import { useT } from "@/lib/i18n-provider";
 
-/**
- * Guardian accounts, where the nursery can see them.
- *
- * There was no screen for this at all: `/api/guardian-accounts` existed, worked,
- * and nothing in the product called it — so no parent could be invited, and half
- * the app had no users. This is that screen.
- *
- * It sits beside the staff table rather than inside each child's profile because
- * the question it answers is about people, not children: "who can see their
- * child's day, and who is still waiting to be let in". A guardian with three
- * children would otherwise appear three times, each with the same account.
- */
+type AccountState = "none" | "invited" | "expired" | "active" | "disabled";
+
 interface GuardianRow {
   guardianId: string;
   name: string;
@@ -25,132 +17,205 @@ interface GuardianRow {
   account: {
     id: string;
     email: string;
-    status: "none" | "invited" | "expired" | "active" | "disabled";
+    status: AccountState;
+    inviteExpiresAt?: string | null;
     lastLoginAt: string | null;
   } | null;
 }
 
-const STATUS_LABEL: Record<string, { text: string; className: string }> = {
-  active: { text: "مفعَّل", className: "text-emerald-600" },
-  invited: { text: "بانتظار قبول الدعوة", className: "text-amber-600" },
-  expired: { text: "انتهت صلاحية الدعوة", className: "text-orange-600" },
-  disabled: { text: "معطَّل", className: "text-red-500" },
-  none: { text: "بلا حساب", className: "text-gray-400" },
-};
+interface CreateInvitationResponse {
+  id: string;
+  email: string;
+  phone: string | null;
+  invitationSent: boolean;
+  deliveryStatus: "sent" | "failed";
+}
 
-export function GuardianAccounts() {
+interface ResendInvitationResponse {
+  sent: boolean;
+  deliveryStatus: "sent" | "failed";
+}
+
+function errorKey(status: number | undefined): string {
+  if (status === 409) return "guardianAccounts.errors.conflict";
+  if (status === 422) return "guardianAccounts.errors.validation";
+  if (status === 429) return "guardianAccounts.errors.rateLimited";
+  return "guardianAccounts.errors.generic";
+}
+
+function GuardianAccountsContent() {
+  const t = useT();
   const [rows, setRows] = useState<GuardianRow[]>([]);
   const [loading, setLoading] = useState(true);
-  /** Set when this account may not read guardians at all — see below. */
-  const [forbidden, setForbidden] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
-
-  async function load() {
-    try {
-      const res = await axios.get<GuardianRow[]>("/api/guardian-accounts");
-      setRows(res.data);
-      setError(null);
-    } catch (err) {
-      /**
-       * Hidden rather than shown as an error on a 403.
-       *
-       * Managing staff logins and reading guardian records are separate
-       * permissions, and an accountant who can do the first may hold neither.
-       * A red box telling them about a section they were never meant to see is
-       * worse than the section simply not being there.
-       */
-      if (axios.isAxiosError(err) && err.response?.status === 403) {
-        setForbidden(true);
-      } else {
-        setError(describeApiError(err, "تعذّر تحميل حسابات أولياء الأمور"));
-      }
-    } finally {
-      setLoading(false);
-    }
-  }
+  const inFlightId = useRef<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
     axios
       .get<GuardianRow[]>("/api/guardian-accounts", { signal: controller.signal })
-      .then((res) => {
-        setRows(res.data);
+      .then((response) => {
+        setRows(response.data);
         setError(null);
       })
-      .catch((err) => {
-        if (axios.isCancel(err)) return;
-        if (axios.isAxiosError(err) && err.response?.status === 403) {
-          setForbidden(true);
-        } else {
-          setError(describeApiError(err, "تعذّر تحميل حسابات أولياء الأمور"));
+      .catch((requestError) => {
+        if (!axios.isCancel(requestError)) {
+          setError(t("guardianAccounts.errors.load"));
         }
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, []);
+  }, [t]);
 
-  async function invite(row: GuardianRow) {
+  function markInvited(
+    guardianId: string,
+    created?: Pick<CreateInvitationResponse, "id" | "email">
+  ) {
+    setRows((current) =>
+      current.map((row) => {
+        if (row.guardianId !== guardianId) return row;
+        return {
+          ...row,
+          account: row.account
+            ? { ...row.account, status: "invited", inviteExpiresAt: null }
+            : created
+              ? {
+                  id: created.id,
+                  email: created.email,
+                  status: "invited",
+                  inviteExpiresAt: null,
+                  lastLoginAt: null,
+                }
+              : null,
+        };
+      })
+    );
+  }
+
+  async function sendInitialInvitation(row: GuardianRow) {
+    if (row.account || inFlightId.current) return;
+    inFlightId.current = row.guardianId;
+    setBusyId(row.guardianId);
     setError(null);
     setNotice(null);
-    setBusyId(row.guardianId);
     try {
-      const res = await axios.post<{ invitationSent: boolean }>("/api/guardian-accounts", {
-        guardianId: row.guardianId,
-      });
-      // The same POST creates and re-invites: it upserts and refreshes the
-      // token, so there is no second endpoint to keep in step with this one.
-      setNotice(
-        res.data.invitationSent
-          ? `أُرسلت الدعوة إلى ${row.account?.email ?? row.email}`
-          : "أُنشئت الدعوة لكن تعذّر إرسال البريد — تحقّقي من إعدادات البريد"
+      const response = await axios.post<CreateInvitationResponse>(
+        "/api/guardian-accounts",
+        { guardianId: row.guardianId }
       );
-      await load();
-    } catch (err) {
-      setError(describeApiError(err, "تعذّر إرسال الدعوة"));
+      markInvited(row.guardianId, response.data);
+      setNotice(
+        response.status === 207 || !response.data.invitationSent
+          ? t("guardianAccounts.notices.createdDeliveryFailed")
+          : t("guardianAccounts.notices.createdAndSent", {
+              email: response.data.email,
+            })
+      );
+    } catch (requestError) {
+      const status = axios.isAxiosError(requestError)
+        ? requestError.response?.status
+        : undefined;
+      setError(t(errorKey(status)));
     } finally {
+      inFlightId.current = null;
       setBusyId(null);
     }
   }
 
-  if (forbidden) return null;
+  async function resendInvitation(row: GuardianRow) {
+    if (
+      !row.account ||
+      !["invited", "expired"].includes(row.account.status) ||
+      inFlightId.current
+    ) {
+      return;
+    }
+    inFlightId.current = row.guardianId;
+    setBusyId(row.guardianId);
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await axios.post<ResendInvitationResponse>(
+        `/api/guardian-accounts/${encodeURIComponent(row.account.id)}/invite`
+      );
+      markInvited(row.guardianId);
+      setNotice(
+        response.status === 207 || !response.data.sent
+          ? t("guardianAccounts.notices.resentDeliveryFailed")
+          : t("guardianAccounts.notices.resent")
+      );
+    } catch (requestError) {
+      const status = axios.isAxiosError(requestError)
+        ? requestError.response?.status
+        : undefined;
+      setError(t(errorKey(status)));
+    } finally {
+      inFlightId.current = null;
+      setBusyId(null);
+    }
+  }
+
+  const statusStyles: Record<AccountState, string> = {
+    active: "text-emerald-600",
+    invited: "text-amber-600",
+    expired: "text-orange-600",
+    disabled: "text-red-500",
+    none: "text-gray-400",
+  };
 
   return (
-    <section className="bg-white rounded-2xl border border-gray-100 p-5">
-      <div className="flex items-center justify-between mb-1">
-        <h2 className="font-bold text-[#111111]">حسابات أولياء الأمور</h2>
-      </div>
-      <p className="text-xs text-gray-400 mb-4 leading-relaxed">
-        الدعوة تصل على البريد، ومنها يعيّن ولي الأمر كلمة مروره. بعدها يدخل التطبيق بالبريد
-        وكلمة المرور.
+    <section
+      aria-labelledby="guardian-accounts-title"
+      className="rounded-2xl border border-gray-100 bg-white p-4 sm:p-5"
+    >
+      <h2 id="guardian-accounts-title" className="font-bold text-[#111111]">
+        {t("guardianAccounts.title")}
+      </h2>
+      <p className="mb-4 mt-1 text-xs leading-relaxed text-gray-500">
+        {t("guardianAccounts.description")}
       </p>
 
       {error && (
-        <div role="alert" className="mb-3 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">
+        <div
+          role="alert"
+          className="mb-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-600"
+        >
           {error}
         </div>
       )}
       {notice && (
-        <div className="mb-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-700">
+        <div
+          role="status"
+          aria-live="polite"
+          className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700"
+        >
           {notice}
         </div>
       )}
 
       {loading ? (
-        <p className="text-sm text-gray-400 py-4">جارٍ التحميل…</p>
+        <p role="status" className="py-4 text-sm text-gray-400">
+          {t("guardianAccounts.loading")}
+        </p>
       ) : rows.length === 0 ? (
-        <p className="text-sm text-gray-400 py-4">لا يوجد أولياء أمور مسجّلون بعد.</p>
+        <p className="py-4 text-sm text-gray-400">{t("guardianAccounts.empty")}</p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[640px]">
+        <div
+          role="region"
+          aria-labelledby="guardian-accounts-title"
+          tabIndex={0}
+          className="overflow-x-auto"
+        >
+          <table className="w-full min-w-[640px] text-sm">
             <thead>
               <tr className="border-b border-gray-100 text-gray-500">
-                {["الاسم", "البريد", "الأطفال", "الحالة", ""].map((header) => (
-                  <th key={header} className="px-3 py-2 text-right font-medium">
-                    {header}
+                {["name", "email", "children", "status", "actions"].map((header) => (
+                  <th key={header} className="px-3 py-2 text-start font-medium">
+                    {t(`guardianAccounts.columns.${header}`)}
                   </th>
                 ))}
               </tr>
@@ -159,41 +224,68 @@ export function GuardianAccounts() {
               {rows.map((row) => {
                 const status = row.account?.status ?? "none";
                 const email = row.account?.email ?? row.email;
+                const busy = busyId === row.guardianId;
+                const canCreate = status === "none" && !row.account;
+                const canResend = status === "invited" || status === "expired";
+
                 return (
                   <tr key={row.guardianId}>
                     <td className="px-3 py-3 text-[#111111]">{row.name}</td>
                     <td className="px-3 py-3 text-gray-600" dir="ltr">
-                      {email ?? <span className="text-gray-300" dir="rtl">لا يوجد بريد</span>}
+                      {email ?? (
+                        <span className="text-gray-300">
+                          {t("guardianAccounts.noEmail")}
+                        </span>
+                      )}
                     </td>
                     <td className="px-3 py-3 text-gray-600">
-                      {row.children.map((child) => child.name).join("، ") || "—"}
+                      {row.children.map((child) => child.name).join(t("guardianAccounts.listSeparator")) || "—"}
                     </td>
                     <td className="px-3 py-3">
-                      <span className={STATUS_LABEL[status].className}>
-                        {STATUS_LABEL[status].text}
+                      <span className={statusStyles[status]}>
+                        {t(`guardianAccounts.states.${status}`)}
                       </span>
                     </td>
                     <td className="px-3 py-3">
-                      {status === "disabled" ? null : !email ? (
-                        // Refused before it is attempted: the invitation is an
-                        // email, so there is nowhere to send it. Saying so here
-                        // beats a 422 after the click.
-                        <span className="text-xs text-gray-400">أضيفي بريداً أولاً</span>
-                      ) : (
+                      {!email && canCreate ? (
+                        <span className="text-xs text-gray-400">
+                          {t("guardianAccounts.addEmailFirst")}
+                        </span>
+                      ) : canCreate ? (
                         <button
-                          onClick={() => invite(row)}
-                          disabled={busyId === row.guardianId}
+                          type="button"
+                          onClick={() => sendInitialInvitation(row)}
+                          disabled={busy}
+                          aria-label={t("guardianAccounts.sendFor", { name: row.name })}
                           className="text-xs text-[#2F96A6] hover:underline disabled:opacity-50"
                         >
-                          {busyId === row.guardianId
-                            ? "جارٍ الإرسال…"
-                            : status === "none"
-                              ? "إرسال دعوة"
-                              : status === "active"
-                                ? "إعادة إرسال"
-                                : "إعادة إرسال الدعوة"}
+                          {busy
+                            ? t("guardianAccounts.sending")
+                            : t("guardianAccounts.send")}
                         </button>
-                      )}
+                      ) : canResend ? (
+                        <button
+                          type="button"
+                          onClick={() => resendInvitation(row)}
+                          disabled={busy}
+                          aria-label={t("guardianAccounts.resendFor", { name: row.name })}
+                          className="text-xs text-[#2F96A6] hover:underline disabled:opacity-50"
+                        >
+                          {busy
+                            ? t("guardianAccounts.sending")
+                            : t("guardianAccounts.resend")}
+                        </button>
+                      ) : status === "active" ? (
+                        <span className="text-xs leading-relaxed text-gray-500">
+                          {t("guardianAccounts.activeRecoveryPrefix")} {" "}
+                          <Link
+                            href="/forgot-password?kind=guardian"
+                            className="text-[#2F96A6] underline"
+                          >
+                            {t("guardianAccounts.forgotPassword")}
+                          </Link>
+                        </span>
+                      ) : null}
                     </td>
                   </tr>
                 );
@@ -203,5 +295,13 @@ export function GuardianAccounts() {
         </div>
       )}
     </section>
+  );
+}
+
+export function GuardianAccounts() {
+  return (
+    <PermissionGate permission="students.guardians">
+      <GuardianAccountsContent />
+    </PermissionGate>
   );
 }

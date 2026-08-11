@@ -310,4 +310,42 @@ describe("school administrator activation page", () => {
     expect(await screen.findByText("The passwords do not match")).not.toBeNull();
     expect(axiosMocks.post).not.toHaveBeenCalled();
   });
+
+  it("keeps a guardian out of the staff login flow after activation", async () => {
+    const user = userEvent.setup();
+    axiosMocks.get.mockResolvedValueOnce({
+      data: {
+        kind: "guardian",
+        name: "Guardian One",
+        email: "guardian@example.test",
+        schoolName: "Safe nursery",
+      },
+    });
+    axiosMocks.post.mockResolvedValueOnce({
+      status: 200,
+      data: { success: true, token: "must-not-render", tokenHash: "must-not-render-hash" },
+    });
+    const params = Promise.resolve({ token: "opaque-guardian-token" });
+    await act(async () => {
+      render(
+        inEnglish(
+          <Suspense fallback={<p>Suspended</p>}>
+            <ActivatePage params={params} />
+          </Suspense>
+        )
+      );
+      await params;
+    });
+
+    expect(await screen.findByText("Guardian invitation")).not.toBeNull();
+    await user.type(screen.getByLabelText("Password"), "ValidPass1!");
+    await user.type(screen.getByLabelText("Confirm password"), "ValidPass1!");
+    await user.click(screen.getByRole("button", { name: "Set password" }));
+
+    expect(await screen.findByText("Your account is active")).not.toBeNull();
+    expect(screen.getByText(/guardian account is ready to use/i)).not.toBeNull();
+    expect(screen.queryByRole("link", { name: "Sign in" })).toBeNull();
+    expect(routerMocks.replace).not.toHaveBeenCalled();
+    expect(document.body.textContent).not.toMatch(/opaque-guardian-token|must-not-render/);
+  });
 });

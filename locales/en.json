@@ -1496,6 +1496,55 @@
       "none": "No active invitation"
     }
   },
+  "guardianAccounts": {
+    "title": "Guardian accounts",
+    "description": "Guardians receive an email invitation and choose their own password. Active accounts use password recovery instead of a new invitation.",
+    "loading": "Loading guardian accounts...",
+    "empty": "No guardians have been registered yet.",
+    "noEmail": "No email address",
+    "addEmailFirst": "Add an email address first",
+    "send": "Send invitation",
+    "resend": "Resend invitation",
+    "sending": "Sending...",
+    "sendFor": "Send invitation for {name}",
+    "resendFor": "Resend invitation for {name}",
+    "activeRecoveryPrefix": "Password changes use",
+    "forgotPassword": "Forgot password",
+    "listSeparator": ", ",
+    "columns": {
+      "name": "Name",
+      "email": "Email",
+      "children": "Children",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "states": {
+      "none": "No account",
+      "invited": "Awaiting invitation acceptance",
+      "expired": "Invitation expired",
+      "active": "Active",
+      "disabled": "Disabled"
+    },
+    "notices": {
+      "createdAndSent": "The account was created and an invitation was sent to {email}.",
+      "createdDeliveryFailed": "The account was created, but the invitation email could not be sent. You can retry from this row.",
+      "resent": "A new invitation was sent.",
+      "resentDeliveryFailed": "The invitation was renewed, but the email could not be sent. You can retry later."
+    },
+    "errors": {
+      "load": "Could not load guardian accounts.",
+      "conflict": "The account could not be created or updated in its current state.",
+      "validation": "Add a valid guardian email address before sending the invitation.",
+      "rateLimited": "Too many attempts. Please wait before trying again.",
+      "generic": "Could not send the invitation. Please try again."
+    }
+  },
+  "guardianRecovery": {
+    "forgotTitle": "Guardian password recovery",
+    "forgotHint": "Enter the email address used for the guardian account. If the account exists, a verification code will be sent by email.",
+    "resetSuccessTitle": "Password updated",
+    "resetSuccessBody": "The guardian account is ready to use with the password you chose when the guardian app becomes available."
+  },
   "activation": {
     "productName": "Nursery management",
     "checking": "Checking the invitation...",
@@ -1504,7 +1553,7 @@
     "signIn": "Sign in",
     "successTitle": "Your account is active",
     "successBody": "You can now sign in with your email and the password you chose.",
-    "guardianSuccessBody": "Open the app and sign in with your email and the password you chose.",
+    "guardianSuccessBody": "Your guardian account is ready to use with the email and password you chose when the guardian app becomes available.",
     "redirecting": "Redirecting to sign in...",
     "schoolAdminTitle": "Nursery administrator invitation",
     "staffTitle": "Staff invitation",

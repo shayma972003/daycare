@@ -18,13 +18,18 @@ export default function ResetPasswordPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [recoveryKind, setRecoveryKind] = useState<"staff" | "guardian">("staff");
+  const [guardianDone, setGuardianDone] = useState(false);
 
   // Prefilled from the request step so the user does not retype it. sessionStorage
   // is client-only, so this has to happen after mount rather than during render.
   useEffect(() => {
     const saved = sessionStorage.getItem("reset_identifier");
+    const savedKind = sessionStorage.getItem("reset_kind");
+    const queryKind = new URLSearchParams(window.location.search).get("kind");
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (saved) setIdentifier(saved);
+    if (savedKind === "guardian" || queryKind === "guardian") setRecoveryKind("guardian");
   }, []);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -51,9 +56,12 @@ export default function ResetPasswordPage() {
         identifier: identifier.trim(),
         otp: otp.trim(),
         newPassword,
+        ...(recoveryKind === "guardian" ? { kind: "guardian" as const } : {}),
       });
       sessionStorage.removeItem("reset_identifier");
-      router.push("/login?reset=1");
+      sessionStorage.removeItem("reset_kind");
+      if (recoveryKind === "guardian") setGuardianDone(true);
+      else router.push("/login?reset=1");
     } catch (err) {
       setError(
         axios.isAxiosError(err)
@@ -66,7 +74,7 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <div dir="rtl" className="min-h-screen bg-[#1a2340] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[#1a2340] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="flex flex-col items-center mb-8 gap-3">
           <div className="w-16 h-16 bg-white/10 rounded-2xl border-2 border-white/20" />
@@ -74,18 +82,30 @@ export default function ResetPasswordPage() {
         </div>
 
         <div className="bg-white rounded-2xl shadow-2xl p-8">
-          <h2 className="text-lg font-bold text-[#1a2340] mb-2 text-center">{t("auth.setNewPassword")}</h2>
-          <p className="text-sm text-gray-500 text-center mb-6">
-            {t("auth.resetHint")}
-          </p>
+          {guardianDone ? (
+            <div className="space-y-3 text-center" role="status">
+              <h2 className="text-lg font-bold text-[#1a2340]">
+                {t("guardianRecovery.resetSuccessTitle")}
+              </h2>
+              <p className="text-sm leading-relaxed text-gray-600">
+                {t("guardianRecovery.resetSuccessBody")}
+              </p>
+            </div>
+          ) : (
+            <>
+              <h2 className="text-lg font-bold text-[#1a2340] mb-2 text-center">{t("auth.setNewPassword")}</h2>
+              <p className="text-sm text-gray-500 text-center mb-6">
+                {t("auth.resetHint")}
+              </p>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                {t("auth.emailOrPhone")}
+              <label htmlFor="reset-identifier" className="block text-sm font-medium text-gray-700 mb-1.5">
+                {recoveryKind === "guardian" ? t("auth.email") : t("auth.emailOrPhone")}
               </label>
               <input
-                type="text"
+                id="reset-identifier"
+                type={recoveryKind === "guardian" ? "email" : "text"}
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
                 required
@@ -96,8 +116,9 @@ export default function ResetPasswordPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t("auth.code")}</label>
+              <label htmlFor="reset-otp" className="block text-sm font-medium text-gray-700 mb-1.5">{t("auth.code")}</label>
               <input
+                id="reset-otp"
                 type="text"
                 value={otp}
                 onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
@@ -110,21 +131,22 @@ export default function ResetPasswordPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t("auth.newPassword")}</label>
+              <label htmlFor="reset-new-password" className="block text-sm font-medium text-gray-700 mb-1.5">{t("auth.newPassword")}</label>
               <div className="relative">
                 <input
+                  id="reset-new-password"
                   type={showPassword ? "text" : "password"}
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   required
                   placeholder="••••••••"
                   dir="ltr"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] text-sm transition-all pr-12"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] text-sm transition-all pe-12"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs font-medium"
+                  className="absolute end-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs font-medium"
                 >
                   {showPassword ? t("fields.hide") : t("fields.show")}
                 </button>
@@ -135,8 +157,9 @@ export default function ResetPasswordPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t("auth.confirmPassword")}</label>
+              <label htmlFor="reset-confirm-password" className="block text-sm font-medium text-gray-700 mb-1.5">{t("auth.confirmPassword")}</label>
               <input
+                id="reset-confirm-password"
                 type={showPassword ? "text" : "password"}
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
@@ -148,7 +171,7 @@ export default function ResetPasswordPage() {
             </div>
 
             {error && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 text-center">
+              <div role="alert" className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 text-center">
                 {error}
               </div>
             )}
@@ -167,10 +190,19 @@ export default function ResetPasswordPage() {
             </button>
 
             <div className="flex justify-between text-sm text-gray-500 pt-1">
-              <Link href="/forgot-password" className="hover:text-[#1a2340]">{t("auth.resendCode")}</Link>
-              <Link href="/login" className="hover:text-[#1a2340]">{t("auth.signInTitle")}</Link>
+              <Link
+                href={recoveryKind === "guardian" ? "/forgot-password?kind=guardian" : "/forgot-password"}
+                className="hover:text-[#1a2340]"
+              >
+                {t("auth.resendCode")}
+              </Link>
+              {recoveryKind !== "guardian" && (
+                <Link href="/login" className="hover:text-[#1a2340]">{t("auth.signInTitle")}</Link>
+              )}
             </div>
           </form>
+            </>
+          )}
         </div>
       </div>
     </div>

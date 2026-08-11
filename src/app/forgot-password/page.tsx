@@ -1,89 +1,112 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import axios from "axios";
 import { useT } from "@/lib/i18n-provider";
 
-export default function ForgotPasswordPage() {
+type RecoveryKind = "staff" | "guardian";
+
+export function ForgotPasswordForm({ kind }: { kind: RecoveryKind }) {
   const t = useT();
   const [identifier, setIdentifier] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
+  const guardianMode = kind === "guardian";
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!identifier.trim()) return;
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    const trimmed = identifier.trim();
+    if (!trimmed || loading) return;
     setError("");
     setLoading(true);
     try {
-      const trimmed = identifier.trim();
-      await axios.post("/api/auth/forgot-password", { identifier: trimmed });
-      // Carried over so the reset page can prefill it — kept out of the URL,
-      // which would expose the account identifier in history and logs.
+      await axios.post(
+        "/api/auth/forgot-password",
+        guardianMode
+          ? { email: trimmed, kind: "guardian" }
+          : { identifier: trimmed }
+      );
+      // Keep identifiers out of URLs/history. The reset form also carries the
+      // account kind internally, without asking the user for another choice.
       sessionStorage.setItem("reset_identifier", trimmed);
+      if (guardianMode) sessionStorage.setItem("reset_kind", "guardian");
+      else sessionStorage.removeItem("reset_kind");
       setSent(true);
     } catch {
+      // One generic message for missing and existing accounts. The UI must not
+      // become an account-enumeration oracle even when the provider fails.
       setError(t("auth.genericErrorAlt"));
     } finally {
       setLoading(false);
     }
   }
 
+  const title = guardianMode
+    ? t("guardianRecovery.forgotTitle")
+    : t("auth.forgotTitle");
+  const hint = guardianMode
+    ? t("guardianRecovery.forgotHint")
+    : t("auth.forgotHint");
+  const label = guardianMode ? t("auth.email") : t("auth.emailOrPhone");
+
   return (
-    <div dir="rtl" className="min-h-screen bg-[#1a2340] flex items-center justify-center p-4">
+    <div className="flex min-h-screen items-center justify-center bg-[#1a2340] p-4">
       <div className="w-full max-w-md">
-        <div className="flex flex-col items-center mb-8 gap-3">
-          <div className="w-16 h-16 bg-white/10 rounded-2xl border-2 border-white/20" />
-          <h1 className="text-white text-xl font-bold tracking-wide">{t("auth.appName")}</h1>
+        <div className="mb-8 flex flex-col items-center gap-3">
+          <div className="h-16 w-16 rounded-2xl border-2 border-white/20 bg-white/10" />
+          <h1 className="text-xl font-bold tracking-wide text-white">{t("auth.appName")}</h1>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-2xl p-8">
+        <div className="rounded-2xl bg-white p-6 shadow-2xl sm:p-8">
           {sent ? (
-            <div className="text-center space-y-4">
-              <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto">
-                <span className="text-green-600 text-2xl font-bold">✓</span>
+            <div className="space-y-4 text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-green-100">
+                <span aria-hidden="true" className="text-2xl font-bold text-green-600">✓</span>
               </div>
               <h2 className="text-lg font-bold text-[#1a2340]">{t("auth.sent")}</h2>
-              <p className="text-sm text-gray-600 leading-relaxed">
+              <p className="text-sm leading-relaxed text-gray-600">
                 {t("auth.codeSentNotice")}
               </p>
               <Link
-                href="/reset-password"
-                className="block w-full py-3 bg-[#22c55e] hover:bg-[#16a34a] text-white rounded-xl font-bold text-sm transition-all text-center mt-2"
+                href={guardianMode ? "/reset-password?kind=guardian" : "/reset-password"}
+                className="mt-2 block w-full rounded-xl bg-[#22c55e] py-3 text-center text-sm font-bold text-white transition-all hover:bg-[#16a34a]"
               >
                 {t("auth.enterCode")}
               </Link>
-              <Link href="/login" className="block text-sm text-gray-500 hover:text-[#1a2340] mt-2">
-                {t("auth.backToSignIn")}
-              </Link>
+              {!guardianMode && (
+                <Link href="/login" className="mt-2 block text-sm text-gray-500 hover:text-[#1a2340]">
+                  {t("auth.backToSignIn")}
+                </Link>
+              )}
             </div>
           ) : (
             <>
-              <h2 className="text-lg font-bold text-[#1a2340] mb-2 text-center">{t("auth.forgotTitle")}</h2>
-              <p className="text-sm text-gray-500 text-center mb-6">
-                {t("auth.forgotHint")}
-              </p>
+              <h2 className="mb-2 text-center text-lg font-bold text-[#1a2340]">{title}</h2>
+              <p className="mb-6 text-center text-sm text-gray-500">{hint}</p>
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    {t("auth.emailOrPhone")}
+                  <label htmlFor="recovery-identifier" className="mb-1.5 block text-sm font-medium text-gray-700">
+                    {label}
                   </label>
                   <input
-                    type="text"
+                    id="recovery-identifier"
+                    type={guardianMode ? "email" : "text"}
                     value={identifier}
-                    onChange={(e) => setIdentifier(e.target.value)}
+                    onChange={(event) => setIdentifier(event.target.value)}
                     required
-                    placeholder={t("auth.identifierHint")}
+                    placeholder={guardianMode ? "name@example.com" : t("auth.identifierHint")}
+                    autoComplete="email"
                     dir="ltr"
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] text-sm transition-all"
+                    className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm transition-all focus:outline-none focus:ring-2 focus:ring-[#1a2340]"
                   />
                 </div>
 
                 {error && (
-                  <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 text-center">
+                  <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-center text-sm text-red-700">
                     {error}
                   </div>
                 )}
@@ -91,24 +114,35 @@ export default function ForgotPasswordPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-3 bg-[#22c55e] hover:bg-[#16a34a] text-white rounded-xl font-bold text-sm transition-all disabled:opacity-60"
+                  className="w-full rounded-xl bg-[#22c55e] py-3 text-sm font-bold text-white transition-all hover:bg-[#16a34a] disabled:opacity-60"
                 >
-                  {loading ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                      {t("auth.sending")}
-                    </span>
-                  ) : t("auth.sendCode")}
+                  {loading ? t("auth.sending") : t("auth.sendCode")}
                 </button>
 
-                <Link href="/login" className="block text-sm text-gray-500 hover:text-[#1a2340] text-center mt-2">
-                  {t("auth.backToSignIn")}
-                </Link>
+                {!guardianMode && (
+                  <Link href="/login" className="mt-2 block text-center text-sm text-gray-500 hover:text-[#1a2340]">
+                    {t("auth.backToSignIn")}
+                  </Link>
+                )}
               </form>
             </>
           )}
         </div>
       </div>
     </div>
+  );
+}
+
+function RoutedForgotPasswordForm() {
+  const searchParams = useSearchParams();
+  const kind: RecoveryKind = searchParams.get("kind") === "guardian" ? "guardian" : "staff";
+  return <ForgotPasswordForm kind={kind} />;
+}
+
+export default function ForgotPasswordPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#1a2340]" />}>
+      <RoutedForgotPasswordForm />
+    </Suspense>
   );
 }

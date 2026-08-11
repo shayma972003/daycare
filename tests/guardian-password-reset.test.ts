@@ -87,7 +87,7 @@ describe("guardian password recovery", () => {
   it("issues the reset token for the guardian subject and emails the account address", async () => {
     const response = await forgotPassword(
       request("/api/auth/forgot-password", {
-        identifier: "GUARDIAN@EXAMPLE.TEST",
+        email: "GUARDIAN@EXAMPLE.TEST",
         kind: "guardian",
       })
     );
@@ -116,7 +116,7 @@ describe("guardian password recovery", () => {
     mocks.guardianFindUnique.mockResolvedValueOnce({ ...account, acceptedAt: null });
     const response = await forgotPassword(
       request("/api/auth/forgot-password", {
-        identifier: account.email,
+        email: account.email,
         kind: "guardian",
       })
     );
@@ -125,11 +125,25 @@ describe("guardian password recovery", () => {
     expect(mocks.sendEmail).not.toHaveBeenCalled();
   });
 
+  it("returns the same public success for an unknown guardian email", async () => {
+    mocks.guardianFindUnique.mockResolvedValueOnce(null);
+    const response = await forgotPassword(
+      request("/api/auth/forgot-password", {
+        email: "unknown@example.test",
+        kind: "guardian",
+      })
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ success: true });
+    expect(mocks.transaction).not.toHaveBeenCalled();
+    expect(mocks.sendEmail).not.toHaveBeenCalled();
+  });
+
   it("burns the reset token and returns a real failure when email delivery fails", async () => {
     mocks.sendEmail.mockResolvedValueOnce({ success: false, error: "provider detail" });
     const response = await forgotPassword(
       request("/api/auth/forgot-password", {
-        identifier: account.email,
+        email: account.email,
         kind: "guardian",
       })
     );

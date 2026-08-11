@@ -1,20 +1,20 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
+import { assertCan } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
-import { logAction } from "@/lib/activity-logger";
+import { activityLogData } from "@/lib/activity-logger";
 import { sendEmail } from "@/lib/notifications";
 import { mintInvite } from "@/lib/invitations";
+import { ALL_PERMISSIONS } from "@/lib/permissions";
+import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { env } from "@/lib/env";
 
-/**
- * Send — or resend — a staff invitation.
- *
- * Without this an expired link is a dead end: the account exists, so it cannot
- * be created again, and it has no password, so nobody can sign in to fix it.
- * Seven days is short enough that this will happen.
- *
- * Also the route for an account created before invitations existed, whose owner
- * has lost the password that was once mailed to them.
- */
+class StaffInviteNotFoundError extends Error {}
+class StaffInviteDisabledError extends Error {}
+class StaffInviteActiveError extends Error {}
+class StaffInviteOwnerError extends Error {}
+class StaffInviteChangedError extends Error {}
+
+/** Rotates a pending staff invitation and keeps the old token invalid. */
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -22,63 +22,138 @@ export async function POST(
   let session;
   try {
     session = await requireSession();
+    assertCan(session, "staff.manage");
   } catch (error) {
     return (
       sessionErrorResponse(error) ??
       Response.json({ error: "Unauthorized" }, { status: 401 })
     );
   }
+
   const schoolId = session.user.schoolId;
   const { id } = await params;
-
-  // Scoped to the school: an id from the client is not proof of anything.
-  const user = await prisma.user.findFirst({
-    where: { id, schoolId },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      disabledAt: true,
-      roleRef: { select: { nameAr: true } },
-      school: { select: { name: true } },
-    },
+  const limited = await rateLimit({
+    key: `staff-invite:${schoolId}:${id}`,
+    limit: 5,
+    windowMs: 60 * 60 * 1000,
   });
-  if (!user) {
-    return Response.json({ error: "الحساب غير موجود" }, { status: 404 });
-  }
-  if (user.disabledAt) {
-    return Response.json(
-      { error: "الحساب معطَّل — فعّليه أولاً" },
-      { status: 409 }
-    );
+  if (!limited.ok) {
+    return tooManyRequests(limited.retryAfter, "تم تجاوز عدد محاولات إرسال الدعوة");
   }
 
-  /**
-   * A fresh token replaces the old one.
-   *
-   * The previous link stops working the moment this is written, which is the
-   * point: two live invitations to one account means the older mailbox keeps a
-   * way in after the address has been corrected.
-   *
-   * `password` is deliberately not cleared. Someone who has already set one
-   * keeps it until the new link is actually used — a resend that locked them
-   * out in the meantime would be worse than the problem it solves.
-   */
   const invite = mintInvite();
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { inviteTokenHash: invite.tokenHash, inviteExpiresAt: invite.expiresAt },
-  });
+  let user: {
+    id: string;
+    name: string;
+    email: string;
+    roleName: string | null;
+    schoolName: string;
+  };
+
+  try {
+    user = await prisma.$transaction(async (tx) => {
+      // Tenant scope is part of the lookup, so another nursery's id receives
+      // the same not-found response as a random id.
+      const target = await tx.user.findFirst({
+        where: { id, schoolId },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          password: true,
+          acceptedAt: true,
+          disabledAt: true,
+          roleId: true,
+          roleRef: { select: { nameAr: true, permissions: true } },
+          school: { select: { name: true } },
+        },
+      });
+      if (!target) throw new StaffInviteNotFoundError();
+      if (target.disabledAt) throw new StaffInviteDisabledError();
+      if (target.password || target.acceptedAt) throw new StaffInviteActiveError();
+
+      const firstUser = await tx.user.findFirst({
+        where: { schoolId },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        select: { id: true },
+      });
+      if (
+        firstUser?.id === target.id ||
+        target.roleRef?.permissions.includes(ALL_PERMISSIONS)
+      ) {
+        throw new StaffInviteOwnerError();
+      }
+
+      // Include every eligibility field in the write predicate. If activation,
+      // disabling, tenant movement, or role reassignment races this request,
+      // the stale read cannot rotate a token afterward.
+      const rotated = await tx.user.updateMany({
+        where: {
+          id: target.id,
+          schoolId,
+          password: null,
+          acceptedAt: null,
+          disabledAt: null,
+          roleId: target.roleId,
+          NOT: {
+            roleRef: { is: { permissions: { has: ALL_PERMISSIONS } } },
+          },
+        },
+        data: {
+          inviteTokenHash: invite.tokenHash,
+          inviteExpiresAt: invite.expiresAt,
+        },
+      });
+      if (rotated.count !== 1) throw new StaffInviteChangedError();
+
+      await tx.activityLog.create({
+        data: activityLogData({
+          school_id: schoolId,
+          action: `إعادة إرسال دعوة: ${target.name}`,
+          entity_type: "staff_account",
+          entity_id: target.id,
+          entity_name: target.name,
+          performed_by: session.user.name ?? "المدير",
+          request,
+        }),
+      });
+
+      return {
+        id: target.id,
+        name: target.name,
+        email: target.email,
+        roleName: target.roleRef?.nameAr ?? null,
+        schoolName: target.school?.name ?? "",
+      };
+    });
+  } catch (error) {
+    if (error instanceof StaffInviteNotFoundError) {
+      return Response.json({ error: "الحساب غير موجود" }, { status: 404 });
+    }
+    if (error instanceof StaffInviteDisabledError) {
+      return Response.json({ error: "الحساب معطل — فعّليه أولاً" }, { status: 409 });
+    }
+    if (error instanceof StaffInviteActiveError) {
+      return Response.json({ error: "الحساب مفعّل بالفعل" }, { status: 409 });
+    }
+    if (error instanceof StaffInviteOwnerError) {
+      return Response.json({ error: "لا يمكن إرسال دعوة لحساب المالك" }, { status: 403 });
+    }
+    if (error instanceof StaffInviteChangedError) {
+      return Response.json({ error: "تغيرت حالة الحساب، أعيدي المحاولة" }, { status: 409 });
+    }
+    throw error;
+  }
 
   const appUrl = env.NEXT_PUBLIC_APP_URL ?? "";
   const delivered = await sendEmail(
     user.email,
-    `دعوة للانضمام إلى ${user.school?.name ?? "الحضانة"}`,
+    `دعوة للانضمام إلى ${user.schoolName || "الحضانة"}`,
     [
       `مرحباً ${user.name}،`,
       "",
-      `دعتك ${user.school?.name ?? "الحضانة"} للانضمام${
-        user.roleRef?.nameAr ? ` بصلاحية: ${user.roleRef.nameAr}` : ""
+      `دعتك ${user.schoolName || "الحضانة"} للانضمام${
+        user.roleName ? ` بصلاحية: ${user.roleName}` : ""
       }`,
       "",
       "اضغطي الرابط لتعيين كلمة المرور الخاصة بك:",
@@ -88,21 +163,14 @@ export async function POST(
     ]
       .filter(Boolean)
       .join("\n"),
-    user.school?.name ?? ""
+    user.schoolName
   );
 
-  await logAction({
-    school_id: schoolId,
-    action: `إعادة إرسال دعوة: ${user.name}`,
-    entity_type: "staff_account",
-    entity_id: user.id,
-    entity_name: user.name,
-    performed_by: session.user.name ?? "المدير",
-    request,
-  });
-
-  // Reported rather than thrown: the token was rotated either way, and the
-  // nursery needs to know the message did not go out so it can fix the mail
-  // settings instead of waiting.
-  return Response.json({ sent: delivered.success });
+  return Response.json(
+    {
+      sent: delivered.success,
+      deliveryStatus: delivered.success ? "sent" : "failed",
+    },
+    { status: delivered.success ? 200 : 207 }
+  );
 }

@@ -74,6 +74,8 @@ export interface InviteSubject {
   alreadyAccepted: boolean;
 }
 
+class InviteNoLongerUsableError extends Error {}
+
 /**
  * Who an invitation is for, or null.
  *
@@ -155,35 +157,125 @@ export async function redeemInvite(
   token: string,
   password: string
 ): Promise<InviteSubject | null> {
-  const subject = await findInvite(token);
-  if (!subject) return null;
-
+  if (!token || token.length < 16) return null;
+  const tokenHash = hashInviteToken(token);
   const passwordHash = await bcrypt.hash(password, BCRYPT_COST);
   const now = new Date();
 
-  if (subject.kind === "staff") {
-    await prisma.user.update({
-      where: { id: subject.id },
-      data: {
-        password: passwordHash,
-        acceptedAt: subject.alreadyAccepted ? undefined : now,
-        inviteTokenHash: null,
-        inviteExpiresAt: null,
-      },
-    });
-  } else {
-    await prisma.guardianAccount.update({
-      where: { id: subject.id },
-      data: {
-        passwordHash,
-        acceptedAt: subject.alreadyAccepted ? undefined : now,
-        inviteTokenHash: null,
-        inviteExpiresAt: null,
-      },
-    });
-  }
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const staff = await tx.user.findUnique({
+        where: { inviteTokenHash: tokenHash },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          inviteTokenHash: true,
+          inviteExpiresAt: true,
+          acceptedAt: true,
+          disabledAt: true,
+          school: { select: { name: true } },
+        },
+      });
 
-  return subject;
+      if (staff) {
+        if (
+          !staff.inviteTokenHash ||
+          !sameHash(staff.inviteTokenHash, tokenHash) ||
+          !staff.inviteExpiresAt ||
+          staff.inviteExpiresAt <= now ||
+          staff.disabledAt
+        ) {
+          throw new InviteNoLongerUsableError();
+        }
+
+        // Compare-and-set is the race barrier. PostgreSQL makes a concurrent
+        // updater wait, re-check the token predicate, and return count=0.
+        const claimed = await tx.user.updateMany({
+          where: {
+            id: staff.id,
+            inviteTokenHash: tokenHash,
+            inviteExpiresAt: { gt: now },
+            disabledAt: null,
+          },
+          data: {
+            password: passwordHash,
+            acceptedAt: staff.acceptedAt ?? now,
+            inviteTokenHash: null,
+            inviteExpiresAt: null,
+          },
+        });
+        if (claimed.count !== 1) throw new InviteNoLongerUsableError();
+
+        await tx.twoFASession.deleteMany({ where: { userId: staff.id } });
+        await tx.refreshToken.deleteMany({ where: { userId: staff.id } });
+        await tx.passwordResetToken.deleteMany({ where: { userId: staff.id } });
+
+        return {
+          kind: "staff" as const,
+          id: staff.id,
+          name: staff.name,
+          email: staff.email,
+          schoolName: staff.school?.name ?? "",
+          alreadyAccepted: Boolean(staff.acceptedAt),
+        };
+      }
+
+      const guardian = await tx.guardianAccount.findUnique({
+        where: { inviteTokenHash: tokenHash },
+        select: {
+          id: true,
+          email: true,
+          inviteTokenHash: true,
+          inviteExpiresAt: true,
+          acceptedAt: true,
+          disabledAt: true,
+          guardian: { select: { name: true } },
+          school: { select: { name: true } },
+        },
+      });
+      if (
+        !guardian ||
+        !guardian.inviteTokenHash ||
+        !sameHash(guardian.inviteTokenHash, tokenHash) ||
+        !guardian.inviteExpiresAt ||
+        guardian.inviteExpiresAt <= now ||
+        guardian.disabledAt
+      ) {
+        throw new InviteNoLongerUsableError();
+      }
+
+      const claimed = await tx.guardianAccount.updateMany({
+        where: {
+          id: guardian.id,
+          inviteTokenHash: tokenHash,
+          inviteExpiresAt: { gt: now },
+          disabledAt: null,
+        },
+        data: {
+          passwordHash,
+          acceptedAt: guardian.acceptedAt ?? now,
+          inviteTokenHash: null,
+          inviteExpiresAt: null,
+        },
+      });
+      if (claimed.count !== 1) throw new InviteNoLongerUsableError();
+
+      await tx.refreshToken.deleteMany({ where: { guardianAccountId: guardian.id } });
+
+      return {
+        kind: "guardian" as const,
+        id: guardian.id,
+        name: guardian.guardian?.name ?? "",
+        email: guardian.email,
+        schoolName: guardian.school?.name ?? "",
+        alreadyAccepted: Boolean(guardian.acceptedAt),
+      };
+    });
+  } catch (error) {
+    if (error instanceof InviteNoLongerUsableError) return null;
+    throw error;
+  }
 }
 
 /**

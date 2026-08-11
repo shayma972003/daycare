@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 
-interface LogActionParams {
+export interface LogActionParams {
   school_id: string;
   action: string;
   entity_type?: string;
@@ -28,6 +28,42 @@ function parseDeviceInfo(userAgent: string): string {
   return `${browser} على ${os}`;
 }
 
+/** Builds the same audit payload for direct writes inside a business transaction. */
+export function activityLogData({
+  school_id,
+  action,
+  entity_type,
+  entity_id,
+  entity_name,
+  performed_by = "المدير",
+  request,
+}: LogActionParams) {
+  let ip_address: string | undefined;
+  let device_info: string | undefined;
+
+  if (request) {
+    const headersList = request.headers;
+    ip_address =
+      headersList.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+      headersList.get("x-real-ip") ??
+      "غير متاح";
+
+    const userAgent = headersList.get("user-agent") ?? "";
+    device_info = userAgent ? parseDeviceInfo(userAgent) : "غير معروف";
+  }
+
+  return {
+    school_id,
+    action,
+    entity_type,
+    entity_id,
+    entity_name,
+    performed_by,
+    ip_address,
+    device_info,
+  };
+}
+
 export async function logAction({
   school_id,
   action,
@@ -38,31 +74,16 @@ export async function logAction({
   request,
 }: LogActionParams) {
   try {
-    let ip_address: string | undefined;
-    let device_info: string | undefined;
-
-    if (request) {
-      const headersList = request.headers;
-      ip_address =
-        headersList.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-        headersList.get("x-real-ip") ??
-        "غير متاح";
-
-      const userAgent = headersList.get("user-agent") ?? "";
-      device_info = userAgent ? parseDeviceInfo(userAgent) : "غير معروف";
-    }
-
     await prisma.activityLog.create({
-      data: {
+      data: activityLogData({
         school_id,
         action,
         entity_type,
         entity_id,
         entity_name,
         performed_by,
-        ip_address,
-        device_info,
-      },
+        request,
+      }),
     });
   } catch (error) {
     console.error("Activity log failed:", error);

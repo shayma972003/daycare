@@ -1,18 +1,18 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
+import { assertCan } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
-import { passwordSchema, BCRYPT_COST } from "@/lib/password-policy";
 import { ALL_PERMISSIONS } from "@/lib/permissions";
-import bcrypt from "bcryptjs";
 import { z } from "zod";
 
-const updateSchema = z.object({
-  name: z.string().min(1).max(80).optional(),
-  roleId: z.string().min(1).optional(),
-  teacherId: z.string().nullish(),
-  disabled: z.boolean().optional(),
-  password: passwordSchema.optional(),
-});
+const updateSchema = z
+  .object({
+    name: z.string().min(1).max(80).optional(),
+    roleId: z.string().min(1).optional(),
+    teacherId: z.string().nullish(),
+    disabled: z.boolean().optional(),
+  })
+  .strict();
 
 export async function PUT(
   request: Request,
@@ -21,6 +21,7 @@ export async function PUT(
   let session;
   try {
     session = await requireSession();
+    assertCan(session, "staff.manage");
   } catch (error) {
     return (
       sessionErrorResponse(error) ??
@@ -103,10 +104,6 @@ export async function PUT(
     data.disabledAt = parsed.data.disabled ? new Date() : null;
   }
 
-  if (parsed.data.password) {
-    data.password = await bcrypt.hash(parsed.data.password, BCRYPT_COST);
-  }
-
   const updated = await prisma.user.update({
     where: { id },
     data,
@@ -153,6 +150,7 @@ export async function DELETE(
   let session;
   try {
     session = await requireSession();
+    assertCan(session, "staff.manage");
   } catch (error) {
     return (
       sessionErrorResponse(error) ??

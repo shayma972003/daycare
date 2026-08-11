@@ -1,12 +1,11 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
+import { assertCan } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
-import { logAction } from "@/lib/activity-logger";
+import { activityLogData } from "@/lib/activity-logger";
 import { sendEmail } from "@/lib/notifications";
-import { passwordSchema, BCRYPT_COST } from "@/lib/password-policy";
 import { ALL_PERMISSIONS } from "@/lib/permissions";
 import { mintInvite, accountState } from "@/lib/invitations";
 import { env } from "@/lib/env";
-import bcrypt from "bcryptjs";
 import { z } from "zod";
 
 /**
@@ -69,20 +68,47 @@ export async function GET() {
   );
 }
 
-const createSchema = z.object({
-  name: z.string().min(1).max(80),
-  email: z.string().email(),
-  roleId: z.string().min(1),
-  /** Optional: link the login to an existing staff record. */
-  teacherId: z.string().nullish(),
-  /** Omitted means "send them an invitation to set their own". */
-  password: passwordSchema.optional(),
-});
+const createSchema = z
+  .object({
+    name: z.string().min(1).max(80),
+    email: z.string().email(),
+    roleId: z.string().min(1),
+    /** Optional: link the login to an existing staff record. */
+    teacherId: z.string().nullish(),
+  })
+  .strict();
+
+function isEmailConflict(error: unknown): boolean {
+  if (!error || typeof error !== "object" || !("code" in error) || error.code !== "P2002") {
+    return false;
+  }
+
+  const meta = "meta" in error ? error.meta : null;
+  if (!meta || typeof meta !== "object") {
+    return false;
+  }
+
+  // Prisma's binary engine exposes `meta.target`; the current PostgreSQL
+  // driver adapter nests the constraint fields under `driverAdapterError`.
+  // Inspect field/index names only, never the database message or submitted address.
+  const conflictMeta = meta as {
+    target?: unknown;
+    driverAdapterError?: {
+      cause?: { constraint?: { fields?: unknown; index?: unknown } };
+    };
+  };
+  const constraint = conflictMeta.driverAdapterError?.cause?.constraint;
+  const candidates = [conflictMeta.target, constraint?.fields, constraint?.index].flat();
+  return candidates.some(
+    (candidate) => typeof candidate === "string" && candidate.toLowerCase().includes("email")
+  );
+}
 
 export async function POST(request: Request) {
   let session;
   try {
     session = await requireSession();
+    assertCan(session, "staff.manage");
   } catch (error) {
     return (
       sessionErrorResponse(error) ??
@@ -104,14 +130,6 @@ export async function POST(request: Request) {
   }
 
   const email = parsed.data.email.toLowerCase().trim();
-
-  // `User.email` is globally unique, so a clash may be with another tenant. The
-  // message says nothing about which — confirming an address exists elsewhere in
-  // the system is an account-enumeration oracle.
-  const taken = await prisma.user.findUnique({ where: { email }, select: { id: true } });
-  if (taken) {
-    return Response.json({ error: "البريد مستخدم بالفعل" }, { status: 409 });
-  }
 
   // The role must belong to this school — an id from the client is not proof.
   const role = await prisma.role.findFirst({
@@ -142,90 +160,81 @@ export async function POST(request: Request) {
     }
   }
 
-  /**
-   * An invitation, not a password.
-   *
-   * This route used to generate a password and email it in the clear, where it
-   * then lived in an inbox for as long as the mailbox did — no expiry, and no
-   * way to tell whether it had ever been used. An invitation expires in seven
-   * days and is chosen by the person who will type it.
-   *
-   * A password may still be set directly, for the case where the owner is
-   * standing next to a new member of staff and it is faster to agree one aloud.
-   * That account is active immediately and needs no invitation.
-   */
-  const direct = parsed.data.password
-    ? await bcrypt.hash(parsed.data.password, BCRYPT_COST)
-    : null;
-  const invite = direct ? null : mintInvite();
-
-  const user = await prisma.user.create({
-    data: {
-      schoolId,
-      name: parsed.data.name,
-      email,
-      password: direct,
-      acceptedAt: direct ? new Date() : null,
-      inviteTokenHash: invite?.tokenHash ?? null,
-      inviteExpiresAt: invite?.expiresAt ?? null,
-      role: "staff",
-      roleId: role.id,
-      teacherId: parsed.data.teacherId ?? null,
-    },
-    select: { id: true, name: true, email: true },
-  });
-
   const school = await prisma.school.findUnique({
     where: { id: schoolId },
     select: { name: true },
   });
 
-  // Best-effort: a mail failure must not undo an account that already exists.
-  // The owner can reset the password from this screen if the message never
-  // arrives.
+  const invite = mintInvite();
+  let user: { id: string; name: string; email: string };
+  try {
+    user = await prisma.$transaction(async (tx) => {
+      const created = await tx.user.create({
+        data: {
+          schoolId,
+          name: parsed.data.name,
+          email,
+          password: null,
+          acceptedAt: null,
+          inviteTokenHash: invite.tokenHash,
+          inviteExpiresAt: invite.expiresAt,
+          role: "staff",
+          roleId: role.id,
+          teacherId: parsed.data.teacherId ?? null,
+        },
+        select: { id: true, name: true, email: true },
+      });
+
+      await tx.activityLog.create({
+        data: activityLogData({
+          school_id: schoolId,
+          action: `إنشاء حساب موظف: ${created.name} (${role.nameAr})`,
+          entity_type: "staff_account",
+          entity_id: created.id,
+          entity_name: created.name,
+          performed_by: session.user.name ?? "المدير",
+          request,
+        }),
+      });
+
+      return created;
+    });
+  } catch (error) {
+    // The unique constraint is the race barrier. The response does not reveal
+    // whether the matching address belongs to this tenant or another one.
+    if (isEmailConflict(error)) {
+      return Response.json({ error: "البريد مستخدم بالفعل" }, { status: 409 });
+    }
+    throw error;
+  }
+
+  // Delivery happens after the transaction. A provider failure leaves the
+  // pending account and hashed invitation available for an explicit resend.
   const appUrl = env.NEXT_PUBLIC_APP_URL ?? "";
   const delivered = await sendEmail(
     email,
-    invite ? `دعوة للانضمام إلى ${school?.name ?? "الحضانة"}` : "تم إنشاء حسابك",
-    (invite
-      ? [
-          `مرحباً ${parsed.data.name}،`,
-          "",
-          `دعتك ${school?.name ?? "الحضانة"} للانضمام بصلاحية: ${role.nameAr}`,
-          "",
-          "اضغطي الرابط لتعيين كلمة المرور الخاصة بك:",
-          appUrl ? `${appUrl}/activate/${invite.token}` : "",
-          "",
-          "الرابط صالح لمدة 7 أيام، ولا يعمل إلا مرة واحدة.",
-        ]
-      : [
-          `مرحباً ${parsed.data.name}،`,
-          "",
-          `تم إنشاء حساب لك في ${school?.name ?? "الحضانة"} بصلاحية: ${role.nameAr}`,
-          "",
-          `البريد: ${email}`,
-          // The password is not repeated here. It was agreed in person; putting
-          // it in an inbox is the habit this change exists to end.
-          "كلمة المرور هي التي اتُّفق عليها عند إنشاء الحساب.",
-        ]
-    )
+    `دعوة للانضمام إلى ${school?.name ?? "الحضانة"}`,
+    [
+      `مرحباً ${parsed.data.name}،`,
+      "",
+      `دعتك ${school?.name ?? "الحضانة"} للانضمام بصلاحية: ${role.nameAr}`,
+      "",
+      "اضغطي الرابط لتعيين كلمة المرور الخاصة بك:",
+      appUrl ? `${appUrl}/activate/${invite.token}` : "",
+      "",
+      "الرابط صالح لمدة 7 أيام، ولا يعمل إلا مرة واحدة.",
+    ]
       .filter(Boolean)
       .join("\n"),
     school?.name ?? ""
   );
 
-  await logAction({
-    school_id: schoolId,
-    action: `إنشاء حساب موظف: ${user.name} (${role.nameAr})`,
-    entity_type: "staff_account",
-    entity_id: user.id,
-    entity_name: user.name,
-    performed_by: session.user.name ?? "المدير",
-    request,
-  });
-
   return Response.json(
-    { ...user, invitationSent: delivered.success },
-    { status: 201 }
+    {
+      ...user,
+      invitationSent: delivered.success,
+      deliveryStatus: delivered.success ? "sent" : "failed",
+    },
+    { status: delivered.success ? 201 : 207 }
   );
 }

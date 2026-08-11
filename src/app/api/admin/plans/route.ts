@@ -15,7 +15,6 @@ const createSchema = z.object({
   price: z.number().min(0),
   max_students: z.number().int().min(1),
   max_classes: z.number().int().min(1),
-  max_whatsapp_per_month: z.number().int().min(0),
 });
 
 export async function POST(request: Request) {

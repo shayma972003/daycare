@@ -79,7 +79,7 @@ export default function HomePage() {
 
   // Filters
   const [filterStatus, setFilterStatus] = useState<"" | "SENT" | "FAILED">("");
-  const [filterType, setFilterType] = useState<"" | "WHATSAPP" | "EMAIL">("");
+  const [filterType, setFilterType] = useState<"" | "EMAIL">("");
 
   useEffect(() => {
     const ticket = activityRequests.begin();
@@ -390,11 +390,10 @@ export default function HomePage() {
                   </select>
                   <select
                     value={filterType}
-                    onChange={(e) => setFilterType(e.target.value as "" | "WHATSAPP" | "EMAIL")}
+                    onChange={(e) => setFilterType(e.target.value as "" | "EMAIL")}
                     className="px-3 py-1.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none"
                   >
                     <option value="">{t("home.allTypes")}</option>
-                    <option value="WHATSAPP">{t("home.whatsapp")}</option>
                     <option value="EMAIL">{t("home.email")}</option>
                   </select>
                   {logs.length > 0 && (
@@ -445,8 +444,8 @@ export default function HomePage() {
                             <tr key={log.id} className="hover:bg-gray-50/50 transition-colors">
                               <td className="px-4 py-3 font-medium text-[#111111]">{log.recipientName}</td>
                               <td className="px-4 py-3">
-                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${log.type === "WHATSAPP" ? "bg-success-bg text-success-text" : "bg-blue-50 text-blue-700"}`}>
-                                  {log.type === "WHATSAPP" ? t("home.whatsapp") : t("home.email")}
+                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${log.type === "WHATSAPP" ? "bg-gray-100 text-gray-600" : "bg-blue-50 text-blue-700"}`}>
+                                  {t(`notificationType.${log.type}`)}
                                 </span>
                               </td>
                               <td className="px-4 py-3 text-gray-600 max-w-xs">

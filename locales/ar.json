@@ -211,7 +211,6 @@
     "allTypes": "كل الأنواع",
     "sent": "تم الإرسال",
     "failed": "فشل",
-    "whatsapp": "واتساب",
     "email": "بريد",
     "clearAll": "مسح الكل",
     "showMore": "عرض المزيد ({count} متبقي)",
@@ -610,7 +609,7 @@
     "CARD": "بطاقة"
   },
   "notificationType": {
-    "WHATSAPP": "واتساب",
+    "WHATSAPP": "واتساب (سجل قديم)",
     "EMAIL": "بريد إلكتروني"
   },
   "deliveryStatus": {

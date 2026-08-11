@@ -43,10 +43,10 @@ async function main() {
   console.log(`super admin ready: ${email}`);
 
   const plans = [
-    { name: "تجريبي", price: 0, max_students: 20, max_classes: 2, max_whatsapp_per_month: 50 },
-    { name: "أساسي", price: 299, max_students: 100, max_classes: 10, max_whatsapp_per_month: 500 },
-    { name: "متقدم", price: 599, max_students: 300, max_classes: 30, max_whatsapp_per_month: 2000 },
-    { name: "مؤسسي", price: 999, max_students: 1000, max_classes: 100, max_whatsapp_per_month: 10000 },
+    { name: "تجريبي", price: 0, max_students: 20, max_classes: 2 },
+    { name: "أساسي", price: 299, max_students: 100, max_classes: 10 },
+    { name: "متقدم", price: 599, max_students: 300, max_classes: 30 },
+    { name: "مؤسسي", price: 999, max_students: 1000, max_classes: 100 },
   ];
 
   for (const plan of plans) {

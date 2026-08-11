@@ -24,7 +24,6 @@ interface Plan {
   price: number;
   max_students: number;
   max_classes: number;
-  max_whatsapp_per_month: number;
   is_active: boolean;
 }
 
@@ -40,7 +39,7 @@ export default function SubscriptionsPage() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
   const [addPlanOpen, setAddPlanOpen] = useState(false);
-  const [newPlan, setNewPlan] = useState({ name: "", price: 0, max_students: 50, max_classes: 5, max_whatsapp_per_month: 200 });
+  const [newPlan, setNewPlan] = useState({ name: "", price: 0, max_students: 50, max_classes: 5 });
   const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
 
   const [error, setError] = useState<string | null>(null);
@@ -90,7 +89,7 @@ export default function SubscriptionsPage() {
     run(async () => {
       await axios.post("/api/admin/plans", newPlan);
       setAddPlanOpen(false);
-      setNewPlan({ name: "", price: 0, max_students: 50, max_classes: 5, max_whatsapp_per_month: 200 });
+      setNewPlan({ name: "", price: 0, max_students: 50, max_classes: 5 });
       setPlans((await axios.get<Plan[]>("/api/admin/plans")).data);
     }, "تعذر إنشاء الخطة");
 
@@ -206,7 +205,7 @@ export default function SubscriptionsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-white/5">
-                {["الاسم", "السعر", "الطلاب", "الفصول", "واتساب/شهر", "مفعّل", ""].map((h) => (
+                {["الاسم", "السعر", "الطلاب", "الفصول", "مفعّل", ""].map((h) => (
                   <th key={h} className="px-5 py-3 text-right text-gray-400 font-medium">{h}</th>
                 ))}
               </tr>
@@ -220,7 +219,6 @@ export default function SubscriptionsPage() {
                       <td className="px-5 py-3"><input type="number" value={editingPlan.price} onChange={(e) => setEditingPlan({ ...editingPlan, price: Number(e.target.value) })} className="input-admin w-20" /></td>
                       <td className="px-5 py-3"><input type="number" value={editingPlan.max_students} onChange={(e) => setEditingPlan({ ...editingPlan, max_students: Number(e.target.value) })} className="input-admin w-20" /></td>
                       <td className="px-5 py-3"><input type="number" value={editingPlan.max_classes} onChange={(e) => setEditingPlan({ ...editingPlan, max_classes: Number(e.target.value) })} className="input-admin w-20" /></td>
-                      <td className="px-5 py-3"><input type="number" value={editingPlan.max_whatsapp_per_month} onChange={(e) => setEditingPlan({ ...editingPlan, max_whatsapp_per_month: Number(e.target.value) })} className="input-admin w-24" /></td>
                       <td className="px-5 py-3"><input type="checkbox" checked={editingPlan.is_active} onChange={(e) => setEditingPlan({ ...editingPlan, is_active: e.target.checked })} /></td>
                       <td className="px-5 py-3 flex gap-2">
                         <button onClick={() => savePlan(editingPlan)} className="text-xs text-emerald-400 hover:text-emerald-300">حفظ</button>
@@ -233,7 +231,6 @@ export default function SubscriptionsPage() {
                       <td className="px-5 py-3 text-gray-300">{p.price} ر.س</td>
                       <td className="px-5 py-3 text-gray-300">{p.max_students}</td>
                       <td className="px-5 py-3 text-gray-300">{p.max_classes}</td>
-                      <td className="px-5 py-3 text-gray-300">{p.max_whatsapp_per_month}</td>
                       <td className="px-5 py-3">{p.is_active ? <span className="text-emerald-400">✓</span> : <span className="text-red-400">✗</span>}</td>
                       <td className="px-5 py-3"><button onClick={() => setEditingPlan(p)} className="text-xs text-indigo-400 hover:text-indigo-300">تعديل</button></td>
                     </>
@@ -255,7 +252,6 @@ export default function SubscriptionsPage() {
               { label: "السعر (ر.س)", key: "price", type: "number" },
               { label: "الحد الأقصى للطلاب", key: "max_students", type: "number" },
               { label: "الحد الأقصى للفصول", key: "max_classes", type: "number" },
-              { label: "رسائل واتساب/شهر", key: "max_whatsapp_per_month", type: "number" },
             ].map((f) => (
               <div key={f.key}>
                 <label className="text-gray-400 text-xs block mb-1">{f.label}</label>

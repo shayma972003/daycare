@@ -7,7 +7,6 @@ const updateSchema = z.object({
   price: z.number().min(0).optional(),
   max_students: z.number().int().min(1).optional(),
   max_classes: z.number().int().min(1).optional(),
-  max_whatsapp_per_month: z.number().int().min(0).optional(),
   is_active: z.boolean().optional(),
 });
 

@@ -42,7 +42,7 @@ export const CARE_TYPE_LABELS: Record<CareReportType, string> = {
  * The same eight, as dictionary keys.
  *
  * Both tables exist because they have different jobs. The resolved Arabic above
- * is what goes into a WhatsApp message and an activity-log entry — those are
+ * is what goes into an email digest and an activity-log entry — those are
  * written for the guardian and the audit trail, not for whoever has the
  * interface open. Anything a component renders reads these keys instead, so it
  * follows the reader's language.

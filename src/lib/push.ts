@@ -13,8 +13,8 @@
  * Android.
  *
  * Both adapters no-op with a warning when their credentials are absent, matching
- * how `sendWhatsApp`/`sendEmail` behave. A developer without Firebase keys gets
- * a working app and a log line, not a crash.
+ * the email transport. A developer without Firebase keys gets a working app and
+ * a log line, not a crash.
  */
 
 import { prisma } from "@/lib/prisma";

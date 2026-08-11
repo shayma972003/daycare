@@ -211,7 +211,6 @@
     "allTypes": "All types",
     "sent": "Sent",
     "failed": "Failed",
-    "whatsapp": "WhatsApp",
     "email": "Email",
     "clearAll": "Clear all",
     "showMore": "Show more ({count} remaining)",
@@ -610,7 +609,7 @@
     "CARD": "Card"
   },
   "notificationType": {
-    "WHATSAPP": "WhatsApp",
+    "WHATSAPP": "WhatsApp (legacy record)",
     "EMAIL": "Email"
   },
   "deliveryStatus": {

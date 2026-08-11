@@ -1377,7 +1377,7 @@ export default function SettingsPage() {
                             <tr key={log.id} className="border-b border-gray-50 hover:bg-gray-50">
                               <td className="py-3 px-2 text-gray-800 font-medium">{log.recipientName}</td>
                               <td className="py-3 px-2">
-                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${log.type === "WHATSAPP" ? "bg-success-bg text-success-text" : "bg-blue-50 text-blue-700"}`}>
+                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${log.type === "WHATSAPP" ? "bg-gray-100 text-gray-600" : "bg-blue-50 text-blue-700"}`}>
                                   {t(`notificationType.${log.type}`)}
                                 </span>
                               </td>

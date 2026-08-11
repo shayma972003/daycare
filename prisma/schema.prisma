@@ -782,7 +782,6 @@ model SubscriptionPlan {
   price                  Float
   max_students           Int
   max_classes            Int
-  max_whatsapp_per_month Int
   /// Storage quota in megabytes (task 2.29). Zero means unlimited, matching how
   /// `max_students` and `max_classes` are already read by the plan-limit layer —
   /// one sentinel across all three rather than three conventions.

@@ -19,7 +19,7 @@ src/generated/
 prisma/migrations/.env
 
 # ─── Environment Variables ────────────────────────────────────────────────────
-# Never commit secrets (DB URL, Twilio, Resend, NextAuth secret, etc.)
+# Never commit secrets (DB URL, email provider, NextAuth secret, etc.)
 .env
 .env.*
 !.env.example

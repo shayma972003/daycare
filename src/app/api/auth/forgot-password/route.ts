@@ -45,12 +45,17 @@ export async function POST(request: Request) {
 
   const isEmail = identifier.includes("@");
 
-  let user: { id: string; email: string } | null = null;
+  let user: {
+    id: string;
+    email: string;
+    acceptedAt: Date | null;
+    disabledAt: Date | null;
+  } | null = null;
 
   if (isEmail) {
     user = await prisma.user.findUnique({
       where: { email: identifier.toLowerCase() },
-      select: { id: true, email: true },
+      select: { id: true, email: true, acceptedAt: true, disabledAt: true },
     });
   } else {
     // Phone lookup resolves through the school's contact number.
@@ -60,7 +65,12 @@ export async function POST(request: Request) {
         users: {
           take: 1,
           orderBy: { createdAt: "asc" },
-          select: { id: true, email: true },
+          select: {
+            id: true,
+            email: true,
+            acceptedAt: true,
+            disabledAt: true,
+          },
         },
       },
     });
@@ -68,7 +78,7 @@ export async function POST(request: Request) {
   }
 
   // Always report success — revealing whether an account exists is an enumeration oracle.
-  if (!user) {
+  if (!user || !user.acceptedAt || user.disabledAt) {
     return Response.json({ success: true });
   }
 

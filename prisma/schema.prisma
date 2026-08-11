@@ -933,6 +933,7 @@ model School {
   storage_usage           StorageUsage?
   stored_files            StoredFile[]
   academic_stages         AcademicStageOption[]
+  school_admin_invitations SchoolAdminInvitation[]
 }
 
 model PaymentCycle {
@@ -1122,9 +1123,31 @@ model User {
   updatedAt DateTime @updatedAt
 
   resetTokens PasswordResetToken[]
+  schoolAdminInvitations SchoolAdminInvitation[]
 
   @@index([schoolId])
   @@index([teacherId])
+}
+
+/// One-time activation link for the first administrator of a newly-created
+/// school. The raw token exists only long enough to be put in the email; this
+/// row stores its SHA-256 digest.
+model SchoolAdminInvitation {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  schoolId  String
+  userId    String
+  expiresAt DateTime
+  usedAt    DateTime?
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId, userId])
+  @@index([userId, expiresAt])
+  @@index([expiresAt])
 }
 
 /// A guardian's login to the parent portal and the mobile app.

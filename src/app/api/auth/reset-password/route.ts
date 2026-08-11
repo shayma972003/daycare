@@ -3,11 +3,12 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { createHash, timingSafeEqual } from "crypto";
 import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
+import { BCRYPT_COST, passwordSchema } from "@/lib/password-policy";
 
 const schema = z.object({
   identifier: z.string().min(1, "أدخل البريد الإلكتروني أو رقم الجوال"),
   otp: z.string().length(6, "رمز التحقق يجب أن يكون 6 أرقام"),
-  newPassword: z.string().min(8, "كلمة المرور يجب أن تكون 8 أحرف على الأقل"),
+  newPassword: passwordSchema,
 });
 
 /** After this many wrong guesses the token is burned and a new one must be requested. */
@@ -57,15 +58,22 @@ export async function POST(request: Request) {
   if (identifier.includes("@")) {
     const user = await prisma.user.findUnique({
       where: { email: identifier.toLowerCase() },
-      select: { id: true },
+      select: { id: true, acceptedAt: true, disabledAt: true },
     });
-    userId = user?.id ?? null;
+    userId = user?.acceptedAt && !user.disabledAt ? user.id : null;
   } else {
     const school = await prisma.school.findFirst({
       where: { contactNumber: identifier },
-      include: { users: { take: 1, orderBy: { createdAt: "asc" }, select: { id: true } } },
+      include: {
+        users: {
+          take: 1,
+          orderBy: { createdAt: "asc" },
+          select: { id: true, acceptedAt: true, disabledAt: true },
+        },
+      },
     });
-    userId = school?.users[0]?.id ?? null;
+    const owner = school?.users[0];
+    userId = owner?.acceptedAt && !owner.disabledAt ? owner.id : null;
   }
 
   if (!userId) {
@@ -100,7 +108,7 @@ export async function POST(request: Request) {
     return Response.json({ error: GENERIC_ERROR }, { status: 400 });
   }
 
-  const hashedPassword = await bcrypt.hash(newPassword, 12);
+  const hashedPassword = await bcrypt.hash(newPassword, BCRYPT_COST);
 
   await prisma.$transaction([
     prisma.user.update({

@@ -87,7 +87,7 @@ export const authOptions: NextAuthOptions = {
               where: { id: session.userId },
               include: { school: true },
             });
-            if (!user) return null;
+            if (!user || user.disabledAt || !user.acceptedAt) return null;
 
             // Single-use: clear bypass fields immediately
             await prisma.twoFASession.update({
@@ -145,7 +145,7 @@ export const authOptions: NextAuthOptions = {
             user?.password ?? DUMMY_HASH
           );
 
-          if (!user || !isValid) return null;
+          if (!user || !isValid || user.disabledAt || !user.acceptedAt) return null;
 
           // Credentials are correct — clear the counter so an earlier typo does
           // not carry over into the next sign-in.

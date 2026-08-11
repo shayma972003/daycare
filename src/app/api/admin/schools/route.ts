@@ -1,10 +1,9 @@
 import { verifyAdminSessionFromRequest } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/notifications";
-import bcrypt from "bcryptjs";
 import { z } from "zod";
-import { randomBytes } from "node:crypto";
-import { BCRYPT_COST } from "@/lib/password-policy";
+import { mintInvite } from "@/lib/invitations";
+import { env } from "@/lib/env";
 
 export async function GET(request: Request) {
   const session = await verifyAdminSessionFromRequest(request);
@@ -64,12 +63,6 @@ const createSchema = z.object({
   taxPeriod: z.string().optional(),
 });
 
-function generateTempPassword(): string {
-  // 144 bits from the operating system CSPRNG; base64url is safe to copy from
-  // an email and avoids punctuation commonly altered by clients.
-  return randomBytes(18).toString("base64url");
-}
-
 class DuplicateAdminEmailError extends Error {}
 
 function isUniqueConstraintError(error: unknown): boolean {
@@ -102,10 +95,9 @@ export async function POST(request: Request) {
   } = parsed.data;
   const email = rawEmail.toLowerCase().trim();
 
-  const tempPassword = generateTempPassword();
-  const hashedPassword = await bcrypt.hash(tempPassword, BCRYPT_COST);
+  const invitation = mintInvite();
 
-  let school: { id: string; name: string };
+  let school: { id: string; name: string; userId: string };
   try {
     school = await prisma.$transaction(async (tx) => {
       const existing = await tx.user.findUnique({ where: { email } });
@@ -124,13 +116,24 @@ export async function POST(request: Request) {
         select: { id: true, name: true },
       });
 
-      await tx.user.create({
+      const createdUser = await tx.user.create({
         data: {
           name: schoolName,
           email,
-          password: hashedPassword,
+          password: null,
+          acceptedAt: null,
           role: "admin",
           schoolId: createdSchool.id,
+        },
+        select: { id: true },
+      });
+
+      await tx.schoolAdminInvitation.create({
+        data: {
+          tokenHash: invitation.tokenHash,
+          expiresAt: invitation.expiresAt,
+          schoolId: createdSchool.id,
+          userId: createdUser.id,
         },
       });
 
@@ -139,11 +142,11 @@ export async function POST(request: Request) {
           school_id: createdSchool.id,
           action: "school_created",
           performed_by: "super_admin",
-          metadata: { email, adminId: session.adminId },
+          metadata: { email, userId: createdUser.id, adminId: session.adminId },
         },
       });
 
-      return createdSchool;
+      return { ...createdSchool, userId: createdUser.id };
     });
   } catch (error) {
     if (error instanceof DuplicateAdminEmailError || isUniqueConstraintError(error)) {
@@ -159,12 +162,20 @@ export async function POST(request: Request) {
 
   const emailDelivery = await sendEmail(
     email,
-    "بيانات تسجيل الدخول — نظام إدارة الروضة",
-    `مرحباً،\n\nتم إنشاء حسابكم في نظام إدارة الروضة.\n\nبيانات الدخول:\nالبريد الإلكتروني: ${email}\nكلمة المرور المؤقتة: ${tempPassword}\n\nيُرجى تغيير كلمة المرور بعد أول تسجيل دخول من صفحة الإعدادات.`,
-    "نظام إدارة الروضة"
+    `دعوة لإدارة ${school.name}`,
+    [
+      `مرحباً،`,
+      "",
+      `تم إنشاء حساب مدير حضانة ${school.name}.`,
+      "اختاري كلمة المرور الخاصة بك من الرابط التالي:",
+      `${env.APP_URL}/activate/${invitation.token}`,
+      "",
+      "الرابط صالح لمدة 7 أيام ولا يعمل إلا مرة واحدة.",
+    ].join("\n"),
+    school.name
   );
   if (!emailDelivery.success) {
-    console.error("[admin-schools] credential email delivery failed", school.id);
+    console.error("[admin-schools] invitation email delivery failed", school.id);
   }
 
   return Response.json(
@@ -172,7 +183,7 @@ export async function POST(request: Request) {
       id: school.id,
       name: school.name,
       email,
-      tempPassword,
+      invitationStatus: "pending",
       emailDelivery: emailDelivery.success ? "sent" : "failed",
     },
     {

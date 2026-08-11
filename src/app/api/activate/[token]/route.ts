@@ -1,4 +1,8 @@
 import { findInvite, redeemInvite } from "@/lib/invitations";
+import {
+  findSchoolAdminInvite,
+  redeemSchoolAdminInvite,
+} from "@/lib/school-admin-invitations";
 import { passwordSchema } from "@/lib/password-policy";
 import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
 import { z } from "zod";
@@ -15,11 +19,19 @@ import { z } from "zod";
  */
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ token: string }> }
 ) {
   const { token } = await params;
-  const subject = await findInvite(token);
+  const limit = await rateLimit({
+    key: `activate-check:${clientIp(request)}`,
+    limit: 30,
+    windowMs: 15 * 60 * 1000,
+  });
+  if (!limit.ok) return tooManyRequests(limit.retryAfter);
+
+  const subject =
+    (await findSchoolAdminInvite(token)) ?? (await findInvite(token));
 
   // One answer for missing, expired, revoked and already-used. A caller trying
   // tokens learns nothing about which they hit.
@@ -72,7 +84,10 @@ export async function POST(
     );
   }
 
-  const subject = await redeemInvite(token, parsed.data.password);
+  const schoolAdminInvite = await findSchoolAdminInvite(token);
+  const subject = schoolAdminInvite
+    ? await redeemSchoolAdminInvite(token, parsed.data.password)
+    : await redeemInvite(token, parsed.data.password);
   if (!subject) {
     return Response.json({ error: "الدعوة غير صالحة أو منتهية" }, { status: 404 });
   }

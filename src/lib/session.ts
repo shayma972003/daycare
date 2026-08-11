@@ -119,6 +119,7 @@ export async function requireSession(): Promise<AuthSession> {
       schoolId: true,
       teacherId: true,
       disabledAt: true,
+      acceptedAt: true,
       roleRef: { select: { permissions: true } },
       school: {
         select: { name: true, subscription_status: true, renewal_date: true },
@@ -128,6 +129,7 @@ export async function requireSession(): Promise<AuthSession> {
 
   if (!user) throw new UnauthorizedError("الحساب لم يعد موجوداً");
   if (user.disabledAt) throw new UnauthorizedError("الحساب معطَّل");
+  if (!user.acceptedAt) throw new UnauthorizedError("الحساب لم يُفعّل بعد");
 
   // A token minted before the user moved schools would still carry the old
   // tenant. Trust the row, never the claim.

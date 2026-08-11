@@ -1125,6 +1125,7 @@ model User {
   resetTokens PasswordResetToken[]
   schoolAdminInvitations SchoolAdminInvitation[]
 
+  @@unique([id, schoolId])
   @@index([schoolId])
   @@index([teacherId])
 }
@@ -1143,7 +1144,7 @@ model SchoolAdminInvitation {
   createdAt DateTime @default(now())
 
   school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId, schoolId], references: [id, schoolId], onDelete: Cascade)
 
   @@index([schoolId, userId])
   @@index([userId, expiresAt])

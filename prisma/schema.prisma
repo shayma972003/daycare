@@ -1326,6 +1326,7 @@ model RefreshToken {
   @@index([guardianAccountId])
   @@index([familyId])
   @@index([expiresAt])
+  @@index([revokedAt, expiresAt])
 }
 
 model PasswordResetToken {
@@ -1344,6 +1345,7 @@ model PasswordResetToken {
 
   @@index([userId])
   @@index([guardianAccountId])
+  @@index([expiresAt])
 }
 
 model Settings {
@@ -1910,6 +1912,8 @@ model ImportSession {
 
   school School      @relation(fields: [school_id], references: [id])
   rows   ImportRow[]
+
+  @@index([expires_at])
 }
 
 model ImportRow {

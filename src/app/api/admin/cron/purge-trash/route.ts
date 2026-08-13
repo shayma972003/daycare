@@ -9,6 +9,7 @@ import {
   cleanupEnrollmentStoredFiles,
   purgeExpiredEnrollmentTokens,
 } from "@/lib/stored-files";
+import { runBoundedRetention } from "@/lib/bounded-retention";
 
 /** Nightly housekeeping. Scheduled in vercel.json. */
 export async function GET(request: Request) {
@@ -24,9 +25,7 @@ export async function GET(request: Request) {
   // These two tables grew without bound: nothing ever removed a spent 2FA
   // session or an expired enrolment link.
   const now = new Date();
-  const { count: twoFaSessions } = await prisma.twoFASession.deleteMany({
-    where: { expiresAt: { lt: now } },
-  });
+  const retention = await runBoundedRetention(now);
   const enrollmentFiles = await cleanupEnrollmentStoredFiles({ now, limit: 100 });
   const enrollmentTokens = await purgeExpiredEnrollmentTokens({ now, limit: 100 });
 
@@ -61,7 +60,7 @@ export async function GET(request: Request) {
     importSessions,
     rateLimits,
     expensesStopped,
-    twoFaSessions,
+    retention,
     enrollmentFiles,
     enrollmentTokens,
     storageComputed,

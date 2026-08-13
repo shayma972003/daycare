@@ -19,11 +19,14 @@
 
 import { prisma } from "@/lib/prisma";
 import type { PushPlatform } from "@/generated/prisma/enums";
+import type { Prisma } from "@/generated/prisma/client";
+import { randomBytes } from "node:crypto";
 
 /** Attempts before a notification is abandoned. */
 const MAX_ATTEMPTS = 3;
 /** Bounded per run so one invocation cannot exceed the function timeout. */
 const BATCH_SIZE = 100;
+const LEASE_MS = 2 * 60 * 1000;
 
 export interface PushPayload {
   title: string;
@@ -56,6 +59,9 @@ export async function enqueuePush(
   target: PushTarget,
   payload: PushPayload
 ): Promise<number> {
+  if (Boolean(target.guardianAccountId) === Boolean(target.userId)) {
+    throw new Error("Push target must identify exactly one owner");
+  }
   const devices = await prisma.deviceToken.findMany({
     where: {
       schoolId: target.schoolId,
@@ -64,6 +70,22 @@ export async function enqueuePush(
       // A token the provider has permanently rejected is not retried — the app
       // was uninstalled, and every send would fail identically for ever.
       failedAt: null,
+      OR: [
+        {
+          guardianAccount: {
+            disabledAt: null,
+            acceptedAt: { not: null },
+            school: { subscription_status: { notIn: ["suspended", "cancelled", "expired"] } },
+          },
+        },
+        {
+          user: {
+            disabledAt: null,
+            acceptedAt: { not: null },
+            school: { subscription_status: { notIn: ["suspended", "cancelled", "expired"] } },
+          },
+        },
+      ],
     },
     select: { id: true },
   });
@@ -208,6 +230,65 @@ export interface DrainResult {
   retiredTokens: number;
 }
 
+type ClaimedPush = Awaited<ReturnType<typeof claimPushBatch>>[number];
+
+async function claimPushBatch(limit: number) {
+  const leaseToken = randomBytes(18).toString("base64url");
+  const leaseExpiresAt = new Date(Date.now() + LEASE_MS);
+  return prisma.$transaction(async (tx) => {
+    const now = new Date();
+    const candidates = await tx.pushNotification.findMany({
+      where: {
+        status: "PENDING",
+        scheduledAt: { lte: now },
+        attempts: { lt: MAX_ATTEMPTS },
+        OR: [{ leaseExpiresAt: null }, { leaseExpiresAt: { lte: now } }],
+      },
+      select: { id: true },
+      orderBy: { scheduledAt: "asc" },
+      // A competing worker may win some candidates. Looking slightly ahead
+      // keeps the batch useful without turning this into an unbounded scan.
+      take: Math.min(limit * 2, BATCH_SIZE * 2),
+    });
+
+    const ids: string[] = [];
+    for (const candidate of candidates) {
+      const claimed = await tx.pushNotification.updateMany({
+        where: {
+          id: candidate.id,
+          status: "PENDING",
+          scheduledAt: { lte: now },
+          attempts: { lt: MAX_ATTEMPTS },
+          OR: [{ leaseExpiresAt: null }, { leaseExpiresAt: { lte: now } }],
+        },
+        data: { leaseToken, leaseExpiresAt },
+      });
+      if (claimed.count === 1) ids.push(candidate.id);
+      if (ids.length === limit) break;
+    }
+    if (ids.length === 0) return [];
+    return tx.pushNotification.findMany({
+      where: { id: { in: ids }, status: "PENDING", leaseToken },
+      orderBy: { scheduledAt: "asc" },
+    });
+  });
+}
+
+async function finishClaim(
+  notification: ClaimedPush,
+  data: Prisma.PushNotificationUpdateManyMutationInput
+) {
+  const updated = await prisma.pushNotification.updateMany({
+    where: {
+      id: notification.id,
+      status: "PENDING",
+      leaseToken: notification.leaseToken,
+    },
+    data: { ...data, leaseToken: null, leaseExpiresAt: null },
+  });
+  return updated.count === 1;
+}
+
 /**
  * Delivers queued notifications.
  *
@@ -219,36 +300,38 @@ export interface DrainResult {
 export async function drainPushQueue(limit = BATCH_SIZE): Promise<DrainResult> {
   const result: DrainResult = { sent: 0, failed: 0, abandoned: 0, retiredTokens: 0 };
 
-  const pending = await prisma.pushNotification.findMany({
-    where: {
-      status: "PENDING",
-      scheduledAt: { lte: new Date() },
-      attempts: { lt: MAX_ATTEMPTS },
-    },
-    orderBy: { scheduledAt: "asc" },
-    take: limit,
-  });
+  const pending = await claimPushBatch(Math.max(1, Math.min(limit, BATCH_SIZE)));
 
   for (const notification of pending) {
     if (!notification.deviceTokenId) {
-      await prisma.pushNotification.update({
-        where: { id: notification.id },
-        data: { status: "FAILED", lastError: "NO_DEVICE" },
-      });
+      await finishClaim(notification, { status: "FAILED", lastError: "NO_DEVICE" });
       result.abandoned++;
       continue;
     }
 
     const device = await prisma.deviceToken.findUnique({
       where: { id: notification.deviceTokenId },
-      select: { token: true, platform: true, failedAt: true },
+      select: {
+        token: true,
+        platform: true,
+        failedAt: true,
+        guardianAccount: {
+          select: { disabledAt: true, acceptedAt: true, school: { select: { subscription_status: true } } },
+        },
+        user: {
+          select: { disabledAt: true, acceptedAt: true, school: { select: { subscription_status: true } } },
+        },
+      },
     });
 
-    if (!device || device.failedAt) {
-      await prisma.pushNotification.update({
-        where: { id: notification.id },
-        data: { status: "FAILED", lastError: "DEVICE_RETIRED" },
-      });
+    const owner = device?.guardianAccount ?? device?.user;
+    const ownerUnavailable =
+      !owner ||
+      owner.disabledAt ||
+      !owner.acceptedAt ||
+      ["suspended", "cancelled", "expired"].includes(owner.school.subscription_status);
+    if (!device || device.failedAt || ownerUnavailable) {
+      await finishClaim(notification, { status: "FAILED", lastError: "DEVICE_RETIRED" });
       result.abandoned++;
       continue;
     }
@@ -267,9 +350,10 @@ export async function drainPushQueue(limit = BATCH_SIZE): Promise<DrainResult> {
     }
 
     if (outcome.ok) {
-      await prisma.pushNotification.update({
-        where: { id: notification.id },
-        data: { status: "SENT", sentAt: new Date(), attempts: { increment: 1 } },
+      await finishClaim(notification, {
+        status: "SENT",
+        sentAt: new Date(),
+        attempts: { increment: 1 },
       });
       result.sent++;
       continue;
@@ -283,12 +367,18 @@ export async function drainPushQueue(limit = BATCH_SIZE): Promise<DrainResult> {
           where: { id: notification.deviceTokenId },
           data: { failedAt: new Date() },
         }),
-        prisma.pushNotification.update({
-          where: { id: notification.id },
+        prisma.pushNotification.updateMany({
+          where: {
+            id: notification.id,
+            status: "PENDING",
+            leaseToken: notification.leaseToken,
+          },
           data: {
             status: "FAILED",
             attempts: { increment: 1 },
             lastError: outcome.error ?? "PERMANENT",
+            leaseToken: null,
+            leaseExpiresAt: null,
           },
         }),
       ]);
@@ -298,17 +388,17 @@ export async function drainPushQueue(limit = BATCH_SIZE): Promise<DrainResult> {
     }
 
     const attempts = notification.attempts + 1;
-    await prisma.pushNotification.update({
-      where: { id: notification.id },
-      data: {
+    await finishClaim(notification, {
         attempts,
         lastError: outcome.error ?? "UNKNOWN",
         // Stays PENDING while retries remain; backs off so a provider outage is
         // not hammered by the same batch every minute.
         ...(attempts >= MAX_ATTEMPTS
           ? { status: "FAILED" as const }
-          : { scheduledAt: new Date(Date.now() + attempts * 5 * 60 * 1000) }),
-      },
+          : {
+              status: "PENDING" as const,
+              scheduledAt: new Date(Date.now() + attempts * 5 * 60 * 1000),
+            }),
     });
 
     if (attempts >= MAX_ATTEMPTS) result.abandoned++;

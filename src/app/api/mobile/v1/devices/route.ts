@@ -18,7 +18,7 @@ const schema = z.object({
 export async function POST(request: Request) {
   let context;
   try {
-    context = await requireMobileAuth(request);
+    context = await requireMobileAuth(request, { fresh: true });
   } catch (error) {
     const response = mobileAuthResponse(error);
     if (response) return response;
@@ -82,7 +82,7 @@ const deleteSchema = z.object({ token: z.string().min(10).max(500) });
 export async function DELETE(request: Request) {
   let context;
   try {
-    context = await requireMobileAuth(request);
+    context = await requireMobileAuth(request, { fresh: true });
   } catch (error) {
     const response = mobileAuthResponse(error);
     if (response) return response;

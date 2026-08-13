@@ -1271,10 +1271,13 @@ model PushNotification {
   attempts    Int        @default(0)
   lastError   String?
   scheduledAt DateTime   @default(now())
+  leaseToken     String?
+  leaseExpiresAt DateTime?
   sentAt      DateTime?
   createdAt   DateTime   @default(now())
 
   @@index([status, scheduledAt])
+  @@index([status, leaseExpiresAt])
   @@index([schoolId, createdAt])
 }
 

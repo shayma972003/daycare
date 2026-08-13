@@ -35,11 +35,9 @@ export class MobileAuthError extends Error {
 /**
  * Authenticates a mobile request.
  *
- * Signature-only by default. The access token lives fifteen minutes, so the
- * window in which a revoked account still works is bounded by that rather than
- * by a database read on every call — and the refresh that follows re-reads the
- * account and refuses. Routes that change money or delete data should pass
- * `fresh: true` and pay for the check.
+ * Every request revalidates the account and subscription in the database.
+ * A signed token proves who received it; it does not prove that the account or
+ * school is still active now.
  */
 export async function requireMobileAuth(
   request: Request,
@@ -59,30 +57,63 @@ export async function requireMobileAuth(
     throw new MobileAuthError(403, "WRONG_ACCOUNT_TYPE", "نوع الحساب غير مسموح لهذا الإجراء");
   }
 
-  if (options.fresh) {
-    const stillValid =
-      claims.kind === "staff"
-        ? await prisma.user.findFirst({
-            where: { id: claims.sub, disabledAt: null },
-            select: { id: true },
-          })
-        : await prisma.guardianAccount.findFirst({
-            where: { id: claims.sub, disabledAt: null },
-            select: { id: true },
-          });
-    if (!stillValid) {
+  let currentSchoolId: string;
+  let permissions: string[] = [];
+  if (claims.kind === "staff") {
+    const current = await prisma.user.findUnique({
+      where: { id: claims.sub },
+      select: {
+        schoolId: true,
+        disabledAt: true,
+        acceptedAt: true,
+        roleRef: { select: { permissions: true } },
+        school: { select: { subscription_status: true } },
+      },
+    });
+    if (
+      !current ||
+      current.schoolId !== claims.schoolId ||
+      current.disabledAt ||
+      !current.acceptedAt ||
+      ["suspended", "cancelled", "expired"].includes(current.school.subscription_status)
+    ) {
       throw new MobileAuthError(401, "ACCOUNT_REVOKED", "الحساب لم يعد فعالاً");
     }
+    currentSchoolId = current.schoolId;
+    permissions = current.roleRef?.permissions ?? [];
+  } else {
+    const current = await prisma.guardianAccount.findUnique({
+      where: { id: claims.sub },
+      select: {
+        schoolId: true,
+        disabledAt: true,
+        acceptedAt: true,
+        school: { select: { subscription_status: true } },
+      },
+    });
+    if (
+      !current ||
+      current.schoolId !== claims.schoolId ||
+      current.disabledAt ||
+      !current.acceptedAt ||
+      ["suspended", "cancelled", "expired"].includes(current.school.subscription_status)
+    ) {
+      throw new MobileAuthError(401, "ACCOUNT_REVOKED", "الحساب لم يعد فعالاً");
+    }
+    currentSchoolId = current.schoolId;
   }
-
   const can = (permission: string) =>
-    claims.kind === "staff" ? grants(claims.permissions ?? [], permission) : false;
+    claims.kind === "staff" ? grants(permissions, permission) : false;
 
   if (options.permission && !can(options.permission)) {
     throw new MobileAuthError(403, "FORBIDDEN", "لا تملك صلاحية لهذا الإجراء");
   }
 
-  return { claims, schoolId: claims.schoolId, can };
+  return {
+    claims: { ...claims, ...(claims.kind === "staff" ? { permissions } : {}) },
+    schoolId: currentSchoolId,
+    can,
+  };
 }
 
 export function mobileAuthResponse(error: unknown): Response | null {

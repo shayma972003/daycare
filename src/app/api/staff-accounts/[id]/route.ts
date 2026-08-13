@@ -104,10 +104,20 @@ export async function PUT(
     data.disabledAt = parsed.data.disabled ? new Date() : null;
   }
 
-  const updated = await prisma.user.update({
-    where: { id },
-    data,
-    select: { id: true, name: true, email: true, disabledAt: true },
+  const updated = await prisma.$transaction(async (tx) => {
+    const user = await tx.user.update({
+      where: { id },
+      data,
+      select: { id: true, name: true, email: true, disabledAt: true },
+    });
+    if (parsed.data.disabled === true) {
+      await tx.refreshToken.updateMany({
+        where: { userId: id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      await tx.deviceToken.deleteMany({ where: { userId: id } });
+    }
+    return user;
   });
 
   /**
@@ -119,13 +129,6 @@ export async function PUT(
    * database row, so it must be revoked here or the app would keep minting fresh
    * access tokens for a disabled account.
    */
-  if (parsed.data.disabled === true) {
-    await prisma.refreshToken.updateMany({
-      where: { userId: id, revokedAt: null },
-      data: { revokedAt: new Date() },
-    });
-  }
-
   await logAction({
     school_id: schoolId,
     action: parsed.data.disabled === true

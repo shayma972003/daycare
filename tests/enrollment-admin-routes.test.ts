@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { randomBytes } from "node:crypto";
+import { protectEnrollmentSubmissionIdNumber } from "@/lib/enrollment-submission-pii";
 
 const mocks = vi.hoisted(() => ({
   requireSession: vi.fn(),
@@ -16,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   guardianFindFirst: vi.fn(),
   guardianUpdateMany: vi.fn(),
   guardianCreate: vi.fn(),
+  protectStudentId: vi.fn(),
 }));
 
 vi.mock("@/lib/session", () => ({
@@ -51,8 +54,9 @@ vi.mock("@/lib/stored-files", () => {
   };
 });
 
-vi.mock("@/lib/pii-crypto", () => ({
-  protectIdNumber: () => ({ idNumber: null, encryptedIdNumber: null, idNumberHash: null }),
+vi.mock("@/lib/pii-crypto", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/pii-crypto")>()),
+  protectIdNumber: mocks.protectStudentId,
 }));
 vi.mock("@/lib/tenant-guard", () => ({
   assertClassOwned: vi.fn().mockResolvedValue(null),
@@ -83,6 +87,8 @@ function session(allowed: boolean) {
 }
 
 beforeEach(() => {
+  process.env.PII_ENCRYPTION_KEY = randomBytes(32).toString("base64");
+  process.env.PII_INDEX_PEPPER = randomBytes(48).toString("base64");
   for (const mock of Object.values(mocks)) mock.mockReset();
   mocks.sessionErrorResponse.mockImplementation(() =>
     Response.json({ error: "Unauthorized" }, { status: 401 })
@@ -106,6 +112,11 @@ beforeEach(() => {
   mocks.markForDeletion.mockResolvedValue("pending");
   mocks.completeDeletion.mockResolvedValue({ status: "deleted" });
   mocks.transferOwnership.mockResolvedValue(undefined);
+  mocks.protectStudentId.mockReturnValue({
+    idNumber: null,
+    encryptedIdNumber: "student-ciphertext",
+    idNumberHash: "student-blind-index",
+  });
 });
 
 describe("administrative enrollment handlers", () => {
@@ -138,6 +149,23 @@ describe("administrative enrollment handlers", () => {
       where: { school_id: "school-1", status: "pending_review" },
       orderBy: { submitted_at: "desc" },
     });
+  });
+
+  it("decrypts an authorized listing without returning ciphertext or blind index", async () => {
+    mocks.requireSession.mockResolvedValue(session(true));
+    const protectedValue = protectEnrollmentSubmissionIdNumber("1098765432");
+    mocks.findMany.mockResolvedValue([{
+      id: "submission-1",
+      school_id: "school-1",
+      full_name: "Child",
+      ...protectedValue,
+    }]);
+
+    const response = await listSubmissions();
+    const body = await response.json();
+    expect(body[0]).toMatchObject({ id: "submission-1", id_number: "1098765432" });
+    expect(body[0]).not.toHaveProperty("encrypted_id_number");
+    expect(body[0]).not.toHaveProperty("id_number_hash");
   });
 
   it("does not reveal or update a submission owned by another school", async () => {
@@ -250,6 +278,73 @@ describe("administrative enrollment handlers", () => {
       where: expect.objectContaining({ status: "pending_review", school_id: "school-1" }),
       data: expect.objectContaining({ status: "approved", student_id: "student-1" }),
     }));
+  });
+
+  it("uses encrypted submission PII, supports an override, and never puts it in audit data", async () => {
+    mocks.requireSession.mockResolvedValue(session(true));
+    const protectedValue = protectEnrollmentSubmissionIdNumber("1098765432");
+    mocks.findFirst.mockResolvedValue({
+      id: "submission-1",
+      school_id: "school-1",
+      status: "pending_review",
+      full_name: "Child",
+      guardian_phone_1: null,
+      date_of_birth: null,
+      evaluation_file_url: null,
+      ...protectedValue,
+    });
+    mocks.studentCreate.mockResolvedValue({ id: "student-1", name: "Child" });
+    mocks.updateMany.mockResolvedValue({ count: 1 });
+
+    const response = await approveSubmission(
+      new Request("http://localhost/api/enrollment/approve/submission-1", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id_number: "1087654321" }),
+      }),
+      { params: Promise.resolve({ submission_id: "submission-1" }) }
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.protectStudentId).toHaveBeenCalledWith("1087654321");
+    expect(mocks.studentCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        idNumber: null,
+        encryptedIdNumber: "student-ciphertext",
+        idNumberHash: "student-blind-index",
+      }),
+    });
+    expect(JSON.stringify(mocks.activityCreate.mock.calls)).not.toContain("1098765432");
+    expect(JSON.stringify(mocks.activityCreate.mock.calls)).not.toContain("1087654321");
+  });
+
+  it("falls back to a legacy submission ID when no override is supplied", async () => {
+    mocks.requireSession.mockResolvedValue(session(true));
+    mocks.findFirst.mockResolvedValue({
+      id: "submission-1",
+      school_id: "school-1",
+      status: "pending_review",
+      full_name: "Legacy Child",
+      id_number: "1098765432",
+      encrypted_id_number: null,
+      guardian_phone_1: null,
+      date_of_birth: null,
+      evaluation_file_url: null,
+    });
+    mocks.studentCreate.mockResolvedValue({ id: "student-1", name: "Legacy Child" });
+    mocks.updateMany.mockResolvedValue({ count: 1 });
+
+    const response = await approveSubmission(
+      new Request("http://localhost/api/enrollment/approve/submission-1", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{}",
+      }),
+      { params: Promise.resolve({ submission_id: "submission-1" }) }
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.protectStudentId).toHaveBeenCalledWith("1098765432");
   });
 
   it("does not mark an approval complete when ownership transfer fails", async () => {

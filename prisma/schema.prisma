@@ -1935,6 +1935,8 @@ model EnrollmentSubmission {
 
   full_name        String
   id_number        String?
+  encrypted_id_number String?
+  id_number_hash      String?
   nationality      String?
   academic_stage   String?
   gender           String?
@@ -1966,4 +1968,5 @@ model EnrollmentSubmission {
   school School          @relation(fields: [school_id], references: [id])
 
   @@index([school_id, status])
+  @@index([school_id, id_number_hash])
 }

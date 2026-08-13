@@ -12,6 +12,7 @@ import {
 } from "@/lib/stored-files";
 import { STORED_FILE_OWNER } from "@/lib/stored-file-ownership";
 import { reserveEnrollmentSlot } from "@/lib/enrollment-atomic";
+import { protectEnrollmentSubmissionIdNumber } from "@/lib/enrollment-submission-pii";
 
 class EnrollmentSlotUnavailable extends Error {}
 
@@ -94,6 +95,16 @@ export async function POST(request: Request) {
     }
   }
 
+  let protectedIdNumber;
+  try {
+    protectedIdNumber = protectEnrollmentSubmissionIdNumber(formData.id_number);
+  } catch {
+    return Response.json(
+      { error: "Enrollment submission is temporarily unavailable" },
+      { status: 503 }
+    );
+  }
+
   let submission;
   let reservation;
   try {
@@ -111,7 +122,7 @@ export async function POST(request: Request) {
       token_id: rec.id,
       school_id: rec.school_id,
       full_name: formData.full_name,
-      id_number: formData.id_number ?? null,
+      ...protectedIdNumber,
       nationality: formData.nationality ?? null,
       academic_stage: formData.academic_stage ?? null,
       gender: formData.gender ?? null,

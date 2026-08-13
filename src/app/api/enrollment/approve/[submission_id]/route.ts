@@ -14,6 +14,7 @@ import {
   transferStoredFileOwnership,
 } from "@/lib/stored-files";
 import { STORED_FILE_OWNER } from "@/lib/stored-file-ownership";
+import { revealEnrollmentSubmissionIdNumber } from "@/lib/enrollment-submission-pii";
 
 class EnrollmentReviewConflict extends Error {}
 class EnrollmentReviewNotFound extends Error {}
@@ -144,13 +145,14 @@ export async function POST(
       }
 
       const dobRaw = overrides.date_of_birth ?? submission.date_of_birth?.toString() ?? null;
+      const submissionIdNumber = revealEnrollmentSubmissionIdNumber(submission);
       const created = await tx.student.create({
         data: {
           schoolId,
           name: (overrides.full_name ?? submission.full_name) || "—",
           classId: ownedClassId,
           guardianId,
-          ...protectIdNumber(overrides.id_number ?? submission.id_number),
+          ...protectIdNumber(overrides.id_number ?? submissionIdNumber),
           nationality: overrides.nationality ?? submission.nationality ?? null,
           academicStage: parseAcademicStage(overrides.academic_stage ?? submission.academic_stage),
           ...(ownedStageId !== null && { stageId: ownedStageId }),

@@ -1,6 +1,7 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { ENROLLMENT_MANAGE_PERMISSION } from "@/lib/enrollment-access";
+import { revealEnrollmentSubmissionIdNumber } from "@/lib/enrollment-submission-pii";
 
 export async function GET() {
   let session;
@@ -23,5 +24,16 @@ export async function GET() {
     orderBy: { submitted_at: "desc" },
   });
 
-  return Response.json(submissions);
+  return Response.json(submissions.map((submission) => {
+    const publicFields = {
+      ...submission,
+      id_number: revealEnrollmentSubmissionIdNumber({
+        id_number: submission.id_number,
+        encrypted_id_number: submission.encrypted_id_number,
+      }),
+    };
+    delete (publicFields as Partial<typeof submission>).encrypted_id_number;
+    delete (publicFields as Partial<typeof submission>).id_number_hash;
+    return publicFields;
+  }));
 }

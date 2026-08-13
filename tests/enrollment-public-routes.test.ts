@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { hashOtp } from "@/lib/enrollment-otp";
+import { randomBytes } from "node:crypto";
 
 const mocks = vi.hoisted(() => ({
   findUnique: vi.fn(),
@@ -59,6 +60,8 @@ import { POST as submitEnrollment } from "@/app/api/enrollment/submit/route";
 import { POST as uploadEnrollmentFile } from "@/app/api/enrollment/upload/route";
 
 beforeEach(() => {
+  process.env.PII_ENCRYPTION_KEY = randomBytes(32).toString("base64");
+  process.env.PII_INDEX_PEPPER = randomBytes(48).toString("base64");
   mocks.findUnique.mockReset();
   mocks.update.mockReset();
   mocks.transaction.mockReset();
@@ -253,6 +256,13 @@ describe("public enrollment handlers", () => {
     );
 
     expect(response.status).toBe(200);
+    expect(mocks.submissionCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        id_number: null,
+        encrypted_id_number: null,
+        id_number_hash: null,
+      }),
+    }));
     expect(mocks.transferOwnership).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
@@ -263,6 +273,58 @@ describe("public enrollment handlers", () => {
         nextOwnerId: "submission-1",
       })
     );
+  });
+
+  it("encrypts an ID before reserving a slot and never stores plaintext", async () => {
+    const plaintext = "1098765432";
+    mocks.findUnique.mockResolvedValue({
+      id: "token-id",
+      token: "raw-token",
+      school_id: "school-1",
+      status: "active",
+      otp_verified: true,
+      expires_at: new Date(Date.now() + 60_000),
+      submissions_count: 0,
+      max_submissions: 3,
+    });
+    mocks.submissionCreate.mockResolvedValue({ id: "submission-1" });
+
+    const response = await submitEnrollment(new Request("http://localhost/api/enrollment/submit", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ token: "raw-token", full_name: "Child", id_number: plaintext }),
+    }));
+
+    expect(response.status).toBe(200);
+    const data = mocks.submissionCreate.mock.calls[0]?.[0]?.data;
+    expect(data.id_number).toBeNull();
+    expect(data.encrypted_id_number).not.toContain(plaintext);
+    expect(data.id_number_hash).toMatch(/^[a-f0-9]{64}$/);
+    expect(JSON.stringify(data)).not.toContain(plaintext);
+  });
+
+  it("fails before the transaction when PII keys are unavailable", async () => {
+    delete process.env.PII_ENCRYPTION_KEY;
+    delete process.env.PII_INDEX_PEPPER;
+    mocks.findUnique.mockResolvedValue({
+      id: "token-id",
+      school_id: "school-1",
+      status: "active",
+      otp_verified: true,
+      expires_at: new Date(Date.now() + 60_000),
+      submissions_count: 0,
+      max_submissions: 3,
+    });
+
+    const response = await submitEnrollment(new Request("http://localhost/api/enrollment/submit", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ token: "raw-token", full_name: "Child", id_number: "1098765432" }),
+    }));
+
+    expect(response.status).toBe(503);
+    expect(mocks.transaction).not.toHaveBeenCalled();
+    expect(await response.text()).not.toContain("1098765432");
   });
 
   it("does not create a submission when the atomic slot reservation loses", async () => {

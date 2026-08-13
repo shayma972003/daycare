@@ -4,6 +4,7 @@ import { logAction } from "@/lib/activity-logger";
 import { astDateInputValue, astDateOnly, astParts } from "@/lib/datetime";
 import { findInvoiceThisMonth, duplicateInvoiceResponse } from "@/lib/invoice-duplicates";
 import { moneyMaxZero, moneyMultiply, moneyString, moneySubtract } from "@/lib/money";
+import { claimInvoice, failInvoiceClaim, idempotencyConflictResponse, invoiceRequestHash, missingIdempotencyKeyResponse, readIdempotencyKey } from "@/lib/invoice-idempotency";
 
 export async function POST(
   request: Request,
@@ -21,6 +22,8 @@ export async function POST(
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
   const { id } = await params;
+  const idempotencyKey = readIdempotencyKey(request);
+  if (!idempotencyKey) return missingIdempotencyKeyResponse();
 
   const teacher = await prisma.teacher.findFirst({
     where: { id, schoolId, deletedAt: null },
@@ -29,6 +32,9 @@ export async function POST(
   if (!teacher) {
     return Response.json({ error: "Not found" }, { status: 404 });
   }
+  const claim = await claimInvoice({ schoolId, operationKind: "teacher-direct", key: idempotencyKey, requestHash: invoiceRequestHash({ teacherId: id }), type: "TEACHER", teacherId: id });
+  if (claim.state === "completed") return Response.json({ ...claim.invoice, replayed: true }, { status: 200 });
+  if (claim.state === "conflict") return idempotencyConflictResponse(claim.code);
 
   // One salary document per month. `?force=1` reissues after a correction.
   const force = new URL(request.url).searchParams.get("force") === "1";
@@ -73,7 +79,8 @@ export async function POST(
     periodTo: monthEnd.toISOString().slice(0, 10),
   };
 
-  const invoice = await prisma.invoice.create({
+  const invoice = await prisma.invoice.update({
+    where: { id: claim.id },
     data: {
       schoolId,
       type: "TEACHER",
@@ -84,8 +91,12 @@ export async function POST(
       // omission is deliberate rather than the bug it was on the other paths.
       vat_amount: 0,
       data: invoiceData,
+      generationStatus: "COMPLETED",
     },
     include: { teacher: true },
+  }).catch(async (error) => {
+    await failInvoiceClaim(claim.id).catch(() => undefined);
+    throw error;
   });
 
   await logAction({

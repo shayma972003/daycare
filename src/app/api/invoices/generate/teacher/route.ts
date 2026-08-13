@@ -11,6 +11,7 @@ import { Document, Page, Text, View, StyleSheet, Font } from "@react-pdf/rendere
 import { access } from "fs/promises";
 import { join } from "path";
 import { moneyMaxZero, moneyMultiply, moneyNumber, moneySubtract } from "@/lib/money";
+import { claimInvoice, failInvoiceClaim, idempotencyConflictResponse, invoiceRequestHash, missingIdempotencyKeyResponse, readIdempotencyKey } from "@/lib/invoice-idempotency";
 
 Font.register({
   family: "Arabic",
@@ -113,6 +114,7 @@ function savePdf(buffer: Buffer): string {
 
 export async function POST(request: Request) {
   let session;
+  let claimedInvoiceId: string | null = null;
   try {
     session = await requireSession();
   } catch (error) {
@@ -123,6 +125,8 @@ export async function POST(request: Request) {
     );
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
+  const idempotencyKey = readIdempotencyKey(request);
+  if (!idempotencyKey) return missingIdempotencyKeyResponse();
 
   const regularFont = join(process.cwd(), "public", "fonts", "Arabic-Regular.ttf");
   const boldFont = join(process.cwd(), "public", "fonts", "Arabic-Bold.ttf");
@@ -146,12 +150,16 @@ export async function POST(request: Request) {
     }
 
     const { teacherId, invoiceData: rawInv } = parsed.data;
-
     const teacher = await prisma.teacher.findFirst({
       where: { id: teacherId, schoolId, deletedAt: null },
       select: { id: true, name: true, monthlySalary: true, lateDeductionRate: true, lateHours: true },
     });
     if (!teacher) return Response.json({ error: "Teacher not found" }, { status: 404 });
+    const requestHash = invoiceRequestHash(parsed.data);
+    const claim = await claimInvoice({ schoolId, operationKind: "teacher-custom", key: idempotencyKey, requestHash, type: "TEACHER", teacherId });
+    if (claim.state === "completed") return Response.json({ ...claim.invoice, replayed: true }, { status: 200 });
+    if (claim.state === "conflict") return idempotencyConflictResponse(claim.code);
+    claimedInvoiceId = claim.id;
 
     // Net salary is derived from the teacher's own record, not from whatever the
     // client sent. It used to be written to Invoice.amount unverified, so a
@@ -266,7 +274,8 @@ export async function POST(request: Request) {
     const pdfBuffer = await renderToBuffer(pdfDoc as Parameters<typeof renderToBuffer>[0]);
     const fileUrl = savePdf(pdfBuffer);
 
-    const invoice = await prisma.invoice.create({
+    const invoice = await prisma.invoice.update({
+      where: { id: claim.id },
       data: {
         schoolId,
         type: "TEACHER",
@@ -278,6 +287,8 @@ export async function POST(request: Request) {
         vat_amount: 0,
         pdfUrl: fileUrl,
         data: inv as object,
+        generationStatus: "COMPLETED",
+        generationError: null,
       },
     });
 
@@ -286,6 +297,7 @@ export async function POST(request: Request) {
       { status: 201 }
     );
   } catch (error) {
+    if (claimedInvoiceId) await failInvoiceClaim(claimedInvoiceId).catch(() => undefined);
     logSafeError("teacher-invoice-generate", error);
     return Response.json(
       { error: "تعذر إنشاء الفاتورة" },

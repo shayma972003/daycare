@@ -23,6 +23,7 @@ import {
 import { access } from "fs/promises";
 import { join } from "path";
 import { money, moneyAdd, moneyMaxZero, moneyMultiply, moneyNumber, moneySubtract } from "@/lib/money";
+import { claimInvoice, failInvoiceClaim, idempotencyConflictResponse, invoiceRequestHash, missingIdempotencyKeyResponse, readIdempotencyKey } from "@/lib/invoice-idempotency";
 
 Font.register({
   family: "Arabic",
@@ -154,6 +155,8 @@ export async function POST(request: Request) {
     );
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
+  const idempotencyKey = readIdempotencyKey(request);
+  if (!idempotencyKey) return missingIdempotencyKeyResponse();
 
   const regularFont = join(process.cwd(), "public", "fonts", "Arabic-Regular.ttf");
   const boldFont = join(process.cwd(), "public", "fonts", "Arabic-Bold.ttf");
@@ -212,6 +215,10 @@ export async function POST(request: Request) {
     // financial document for any figure they liked. The issuing school's own
     // identity is read from the database for the same reason.
     const inv = { ...rawInv, ...(await recomputeInvoiceTotals(schoolId, rawInv)) };
+    const requestHash = invoiceRequestHash({ studentId, invoiceData: rawInv });
+    const claim = await claimInvoice({ schoolId, operationKind: "student-custom", key: idempotencyKey, requestHash, type: "STUDENT", studentId });
+    if (claim.state === "completed") return Response.json({ ...claim.invoice, replayed: true }, { status: 200 });
+    if (claim.state === "conflict") return idempotencyConflictResponse(claim.code);
 
     const PAYMENT_METHODS: Record<string, string> = { CASH: "نقدي", TRANSFER: "تحويل بنكي", CARD: "بطاقة" };
 
@@ -412,7 +419,8 @@ export async function POST(request: Request) {
         student: { ...inv.student, idNumber: null },
       };
 
-      const invoice = await prisma.invoice.create({
+      const invoice = await prisma.invoice.update({
+        where: { id: claim.id },
         data: {
           schoolId,
           type: "STUDENT",
@@ -421,6 +429,8 @@ export async function POST(request: Request) {
           vat_amount: inv.vatAmount ?? 0,
           pdfUrl: fileUrl,
           data: persistedInvoiceData as object,
+          generationStatus: "COMPLETED",
+          generationError: null,
         },
       });
 
@@ -436,6 +446,7 @@ export async function POST(request: Request) {
 
       return Response.json({ id: invoice.id, amount: invoice.amount, pdfUrl: fileUrl, createdAt: invoice.createdAt }, { status: 201 });
     } catch (error) {
+      await failInvoiceClaim(claim.id).catch(() => undefined);
       logSafeError("invoice-generate", error);
       return Response.json({ error: "تعذر إنشاء الفاتورة" }, { status: 500 });
     }
@@ -457,6 +468,11 @@ export async function POST(request: Request) {
     include: { settings: true },
   });
   if (!school) return Response.json({ error: "School not found" }, { status: 404 });
+  const operationKind = studentId ? "student-auto" : "teacher-auto";
+  const requestHash = invoiceRequestHash(parsed.data);
+  const claim = await claimInvoice({ schoolId, operationKind, key: idempotencyKey, requestHash, type: studentId ? "STUDENT" : "TEACHER", studentId, teacherId });
+  if (claim.state === "completed") return Response.json({ ...claim.invoice, replayed: true }, { status: 200 });
+  if (claim.state === "conflict") return idempotencyConflictResponse(claim.code);
 
   // Seeded from the existing count so tenants created before the counter
   // existed do not re-issue numbers already in use, then allocated atomically.
@@ -676,7 +692,8 @@ export async function POST(request: Request) {
     const pdfBuffer = await renderToBuffer(pdfDoc as Parameters<typeof renderToBuffer>[0]);
     const fileUrl = savePdf(pdfBuffer);
 
-    const invoice = await prisma.invoice.create({
+    const invoice = await prisma.invoice.update({
+      where: { id: claim.id },
       data: {
         schoolId,
         type: invoiceType,
@@ -690,6 +707,8 @@ export async function POST(request: Request) {
         vat_amount: invoiceType === "STUDENT" ? studentVatAmount : 0,
         pdfUrl: fileUrl,
         data: invoiceData,
+        generationStatus: "COMPLETED",
+        generationError: null,
       },
     });
 
@@ -706,6 +725,7 @@ export async function POST(request: Request) {
 
     return Response.json({ ...invoice, pdfUrl: fileUrl });
   } catch (error) {
+    await failInvoiceClaim(claim.id).catch(() => undefined);
     logSafeError("invoice-auto-generate", error);
     return Response.json({ error: "تعذر إنشاء الفاتورة" }, { status: 500 });
   }

@@ -57,6 +57,7 @@ export async function findInvoiceThisMonth(
       schoolId,
       ...(target.studentId ? { studentId: target.studentId } : {}),
       ...(target.teacherId ? { teacherId: target.teacherId } : {}),
+      generationStatus: "COMPLETED",
       createdAt: { gte: astMonthStart(at), lt: astMonthEnd(at) },
     },
     select: { id: true, createdAt: true },

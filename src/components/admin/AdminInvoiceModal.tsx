@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import axios from "axios";
+import { createIdempotencyKey } from "@/lib/client-idempotency";
 import { astDateInputValue } from "@/lib/datetime";
 import { modalSessionKey } from "@/lib/modal-session";
 import { useT } from "@/lib/i18n-provider";
@@ -208,7 +209,7 @@ function AdminInvoiceModalContent({ schoolId, onClose, onIssued }: Omit<AdminInv
           total: calcRowTotal(r.quantity, r.price, r.vat),
         })),
         total_amount: grandTotal,
-      });
+      }, { headers: { "Idempotency-Key": createIdempotencyKey("admin-invoice") } });
 
       onIssued(res.data);
       onClose();

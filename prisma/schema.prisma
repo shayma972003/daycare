@@ -107,6 +107,12 @@ enum InvoiceType {
   TEACHER
 }
 
+enum InvoiceGenerationStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
 /// Why a child is no longer enrolled.
 ///
 /// Separate from `isActive` and from `deletedAt` on purpose. `isActive` is a
@@ -1020,9 +1026,17 @@ model AdminInvoice {
   line_items   Json // array of line item objects
   total_amount Decimal @default(0) @db.Decimal(18, 2)
   file_url     String?
+  idempotency_key String?
+  request_hash String?
+  generation_status InvoiceGenerationStatus @default(COMPLETED)
+  generation_error String?
   created_at   DateTime @default(now())
 
   school School @relation(fields: [school_id], references: [id])
+
+  @@unique([school_id, idempotency_key])
+  @@unique([school_id, invoice_number])
+  @@index([school_id, generation_status, created_at])
 }
 
 model TwoFASession {
@@ -1806,11 +1820,18 @@ model Invoice {
   vat_amount Decimal    @default(0) @db.Decimal(18, 2)
   pdfUrl    String?
   data      Json
+  idempotencyKey String?
+  operationKind String?
+  requestHash String?
+  generationStatus InvoiceGenerationStatus @default(COMPLETED)
+  generationError String?
   createdAt DateTime    @default(now())
 
   @@index([schoolId, createdAt])
   @@index([studentId])
   @@index([teacherId])
+  @@unique([schoolId, operationKind, idempotencyKey])
+  @@index([schoolId, generationStatus, createdAt])
 }
 
 model NotificationLog {

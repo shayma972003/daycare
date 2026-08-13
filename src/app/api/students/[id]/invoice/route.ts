@@ -5,6 +5,7 @@ import { VAT_RATE } from "@/lib/finance";
 import { findInvoiceThisMonth, duplicateInvoiceResponse } from "@/lib/invoice-duplicates";
 import { astDateInputValue } from "@/lib/datetime";
 import { money, moneyString } from "@/lib/money";
+import { claimInvoice, failInvoiceClaim, idempotencyConflictResponse, invoiceRequestHash, missingIdempotencyKeyResponse, readIdempotencyKey } from "@/lib/invoice-idempotency";
 
 export async function POST(
   request: Request,
@@ -22,6 +23,8 @@ export async function POST(
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
   const { id } = await params;
+  const idempotencyKey = readIdempotencyKey(request);
+  if (!idempotencyKey) return missingIdempotencyKeyResponse();
 
   const student = await prisma.student.findFirst({
     where: { id, schoolId, deletedAt: null },
@@ -31,6 +34,9 @@ export async function POST(
   if (!student) {
     return Response.json({ error: "Not found" }, { status: 404 });
   }
+  const claim = await claimInvoice({ schoolId, operationKind: "student-direct", key: idempotencyKey, requestHash: invoiceRequestHash({ studentId: id }), type: "STUDENT", studentId: id });
+  if (claim.state === "completed") return Response.json({ ...claim.invoice, replayed: true }, { status: 200 });
+  if (claim.state === "conflict") return idempotencyConflictResponse(claim.code);
 
   // A double click on "issue invoice" used to produce two documents for the same
   // month, both counted as revenue. `?force=1` reissues deliberately.
@@ -73,7 +79,8 @@ export async function POST(
     issueDate,
   };
 
-  const invoice = await prisma.invoice.create({
+  const invoice = await prisma.invoice.update({
+    where: { id: claim.id },
     data: {
       schoolId,
       type: "STUDENT",
@@ -81,8 +88,12 @@ export async function POST(
       amount: monthlyStudentFee,
       vat_amount: vatAmount,
       data: invoiceData,
+      generationStatus: "COMPLETED",
     },
     include: { student: true },
+  }).catch(async (error) => {
+    await failInvoiceClaim(claim.id).catch(() => undefined);
+    throw error;
   });
 
   await logAction({

@@ -12,6 +12,7 @@ import {
   closeDialogOnOpenChange,
 } from "@/components/ui/Dialog";
 import axios from "axios";
+import { createIdempotencyKey } from "@/lib/client-idempotency";
 import { useT } from "@/lib/i18n-provider";
 import { modalSessionKey } from "@/lib/modal-session";
 
@@ -255,7 +256,7 @@ function InvoiceModalContent({ studentId, onClose, onIssued }: Omit<InvoiceModal
           vatAmount,
           grandTotal,
         },
-      });
+      }, { headers: { "Idempotency-Key": createIdempotencyKey("student-invoice") } });
 
       onIssued({
         id: res.data.id,

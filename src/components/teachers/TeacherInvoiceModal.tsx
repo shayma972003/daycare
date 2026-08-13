@@ -12,6 +12,7 @@ import {
   closeDialogOnOpenChange,
 } from "@/components/ui/Dialog";
 import axios from "axios";
+import { createIdempotencyKey } from "@/lib/client-idempotency";
 import { useT } from "@/lib/i18n-provider";
 import { modalSessionKey } from "@/lib/modal-session";
 
@@ -231,7 +232,7 @@ function TeacherInvoiceModalContent({ teacherId, onClose, onIssued }: Omit<Teach
           })),
           netSalary,
         },
-      });
+      }, { headers: { "Idempotency-Key": createIdempotencyKey("teacher-invoice") } });
 
       onIssued({
         id: res.data.id,

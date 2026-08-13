@@ -29,6 +29,8 @@ import {
 } from "@react-pdf/renderer";
 import { access } from "fs/promises";
 import { join } from "path";
+import { allocateInvoiceNumber } from "@/lib/invoice-number";
+import { claimAdminInvoice, failAdminInvoiceClaim, idempotencyConflictResponse, invoiceRequestHash, missingIdempotencyKeyResponse, readIdempotencyKey } from "@/lib/invoice-idempotency";
 
 Font.register({
   family: "Arabic",
@@ -125,6 +127,8 @@ function maybeRow(condition: unknown, label: string, value: string) {
 export async function POST(request: Request) {
   const session = await verifyAdminSessionFromRequest(request);
   if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const idempotencyKey = readIdempotencyKey(request);
+  if (!idempotencyKey) return missingIdempotencyKeyResponse();
 
   const regularFont = join(process.cwd(), "public", "fonts", "Arabic-Regular.ttf");
   const boldFont = join(process.cwd(), "public", "fonts", "Arabic-Bold.ttf");
@@ -152,8 +156,32 @@ export async function POST(request: Request) {
   const school = await prisma.school.findUnique({ where: { id: d.school_id } });
   if (!school) return Response.json({ error: "School not found" }, { status: 404 });
 
-  const count = await prisma.adminInvoice.count({ where: { school_id: d.school_id } });
-  const invoiceNumber = `SINV-${String(count + 1).padStart(4, "0")}`;
+  const allocated = await allocateInvoiceNumber(d.school_id, "admin");
+  const requestHash = invoiceRequestHash(d);
+  const claim = await claimAdminInvoice(d.school_id, idempotencyKey, requestHash, allocated.formatted, {
+    subscription_type: d.subscription_type ?? null,
+    issue_date: new Date(d.issue_date),
+    due_date: d.due_date ? new Date(d.due_date) : null,
+    status: ADMIN_INVOICE_STATUS_MAP[d.status.trim()] ?? "PENDING",
+    payment_method: d.payment_method ?? null,
+    our_company_name: d.our_company_name ?? null,
+    our_commercial_reg: d.our_commercial_reg ?? null,
+    our_vat_number: d.our_vat_number ?? null,
+    our_contact_number: d.our_contact_number ?? null,
+    our_email: d.our_email ?? null,
+    our_address: d.our_address ?? null,
+    school_name: d.school_name,
+    school_commercial_reg: d.school_commercial_reg ?? null,
+    school_vat_number: d.school_vat_number ?? null,
+    school_contact: d.school_contact ?? null,
+    school_email: d.school_email ?? null,
+    school_address: d.school_address ?? null,
+    line_items: d.line_items,
+    total_amount: d.total_amount,
+  });
+  if (claim.state === "completed") return Response.json({ invoice_id: claim.invoice.id, file_url: claim.invoice.file_url, replayed: true }, { status: 200 });
+  if (claim.state === "conflict") return idempotencyConflictResponse(claim.code);
+  const invoiceNumber = claim.invoiceNumber;
 
   const issueDateStr = new Date(d.issue_date).toLocaleDateString("ar-SA");
   const dueDateStr = d.due_date ? new Date(d.due_date).toLocaleDateString("ar-SA") : null;
@@ -264,30 +292,12 @@ export async function POST(request: Request) {
     const pdfBuffer = await renderToBuffer(pdfDoc as Parameters<typeof renderToBuffer>[0]);
     const fileUrl = savePdf(pdfBuffer);
 
-    const invoice = await prisma.adminInvoice.create({
+    const invoice = await prisma.adminInvoice.update({
+      where: { id: claim.id },
       data: {
-        school_id: d.school_id,
-        invoice_number: invoiceNumber,
-        subscription_type: d.subscription_type ?? null,
-        issue_date: new Date(d.issue_date),
-        due_date: d.due_date ? new Date(d.due_date) : null,
-        status: ADMIN_INVOICE_STATUS_MAP[d.status.trim()] ?? "PENDING",
-        payment_method: d.payment_method ?? null,
-        our_company_name: d.our_company_name ?? null,
-        our_commercial_reg: d.our_commercial_reg ?? null,
-        our_vat_number: d.our_vat_number ?? null,
-        our_contact_number: d.our_contact_number ?? null,
-        our_email: d.our_email ?? null,
-        our_address: d.our_address ?? null,
-        school_name: d.school_name,
-        school_commercial_reg: d.school_commercial_reg ?? null,
-        school_vat_number: d.school_vat_number ?? null,
-        school_contact: d.school_contact ?? null,
-        school_email: d.school_email ?? null,
-        school_address: d.school_address ?? null,
-        line_items: d.line_items,
-        total_amount: d.total_amount,
         file_url: fileUrl,
+        generation_status: "COMPLETED",
+        generation_error: null,
       },
     });
 
@@ -297,6 +307,7 @@ export async function POST(request: Request) {
 
     return Response.json({ invoice_id: invoice.id, file_url: fileUrl }, { status: 201 });
   } catch (error) {
+    await failAdminInvoiceClaim(claim.id).catch(() => undefined);
     console.error("Admin invoice generation error:", error);
     return Response.json({ error: "تعذر إنشاء الفاتورة" }, { status: 500 });
   }

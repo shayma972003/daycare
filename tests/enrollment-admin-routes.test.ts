@@ -6,6 +6,11 @@ const mocks = vi.hoisted(() => ({
   findMany: vi.fn(),
   findFirst: vi.fn(),
   updateMany: vi.fn(),
+  transaction: vi.fn(),
+  markForDeletion: vi.fn(),
+  completeDeletion: vi.fn(),
+  transferOwnership: vi.fn(),
+  studentCreate: vi.fn(),
   logAction: vi.fn(),
 }));
 
@@ -16,18 +21,53 @@ vi.mock("@/lib/session", () => ({
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
+    $transaction: mocks.transaction,
     enrollmentSubmission: {
       findMany: mocks.findMany,
       findFirst: mocks.findFirst,
       updateMany: mocks.updateMany,
     },
+    student: { create: mocks.studentCreate },
   },
+}));
+
+vi.mock("@/lib/r2", () => ({
+  keyFromUrl: (url: string | null) => url?.startsWith("/api/files/")
+    ? url.slice("/api/files/".length)
+    : null,
+}));
+
+vi.mock("@/lib/stored-files", () => {
+  class StoredFileOwnershipError extends Error {}
+  return {
+    StoredFileOwnershipError,
+    markStoredFileForDeletion: mocks.markForDeletion,
+    completeStoredFileDeletion: mocks.completeDeletion,
+    transferStoredFileOwnership: mocks.transferOwnership,
+  };
+});
+
+vi.mock("@/lib/pii-crypto", () => ({
+  protectIdNumber: () => ({ idNumber: null, encryptedIdNumber: null, idNumberHash: null }),
+}));
+vi.mock("@/lib/tenant-guard", () => ({
+  assertClassOwned: vi.fn().mockResolvedValue(null),
+  crossTenantResponse: () => null,
+}));
+vi.mock("@/lib/academic-stage", () => ({
+  resolveStageId: vi.fn().mockResolvedValue(null),
+  foreignStageResponse: () => null,
+}));
+vi.mock("@/lib/enum-labels", () => ({
+  parseAcademicStage: () => null,
+  parseAttendanceType: () => "REGULAR",
 }));
 
 vi.mock("@/lib/activity-logger", () => ({ logAction: mocks.logAction }));
 
 import { GET as listSubmissions } from "@/app/api/enrollment/submissions/route";
 import { POST as rejectSubmission } from "@/app/api/enrollment/reject/[submission_id]/route";
+import { POST as approveSubmission } from "@/app/api/enrollment/approve/[submission_id]/route";
 
 function session(allowed: boolean) {
   return {
@@ -41,6 +81,16 @@ beforeEach(() => {
   mocks.sessionErrorResponse.mockImplementation(() =>
     Response.json({ error: "Unauthorized" }, { status: 401 })
   );
+  mocks.transaction.mockImplementation((callback: (tx: unknown) => unknown) =>
+    callback({
+      enrollmentSubmission: { updateMany: mocks.updateMany },
+      student: { create: mocks.studentCreate },
+      storedFile: { updateMany: vi.fn() },
+    })
+  );
+  mocks.markForDeletion.mockResolvedValue("pending");
+  mocks.completeDeletion.mockResolvedValue({ status: "deleted" });
+  mocks.transferOwnership.mockResolvedValue(undefined);
 });
 
 describe("administrative enrollment handlers", () => {
@@ -88,6 +138,130 @@ describe("administrative enrollment handlers", () => {
     expect(mocks.findFirst).toHaveBeenCalledWith({
       where: { id: "foreign", school_id: "school-1" },
     });
+    expect(mocks.updateMany).not.toHaveBeenCalled();
+    expect(mocks.logAction).not.toHaveBeenCalled();
+  });
+
+  it("keeps a rejected file retryable when object storage deletion fails", async () => {
+    mocks.requireSession.mockResolvedValue(session(true));
+    mocks.findFirst.mockResolvedValue({
+      id: "submission-1",
+      school_id: "school-1",
+      status: "pending_review",
+      full_name: "Child",
+      evaluation_file_url: "/api/files/schools/school-1/students/submission-1/file.pdf",
+    });
+    mocks.updateMany.mockResolvedValue({ count: 1 });
+    mocks.completeDeletion.mockResolvedValue({ status: "pending" });
+
+    const response = await rejectSubmission(
+      new Request("http://localhost/api/enrollment/reject/submission-1", { method: "POST" }),
+      { params: Promise.resolve({ submission_id: "submission-1" }) }
+    );
+
+    expect(response.status).toBe(502);
+    await expect(response.json()).resolves.toMatchObject({ cleanup_pending: true });
+    expect(mocks.markForDeletion).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        schoolId: "school-1",
+        ownerType: "ENROLLMENT_SUBMISSION",
+        ownerId: "submission-1",
+      })
+    );
+    expect(mocks.logAction).not.toHaveBeenCalled();
+  });
+
+  it("deletes a rejected submission file before reporting success", async () => {
+    mocks.requireSession.mockResolvedValue(session(true));
+    mocks.findFirst.mockResolvedValue({
+      id: "submission-1",
+      school_id: "school-1",
+      status: "pending_review",
+      full_name: "Child",
+      evaluation_file_url: "/api/files/schools/school-1/students/submission-1/file.pdf",
+    });
+    mocks.updateMany.mockResolvedValue({ count: 1 });
+
+    const response = await rejectSubmission(
+      new Request("http://localhost/api/enrollment/reject/submission-1", { method: "POST" }),
+      { params: Promise.resolve({ submission_id: "submission-1" }) }
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.completeDeletion).toHaveBeenCalledOnce();
+    expect(mocks.updateMany).toHaveBeenLastCalledWith({
+      where: { id: "submission-1", school_id: "school-1", status: "rejected" },
+      data: { evaluation_file_url: null, evaluation_file_name: null },
+    });
+    expect(mocks.logAction).toHaveBeenCalledOnce();
+  });
+
+  it("moves an approved submission file to the newly created student", async () => {
+    mocks.requireSession.mockResolvedValue(session(true));
+    mocks.findFirst.mockResolvedValue({
+      id: "submission-1",
+      school_id: "school-1",
+      status: "pending_review",
+      full_name: "Child",
+      guardian_phone_1: null,
+      date_of_birth: null,
+      evaluation_file_url: "/api/files/schools/school-1/students/submission-1/file.pdf",
+      evaluation_file_name: "file.pdf",
+    });
+    mocks.studentCreate.mockResolvedValue({ id: "student-1", name: "Child" });
+    mocks.updateMany.mockResolvedValue({ count: 1 });
+
+    const response = await approveSubmission(
+      new Request("http://localhost/api/enrollment/approve/submission-1", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{}",
+      }),
+      { params: Promise.resolve({ submission_id: "submission-1" }) }
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.transferOwnership).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        ownerType: "ENROLLMENT_SUBMISSION",
+        ownerId: "submission-1",
+        nextOwnerType: "STUDENT",
+        nextOwnerId: "student-1",
+      })
+    );
+    expect(mocks.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ status: "pending_review", school_id: "school-1" }),
+      data: expect.objectContaining({ status: "approved", student_id: "student-1" }),
+    }));
+  });
+
+  it("does not mark an approval complete when ownership transfer fails", async () => {
+    const { StoredFileOwnershipError } = await import("@/lib/stored-files");
+    mocks.requireSession.mockResolvedValue(session(true));
+    mocks.findFirst.mockResolvedValue({
+      id: "submission-1",
+      school_id: "school-1",
+      status: "pending_review",
+      full_name: "Child",
+      guardian_phone_1: null,
+      date_of_birth: null,
+      evaluation_file_url: "/api/files/schools/school-1/students/submission-1/file.pdf",
+    });
+    mocks.studentCreate.mockResolvedValue({ id: "student-1", name: "Child" });
+    mocks.transferOwnership.mockRejectedValue(new StoredFileOwnershipError());
+
+    const response = await approveSubmission(
+      new Request("http://localhost/api/enrollment/approve/submission-1", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{}",
+      }),
+      { params: Promise.resolve({ submission_id: "submission-1" }) }
+    );
+
+    expect(response.status).toBe(409);
     expect(mocks.updateMany).not.toHaveBeenCalled();
     expect(mocks.logAction).not.toHaveBeenCalled();
   });

@@ -7,6 +7,7 @@ import {
   DOCUMENT_LABEL,
   MAX_ENROLLMENT_FILE_BYTES,
 } from "@/lib/file-upload";
+import { STORED_FILE_OWNER } from "@/lib/stored-file-ownership";
 
 /**
  * The child's evaluation file, uploaded before the enrolment form is submitted.
@@ -62,6 +63,7 @@ export async function POST(request: Request) {
   const record = await prisma.enrollmentToken.findUnique({
     where: { token },
     select: {
+      id: true,
       school_id: true,
       status: true,
       expires_at: true,
@@ -89,7 +91,8 @@ export async function POST(request: Request) {
     category: "students",
     // No student row exists yet — one is created only if the school approves.
     // The orphan sweep looks for this owner.
-    ownerId: "enrollment",
+    ownerType: STORED_FILE_OWNER.ENROLLMENT_TOKEN,
+    ownerId: record.id,
   });
   if (isFailure(stored)) {
     return Response.json({ error: stored.error }, { status: stored.status });

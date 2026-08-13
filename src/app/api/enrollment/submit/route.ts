@@ -6,6 +6,11 @@ import { normalizePhone } from "@/lib/phone-normalizer";
 import { astDayStart } from "@/lib/datetime";
 import { keyFromUrl, schoolIdFromKey } from "@/lib/r2";
 import { rateLimit, clientIp, rateLimitResponse } from "@/lib/rate-limit";
+import {
+  StoredFileOwnershipError,
+  transferStoredFileOwnership,
+} from "@/lib/stored-files";
+import { STORED_FILE_OWNER } from "@/lib/stored-file-ownership";
 
 const schema = z.object({
   token: z.string().min(1),
@@ -77,17 +82,22 @@ export async function POST(request: Request) {
    * inside this school's own prefix is accepted; anything else, including the
    * base64 data URIs older links used to send, is refused.
    */
+  const evaluationFileKey = formData.evaluation_file_url
+    ? keyFromUrl(formData.evaluation_file_url)
+    : null;
   if (formData.evaluation_file_url) {
-    const key = keyFromUrl(formData.evaluation_file_url);
-    if (!key || schoolIdFromKey(key) !== rec.school_id) {
+    if (!evaluationFileKey || schoolIdFromKey(evaluationFileKey) !== rec.school_id) {
       return Response.json({ error: "ملف التقييم غير صالح" }, { status: 422 });
     }
   }
 
   const newCount = rec.submissions_count + 1;
 
-  const submission = await prisma.enrollmentSubmission.create({
-    data: {
+  let submission;
+  try {
+    submission = await prisma.$transaction(async (tx) => {
+      const created = await tx.enrollmentSubmission.create({
+        data: {
       token_id: rec.id,
       school_id: rec.school_id,
       full_name: formData.full_name,
@@ -122,16 +132,35 @@ export async function POST(request: Request) {
       guardian_phone_3: normalizePhone(formData.guardian_phone_3),
       guardian_phone_4: normalizePhone(formData.guardian_phone_4),
       guardian_email_2: formData.guardian_email_2 ?? null,
-    },
-  });
+        },
+      });
 
-  await prisma.enrollmentToken.update({
-    where: { token },
-    data: {
-      submissions_count: newCount,
-      ...(newCount >= rec.max_submissions ? { status: "completed" } : {}),
-    },
-  });
+      if (evaluationFileKey) {
+        await transferStoredFileOwnership(tx, {
+          key: evaluationFileKey,
+          schoolId: rec.school_id,
+          ownerType: STORED_FILE_OWNER.ENROLLMENT_TOKEN,
+          ownerId: rec.id,
+          nextOwnerType: STORED_FILE_OWNER.ENROLLMENT_SUBMISSION,
+          nextOwnerId: created.id,
+        });
+      }
+
+      await tx.enrollmentToken.update({
+        where: { token },
+        data: {
+          submissions_count: newCount,
+          ...(newCount >= rec.max_submissions ? { status: "completed" } : {}),
+        },
+      });
+      return created;
+    });
+  } catch (error) {
+    if (error instanceof StoredFileOwnershipError) {
+      return Response.json({ error: "Invalid evaluation file" }, { status: 422 });
+    }
+    throw error;
+  }
 
   return Response.json({
     success: true,

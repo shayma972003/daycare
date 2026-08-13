@@ -7,6 +7,14 @@ import { resolveStageId, foreignStageResponse } from "@/lib/academic-stage";
 import { parseAcademicStage, parseAttendanceType } from "@/lib/enum-labels";
 import { z } from "zod";
 import { ENROLLMENT_MANAGE_PERMISSION } from "@/lib/enrollment-access";
+import { keyFromUrl } from "@/lib/r2";
+import {
+  StoredFileOwnershipError,
+  transferStoredFileOwnership,
+} from "@/lib/stored-files";
+import { STORED_FILE_OWNER } from "@/lib/stored-file-ownership";
+
+class EnrollmentReviewConflict extends Error {}
 
 const schema = z.object({
   class_id: z.string().optional(),
@@ -146,8 +154,11 @@ export async function POST(
   }
 
   const dobRaw = ov.date_of_birth ?? (sub.date_of_birth ? sub.date_of_birth.toString() : null);
-  const student = await prisma.student.create({
-    data: {
+  let student;
+  try {
+    student = await prisma.$transaction(async (tx) => {
+      const created = await tx.student.create({
+        data: {
       schoolId,
       name: (ov.full_name ?? sub.full_name) || "—",
       classId: ownedClassId,
@@ -168,13 +179,37 @@ export async function POST(
       enrollment_date: sub.enrollment_date ?? new Date(),
       evaluationFileUrl: sub.evaluation_file_url,
       evaluationFileName: sub.evaluation_file_name,
-    },
-  });
+        },
+      });
 
-  await prisma.enrollmentSubmission.updateMany({
-    where: { id: submission_id, school_id: schoolId },
-    data: { status: "approved", student_id: student.id, reviewed_at: new Date() },
-  });
+      const fileKey = keyFromUrl(sub.evaluation_file_url);
+      if (fileKey) {
+        await transferStoredFileOwnership(tx, {
+          key: fileKey,
+          schoolId,
+          ownerType: STORED_FILE_OWNER.ENROLLMENT_SUBMISSION,
+          ownerId: sub.id,
+          nextOwnerType: STORED_FILE_OWNER.STUDENT,
+          nextOwnerId: created.id,
+        });
+      }
+
+      const reviewed = await tx.enrollmentSubmission.updateMany({
+        where: { id: submission_id, school_id: schoolId, status: "pending_review" },
+        data: { status: "approved", student_id: created.id, reviewed_at: new Date() },
+      });
+      if (reviewed.count !== 1) throw new EnrollmentReviewConflict();
+      return created;
+    });
+  } catch (error) {
+    if (error instanceof EnrollmentReviewConflict) {
+      return Response.json({ error: "Enrollment request is no longer pending" }, { status: 409 });
+    }
+    if (error instanceof StoredFileOwnershipError) {
+      return Response.json({ error: "Enrollment file ownership is invalid" }, { status: 409 });
+    }
+    throw error;
+  }
 
   await logAction({
     school_id: schoolId,

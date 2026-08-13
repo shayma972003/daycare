@@ -2,6 +2,16 @@ import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
 import { ENROLLMENT_MANAGE_PERMISSION } from "@/lib/enrollment-access";
+import { keyFromUrl } from "@/lib/r2";
+import {
+  completeStoredFileDeletion,
+  markStoredFileForDeletion,
+  StoredFileOwnershipError,
+  type ExactStoredFileOwner,
+} from "@/lib/stored-files";
+import { STORED_FILE_OWNER } from "@/lib/stored-file-ownership";
+
+class EnrollmentReviewConflict extends Error {}
 
 export async function POST(
   request: Request,
@@ -28,10 +38,65 @@ export async function POST(
   });
   if (!sub) return Response.json({ error: "Not found" }, { status: 404 });
 
-  await prisma.enrollmentSubmission.updateMany({
-    where: { id: submission_id, school_id: schoolId },
-    data: { status: "rejected", reviewed_at: new Date() },
-  });
+  if (sub.status === "approved") {
+    return Response.json({ error: "Enrollment request is no longer pending" }, { status: 409 });
+  }
+
+  const fileKey = keyFromUrl(sub.evaluation_file_url);
+  const fileOwner: ExactStoredFileOwner | null = fileKey
+    ? {
+        key: fileKey,
+        schoolId,
+        ownerType: STORED_FILE_OWNER.ENROLLMENT_SUBMISSION,
+        ownerId: sub.id,
+      }
+    : null;
+
+  if (sub.status === "pending_review") {
+    try {
+      await prisma.$transaction(async (tx) => {
+        const rejected = await tx.enrollmentSubmission.updateMany({
+          where: { id: submission_id, school_id: schoolId, status: "pending_review" },
+          data: { status: "rejected", reviewed_at: new Date() },
+        });
+        if (rejected.count !== 1) throw new EnrollmentReviewConflict();
+
+        if (fileOwner) {
+          const marked = await markStoredFileForDeletion(tx, fileOwner);
+          if (marked !== "pending") throw new StoredFileOwnershipError();
+        }
+      });
+    } catch (error) {
+      if (error instanceof EnrollmentReviewConflict) {
+        return Response.json({ error: "Enrollment request is no longer pending" }, { status: 409 });
+      }
+      if (error instanceof StoredFileOwnershipError) {
+        return Response.json({ error: "Enrollment file ownership is invalid" }, { status: 409 });
+      }
+      throw error;
+    }
+  } else if (fileOwner) {
+    const marked = await markStoredFileForDeletion(prisma, fileOwner);
+    if (marked !== "pending") {
+      return Response.json({ error: "Enrollment file ownership is invalid" }, { status: 409 });
+    }
+  }
+
+  if (fileOwner) {
+    const deleted = await completeStoredFileDeletion(fileOwner);
+    if (deleted.status === "pending") {
+      return Response.json(
+        { error: "File cleanup is temporarily unavailable", cleanup_pending: true },
+        { status: 502 }
+      );
+    }
+    if (deleted.status === "deleted" || deleted.status === "missing") {
+      await prisma.enrollmentSubmission.updateMany({
+        where: { id: submission_id, school_id: schoolId, status: "rejected" },
+        data: { evaluation_file_url: null, evaluation_file_name: null },
+      });
+    }
+  }
 
   await logAction({
     school_id: schoolId,

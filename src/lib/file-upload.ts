@@ -10,6 +10,10 @@
 
 import { storageEnabled } from "@/lib/env";
 import type { FileCategory } from "@/lib/r2";
+import {
+  STORED_FILE_OWNER,
+  type StoredFileOwner,
+} from "@/lib/stored-file-ownership";
 
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 export const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
@@ -186,6 +190,7 @@ export async function storeUpload(
     humanLabel: string;
     category: FileCategory;
     ownerId: string;
+    ownerType?: StoredFileOwner;
     previousUrl?: string | null;
   }
 ): Promise<StoredUpload | ValidationFailure> {
@@ -202,7 +207,7 @@ export async function storeUpload(
     return { url: validated.dataUrl, mime: validated.mime, sizeBytes: validated.buffer.length };
   }
 
-  const { buildObjectKey, putObject, keyFromUrl, deleteObjects } = await import("@/lib/r2");
+  const { buildObjectKey, putObject, keyFromUrl } = await import("@/lib/r2");
   const { prisma } = await import("@/lib/prisma");
 
   const key = buildObjectKey(schoolId, options.category, options.ownerId, validated.mime);
@@ -214,6 +219,7 @@ export async function storeUpload(
       schoolId,
       category: options.category,
       ownerId: options.ownerId,
+      ownerType: options.ownerType ?? STORED_FILE_OWNER.LEGACY,
       contentType: stored.contentType,
       sizeBytes: stored.sizeBytes,
     },
@@ -223,8 +229,8 @@ export async function storeUpload(
   // two would otherwise leave the row pointing at a file that no longer exists.
   const oldKey = keyFromUrl(options.previousUrl);
   if (oldKey) {
-    await deleteObjects([oldKey]);
-    await prisma.storedFile.deleteMany({ where: { key: oldKey } });
+    const { discardStoredFile } = await import("@/lib/stored-files");
+    await discardStoredFile(options.previousUrl);
   }
 
   return { url: stored.url, mime: stored.contentType, sizeBytes: stored.sizeBytes, key: stored.key };

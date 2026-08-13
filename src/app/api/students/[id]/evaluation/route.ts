@@ -9,6 +9,7 @@ import {
   MAX_DOCUMENT_BYTES,
 } from "@/lib/file-upload";
 import { discardStoredFile } from "@/lib/stored-files";
+import { STORED_FILE_OWNER } from "@/lib/stored-file-ownership";
 
 export async function POST(
   request: Request,
@@ -43,6 +44,7 @@ export async function POST(
     maxBytes: MAX_DOCUMENT_BYTES,
     humanLabel: DOCUMENT_LABEL,
     category: "students",
+    ownerType: STORED_FILE_OWNER.STUDENT,
     ownerId: student.id,
     previousUrl: student.evaluationFileUrl,
   });

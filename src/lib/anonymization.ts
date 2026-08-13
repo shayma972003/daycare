@@ -28,6 +28,7 @@ import {
   SYSTEM_SETTINGS_ID,
 } from "@/lib/data-retention";
 import { discardFilesOwnedBy } from "@/lib/stored-files";
+import { STORED_FILE_OWNER } from "@/lib/stored-file-ownership";
 import type { Prisma } from "@/generated/prisma/client";
 
 /**
@@ -401,6 +402,7 @@ export async function anonymizeStudent(
     await discardFilesOwnedBy(
       (filesOwnedBy as { schoolId: string }).schoolId,
       [studentId],
+      STORED_FILE_OWNER.STUDENT,
       "anonymization.student"
     );
   }
@@ -559,6 +561,7 @@ export async function anonymizeTeacher(
     await discardFilesOwnedBy(
       (filesOwnedBy as { schoolId: string }).schoolId,
       [teacherId],
+      STORED_FILE_OWNER.TEACHER,
       "anonymization.teacher"
     );
   }

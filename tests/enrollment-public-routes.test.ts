@@ -4,21 +4,40 @@ import { hashOtp } from "@/lib/enrollment-otp";
 const mocks = vi.hoisted(() => ({
   findUnique: vi.fn(),
   update: vi.fn(),
+  transaction: vi.fn(),
+  submissionCreate: vi.fn(),
+  transferOwnership: vi.fn(),
   rateLimit: vi.fn(),
   storeUpload: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
+    $transaction: mocks.transaction,
     enrollmentToken: {
       findUnique: mocks.findUnique,
       update: mocks.update,
+    },
+    enrollmentSubmission: {
+      create: mocks.submissionCreate,
     },
   },
 }));
 
 vi.mock("@/lib/file-token", () => ({ stampFileUrl: (url: string | null) => url }));
-vi.mock("@/lib/r2", () => ({ keyFromUrl: () => null, schoolIdFromKey: () => null }));
+vi.mock("@/lib/r2", () => ({
+  keyFromUrl: (url: string | null) => url?.startsWith("/api/files/")
+    ? url.slice("/api/files/".length)
+    : null,
+  schoolIdFromKey: (key: string) => /^schools\/([^/]+)\//.exec(key)?.[1] ?? null,
+}));
+vi.mock("@/lib/stored-files", () => {
+  class StoredFileOwnershipError extends Error {}
+  return {
+    StoredFileOwnershipError,
+    transferStoredFileOwnership: mocks.transferOwnership,
+  };
+});
 vi.mock("@/lib/file-upload", () => ({
   storeUpload: mocks.storeUpload,
   isFailure: () => false,
@@ -41,9 +60,19 @@ import { POST as uploadEnrollmentFile } from "@/app/api/enrollment/upload/route"
 beforeEach(() => {
   mocks.findUnique.mockReset();
   mocks.update.mockReset();
+  mocks.transaction.mockReset();
+  mocks.submissionCreate.mockReset();
+  mocks.transferOwnership.mockReset();
   mocks.storeUpload.mockReset();
   mocks.rateLimit.mockReset();
   mocks.rateLimit.mockResolvedValue({ status: "allowed", remaining: 10, retryAfter: 0 });
+  mocks.transaction.mockImplementation((callback: (tx: unknown) => unknown) =>
+    callback({
+      enrollmentSubmission: { create: mocks.submissionCreate },
+      enrollmentToken: { update: mocks.update },
+      storedFile: { updateMany: vi.fn() },
+    })
+  );
 });
 
 describe("public enrollment handlers", () => {
@@ -143,6 +172,7 @@ describe("public enrollment handlers", () => {
 
   it("rejects an upload until the token's OTP has been verified", async () => {
     mocks.findUnique.mockResolvedValue({
+      id: "token-id",
       school_id: "school-1",
       status: "active",
       expires_at: new Date(Date.now() + 60_000),
@@ -161,5 +191,104 @@ describe("public enrollment handlers", () => {
     expect(response.status).toBe(403);
     expect(mocks.storeUpload).not.toHaveBeenCalled();
     expect(mocks.rateLimit).toHaveBeenCalledOnce();
+  });
+
+  it("binds an uploaded file to the internal enrollment token id", async () => {
+    mocks.findUnique.mockResolvedValue({
+      id: "token-id",
+      school_id: "school-1",
+      status: "active",
+      expires_at: new Date(Date.now() + 60_000),
+      submissions_count: 0,
+      max_submissions: 3,
+      otp_verified: true,
+    });
+    mocks.storeUpload.mockResolvedValue({
+      url: "/api/files/schools/school-1/students/token-id/file.pdf",
+      mime: "application/pdf",
+      sizeBytes: 3,
+    });
+    const body = new FormData();
+    body.set("token", "raw-public-token");
+    body.set("file", new File(["pdf"], "evaluation.pdf", { type: "application/pdf" }));
+
+    const response = await uploadEnrollmentFile(
+      new Request("http://localhost/api/enrollment/upload", { method: "POST", body })
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.storeUpload).toHaveBeenCalledWith(
+      "school-1",
+      expect.any(File),
+      expect.objectContaining({ ownerType: "ENROLLMENT_TOKEN", ownerId: "token-id" })
+    );
+    expect(JSON.stringify(mocks.storeUpload.mock.calls)).not.toContain("raw-public-token");
+  });
+
+  it("moves only the same token's file to the new submission", async () => {
+    mocks.findUnique.mockResolvedValue({
+      id: "token-id",
+      token: "raw-token",
+      school_id: "school-1",
+      otp_verified: true,
+      expires_at: new Date(Date.now() + 60_000),
+      submissions_count: 0,
+      max_submissions: 3,
+    });
+    mocks.submissionCreate.mockResolvedValue({ id: "submission-1" });
+    mocks.update.mockResolvedValue({});
+
+    const response = await submitEnrollment(
+      new Request("http://localhost/api/enrollment/submit", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          token: "raw-token",
+          full_name: "Child",
+          evaluation_file_url: "/api/files/schools/school-1/students/token-id/file.pdf",
+        }),
+      })
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.transferOwnership).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        schoolId: "school-1",
+        ownerType: "ENROLLMENT_TOKEN",
+        ownerId: "token-id",
+        nextOwnerType: "ENROLLMENT_SUBMISSION",
+        nextOwnerId: "submission-1",
+      })
+    );
+  });
+
+  it("rejects a registered-looking URL when ownership belongs to another token", async () => {
+    const { StoredFileOwnershipError } = await import("@/lib/stored-files");
+    mocks.findUnique.mockResolvedValue({
+      id: "token-id",
+      school_id: "school-1",
+      otp_verified: true,
+      expires_at: new Date(Date.now() + 60_000),
+      submissions_count: 0,
+      max_submissions: 3,
+    });
+    mocks.submissionCreate.mockResolvedValue({ id: "submission-1" });
+    mocks.transferOwnership.mockRejectedValue(new StoredFileOwnershipError());
+
+    const response = await submitEnrollment(
+      new Request("http://localhost/api/enrollment/submit", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          token: "raw-token",
+          full_name: "Child",
+          evaluation_file_url: "/api/files/schools/school-1/students/other-token/file.pdf",
+        }),
+      })
+    );
+
+    expect(response.status).toBe(422);
+    expect(mocks.update).not.toHaveBeenCalled();
   });
 });

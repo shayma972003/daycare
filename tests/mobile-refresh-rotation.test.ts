@@ -72,6 +72,7 @@ const store = vi.hoisted(() => {
           id: "user-1",
           schoolId: "school-1",
           disabledAt: null,
+          acceptedAt: new Date(),
           roleRef: { permissions: ["attendance.manage"] },
           school: { subscription_status: "active" },
         };

@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   enrollmentTokenFindUnique: vi.fn(),
   enrollmentTokenUpdate: vi.fn(),
   enrollmentSubmissionCreate: vi.fn(),
+  transaction: vi.fn(),
   requireSession: vi.fn(),
   rateLimit: vi.fn(),
   fetch: vi.fn(),
@@ -28,6 +29,7 @@ vi.mock("@/lib/env", () => ({
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
+    $transaction: mocks.transaction,
     notificationLog: { create: mocks.notificationCreate },
     twoFASession: {
       findFirst: mocks.twoFaFindFirst,
@@ -68,6 +70,12 @@ import { POST as submitEnrollment } from "@/app/api/enrollment/submit/route";
 
 beforeEach(() => {
   for (const mock of Object.values(mocks)) mock.mockReset();
+  mocks.transaction.mockImplementation((callback: (tx: unknown) => unknown) =>
+    callback({
+      enrollmentSubmission: { create: mocks.enrollmentSubmissionCreate },
+      enrollmentToken: { update: mocks.enrollmentTokenUpdate },
+    })
+  );
 
   vi.stubGlobal("fetch", mocks.fetch);
   mocks.fetch.mockResolvedValue(new Response("{}", { status: 200 }));

@@ -720,6 +720,14 @@ model AcademicStageOption {
 /// table the only way to find them would be a prefix listing, which is exactly
 /// the call that is too expensive to make — and a missed object here is not a
 /// wasted byte but a surviving photograph of a child whose record was erased.
+enum StoredFileOwnerType {
+  LEGACY
+  STUDENT
+  TEACHER
+  ENROLLMENT_TOKEN
+  ENROLLMENT_SUBMISSION
+}
+
 model StoredFile {
   key      String @id
   schoolId String
@@ -731,12 +739,21 @@ model StoredFile {
   /// points at six different tables, and a file must outlive nothing but its
   /// tenant.
   ownerId     String
+  /// Explicit lifecycle identity for security-sensitive child files. Rows that
+  /// predate ownership tracking stay LEGACY unless a migration can prove their
+  /// owner from an existing relation.
+  ownerType   StoredFileOwnerType @default(LEGACY)
   contentType String
   sizeBytes   Int
   createdAt   DateTime @default(now())
+  /// Set before a cross-system delete. The row remains retryable until R2
+  /// confirms deletion; readers refuse files while this marker is present.
+  deletePendingAt DateTime?
 
   @@index([schoolId, category])
   @@index([schoolId, ownerId])
+  @@index([schoolId, ownerType, ownerId])
+  @@index([deletePendingAt])
 }
 
 /// Monotonic per-tenant counter for invoice numbers.

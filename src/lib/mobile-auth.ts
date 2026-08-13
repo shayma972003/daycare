@@ -233,11 +233,12 @@ async function claimsForSubjectWithDb(
         id: true,
         schoolId: true,
         disabledAt: true,
+        acceptedAt: true,
         roleRef: { select: { permissions: true } },
         school: { select: { subscription_status: true } },
       },
     });
-    if (!user || user.disabledAt) return null;
+    if (!user || user.disabledAt || !user.acceptedAt) return null;
     if (["suspended", "cancelled", "expired"].includes(user.school?.subscription_status ?? "")) {
       return null;
     }

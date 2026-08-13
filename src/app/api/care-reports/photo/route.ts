@@ -7,6 +7,7 @@ import {
   IMAGE_LABEL,
   MAX_IMAGE_BYTES,
 } from "@/lib/file-upload";
+import { STORED_FILE_OWNER } from "@/lib/stored-file-ownership";
 
 /**
  * The photo attached to a care report (task 2.5).
@@ -68,6 +69,7 @@ export async function POST(request: Request) {
     maxBytes: MAX_IMAGE_BYTES,
     humanLabel: IMAGE_LABEL,
     category: "care",
+    ownerType: STORED_FILE_OWNER.STUDENT,
     ownerId: student.id,
   });
   if (isFailure(stored)) {

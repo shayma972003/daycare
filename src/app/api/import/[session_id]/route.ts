@@ -1,6 +1,7 @@
 import { requireSession, sessionErrorResponse } from '@/lib/session';
 import { prisma } from '@/lib/prisma';
 import { logAction } from '@/lib/activity-logger';
+import { importRowPayloadForResponse } from '@/lib/import-row-payload';
 
 export async function GET(_req: Request, { params }: { params: Promise<{ session_id: string }> }) {
   let session;
@@ -10,6 +11,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ session
       sessionErrorResponse(error) ??
       Response.json({ error: 'Unauthorized' }, { status: 401 })
     );
+  }
+  if (!session.can('students.manage')) {
+    return Response.json({ error: 'Forbidden' }, { status: 403 });
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
   const { session_id } = await params;
@@ -21,7 +25,20 @@ export async function GET(_req: Request, { params }: { params: Promise<{ session
     },
   });
   if (!importSession) return Response.json({ error: 'Not found' }, { status: 404 });
-  return Response.json(importSession, { status: 200 });
+  if (importSession.expires_at <= new Date()) {
+    return Response.json({ error: 'Import session expired' }, { status: 410 });
+  }
+  return Response.json({
+    ...importSession,
+    rows: importSession.rows.map((row) => ({
+      id: row.id,
+      session_id: row.session_id,
+      row_number: row.row_number,
+      status: row.status,
+      created_at: row.created_at,
+      ...importRowPayloadForResponse(row),
+    })),
+  }, { status: 200 });
 }
 
 export async function DELETE(req: Request, { params }: { params: Promise<{ session_id: string }> }) {
@@ -32,6 +49,9 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ sessi
       sessionErrorResponse(error) ??
       Response.json({ error: 'Unauthorized' }, { status: 401 })
     );
+  }
+  if (!session.can('students.manage')) {
+    return Response.json({ error: 'Forbidden' }, { status: 403 });
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
   const { session_id } = await params;

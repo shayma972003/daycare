@@ -1873,15 +1873,16 @@ model ImportSession {
 }
 
 model ImportRow {
-  id          String   @id @default(cuid())
-  session_id  String
-  row_number  Int
-  raw_data    Json
-  mapped_data Json?
-  status      String   @default("pending")
-  errors      Json?
-  warnings    Json?
-  created_at  DateTime @default(now())
+  id                String   @id @default(cuid())
+  session_id        String
+  row_number        Int
+  raw_data          Json?
+  mapped_data       Json?
+  encrypted_payload String?
+  status            String   @default("pending")
+  errors            Json?
+  warnings          Json?
+  created_at        DateTime @default(now())
 
   session ImportSession @relation(fields: [session_id], references: [id], onDelete: Cascade)
 }

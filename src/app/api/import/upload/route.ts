@@ -2,6 +2,7 @@ import { requireSession, sessionErrorResponse } from '@/lib/session';
 import { prisma } from '@/lib/prisma';
 import { logAction } from '@/lib/activity-logger';
 import { MAX_SPREADSHEET_BYTES } from '@/lib/file-upload';
+import { protectedImportRowPayload } from '@/lib/import-row-payload';
 
 /** Upper bound on rows accepted from one uploaded file. */
 const MAX_IMPORT_ROWS = 2000;
@@ -32,6 +33,9 @@ export async function POST(request: Request) {
       sessionErrorResponse(error) ??
       Response.json({ error: 'Unauthorized' }, { status: 401 })
     );
+  }
+  if (!session.can('students.manage')) {
+    return Response.json({ error: 'Forbidden' }, { status: 403 });
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
 
@@ -107,25 +111,35 @@ export async function POST(request: Request) {
   const fileLanguage = detectLanguage(headers);
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-  const importSession = await prisma.importSession.create({
-    data: {
-      school_id: schoolId,
-      type,
-      status: 'pending',
-      total_rows: rows.length,
-      original_headers: headers,
-      file_language: fileLanguage,
-      expires_at: expiresAt,
-    },
-  });
+  // Encrypt every row before the first database write. Session creation and
+  // row insertion then commit together, so an encryption/write failure cannot
+  // leave an orphaned import session.
+  const encryptedRows = rows.map((row, i) => ({
+    row_number: i + 2, // 1-indexed, row 1 is header
+    ...protectedImportRowPayload({
+      rawData: row,
+      mappedData: null,
+      errors: null,
+      warnings: null,
+    }),
+  }));
 
-  // Create import rows in batches
-  await prisma.importRow.createMany({
-    data: rows.map((row, i) => ({
-      session_id: importSession.id,
-      row_number: i + 2, // 1-indexed, row 1 is header
-      raw_data: row as object,
-    })),
+  const importSession = await prisma.$transaction(async (tx) => {
+    const created = await tx.importSession.create({
+      data: {
+        school_id: schoolId,
+        type,
+        status: 'pending',
+        total_rows: rows.length,
+        original_headers: headers,
+        file_language: fileLanguage,
+        expires_at: expiresAt,
+      },
+    });
+    await tx.importRow.createMany({
+      data: encryptedRows.map((row) => ({ ...row, session_id: created.id })),
+    });
+    return created;
   });
 
   const previewRows = rows.slice(0, 10);

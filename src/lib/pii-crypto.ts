@@ -34,6 +34,15 @@ const KEY_BYTES = 32;
 /** Version prefix so a future scheme change can be told apart from this one. */
 const FORMAT = "v1";
 
+function decodeCanonicalBase64Url(value: string): Buffer | null {
+  if (!/^[A-Za-z0-9_-]+$/.test(value)) return null;
+  const decoded = Buffer.from(value, "base64url");
+  // Node accepts alternate spellings whose unused trailing bits decode to the
+  // same bytes. Authenticated payloads accept one canonical representation so
+  // any textual modification is rejected as tampering too.
+  return decoded.toString("base64url") === value ? decoded : null;
+}
+
 function encryptionKey(): Buffer {
   const raw = process.env.PII_ENCRYPTION_KEY;
   if (!raw) {
@@ -95,15 +104,21 @@ export function decryptPii(payload: string | null | undefined): string | null {
   if (parts.length !== 4 || parts[0] !== FORMAT) return null;
 
   try {
+    const iv = decodeCanonicalBase64Url(parts[1]);
+    const authTag = decodeCanonicalBase64Url(parts[2]);
+    const ciphertext = decodeCanonicalBase64Url(parts[3]);
+    if (!iv || iv.length !== IV_BYTES || !authTag || authTag.length !== 16 || !ciphertext) {
+      return null;
+    }
     const decipher = createDecipheriv(
       ALGORITHM,
       encryptionKey(),
-      Buffer.from(parts[1], "base64url")
+      iv
     );
-    decipher.setAuthTag(Buffer.from(parts[2], "base64url"));
+    decipher.setAuthTag(authTag);
 
     return Buffer.concat([
-      decipher.update(Buffer.from(parts[3], "base64url")),
+      decipher.update(ciphertext),
       decipher.final(),
     ]).toString("utf8");
   } catch {

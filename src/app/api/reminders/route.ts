@@ -6,6 +6,7 @@ import { buildMessageVars } from "@/lib/message-variables";
 import { astDayStart } from "@/lib/datetime";
 import { z } from "zod";
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
+import { moneyNumber } from "@/lib/money";
 
 /**
  * Payment and renewal reminders, as two separate lists (task 2.38).
@@ -211,7 +212,7 @@ export async function POST(request: Request) {
     const vars = buildMessageVars({
       student: {
         name: student.name,
-        registration_fee: student.registration_fee ?? settings?.monthlyStudentFee ?? null,
+        registration_fee: moneyNumber(student.registration_fee ?? settings?.monthlyStudentFee),
         enrollmentEndDate: student.enrollmentEndDate,
       },
       guardian: { name: student.guardian?.name, name_2: student.guardian?.name_2 },

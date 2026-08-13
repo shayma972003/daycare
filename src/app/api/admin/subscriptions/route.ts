@@ -1,5 +1,6 @@
 import { verifyAdminSessionFromRequest } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
+import { moneyNumber } from "@/lib/money";
 
 export async function GET(request: Request) {
   const session = await verifyAdminSessionFromRequest(request);
@@ -25,7 +26,7 @@ export async function GET(request: Request) {
     const activeSchools = schools.filter(
       (s) => s.createdAt <= monthEnd && s.subscription_status === "active" && s.subscription_plan
     );
-    mrr.push({ month: label, revenue: activeSchools.reduce((sum, s) => sum + (s.subscription_plan?.price ?? 0), 0) });
+    mrr.push({ month: label, revenue: activeSchools.reduce((sum, s) => sum + moneyNumber(s.subscription_plan?.price), 0) });
   }
 
   return Response.json({

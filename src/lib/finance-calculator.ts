@@ -1,4 +1,5 @@
 import { astParts } from "@/lib/datetime";
+import { moneyMultiply, moneyNumber, type MoneyInput } from "@/lib/money";
 
 /**
  * Counts how many monthly payment occurrences fall inside a reporting period.
@@ -54,5 +55,15 @@ export function calculateRecurringAmount(
   periodFrom: Date,
   periodTo: Date
 ): number {
-  return monthlyAmount * countMonthsInPeriod(startDate, endDate, periodFrom, periodTo);
+  return moneyNumber(calculateRecurringMoney(monthlyAmount, startDate, endDate, periodFrom, periodTo));
+}
+
+export function calculateRecurringMoney(
+  monthlyAmount: MoneyInput,
+  startDate: Date,
+  endDate: Date,
+  periodFrom: Date,
+  periodTo: Date
+) {
+  return moneyMultiply(monthlyAmount, countMonthsInPeriod(startDate, endDate, periodFrom, periodTo));
 }

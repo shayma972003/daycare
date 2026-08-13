@@ -1,5 +1,6 @@
 import { verifyAdminSessionFromRequest } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
+import { moneyNumber } from "@/lib/money";
 
 export async function GET(request: Request) {
   const session = await verifyAdminSessionFromRequest(request);
@@ -40,7 +41,7 @@ export async function GET(request: Request) {
   // MRR
   const mrr = schools
     .filter((s) => s.subscription_status === "active" && s.subscription_plan)
-    .reduce((sum, s) => sum + (s.subscription_plan?.price ?? 0), 0);
+    .reduce((sum, s) => sum + moneyNumber(s.subscription_plan?.price), 0);
 
   // Alerts
   const alerts: { schoolId: string; schoolName: string; type: string; detail: string }[] = [];

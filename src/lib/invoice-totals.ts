@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { VAT_RATE } from "@/lib/finance";
+import { money, moneyAdd, moneyMultiply, moneyString } from "@/lib/money";
 
 /**
  * Recomputes an invoice's monetary fields on the server.
@@ -47,16 +48,12 @@ export interface RecomputedTotals {
 }
 
 /** Rounds to two decimals without the float drift of `toFixed` round-tripping. */
-function money(n: number): number {
-  return Math.round((n + Number.EPSILON) * 100) / 100;
-}
-
 /** Line total is quantity times price — the sent `total` is ignored. */
 function normaliseItems(items: InvoiceLineItem[]): InvoiceLineItem[] {
   return items.map((item) => {
     const qty = Math.max(0, Number(item.qty) || 0);
     const price = Math.max(0, Number(item.price) || 0);
-    return { description: item.description, qty, price, total: money(qty * price) };
+    return { description: item.description, qty, price, total: Number(moneyString(moneyMultiply(price, qty))) };
   });
 }
 
@@ -80,31 +77,31 @@ export async function recomputeInvoiceTotals(
   const lineItems = normaliseItems(input.lineItems);
   const activityItems = normaliseItems(input.activityItems);
 
-  const baseTotal = money(lineItems.reduce((sum, i) => sum + i.total, 0));
-  const activitiesTotal = money(activityItems.reduce((sum, i) => sum + i.total, 0));
-  const subtotal = money(baseTotal + activitiesTotal);
+  const baseTotal = moneyAdd(...lineItems.map((item) => item.total));
+  const activitiesTotal = moneyAdd(...activityItems.map((item) => item.total));
+  const subtotal = moneyAdd(baseTotal, activitiesTotal);
 
   // A discount percentage is clamped to 0–100; a negative or >100 value would
   // otherwise invert or inflate the invoice.
   const discountPercent = input.hasDiscount
     ? Math.min(100, Math.max(0, Number(input.discountPercent) || 0))
     : 0;
-  const discountAmount = money(subtotal * (discountPercent / 100));
-  const afterDiscount = money(subtotal - discountAmount);
+  const discountAmount = moneyMultiply(subtotal, discountPercent).div(100).toDecimalPlaces(2);
+  const afterDiscount = subtotal.minus(discountAmount).toDecimalPlaces(2);
 
   // VAT applies only when the school is actually registered, whatever the
   // client asked for.
   const vatAmount =
-    input.hasVat && school.vatRegistered ? money(afterDiscount * VAT_RATE) : 0;
+    input.hasVat && school.vatRegistered ? moneyMultiply(afterDiscount, VAT_RATE) : money(0);
 
   return {
     lineItems,
     activityItems,
-    baseTotal,
-    activitiesTotal,
-    discountAmount,
-    vatAmount,
-    grandTotal: money(afterDiscount + vatAmount),
+    baseTotal: Number(moneyString(baseTotal)),
+    activitiesTotal: Number(moneyString(activitiesTotal)),
+    discountAmount: Number(moneyString(discountAmount)),
+    vatAmount: Number(moneyString(vatAmount)),
+    grandTotal: Number(moneyString(moneyAdd(afterDiscount, vatAmount))),
     school: {
       name: school.name,
       commercialRegistration: school.commercialRegistration,

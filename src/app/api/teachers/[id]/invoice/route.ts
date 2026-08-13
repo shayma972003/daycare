@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
 import { astDateInputValue, astDateOnly, astParts } from "@/lib/datetime";
 import { findInvoiceThisMonth, duplicateInvoiceResponse } from "@/lib/invoice-duplicates";
+import { moneyMaxZero, moneyMultiply, moneyString, moneySubtract } from "@/lib/money";
 
 export async function POST(
   request: Request,
@@ -57,16 +58,16 @@ export async function POST(
   });
 
   const lateHours = (monthLateness._sum.lateMinutes ?? 0) / 60;
-  const lateDeduction = lateHours * teacher.lateDeductionRate;
-  const netSalary = Math.max(0, teacher.monthlySalary - lateDeduction);
+  const lateDeduction = moneyMultiply(teacher.lateDeductionRate, lateHours);
+  const netSalary = moneyMaxZero(moneySubtract(teacher.monthlySalary, lateDeduction));
 
   const invoiceData = {
     teacherName: teacher.name,
-    monthlySalary: teacher.monthlySalary,
+    monthlySalary: moneyString(teacher.monthlySalary),
     lateHours,
-    lateDeductionRate: teacher.lateDeductionRate,
-    lateDeduction,
-    netSalary,
+    lateDeductionRate: moneyString(teacher.lateDeductionRate),
+    lateDeduction: moneyString(lateDeduction),
+    netSalary: moneyString(netSalary),
     issueDate,
     periodFrom: monthStart.toISOString().slice(0, 10),
     periodTo: monthEnd.toISOString().slice(0, 10),

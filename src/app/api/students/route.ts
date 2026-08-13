@@ -18,6 +18,7 @@ import { protectIdNumber } from "@/lib/pii-crypto";
 import { resolveStageId, foreignStageResponse } from "@/lib/academic-stage";
 import { studentDetailDto, studentDetailSelect, studentListDto } from "@/lib/roster-dto";
 import { withNoStore } from "@/lib/auth-response";
+import { moneyNumber } from "@/lib/money";
 import { z } from "zod";
 
 const createStudentSchema = z.object({
@@ -310,7 +311,7 @@ export async function POST(request: Request) {
           financial: session.can("finance.view") || session.can("finance.manage"),
           revealIdentity: false,
         },
-        { registrationFee: student.registration_fee, registrationFeeIsDefault: false, siblings: [] }
+        { registrationFee: moneyNumber(student.registration_fee), registrationFeeIsDefault: false, siblings: [] }
       ),
       { status: 201 }
     )

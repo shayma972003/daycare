@@ -5,6 +5,7 @@ import { buildMessageVars } from "@/lib/message-variables";
 import { logAction } from "@/lib/activity-logger";
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { z } from "zod";
+import { moneyNumber } from "@/lib/money";
 
 const sendSchema = z
   .object({ notifyGuardians: z.boolean().optional(), notifyStaff: z.boolean().optional() })
@@ -117,7 +118,7 @@ export async function POST(
       const vars = buildMessageVars({
         student: {
           name: student.name,
-          registration_fee: student.registration_fee,
+          registration_fee: moneyNumber(student.registration_fee),
           enrollmentEndDate: student.enrollmentEndDate,
         },
         guardian: {
@@ -131,7 +132,7 @@ export async function POST(
         },
         activity: {
           name: activity.name,
-          activityFee: activity.activityFee,
+          activityFee: moneyNumber(activity.activityFee),
           startDate: activity.startDate,
           endDate: activity.endDate,
         },
@@ -177,7 +178,7 @@ export async function POST(
         },
         activity: {
           name: activity.name,
-          activityFee: activity.activityFee,
+          activityFee: moneyNumber(activity.activityFee),
           startDate: activity.startDate,
           endDate: activity.endDate,
         },

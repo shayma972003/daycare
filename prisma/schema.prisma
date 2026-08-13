@@ -799,7 +799,7 @@ model SuperAdmin {
 model SubscriptionPlan {
   id                     String   @id @default(cuid())
   name                   String   @unique
-  price                  Float
+  price                  Decimal  @db.Decimal(18, 2)
   max_students           Int
   max_classes            Int
   /// Storage quota in megabytes (task 2.29). Zero means unlimited, matching how
@@ -961,7 +961,7 @@ model PaymentCycle {
   school_id    String
   student_id   String
   due_date     DateTime
-  amount       Float
+  amount       Decimal   @db.Decimal(18, 2)
   status       PaymentCycleStatus @default(PENDING)
   cycle_number Int // 1 = first payment, 2 = second, etc.
   notified_at  DateTime?
@@ -1018,7 +1018,7 @@ model AdminInvoice {
   school_address        String?
 
   line_items   Json // array of line item objects
-  total_amount Float @default(0)
+  total_amount Decimal @default(0) @db.Decimal(18, 2)
   file_url     String?
   created_at   DateTime @default(now())
 
@@ -1336,9 +1336,9 @@ model Settings {
   id                String   @id @default(cuid())
   schoolId          String   @unique
   school            School   @relation(fields: [schoolId], references: [id])
-  hourlyLateFee     Float    @default(0)
-  dailyStudentFee   Float    @default(0)
-  monthlyStudentFee Float    @default(0)
+  hourlyLateFee     Decimal  @default(0) @db.Decimal(18, 2)
+  dailyStudentFee   Decimal  @default(0) @db.Decimal(18, 2)
+  monthlyStudentFee Decimal  @default(0) @db.Decimal(18, 2)
   reminderTemplate  String   @default("مرحباً، <guardian_name>، نود إعلامكم بأن الرسوم المستحقة على <child_name> بمبلغ <amount_due> ريال تستحق بتاريخ <due_date>. مع تحيات <school_name>")
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -1435,8 +1435,8 @@ model Teacher {
   paymentMethod     PaymentMethod @default(CASH)
   joinDate          DateTime      @default(now())
   enrollmentEndDate DateTime?
-  monthlySalary     Float         @default(0)
-  lateDeductionRate Float         @default(0)
+  monthlySalary     Decimal       @default(0) @db.Decimal(18, 2)
+  lateDeductionRate Decimal       @default(0) @db.Decimal(18, 2)
   qualification1    String?
   qualification2    String?
   qualification3    String?
@@ -1623,14 +1623,14 @@ model Student {
   billingIntervalDays Int?
   /// Per-cycle fee. Null falls back to `Settings.monthlyStudentFee`, preserving
   /// how the product behaves today for anyone who never sets it.
-  cycleFee          Float?
+  cycleFee          Decimal?      @db.Decimal(18, 2)
 
   enrollmentEndDate DateTime?
   paymentStatus     PaymentStatus  @default(PENDING)
   attendanceHours   Float          @default(0)
   lateHours         Float          @default(0)
   attendanceType    AttendanceType @default(REGULAR)
-  registration_fee  Float          @default(0)
+  registration_fee  Decimal        @default(0) @db.Decimal(18, 2)
   additionalFile    String?
   evaluationFileUrl  String?
   evaluationFileName String?
@@ -1717,7 +1717,7 @@ model Activity {
   childrenCount Int      @default(0)
   startDate     DateTime
   endDate       DateTime
-  activityFee   Float    @default(0)
+  activityFee   Decimal  @default(0) @db.Decimal(18, 2)
   imageUrl      String?
   message       String?
   isActive      Boolean  @default(true)
@@ -1762,7 +1762,7 @@ model Attendance {
   statusNote  String?
 
   lateMinutes Int       @default(0)
-  lateFee     Float     @default(0)
+  lateFee     Decimal   @default(0) @db.Decimal(18, 2)
   date        DateTime  @default(dbgenerated("CURRENT_DATE")) @db.Date
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -1802,8 +1802,8 @@ model Invoice {
   student   Student?    @relation(fields: [studentId, schoolId], references: [id, schoolId], onDelete: Restrict)
   teacherId String?
   teacher   Teacher?    @relation(fields: [teacherId, schoolId], references: [id, schoolId], onDelete: Restrict)
-  amount    Float
-  vat_amount Float      @default(0)
+  amount    Decimal     @db.Decimal(18, 2)
+  vat_amount Decimal    @default(0) @db.Decimal(18, 2)
   pdfUrl    String?
   data      Json
   createdAt DateTime    @default(now())
@@ -1845,7 +1845,7 @@ model Expense {
   school_id    String
   title        String
   description  String?
-  amount       Float
+  amount       Decimal   @db.Decimal(18, 2)
   type         String    // "one_time" | "monthly"
   start_date   DateTime
   end_date     DateTime? // تاريخ انتهاء الاشتراك الشهري (اختياري)

@@ -1,8 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { astParts } from "@/lib/datetime";
 import type { PaymentStatus } from "@/generated/prisma/enums";
-import { deactivateExpiredExpenses } from "@/lib/expense-updater";
-import { calculateRecurringAmount } from "@/lib/finance-calculator";
+import { calculateRecurringMoney } from "@/lib/finance-calculator";
+import { money, moneyAdd, moneyMultiply, moneyNumber, moneySubtract, type MoneyInput } from "@/lib/money";
 
 export type ReportPeriodType = "monthly" | "semi_annual" | "annual";
 
@@ -75,7 +75,7 @@ export function getPreviousPeriodRange(type: ReportPeriodType, current: PeriodRa
 }
 
 interface ExpenseLike {
-  amount: number;
+  amount: MoneyInput;
   type: string;
   start_date: Date;
   stopped_at: Date | null;
@@ -83,15 +83,15 @@ interface ExpenseLike {
 }
 
 /** Portion of a (possibly recurring) Expense row that falls within [from, to]. */
-export function expenseAmountInPeriod(exp: ExpenseLike, from: Date, to: Date): number {
+export function expenseAmountInPeriod(exp: ExpenseLike, from: Date, to: Date) {
   const startDate = new Date(exp.start_date);
   if (exp.type === "one_time") {
-    return startDate >= from && startDate <= to ? exp.amount : 0;
+    return startDate >= from && startDate <= to ? money(exp.amount) : money(0);
   }
   let effectiveEnd = to;
   if (exp.stopped_at) effectiveEnd = new Date(Math.min(new Date(exp.stopped_at).getTime(), effectiveEnd.getTime()));
   if (exp.end_date) effectiveEnd = new Date(Math.min(new Date(exp.end_date).getTime(), effectiveEnd.getTime()));
-  return calculateRecurringAmount(exp.amount, startDate, effectiveEnd, from, to);
+  return calculateRecurringMoney(exp.amount, startDate, effectiveEnd, from, to);
 }
 
 function pctChange(current: number, previous: number): number | null {
@@ -158,7 +158,7 @@ export interface FinancialSummary {
 }
 
 /** Per-student billable amount used for "owed"/"collection" money figures (Settings.monthlyStudentFee + registration_fee). */
-async function getStudentBillableByStatus(schoolId: string, monthlyStudentFee: number) {
+async function getStudentBillableByStatus(schoolId: string, monthlyStudentFee: MoneyInput) {
   const students = await prisma.student.findMany({
     where: { schoolId, isActive: true },
     select: { paymentStatus: true, registration_fee: true },
@@ -166,16 +166,16 @@ async function getStudentBillableByStatus(schoolId: string, monthlyStudentFee: n
   // Every status gets a bucket. The old version knew only three and skipped the
   // rest, so SUSPENDED students — the ones who owe the most — were silently
   // dropped from both the collection breakdown and the amount-due total.
-  const buckets: Record<PaymentStatus, { amount: number; count: number }> = {
-    PENDING: { amount: 0, count: 0 },
-    PAID: { amount: 0, count: 0 },
-    LATE: { amount: 0, count: 0 },
-    SUSPENDED: { amount: 0, count: 0 },
-    CANCELLED: { amount: 0, count: 0 },
+  const buckets: Record<PaymentStatus, { amount: ReturnType<typeof money>; count: number }> = {
+    PENDING: { amount: money(0), count: 0 },
+    PAID: { amount: money(0), count: 0 },
+    LATE: { amount: money(0), count: 0 },
+    SUSPENDED: { amount: money(0), count: 0 },
+    CANCELLED: { amount: money(0), count: 0 },
   };
 
   for (const s of students) {
-    buckets[s.paymentStatus].amount += monthlyStudentFee + s.registration_fee;
+    buckets[s.paymentStatus].amount = moneyAdd(buckets[s.paymentStatus].amount, monthlyStudentFee, s.registration_fee);
     buckets[s.paymentStatus].count += 1;
   }
 
@@ -183,7 +183,7 @@ async function getStudentBillableByStatus(schoolId: string, monthlyStudentFee: n
 }
 
 /** Sum of active-teacher monthly salaries prorated across each teacher's contract, up to `before`. */
-async function getCumulativeSalaryExpense(schoolId: string, before: Date): Promise<number> {
+async function getCumulativeSalaryExpense(schoolId: string, before: Date) {
   const teachers = await prisma.teacher.findMany({
     where: { schoolId, isActive: true },
     select: { joinDate: true, monthlySalary: true, enrollmentEndDate: true },
@@ -192,11 +192,11 @@ async function getCumulativeSalaryExpense(schoolId: string, before: Date): Promi
   const veryEarly = new Date(0);
   return teachers.reduce((s, t) => {
     const effectiveEnd = t.enrollmentEndDate && t.enrollmentEndDate.getTime() < dayBefore.getTime() ? t.enrollmentEndDate : dayBefore;
-    return s + calculateRecurringAmount(t.monthlySalary, new Date(t.joinDate), effectiveEnd, veryEarly, dayBefore);
-  }, 0);
+    return moneyAdd(s, calculateRecurringMoney(t.monthlySalary, new Date(t.joinDate), effectiveEnd, veryEarly, dayBefore));
+  }, money(0));
 }
 
-async function getCumulativeCashPosition(schoolId: string, before: Date): Promise<number> {
+async function getCumulativeCashPosition(schoolId: string, before: Date) {
   const [paidCycles, paidRegFees, expenses] = await Promise.all([
     prisma.paymentCycle.aggregate({
       where: { school_id: schoolId, status: "PAID", due_date: { lt: before } },
@@ -210,12 +210,12 @@ async function getCumulativeCashPosition(schoolId: string, before: Date): Promis
   ]);
 
   const veryEarly = new Date(0);
-  const manualExpensesTotal = expenses.reduce((s, e) => s + expenseAmountInPeriod(e, veryEarly, new Date(before.getTime() - 1)), 0);
+  const manualExpensesTotal = expenses.reduce((s, e) => moneyAdd(s, expenseAmountInPeriod(e, veryEarly, new Date(before.getTime() - 1))), money(0));
   const salariesExpense = await getCumulativeSalaryExpense(schoolId, before);
 
-  const inflows = (paidCycles._sum.amount ?? 0) + (paidRegFees._sum.registration_fee ?? 0);
-  const outflows = salariesExpense + manualExpensesTotal;
-  return inflows - outflows;
+  const inflows = moneyAdd(paidCycles._sum.amount, paidRegFees._sum.registration_fee);
+  const outflows = moneyAdd(salariesExpense, manualExpensesTotal);
+  return moneySubtract(inflows, outflows);
 }
 
 export async function getFinancialSummary(schoolId: string, type: ReportPeriodType): Promise<FinancialSummary> {
@@ -269,8 +269,8 @@ export async function getFinancialSummary(schoolId: string, type: ReportPeriodTy
       // as a registration fee — the same money twice. The monthly rate is the
       // school's configured fee.
       const amount =
-        monthlyStudentFee > 0
-          ? calculateRecurringAmount(
+        money(monthlyStudentFee).greaterThan(0)
+          ? calculateRecurringMoney(
               monthlyStudentFee,
               st.enrollment_date!,
               // Open-ended enrolment bills through the end of the period.
@@ -278,14 +278,14 @@ export async function getFinancialSummary(schoolId: string, type: ReportPeriodTy
               range.from,
               range.to
             )
-          : 0;
+          : money(0);
       return { name: st.name, amount };
     })
-    .filter((item) => item.amount > 0);
+    .filter((item) => item.amount.greaterThan(0));
 
   const lateFeeRevenue = lateFeesResult._sum.lateFee ?? 0;
-  const monthlyFeesRevenue = monthlyFeeItems.reduce((s, item) => s + item.amount, 0);
-  const activitiesTotal = activitiesInPeriod.reduce((s, a) => s + a.activityFee * a.childrenCount, 0);
+  const monthlyFeesRevenue = monthlyFeeItems.reduce((s, item) => moneyAdd(s, item.amount), money(0));
+  const activitiesTotal = activitiesInPeriod.reduce((s, a) => moneyAdd(s, moneyMultiply(a.activityFee, a.childrenCount)), money(0));
   const registrationFeesCollected = paidRegFeesResult._sum.registration_fee ?? 0;
 
   // VAT is money collected on ZATCA's behalf and owed onward — a liability, not
@@ -295,35 +295,34 @@ export async function getFinancialSummary(schoolId: string, type: ReportPeriodTy
   //
   // The rate is also only applied to schools that are actually VAT-registered;
   // previously every school had 15% added regardless of `vatRegistered`.
-  const vatCollected = school?.vatRegistered ? monthlyFeesRevenue * VAT_RATE : 0;
+  const vatCollected = school?.vatRegistered ? moneyMultiply(monthlyFeesRevenue, VAT_RATE) : money(0);
 
-  const revenueTotal =
-    monthlyFeesRevenue + activitiesTotal + registrationFeesCollected + lateFeeRevenue;
+  const revenueTotal = moneyAdd(monthlyFeesRevenue, activitiesTotal, registrationFeesCollected, lateFeeRevenue);
 
   // Teacher salary expense: only count months where the teacher's contract (joinDate through
   // enrollmentEndDate, or ongoing if no end date) overlaps the reporting period.
   const salaryItems = activeTeachers
     .map((t) => {
       const effectiveEnd = t.enrollmentEndDate ?? range.to;
-      const amount = calculateRecurringAmount(t.monthlySalary, new Date(t.joinDate), new Date(effectiveEnd), range.from, range.to);
+      const amount = calculateRecurringMoney(t.monthlySalary, new Date(t.joinDate), new Date(effectiveEnd), range.from, range.to);
       return { name: t.name, amount };
     })
-    .filter((item) => item.amount > 0);
-  const salariesExpense = salaryItems.reduce((s, item) => s + item.amount, 0);
+    .filter((item) => item.amount.greaterThan(0));
+  const salariesExpense = salaryItems.reduce((s, item) => moneyAdd(s, item.amount), money(0));
   const manualExpenseItems = expenses
     .map((e) => ({ title: e.title, amount: expenseAmountInPeriod(e, range.from, range.to) }))
-    .filter((e) => e.amount > 0);
-  const manualExpensesTotal = manualExpenseItems.reduce((s, e) => s + e.amount, 0);
-  const expensesTotal = salariesExpense + manualExpensesTotal;
+    .filter((e) => e.amount.greaterThan(0));
+  const manualExpensesTotal = manualExpenseItems.reduce((s, e) => moneyAdd(s, e.amount), money(0));
+  const expensesTotal = moneyAdd(salariesExpense, manualExpensesTotal);
 
-  const netIncome = revenueTotal - expensesTotal;
+  const netIncome = moneySubtract(revenueTotal, expensesTotal);
 
   const billableByStatus = await getStudentBillableByStatus(schoolId, monthlyStudentFee);
-  const amountDue =
-    billableByStatus.LATE.amount +
-    billableByStatus.PENDING.amount +
+  const amountDue = moneyAdd(
+    billableByStatus.LATE.amount,
+    billableByStatus.PENDING.amount,
     // Suspended students still owe — excluding them understated receivables.
-    billableByStatus.SUSPENDED.amount;
+    billableByStatus.SUSPENDED.amount);
 
   // Previous period, for the % comparison only.
   //
@@ -346,35 +345,31 @@ export async function getFinancialSummary(schoolId: string, type: ReportPeriodTy
     }),
   ]);
 
-  const prevActivitiesTotal = prevActivities.reduce((s, a) => s + a.activityFee * a.childrenCount, 0);
+  const prevActivitiesTotal = prevActivities.reduce((s, a) => moneyAdd(s, moneyMultiply(a.activityFee, a.childrenCount)), money(0));
   const prevMonthlyFeesRevenue =
-    monthlyStudentFee > 0
+    money(monthlyStudentFee).greaterThan(0)
       ? subscribedStudents.reduce(
           (s, st) =>
-            s +
-            calculateRecurringAmount(
+            moneyAdd(s,
+            calculateRecurringMoney(
               monthlyStudentFee,
               st.enrollment_date!,
               st.enrollmentEndDate ?? prevRange.to,
               prevRange.from,
               prevRange.to
-            ),
-          0
+            )),
+          money(0)
         )
-      : 0;
+      : money(0);
   const prevSalariesExpense = activeTeachers.reduce((s, t) => {
     const effectiveEnd = t.enrollmentEndDate ?? prevRange.to;
-    return s + calculateRecurringAmount(t.monthlySalary, t.joinDate, effectiveEnd, prevRange.from, prevRange.to);
-  }, 0);
-  const prevManualExpensesTotal = expenses.reduce((s, e) => s + expenseAmountInPeriod(e, prevRange.from, prevRange.to), 0);
+    return moneyAdd(s, calculateRecurringMoney(t.monthlySalary, t.joinDate, effectiveEnd, prevRange.from, prevRange.to));
+  }, money(0));
+  const prevManualExpensesTotal = expenses.reduce((s, e) => moneyAdd(s, expenseAmountInPeriod(e, prevRange.from, prevRange.to)), money(0));
 
   // Same four components as revenueTotal, VAT excluded from both.
-  const prevRevenue =
-    prevMonthlyFeesRevenue +
-    prevActivitiesTotal +
-    (prevRegFees._sum.registration_fee ?? 0) +
-    (prevLateFees._sum.lateFee ?? 0);
-  const prevExpenses = prevSalariesExpense + prevManualExpensesTotal;
+  const prevRevenue = moneyAdd(prevMonthlyFeesRevenue, prevActivitiesTotal, prevRegFees._sum.registration_fee, prevLateFees._sum.lateFee);
+  const prevExpenses = moneyAdd(prevSalariesExpense, prevManualExpensesTotal);
 
   const totalBudgetedSalaries = salariesExpense;
 
@@ -387,7 +382,7 @@ export async function getFinancialSummary(schoolId: string, type: ReportPeriodTy
   const salariesPaid = salaryInvoices._sum.amount ?? 0;
 
   const openingBalance = await getCumulativeCashPosition(schoolId, range.from);
-  const closingBalance = openingBalance + revenueTotal - expensesTotal;
+  const closingBalance = moneySubtract(moneyAdd(openingBalance, revenueTotal), expensesTotal);
 
   const revenueDetails = monthlyFeeItems.map((item, i) => ({
     id: `subscription-${i}`,
@@ -403,62 +398,63 @@ export async function getFinancialSummary(schoolId: string, type: ReportPeriodTy
   }));
   const manualExpenseDetails = expenses
     .map((e) => ({ id: e.id, date: e.start_date.toISOString(), amount: expenseAmountInPeriod(e, range.from, range.to), label: e.title }))
-    .filter((e) => e.amount > 0);
+    .filter((e) => e.amount.greaterThan(0));
+
+  const asNumber = moneyNumber;
 
   return {
     period: { type, from: range.from.toISOString(), to: range.to.toISOString() },
     revenue: {
-      total: revenueTotal,
-      monthlyFees: monthlyFeesRevenue,
-      registrationFeesCollected,
-      activities: activitiesTotal,
-      lateFees: lateFeeRevenue,
-      vatCollected,
+      total: asNumber(revenueTotal),
+      monthlyFees: asNumber(monthlyFeesRevenue),
+      registrationFeesCollected: asNumber(registrationFeesCollected),
+      activities: asNumber(activitiesTotal),
+      lateFees: asNumber(lateFeeRevenue),
+      vatCollected: asNumber(vatCollected),
     },
     expenses: {
-      total: expensesTotal,
-      salaries: salariesExpense,
-      salaryItems,
-      manual: manualExpenseItems,
-      manualTotal: manualExpensesTotal,
+      total: asNumber(expensesTotal),
+      salaries: asNumber(salariesExpense),
+      salaryItems: salaryItems.map((item) => ({ ...item, amount: asNumber(item.amount) })),
+      manual: manualExpenseItems.map((item) => ({ ...item, amount: asNumber(item.amount) })),
+      manualTotal: asNumber(manualExpensesTotal),
     },
-    netIncome,
-    amountDue,
+    netIncome: asNumber(netIncome),
+    amountDue: asNumber(amountDue),
     comparison: {
-      revenuePct: pctChange(revenueTotal, prevRevenue),
-      expensesPct: pctChange(expensesTotal, prevExpenses),
+      revenuePct: pctChange(asNumber(revenueTotal), asNumber(prevRevenue)),
+      expensesPct: pctChange(asNumber(expensesTotal), asNumber(prevExpenses)),
     },
     collection: {
-      paid: billableByStatus.PAID.amount,
-      paidWithVat:
-        billableByStatus.PAID.amount * (school?.vatRegistered ? 1 + VAT_RATE : 1),
-      late: billableByStatus.LATE.amount,
-      pending: billableByStatus.PENDING.amount,
-      suspended: billableByStatus.SUSPENDED.amount,
+      paid: asNumber(billableByStatus.PAID.amount),
+      paidWithVat: asNumber(moneyMultiply(billableByStatus.PAID.amount, school?.vatRegistered ? 1 + VAT_RATE : 1)),
+      late: asNumber(billableByStatus.LATE.amount),
+      pending: asNumber(billableByStatus.PENDING.amount),
+      suspended: asNumber(billableByStatus.SUSPENDED.amount),
       paidCount: billableByStatus.PAID.count,
       lateCount: billableByStatus.LATE.count,
       pendingCount: billableByStatus.PENDING.count,
       suspendedCount: billableByStatus.SUSPENDED.count,
     },
     salaries: {
-      totalBudgeted: totalBudgetedSalaries,
+      totalBudgeted: asNumber(totalBudgetedSalaries),
       // `paid` used to be set to the full budget with `remaining: 0`, so the UI
       // reported 100% of salaries as paid no matter what. There is no
       // paid-salary source yet — issued salary invoices are the closest signal,
       // so that is what is reported rather than a fabricated figure.
-      paid: salariesPaid,
-      remaining: Math.max(0, totalBudgetedSalaries - salariesPaid),
+      paid: asNumber(salariesPaid),
+      remaining: asNumber(moneySubtract(totalBudgetedSalaries, salariesPaid).greaterThan(0) ? moneySubtract(totalBudgetedSalaries, salariesPaid) : money(0)),
     },
     cashFlow: {
-      openingBalance,
-      inflows: revenueTotal,
-      outflows: expensesTotal,
-      closingBalance,
+      openingBalance: asNumber(openingBalance),
+      inflows: asNumber(revenueTotal),
+      outflows: asNumber(expensesTotal),
+      closingBalance: asNumber(closingBalance),
     },
     details: {
-      revenue: revenueDetails,
-      salaries: salaryDetails,
-      manualExpenses: manualExpenseDetails,
+      revenue: revenueDetails.map((item) => ({ ...item, amount: asNumber(item.amount) })),
+      salaries: salaryDetails.map((item) => ({ ...item, amount: asNumber(item.amount) })),
+      manualExpenses: manualExpenseDetails.map((item) => ({ ...item, amount: asNumber(item.amount) })),
     },
   };
 }

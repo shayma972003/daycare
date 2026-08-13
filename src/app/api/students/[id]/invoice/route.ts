@@ -4,6 +4,7 @@ import { logAction } from "@/lib/activity-logger";
 import { VAT_RATE } from "@/lib/finance";
 import { findInvoiceThisMonth, duplicateInvoiceResponse } from "@/lib/invoice-duplicates";
 import { astDateInputValue } from "@/lib/datetime";
+import { money, moneyString } from "@/lib/money";
 
 export async function POST(
   request: Request,
@@ -58,8 +59,8 @@ export async function POST(
    * rather than added on top, which would silently raise everybody's bill.
    */
   const vatAmount = school?.vatRegistered
-    ? Math.round(((monthlyStudentFee * VAT_RATE) / (1 + VAT_RATE) + Number.EPSILON) * 100) / 100
-    : 0;
+    ? money(monthlyStudentFee).mul(VAT_RATE).div(1 + VAT_RATE).toDecimalPlaces(2)
+    : money(0);
 
   const invoiceData = {
     studentName: student.name,
@@ -67,8 +68,8 @@ export async function POST(
     phone: student.guardian?.phone1 ?? student.guardian?.phone2 ?? "",
     class: student.class?.name ?? "",
     period: student.period,
-    monthlyFee: monthlyStudentFee,
-    vatAmount,
+    monthlyFee: moneyString(monthlyStudentFee),
+    vatAmount: moneyString(vatAmount),
     issueDate,
   };
 

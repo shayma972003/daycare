@@ -1,5 +1,6 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { moneyMultiply, moneyNumber } from "@/lib/money";
 import { z } from "zod";
 
 const schema = z.object({
@@ -85,7 +86,7 @@ export async function POST(request: Request) {
     cutoffUtc.setUTCHours(h - 3, m, 0, 0);
     lateMinutes = now > cutoffUtc ? Math.floor((now.getTime() - cutoffUtc.getTime()) / 60000) : 0;
     lateHours = lateMinutes / 60;
-    lateFee = lateHours * (school?.settings?.hourlyLateFee ?? 0);
+    lateFee = moneyNumber(moneyMultiply(school?.settings?.hourlyLateFee, lateHours));
   }
 
   // Update attendance

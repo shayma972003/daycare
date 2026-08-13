@@ -4,6 +4,7 @@ import { sendNotification } from "@/lib/notifications";
 import { logAction } from "@/lib/activity-logger";
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { formatAst } from "@/lib/datetime";
+import { moneyMaxZero, moneyMultiply, moneyString, moneySubtract } from "@/lib/money";
 
 /**
  * Sends a salary notice to a teacher.
@@ -67,8 +68,8 @@ export async function POST(
   });
   const schoolName = school?.name ?? "الحضانة";
 
-  const deduction = teacher.lateHours * teacher.lateDeductionRate;
-  const netSalary = Math.max(0, teacher.monthlySalary - deduction);
+  const deduction = moneyMultiply(teacher.lateDeductionRate, teacher.lateHours);
+  const netSalary = moneyMaxZero(moneySubtract(teacher.monthlySalary, deduction));
 
   const template = [
     "مرحباً <teacher_name>،",
@@ -89,9 +90,9 @@ export async function POST(
     {
       teacher_name: teacher.name,
       month: formatAst(new Date(), { year: "numeric", month: "long" }),
-      base_salary: teacher.monthlySalary.toFixed(2),
-      deduction: deduction.toFixed(2),
-      net_salary: netSalary.toFixed(2),
+      base_salary: moneyString(teacher.monthlySalary),
+      deduction: moneyString(deduction),
+      net_salary: moneyString(netSalary),
       school_name: schoolName,
     },
     schoolName,

@@ -518,7 +518,7 @@ export default function SchoolDetailPage() {
                       <td className="px-5 py-3 text-white">{inv.invoice_number}</td>
                       <td className="px-5 py-3 text-gray-400">{inv.subscription_type ?? "—"}</td>
                       <td className="px-5 py-3 text-gray-400">{new Date(inv.issue_date).toLocaleDateString("ar-SA")}</td>
-                      <td className="px-5 py-3 text-gray-400">{inv.total_amount.toFixed(2)} ر.س</td>
+                      <td className="px-5 py-3 text-gray-400">{Number(inv.total_amount).toFixed(2)} ر.س</td>
                       <td className="px-5 py-3 text-gray-400">{inv.status}</td>
                       <td className="px-5 py-3">
                         {inv.file_url && (

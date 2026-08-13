@@ -12,6 +12,7 @@ import { resolveStageId, foreignStageResponse } from "@/lib/academic-stage";
 import { protectIdNumber } from "@/lib/pii-crypto";
 import { studentDetailDto, studentDetailSelect } from "@/lib/roster-dto";
 import { withNoStore } from "@/lib/auth-response";
+import { money, moneyNumber } from "@/lib/money";
 import { logSafeError } from "@/lib/safe-logger";
 import {
   STUDENT_STATUSES,
@@ -98,12 +99,12 @@ export async function GET(
         })
       : [];
 
-    const rawRegistrationFee = (student as unknown as Record<string, unknown>).registration_fee as number ?? 0;
-    const registrationFeeIsDefault = !(rawRegistrationFee > 0);
+    const rawRegistrationFee = student.registration_fee;
+    const registrationFeeIsDefault = !money(rawRegistrationFee).greaterThan(0);
     let registrationFee = rawRegistrationFee;
     if (registrationFeeIsDefault) {
       const settings = await prisma.settings.findUnique({ where: { schoolId }, select: { monthlyStudentFee: true } });
-      registrationFee = settings?.monthlyStudentFee ?? 0;
+      registrationFee = settings?.monthlyStudentFee ?? money(0);
     }
 
     const revealIdentity =
@@ -135,7 +136,7 @@ export async function GET(
             financial: session.can("finance.view") || session.can("finance.manage"),
             revealIdentity,
           },
-          { registrationFee, registrationFeeIsDefault, siblings }
+          { registrationFee: moneyNumber(registrationFee), registrationFeeIsDefault, siblings }
         ),
         { status: 200 }
       )
@@ -416,7 +417,7 @@ export async function PUT(
           revealIdentity: false,
         },
         {
-          registrationFee: student.registration_fee,
+          registrationFee: moneyNumber(student.registration_fee),
           registrationFeeIsDefault: false,
           siblings: [],
         }

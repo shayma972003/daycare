@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { astDateOnly } from "@/lib/datetime";
 import type { PaymentCycleStatus } from "@/generated/prisma/enums";
+import { money } from "@/lib/money";
 
 /** Statuses that represent money already accounted for — never regenerated. */
 const SETTLED_STATUSES: PaymentCycleStatus[] = ["PAID", "CANCELLED"];
@@ -62,10 +63,10 @@ export async function generatePaymentCycles(studentId: string) {
   });
 
   const monthlyAmount =
-    student.registration_fee > 0
+    money(student.registration_fee).greaterThan(0)
       ? student.registration_fee
       : (settings?.monthlyStudentFee ?? 0);
-  if (monthlyAmount <= 0) return;
+  if (money(monthlyAmount).lessThanOrEqualTo(0)) return;
 
   const start = astDateOnly(student.enrollment_date);
   const end = astDateOnly(student.enrollmentEndDate);

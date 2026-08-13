@@ -1,5 +1,6 @@
 import { verifyAdminSessionFromRequest } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
+import { moneyMultiply, moneyNumber } from "@/lib/money";
 
 export async function GET(
   request: Request,
@@ -20,8 +21,8 @@ export async function GET(
   const invoiceNumber = `SINV-${String(count + 1).padStart(4, "0")}`;
 
   const planName = school.subscription_plan?.name ?? "";
-  const planPrice = school.subscription_plan?.price ?? 0;
-  const vat = planPrice * 0.15;
+  const planPrice = moneyNumber(school.subscription_plan?.price);
+  const vat = moneyNumber(moneyMultiply(planPrice, 0.15));
 
   return Response.json({
     invoiceNumber,

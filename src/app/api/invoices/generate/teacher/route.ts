@@ -10,6 +10,7 @@ import { createElement } from "react";
 import { Document, Page, Text, View, StyleSheet, Font } from "@react-pdf/renderer";
 import { access } from "fs/promises";
 import { join } from "path";
+import { moneyMaxZero, moneyMultiply, moneyNumber, moneySubtract } from "@/lib/money";
 
 Font.register({
   family: "Arabic",
@@ -156,10 +157,9 @@ export async function POST(request: Request) {
     // client sent. It used to be written to Invoice.amount unverified, so a
     // salary document could be issued for any figure at all.
     // Base salary minus the late deduction, both from the teacher's record.
-    const lateDeduction = teacher.lateHours * teacher.lateDeductionRate;
-    const netSalary =
-      Math.round((Math.max(0, teacher.monthlySalary - lateDeduction) + Number.EPSILON) * 100) / 100;
-    const inv = { ...rawInv, netSalary };
+    const lateDeduction = moneyMultiply(teacher.lateDeductionRate, teacher.lateHours);
+    const netSalary = moneyMaxZero(moneySubtract(teacher.monthlySalary, lateDeduction));
+    const inv = { ...rawInv, netSalary: moneyNumber(netSalary) };
 
     // Mirror EXACTLY the same structure as the working student invoice route:
     // - Document, null (not {})

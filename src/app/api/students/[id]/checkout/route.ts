@@ -1,5 +1,6 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { moneyMultiply, moneyNumber } from "@/lib/money";
 import { logAction } from "@/lib/activity-logger";
 import { astDateOnly, astTimeOnDay } from "@/lib/datetime";
 
@@ -69,7 +70,7 @@ export async function POST(
     isRegular && cutoff && now > cutoff
       ? Math.floor((now.getTime() - cutoff.getTime()) / 60_000)
       : 0;
-  const lateFee = (lateMinutes / 60) * (settings?.hourlyLateFee ?? 0);
+  const lateFee = moneyNumber(moneyMultiply(settings?.hourlyLateFee, lateMinutes / 60));
 
   // Attendance row and the running total move together, so a failure cannot
   // leave the two disagreeing.

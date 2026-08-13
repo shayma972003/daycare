@@ -4,6 +4,7 @@ import { sendNotification } from "@/lib/notifications";
 import { buildMessageVars } from "@/lib/message-variables";
 import { logAction } from "@/lib/activity-logger";
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
+import { moneyNumber } from "@/lib/money";
 
 export async function POST(
   request: Request,
@@ -57,7 +58,7 @@ export async function POST(
   const vars = buildMessageVars({
     student: {
       name: student.name,
-      registration_fee: student.registration_fee ?? settings?.monthlyStudentFee,
+      registration_fee: moneyNumber(student.registration_fee ?? settings?.monthlyStudentFee),
       enrollmentEndDate: student.enrollmentEndDate,
     },
     guardian: {

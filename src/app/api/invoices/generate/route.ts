@@ -22,6 +22,7 @@ import {
 } from "@react-pdf/renderer";
 import { access } from "fs/promises";
 import { join } from "path";
+import { money, moneyAdd, moneyMaxZero, moneyMultiply, moneyNumber, moneySubtract } from "@/lib/money";
 
 Font.register({
   family: "Arabic",
@@ -489,13 +490,13 @@ export async function POST(request: Request) {
     });
     if (!student) return Response.json({ error: "Student not found" }, { status: 404 });
 
-    const lateHoursFee = (student.lateHours ?? 0) * (school.settings?.hourlyLateFee ?? 0);
-    amount = monthlyFee + lateHoursFee;
+    const lateHoursFee = moneyMultiply(school.settings?.hourlyLateFee, student.lateHours ?? 0);
+    amount = moneyNumber(moneyAdd(monthlyFee, lateHoursFee));
 
     // Fees are quoted VAT-inclusive, so the tax is extracted from the total
     // rather than added on top — adding it would raise every guardian's bill.
     studentVatAmount = school.vatRegistered
-      ? Math.round(((amount * VAT_RATE) / (1 + VAT_RATE) + Number.EPSILON) * 100) / 100
+      ? moneyNumber(money(amount).mul(VAT_RATE).div(1 + VAT_RATE).toDecimalPlaces(2))
       : 0;
 
     invoiceData = {
@@ -578,7 +579,7 @@ export async function POST(request: Request) {
               createElement(Text, { style: { ...styles.tableBodyCell, ...styles.col4 } }, `${monthlyFee} ر.س`),
             ),
             ...([
-              lateHoursFee > 0 ? createElement(View, { style: styles.tableRow },
+              lateHoursFee.greaterThan(0) ? createElement(View, { style: styles.tableRow },
                 createElement(Text, { style: { ...styles.tableBodyCell, ...styles.col1 } }, `رسوم تأخير (${student.lateHours} ساعة)`),
                 createElement(Text, { style: { ...styles.tableBodyCell, ...styles.col2 } }, `${student.lateHours}`),
                 createElement(Text, { style: { ...styles.tableBodyCell, ...styles.col3 } }, `${school.settings?.hourlyLateFee} ر.س`),
@@ -605,8 +606,8 @@ export async function POST(request: Request) {
     });
     if (!teacher) return Response.json({ error: "Teacher not found" }, { status: 404 });
 
-    const deduction = (teacher.lateHours ?? 0) * (teacher.lateDeductionRate ?? 0);
-    const netSalary = (teacher.monthlySalary ?? 0) - deduction;
+    const deduction = moneyNumber(moneyMultiply(teacher.lateDeductionRate, teacher.lateHours ?? 0));
+    const netSalary = moneyNumber(moneyMaxZero(moneySubtract(teacher.monthlySalary, deduction)));
     amount = netSalary;
 
     invoiceData = {

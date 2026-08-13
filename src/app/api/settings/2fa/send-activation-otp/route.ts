@@ -1,8 +1,10 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/notifications";
-import bcrypt from "bcryptjs";
 import { randomInt } from "crypto";
+import { hashOneTimeCode } from "@/lib/one-time-code";
+import { authJson, withNoStore } from "@/lib/auth-response";
+import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 function generateOTP(): string {
   return String(randomInt(100000, 999999));
@@ -14,15 +16,22 @@ export async function POST() {
     session = await requireSession();
   } catch (error) {
     // 403 when the caller is known but lacks the permission; 401 otherwise.
-    return (
+    return withNoStore(
       sessionErrorResponse(error) ??
       Response.json({ error: "Unauthorized" }, { status: 401 })
     );
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
+  const limitedResponse = rateLimitResponse(
+    await rateLimit({ key: `2fa:send:${schoolId}:${session.user.id}`, limit: 5, windowMs: 15 * 60 * 1000 })
+  );
+  if (limitedResponse) {
+    limitedResponse.headers.set("Cache-Control", "no-store");
+    return limitedResponse;
+  }
   const email = session.user.email;
   if (!email) {
-    return Response.json(
+    return authJson(
       { error: "يجب إضافة بريد إلكتروني إلى حسابك أولاً" },
       { status: 400 }
     );
@@ -33,11 +42,11 @@ export async function POST() {
     orderBy: { createdAt: "desc" },
   });
   if (lastSession && Date.now() - lastSession.createdAt.getTime() < 60 * 1000) {
-    return Response.json({ error: "الرجاء الانتظار قبل إعادة الإرسال" }, { status: 429 });
+    return authJson({ error: "الرجاء الانتظار قبل إعادة الإرسال" }, { status: 429 });
   }
 
   const otp = generateOTP();
-  const otpCodeHash = await bcrypt.hash(otp, 10);
+  const otpCodeHash = hashOneTimeCode(otp, "2fa-activate");
 
   const twoFaSession = await prisma.twoFASession.create({
     data: {
@@ -61,11 +70,11 @@ export async function POST() {
       where: { id: twoFaSession.id, schoolId, purpose: "ACTIVATE" },
     });
     console.error("[2fa-activation] failed to deliver activation code", schoolId);
-    return Response.json(
+    return authJson(
       { error: "تعذر إرسال رمز التحقق عبر البريد. حاول مجدداً." },
       { status: 502 }
     );
   }
 
-  return Response.json({ twoFaSessionId: twoFaSession.id });
+  return authJson({ twoFaSessionId: twoFaSession.id });
 }

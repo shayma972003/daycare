@@ -4,7 +4,6 @@ import { describe, expect, it } from "vitest";
 
 const RATE_LIMITED_CALL_SITES = [
   "src/lib/auth.ts",
-  "src/app/api/auth/register/route.ts",
   "src/app/api/auth/forgot-password/route.ts",
   "src/app/api/auth/reset-password/route.ts",
   "src/app/api/auth/verify-2fa/route.ts",

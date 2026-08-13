@@ -14,6 +14,7 @@ export type AuthSession = {
     schoolId: string;
     schoolName: string;
     role: string;
+    authVersion: number;
   };
   /** Permission keys held by this user, or ["*"] for a school owner. */
   permissions: string[];
@@ -120,6 +121,7 @@ export async function requireSession(): Promise<AuthSession> {
       teacherId: true,
       disabledAt: true,
       acceptedAt: true,
+      authVersion: true,
       roleRef: { select: { permissions: true } },
       school: {
         select: { name: true, subscription_status: true, renewal_date: true },
@@ -130,6 +132,9 @@ export async function requireSession(): Promise<AuthSession> {
   if (!user) throw new UnauthorizedError("الحساب لم يعد موجوداً");
   if (user.disabledAt) throw new UnauthorizedError("الحساب معطَّل");
   if (!user.acceptedAt) throw new UnauthorizedError("الحساب لم يُفعّل بعد");
+  if ((claims.authVersion ?? 0) !== (user.authVersion ?? 0)) {
+    throw new UnauthorizedError("انتهت صلاحية الجلسة");
+  }
 
   // A token minted before the user moved schools would still carry the old
   // tenant. Trust the row, never the claim.
@@ -162,6 +167,7 @@ export async function requireSession(): Promise<AuthSession> {
       schoolId: user.schoolId,
       schoolName: user.school?.name ?? "",
       role: user.role ?? "admin",
+      authVersion: user.authVersion ?? 0,
     },
     permissions,
     teacherId: user.teacherId,

@@ -1028,11 +1028,11 @@ model TwoFASession {
   school             School   @relation(fields: [schoolId], references: [id])
   userId             String?  // set for purpose=LOGIN, identifies which User is completing login
   purpose            String   @default("LOGIN") // "LOGIN" | "ACTIVATE"
-  otpCodeHash        String   // bcrypt hash of the 6-digit OTP, never store plaintext
+  otpCodeHash        String   // versioned HMAC of the 6-digit OTP, never plaintext
   attempts           Int      @default(0)
   verified           Boolean  @default(false)
   expiresAt          DateTime
-  bypassTokenHash    String?  // sha256 hex of a random bypass token, set only after successful verify (LOGIN purpose)
+  bypassTokenHash    String?  // SHA-256 of a high-entropy random bypass token
   bypassExpires      DateTime?
   createdAt          DateTime @default(now())
 
@@ -1135,6 +1135,8 @@ model User {
   /// Null until the invitation is redeemed. `password` is meaningless before
   /// then — see the guard in the auth layer.
   acceptedAt      DateTime?
+  /// Incremented on credential reset to revoke stateless web JWTs immediately.
+  authVersion     Int       @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1309,7 +1311,7 @@ model PasswordResetToken {
   guardianAccountId String?
   guardianAccount   GuardianAccount? @relation(fields: [guardianAccountId], references: [id], onDelete: Cascade)
 
-  // sha256 of the OTP — never store the code itself. Lookup is by userId, so a
+  // Versioned HMAC of the OTP — never store the code itself. Lookup is by userId, so a
   // bare 6-digit code is useless without knowing whose account it belongs to.
   tokenHash String
   attempts  Int      @default(0)
@@ -1906,7 +1908,7 @@ model EnrollmentToken {
   sent_to_email String?
   status        String @default("pending") // "pending" | "active" | "completed" | "expired"
 
-  // sha256 of the OTP. It used to be stored in plaintext and compared with !==,
+  // Versioned HMAC of the OTP. It used to be stored in plaintext and compared with !==,
   // with no attempt counter, against a token that stayed valid for 24 hours.
   otp_code_hash    String?
   otp_attempts     Int       @default(0)

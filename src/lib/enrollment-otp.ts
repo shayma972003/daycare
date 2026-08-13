@@ -1,4 +1,5 @@
-import { randomBytes, randomInt, createHash, timingSafeEqual } from "crypto";
+import { randomBytes, randomInt } from "crypto";
+import { hashOneTimeCode, oneTimeCodeMatches } from "@/lib/one-time-code";
 
 /**
  * Shared OTP handling for the public enrolment flow.
@@ -29,18 +30,12 @@ export function generateOtp(): string {
 }
 
 export function hashOtp(otp: string): string {
-  return createHash("sha256").update(otp).digest("hex");
+  return hashOneTimeCode(otp, "enrollment");
 }
 
 /** Constant-time comparison so response timing cannot leak a partial match. */
-export function otpMatches(storedHash: string | null, candidate: string): boolean {
-  if (!storedHash) return false;
-
-  const a = Buffer.from(storedHash, "hex");
-  const b = Buffer.from(hashOtp(candidate), "hex");
-  if (a.length !== b.length) return false;
-
-  return timingSafeEqual(a, b);
+export function otpMatches(storedHash: string | null, candidate: string): Promise<boolean> {
+  return oneTimeCodeMatches(storedHash, candidate, "enrollment");
 }
 
 /** Body used for both the initial send and every resend. */

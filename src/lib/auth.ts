@@ -1,8 +1,7 @@
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
-import { randomInt } from "crypto";
-import { createHash } from "crypto";
+import { createHash, randomInt } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/notifications";
 import { logAction } from "@/lib/activity-logger";
@@ -13,6 +12,7 @@ import {
   resetRateLimit,
 } from "@/lib/rate-limit";
 import { astDayStart } from "@/lib/datetime";
+import { hashOneTimeCode } from "@/lib/one-time-code";
 
 function generateOTP(): string {
   return String(randomInt(100000, 1000000));
@@ -79,27 +79,35 @@ export const authOptions: NextAuthOptions = {
           // Bypass-token path: completes login after successful 2FA verification
           if (credentials?.twofa_bypass_token) {
             const hash = createHash("sha256").update(credentials.twofa_bypass_token).digest("hex");
-            const session = await prisma.twoFASession.findFirst({
-              where: {
-                bypassTokenHash: hash,
-                bypassExpires: { gt: new Date() },
-                verified: true,
-                purpose: "LOGIN",
-              },
-            });
-            if (!session || !session.userId) return null;
+            const user = await prisma.$transaction(async (tx) => {
+              const session = await tx.twoFASession.findFirst({
+                where: {
+                  bypassTokenHash: hash,
+                  bypassExpires: { gt: new Date() },
+                  verified: true,
+                  purpose: "LOGIN",
+                },
+              });
+              if (!session?.userId) return null;
 
-            const user = await prisma.user.findUnique({
-              where: { id: session.userId },
-              include: { school: true },
+              const consumed = await tx.twoFASession.updateMany({
+                where: {
+                  id: session.id,
+                  bypassTokenHash: hash,
+                  bypassExpires: { gt: new Date() },
+                  verified: true,
+                  purpose: "LOGIN",
+                },
+                data: { bypassTokenHash: null, bypassExpires: null },
+              });
+              if (consumed.count !== 1) return null;
+
+              return tx.user.findUnique({
+                where: { id: session.userId },
+                include: { school: true },
+              });
             });
             if (!user || user.disabledAt || !user.acceptedAt) return null;
-
-            // Single-use: clear bypass fields immediately
-            await prisma.twoFASession.update({
-              where: { id: session.id },
-              data: { bypassTokenHash: null, bypassExpires: null },
-            });
 
             prisma.school.update({
               where: { id: user.schoolId },
@@ -120,6 +128,7 @@ export const authOptions: NextAuthOptions = {
               schoolId: user.schoolId,
               schoolName: user.school?.name ?? user.name,
               role: user.role,
+              authVersion: user.authVersion,
             };
           }
 
@@ -171,7 +180,7 @@ export const authOptions: NextAuthOptions = {
 
           if (user.school?.twoFaEnabled) {
             const otp = generateOTP();
-            const otpCodeHash = await bcrypt.hash(otp, 10);
+            const otpCodeHash = hashOneTimeCode(otp, "2fa-login");
             const twoFaSession = await prisma.twoFASession.create({
               data: {
                 schoolId: user.schoolId,
@@ -225,6 +234,7 @@ export const authOptions: NextAuthOptions = {
             schoolId: user.schoolId,
             schoolName: user.school?.name ?? user.name,
             role: user.role,
+            authVersion: user.authVersion,
           };
         } catch (err) {
           // These are signals to the sign-in page, not failures. Swallowing them
@@ -248,6 +258,7 @@ export const authOptions: NextAuthOptions = {
         token.schoolId = u.schoolId;
         token.schoolName = u.schoolName;
         token.role = u.role;
+        token.authVersion = u.authVersion;
       }
       return token;
     },
@@ -257,6 +268,7 @@ export const authOptions: NextAuthOptions = {
         (session.user as { schoolId?: string }).schoolId = token.schoolId as string;
         (session.user as { schoolName?: string }).schoolName = token.schoolName as string;
         (session.user as { role?: string }).role = token.role as string;
+        session.user.authVersion = typeof token.authVersion === "number" ? token.authVersion : 0;
       }
       return session;
     },

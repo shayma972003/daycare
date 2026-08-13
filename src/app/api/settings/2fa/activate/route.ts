@@ -2,7 +2,9 @@ import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
 import { z } from "zod";
-import bcrypt from "bcryptjs";
+import { authJson, withNoStore } from "@/lib/auth-response";
+import { oneTimeCodeMatches } from "@/lib/one-time-code";
+import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 const schema = z.object({
   twoFaSessionId: z.string().min(1),
@@ -15,23 +17,28 @@ export async function POST(request: Request) {
     session = await requireSession();
   } catch (error) {
     // 403 when the caller is known but lacks the permission; 401 otherwise.
-    return (
+    return withNoStore(
       sessionErrorResponse(error) ??
       Response.json({ error: "Unauthorized" }, { status: 401 })
     );
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
 
+  const limitedResponse = rateLimitResponse(
+    await rateLimit({ key: `2fa:activate:${schoolId}:${session.user.id}`, limit: 10, windowMs: 15 * 60 * 1000 })
+  );
+  if (limitedResponse) return withNoStore(limitedResponse);
+
   let body: unknown;
   try {
     body = await request.json();
   } catch {
-    return Response.json({ error: "Invalid JSON" }, { status: 400 });
+    return authJson({ error: "Invalid JSON" }, { status: 400 });
   }
 
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
-    return Response.json({ error: "بيانات غير صحيحة" }, { status: 400 });
+    return authJson({ error: "بيانات غير صحيحة" }, { status: 400 });
   }
 
   const { twoFaSessionId, otp_code } = parsed.data;
@@ -46,25 +53,49 @@ export async function POST(request: Request) {
     twoFaSession.expiresAt < new Date() ||
     twoFaSession.attempts >= 5
   ) {
-    return Response.json({ error: "انتهت صلاحية رمز التحقق، الرجاء إعادة الإرسال" }, { status: 400 });
+    return authJson({ error: "انتهت صلاحية رمز التحقق، الرجاء إعادة الإرسال" }, { status: 400 });
   }
 
-  const isValid = await bcrypt.compare(otp_code, twoFaSession.otpCodeHash);
+  const now = new Date();
+  const isValid = await oneTimeCodeMatches(
+    twoFaSession.otpCodeHash,
+    otp_code,
+    "2fa-activate",
+    now
+  );
   if (!isValid) {
-    await prisma.twoFASession.update({
-      where: { id: twoFaSession.id },
+    await prisma.twoFASession.updateMany({
+      where: {
+        id: twoFaSession.id,
+        schoolId,
+        verified: false,
+        expiresAt: { gt: now },
+        attempts: { lt: 5 },
+        otpCodeHash: twoFaSession.otpCodeHash,
+      },
       data: { attempts: { increment: 1 } },
     });
-    return Response.json({ error: "رمز التحقق غير صحيح" }, { status: 400 });
+    return authJson({ error: "رمز التحقق غير صحيح" }, { status: 400 });
   }
 
-  await Promise.all([
-    prisma.twoFASession.update({ where: { id: twoFaSession.id }, data: { verified: true } }),
-    prisma.school.update({
-      where: { id: schoolId },
-      data: { twoFaEnabled: true },
-    }),
-  ]);
+  const activated = await prisma.$transaction(async (tx) => {
+    const claimed = await tx.twoFASession.updateMany({
+      where: {
+        id: twoFaSession.id,
+        schoolId,
+        purpose: "ACTIVATE",
+        verified: false,
+        expiresAt: { gt: now },
+        attempts: { lt: 5 },
+        otpCodeHash: twoFaSession.otpCodeHash,
+      },
+      data: { verified: true },
+    });
+    if (claimed.count !== 1) return false;
+    await tx.school.update({ where: { id: schoolId }, data: { twoFaEnabled: true } });
+    return true;
+  });
+  if (!activated) return authJson({ error: "انتهت صلاحية رمز التحقق" }, { status: 409 });
 
   await logAction({
     school_id: schoolId,
@@ -74,5 +105,5 @@ export async function POST(request: Request) {
     request,
   });
 
-  return Response.json({ success: true });
+  return authJson({ success: true });
 }

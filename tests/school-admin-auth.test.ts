@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   userFindUnique: vi.fn(),
   twoFaFindFirst: vi.fn(),
   twoFaUpdate: vi.fn(),
+  twoFaUpdateMany: vi.fn(),
   schoolUpdate: vi.fn(),
   schoolFindFirst: vi.fn(),
   resetTokenFindFirst: vi.fn(),
@@ -25,6 +26,7 @@ vi.mock("@/lib/prisma", () => ({
     twoFASession: {
       findFirst: mocks.twoFaFindFirst,
       update: mocks.twoFaUpdate,
+      updateMany: mocks.twoFaUpdateMany,
     },
     school: {
       update: mocks.schoolUpdate,
@@ -77,6 +79,7 @@ function user(acceptedAt: Date | null) {
     password: "bcrypt-hash",
     role: "admin",
     schoolId: "school-1",
+    authVersion: 0,
     disabledAt: null,
     acceptedAt,
     school: {
@@ -99,7 +102,15 @@ beforeEach(() => {
   mocks.bcryptCompare.mockResolvedValue(true);
   mocks.schoolUpdate.mockResolvedValue({});
   mocks.logAction.mockResolvedValue(undefined);
-  mocks.transaction.mockResolvedValue([]);
+  mocks.transaction.mockImplementation(async (callback: (tx: unknown) => unknown) =>
+    callback({
+      twoFASession: {
+        findFirst: mocks.twoFaFindFirst,
+        updateMany: mocks.twoFaUpdateMany,
+      },
+      user: { findUnique: mocks.userFindUnique },
+    })
+  );
 });
 
 describe("school administrator activation guard", () => {
@@ -182,6 +193,7 @@ describe("school administrator activation guard", () => {
       schoolId: "school-1",
       schoolName: "School One",
       role: "admin",
+      authVersion: 0,
     });
     expect(mocks.resetRateLimit).toHaveBeenCalledWith("login:owner@example.com");
   });
@@ -203,6 +215,7 @@ describe("school administrator activation guard", () => {
       id: "twofa-1",
       userId: "user-1",
     });
+    mocks.twoFaUpdateMany.mockResolvedValue({ count: 1 });
     mocks.userFindUnique.mockResolvedValue(user(null));
 
     const result = await authorize({ twofa_bypass_token: "bypass" }, request);

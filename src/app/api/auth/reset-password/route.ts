@@ -1,9 +1,10 @@
-import { createHash, timingSafeEqual } from "crypto";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { rateLimit, clientIp, rateLimitResponse } from "@/lib/rate-limit";
 import { BCRYPT_COST, passwordSchema } from "@/lib/password-policy";
+import { oneTimeCodeMatches, rateLimitSubject } from "@/lib/one-time-code";
+import { authJson, withNoStore } from "@/lib/auth-response";
 
 const schema = z.object({
   identifier: z.string().min(1, "أدخل البريد الإلكتروني أو رقم الجوال"),
@@ -16,38 +17,28 @@ const schema = z.object({
 const MAX_ATTEMPTS = 5;
 const GENERIC_ERROR = "رمز التحقق غير صحيح أو منتهي الصلاحية";
 
-function hashOTP(otp: string): string {
-  return createHash("sha256").update(otp).digest("hex");
-}
-
-function hashesMatch(a: string, b: string): boolean {
-  const left = Buffer.from(a, "hex");
-  const right = Buffer.from(b, "hex");
-  return left.length === right.length && timingSafeEqual(left, right);
-}
-
 export async function POST(request: Request) {
   let body: unknown;
   try {
     body = await request.json();
   } catch {
-    return Response.json({ error: "Invalid JSON" }, { status: 400 });
+    return authJson({ error: "Invalid JSON" }, { status: 400 });
   }
 
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
-    return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 422 });
+    return authJson({ error: parsed.error.flatten().fieldErrors }, { status: 422 });
   }
 
   const { otp, newPassword, kind } = parsed.data;
   const identifier = parsed.data.identifier.trim();
   const limited = await rateLimit({
-    key: `reset:ip:${clientIp(request)}`,
+    key: `reset:ip:${rateLimitSubject(clientIp(request))}`,
     limit: 20,
     windowMs: 15 * 60 * 1000,
   });
   const limitedResponse = rateLimitResponse(limited);
-  if (limitedResponse) return limitedResponse;
+  if (limitedResponse) return withNoStore(limitedResponse);
 
   let subjectId: string | null = null;
   if (kind === "guardian") {
@@ -79,7 +70,7 @@ export async function POST(request: Request) {
     subjectId = owner?.acceptedAt && !owner.disabledAt ? owner.id : null;
   }
 
-  if (!subjectId) return Response.json({ error: GENERIC_ERROR }, { status: 400 });
+  if (!subjectId) return authJson({ error: GENERIC_ERROR }, { status: 400 });
 
   const subjectWhere =
     kind === "guardian"
@@ -94,44 +85,63 @@ export async function POST(request: Request) {
     if (tokenRecord) {
       await prisma.passwordResetToken.delete({ where: { id: tokenRecord.id } });
     }
-    return Response.json({ error: GENERIC_ERROR }, { status: 400 });
+    return authJson({ error: GENERIC_ERROR }, { status: 400 });
   }
 
   if (tokenRecord.attempts >= MAX_ATTEMPTS) {
     await prisma.passwordResetToken.delete({ where: { id: tokenRecord.id } });
-    return Response.json(
+    return authJson(
       { error: "تم تجاوز عدد المحاولات المسموح بها. اطلب رمزًا جديدًا." },
       { status: 429 }
     );
   }
 
-  if (!hashesMatch(tokenRecord.tokenHash, hashOTP(otp))) {
-    await prisma.passwordResetToken.update({
-      where: { id: tokenRecord.id },
+  if (!(await oneTimeCodeMatches(tokenRecord.tokenHash, otp, "password-reset"))) {
+    await prisma.passwordResetToken.updateMany({
+      where: {
+        id: tokenRecord.id,
+        tokenHash: tokenRecord.tokenHash,
+        expiresAt: { gt: new Date() },
+        attempts: { lt: MAX_ATTEMPTS },
+      },
       data: { attempts: { increment: 1 } },
     });
-    return Response.json({ error: GENERIC_ERROR }, { status: 400 });
+    return authJson({ error: GENERIC_ERROR }, { status: 400 });
   }
 
   const passwordHash = await bcrypt.hash(newPassword, BCRYPT_COST);
-  if (kind === "guardian") {
-    await prisma.$transaction([
-      prisma.guardianAccount.update({
-        where: { id: subjectId },
-        data: { passwordHash },
-      }),
-      prisma.passwordResetToken.deleteMany({ where: { guardianAccountId: subjectId } }),
-      prisma.refreshToken.deleteMany({ where: { guardianAccountId: subjectId } }),
-    ]);
-  } else {
-    await prisma.$transaction([
-      prisma.user.update({
-        where: { id: subjectId },
-        data: { password: passwordHash },
-      }),
-      prisma.passwordResetToken.deleteMany({ where: { userId: subjectId } }),
-    ]);
-  }
+  const consumed = await prisma.$transaction(async (tx) => {
+    const claim = await tx.passwordResetToken.deleteMany({
+      where: {
+        id: tokenRecord.id,
+        tokenHash: tokenRecord.tokenHash,
+        expiresAt: { gt: new Date() },
+        attempts: { lt: MAX_ATTEMPTS },
+        ...subjectWhere,
+      },
+    });
+    if (claim.count !== 1) return false;
 
-  return Response.json({ success: true });
+    if (kind === "guardian") {
+      await tx.guardianAccount.update({
+        where: { id: subjectId, acceptedAt: { not: null }, disabledAt: null },
+        data: { passwordHash },
+      });
+      await tx.passwordResetToken.deleteMany({ where: { guardianAccountId: subjectId } });
+      await tx.refreshToken.deleteMany({ where: { guardianAccountId: subjectId } });
+    } else {
+      await tx.user.update({
+        where: { id: subjectId, acceptedAt: { not: null }, disabledAt: null },
+        data: { password: passwordHash, authVersion: { increment: 1 } },
+      });
+      await tx.passwordResetToken.deleteMany({ where: { userId: subjectId } });
+      await tx.refreshToken.deleteMany({ where: { userId: subjectId } });
+      await tx.twoFASession.deleteMany({ where: { userId: subjectId } });
+    }
+    return true;
+  });
+
+  if (!consumed) return authJson({ error: GENERIC_ERROR }, { status: 400 });
+
+  return authJson({ success: true });
 }

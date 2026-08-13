@@ -5,6 +5,7 @@ import { randomBytes } from "node:crypto";
 const mocks = vi.hoisted(() => ({
   findUnique: vi.fn(),
   update: vi.fn(),
+  updateMany: vi.fn(),
   transaction: vi.fn(),
   submissionCreate: vi.fn(),
   transferOwnership: vi.fn(),
@@ -19,6 +20,7 @@ vi.mock("@/lib/prisma", () => ({
     enrollmentToken: {
       findUnique: mocks.findUnique,
       update: mocks.update,
+      updateMany: mocks.updateMany,
     },
     enrollmentSubmission: {
       create: mocks.submissionCreate,
@@ -64,6 +66,7 @@ beforeEach(() => {
   process.env.PII_INDEX_PEPPER = randomBytes(48).toString("base64");
   mocks.findUnique.mockReset();
   mocks.update.mockReset();
+  mocks.updateMany.mockReset().mockResolvedValue({ count: 1 });
   mocks.transaction.mockReset();
   mocks.submissionCreate.mockReset();
   mocks.transferOwnership.mockReset();
@@ -141,8 +144,6 @@ describe("public enrollment handlers", () => {
       otp_code_hash: hashOtp("654321"),
       school: { name: "Test school", logoUrl: null },
     });
-    mocks.update.mockResolvedValue({ otp_attempts: 1 });
-
     const response = await verifyOtp(
       new Request("http://localhost/api/enrollment/verify-otp", {
         method: "POST",
@@ -152,10 +153,9 @@ describe("public enrollment handlers", () => {
     );
 
     expect(response.status).toBe(401);
-    expect(mocks.update).toHaveBeenCalledWith({
-      where: { token: "live-token" },
+    expect(mocks.updateMany).toHaveBeenCalledWith({
+      where: expect.objectContaining({ token: "live-token", otp_verified: false }),
       data: { otp_attempts: { increment: 1 } },
-      select: { otp_attempts: true },
     });
     expect(mocks.rateLimit).toHaveBeenCalledOnce();
   });

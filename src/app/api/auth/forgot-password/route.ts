@@ -1,8 +1,10 @@
-import { createHash, randomInt } from "crypto";
+import { randomInt } from "crypto";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/notifications";
 import { rateLimit, clientIp, rateLimitResponse } from "@/lib/rate-limit";
+import { hashOneTimeCode, rateLimitSubject } from "@/lib/one-time-code";
+import { authJson, withNoStore } from "@/lib/auth-response";
 
 const schema = z.object({
   identifier: z.string().min(1, "أدخل البريد الإلكتروني أو رقم الجوال").optional(),
@@ -24,21 +26,17 @@ function generateOTP(): string {
   return String(randomInt(100000, 1000000));
 }
 
-function hashOTP(otp: string): string {
-  return createHash("sha256").update(otp).digest("hex");
-}
-
 export async function POST(request: Request) {
   let body: unknown;
   try {
     body = await request.json();
   } catch {
-    return Response.json({ error: "Invalid JSON" }, { status: 400 });
+    return authJson({ error: "Invalid JSON" }, { status: 400 });
   }
 
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
-    return Response.json({ error: "أدخل البريد الإلكتروني أو رقم الجوال" }, { status: 422 });
+    return authJson({ error: "أدخل البريد الإلكتروني أو رقم الجوال" }, { status: 422 });
   }
 
   const kind = parsed.data.kind;
@@ -47,12 +45,12 @@ export async function POST(request: Request) {
     : parsed.data.identifier!.trim();
 
   for (const key of [
-    `forgot:${kind}:id:${identifier.toLowerCase()}`,
-    `forgot:ip:${clientIp(request)}`,
+    `forgot:${kind}:id:${rateLimitSubject(identifier)}`,
+    `forgot:ip:${rateLimitSubject(clientIp(request))}`,
   ]) {
     const limited = await rateLimit({ key, limit: 5, windowMs: 15 * 60 * 1000 });
     const limitedResponse = rateLimitResponse(limited);
-    if (limitedResponse) return limitedResponse;
+    if (limitedResponse) return withNoStore(limitedResponse);
   }
 
   const isEmail = identifier.includes("@");
@@ -93,7 +91,7 @@ export async function POST(request: Request) {
 
   // Always report success for unknown, pending, or disabled accounts.
   if (!subject || !subject.acceptedAt || subject.disabledAt) {
-    return Response.json({ success: true });
+    return authJson({ success: true });
   }
 
   const otp = generateOTP();
@@ -107,7 +105,7 @@ export async function POST(request: Request) {
     prisma.passwordResetToken.create({
       data: {
         ...subjectWhere,
-        tokenHash: hashOTP(otp),
+        tokenHash: hashOneTimeCode(otp, "password-reset"),
         expiresAt: new Date(Date.now() + OTP_TTL_MS),
       },
     }),
@@ -123,11 +121,11 @@ export async function POST(request: Request) {
   if (!delivery.success) {
     await prisma.passwordResetToken.deleteMany({ where: subjectWhere });
     console.error("[forgot-password] failed to deliver reset code", { kind });
-    return Response.json(
+    return authJson(
       { error: "تعذر إرسال رمز إعادة التعيين. حاول مجددًا." },
       { status: 502 }
     );
   }
 
-  return Response.json({ success: true });
+  return authJson({ success: true });
 }

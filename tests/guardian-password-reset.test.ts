@@ -1,5 +1,5 @@
-import { createHash } from "crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { hashOneTimeCode } from "@/lib/one-time-code";
 
 const mocks = vi.hoisted(() => ({
   guardianFindUnique: vi.fn(),
@@ -10,8 +10,10 @@ const mocks = vi.hoisted(() => ({
   tokenFindFirst: vi.fn(),
   tokenDelete: vi.fn(),
   tokenDeleteMany: vi.fn(),
+  tokenClaimDeleteMany: vi.fn(),
   tokenCreate: vi.fn(),
   tokenUpdate: vi.fn(),
+  tokenUpdateMany: vi.fn(),
   refreshDeleteMany: vi.fn(),
   transaction: vi.fn(),
   sendEmail: vi.fn(),
@@ -35,6 +37,7 @@ vi.mock("@/lib/prisma", () => ({
       deleteMany: mocks.tokenDeleteMany,
       create: mocks.tokenCreate,
       update: mocks.tokenUpdate,
+      updateMany: mocks.tokenUpdateMany,
     },
     refreshToken: { deleteMany: mocks.refreshDeleteMany },
     $transaction: mocks.transaction,
@@ -74,13 +77,30 @@ beforeEach(() => {
   mocks.clientIp.mockReturnValue("127.0.0.1");
   mocks.sendEmail.mockResolvedValue({ success: true });
   mocks.tokenDeleteMany.mockResolvedValue({ count: 1 });
+  mocks.tokenClaimDeleteMany.mockResolvedValue({ count: 1 });
   mocks.tokenCreate.mockResolvedValue({ id: "reset-1" });
   mocks.guardianUpdate.mockResolvedValue({ id: account.id });
   mocks.refreshDeleteMany.mockResolvedValue({ count: 2 });
   mocks.bcryptHash.mockResolvedValue("new-bcrypt-hash");
-  mocks.transaction.mockImplementation(async (operations: Promise<unknown>[]) =>
-    Promise.all(operations)
-  );
+  mocks.tokenUpdateMany.mockResolvedValue({ count: 1 });
+  mocks.transaction.mockImplementation(async (input: unknown) => {
+    if (Array.isArray(input)) return Promise.all(input);
+    const callback = input as (tx: unknown) => unknown;
+    return callback({
+      guardianAccount: { update: mocks.guardianUpdate },
+      user: { update: mocks.userUpdate },
+      passwordResetToken: {
+        deleteMany: vi.fn((args) =>
+          "id" in (args.where ?? {})
+            ? mocks.tokenClaimDeleteMany(args)
+            : mocks.tokenDeleteMany(args)
+        ),
+        updateMany: mocks.tokenUpdateMany,
+      },
+      refreshToken: { deleteMany: mocks.refreshDeleteMany },
+      twoFASession: { deleteMany: vi.fn() },
+    });
+  });
 });
 
 describe("guardian password recovery", () => {
@@ -119,7 +139,7 @@ describe("guardian password recovery", () => {
     expect(mocks.tokenCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
         guardianAccountId: "guardian-account-1",
-        tokenHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+        tokenHash: expect.stringMatching(/^hmac-v1:[a-f0-9]{64}$/),
       }),
     });
     expect(mocks.tokenCreate.mock.calls[0]?.[0].data).not.toHaveProperty("userId");
@@ -179,7 +199,7 @@ describe("guardian password recovery", () => {
       id: "reset-1",
       guardianAccountId: account.id,
       userId: null,
-      tokenHash: createHash("sha256").update(otp).digest("hex"),
+      tokenHash: hashOneTimeCode(otp, "password-reset"),
       attempts: 0,
       expiresAt: new Date(Date.now() + 60_000),
       createdAt: new Date(),
@@ -196,7 +216,7 @@ describe("guardian password recovery", () => {
 
     expect(response.status).toBe(200);
     expect(mocks.guardianUpdate).toHaveBeenCalledWith({
-      where: { id: account.id },
+      where: { id: account.id, acceptedAt: { not: null }, disabledAt: null },
       data: { passwordHash: "new-bcrypt-hash" },
     });
     expect(mocks.tokenDeleteMany).toHaveBeenCalledWith({

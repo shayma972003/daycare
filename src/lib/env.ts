@@ -45,6 +45,8 @@ const envSchema = z.object({
     )
   ),
   PII_INDEX_PEPPER: optional(z.string().min(32)),
+  /** Independent key for low-entropy OTP HMACs. Required in production. */
+  OTP_HASH_PEPPER: optional(z.string().min(32)),
 
   // ─── Optional — each gates exactly one feature ─────────────────────────────
   /** Scheduled jobs reject every request while unset (fail-closed). */
@@ -94,7 +96,7 @@ const envSchema = z.object({
 }).superRefine((value, ctx) => {
   if (value.NODE_ENV !== "production") return;
 
-  for (const name of ["PII_ENCRYPTION_KEY", "PII_INDEX_PEPPER"] as const) {
+  for (const name of ["PII_ENCRYPTION_KEY", "PII_INDEX_PEPPER", "OTP_HASH_PEPPER"] as const) {
     if (!value[name]) {
       ctx.addIssue({
         code: "custom",
@@ -120,7 +122,10 @@ function loadEnv(): Env {
       .join("\n");
 
     const hasPiiIssue = parsed.error.issues.some(
-      (issue) => issue.path[0] === "PII_ENCRYPTION_KEY" || issue.path[0] === "PII_INDEX_PEPPER"
+      (issue) =>
+        issue.path[0] === "PII_ENCRYPTION_KEY" ||
+        issue.path[0] === "PII_INDEX_PEPPER" ||
+        issue.path[0] === "OTP_HASH_PEPPER"
     );
 
     if (isBuildPhase && !hasPiiIssue) {

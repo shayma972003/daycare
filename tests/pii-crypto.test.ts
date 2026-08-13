@@ -81,10 +81,12 @@ describe("production environment validation", () => {
     vi.stubEnv("ADMIN_JWT_SECRET", "a".repeat(32));
     vi.stubEnv("PII_ENCRYPTION_KEY", "");
     vi.stubEnv("PII_INDEX_PEPPER", "");
+    vi.stubEnv("OTP_HASH_PEPPER", "");
 
     try {
       await expect(import("@/lib/env")).rejects.toThrow(/PII_ENCRYPTION_KEY is required in production/);
       await expect(import("@/lib/env")).rejects.toThrow(/PII_INDEX_PEPPER is required in production/);
+      await expect(import("@/lib/env")).rejects.toThrow(/OTP_HASH_PEPPER is required in production/);
     } finally {
       vi.unstubAllEnvs();
       vi.resetModules();

@@ -1,9 +1,10 @@
-import { prisma } from "@/lib/prisma";
+﻿import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/notifications";
 import { z } from "zod";
-import bcrypt from "bcryptjs";
 import { randomInt } from "crypto";
 import { rateLimit, clientIp, rateLimitResponse } from "@/lib/rate-limit";
+import { hashOneTimeCode, rateLimitSubject } from "@/lib/one-time-code";
+import { authJson, withNoStore } from "@/lib/auth-response";
 
 const schema = z.object({
   twoFaSessionId: z.string().min(1),
@@ -16,27 +17,26 @@ const OTP_TTL_MS = 10 * 60 * 1000;
 function generateOTP(): string {
   return String(randomInt(100000, 1000000));
 }
-
 export async function POST(request: Request) {
   let body: unknown;
   try {
     body = await request.json();
   } catch {
-    return Response.json({ error: "Invalid JSON" }, { status: 400 });
+    return authJson({ error: "Invalid JSON" }, { status: 400 });
   }
 
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
-    return Response.json({ error: "بيانات غير صحيحة" }, { status: 400 });
+    return authJson({ error: "ط¨ظٹط§ظ†ط§طھ ط؛ظٹط± طµط­ظٹط­ط©" }, { status: 400 });
   }
 
   const limited = await rateLimit({
-    key: `resend2fa:ip:${clientIp(request)}`,
+    key: `resend2fa:ip:${rateLimitSubject(clientIp(request))}`,
     limit: 10,
     windowMs: 15 * 60 * 1000,
   });
   const limitedResponse = rateLimitResponse(limited);
-  if (limitedResponse) return limitedResponse;
+  if (limitedResponse) return withNoStore(limitedResponse);
 
   const session = await prisma.twoFASession.findUnique({
     where: { id: parsed.data.twoFaSessionId },
@@ -44,19 +44,19 @@ export async function POST(request: Request) {
   });
 
   if (!session || session.verified || session.expiresAt < new Date()) {
-    return Response.json({ error: "الجلسة غير صالحة" }, { status: 404 });
+    return authJson({ error: "ط§ظ„ط¬ظ„ط³ط© ط؛ظٹط± طµط§ظ„ط­ط©" }, { status: 404 });
   }
 
   // Throttle is measured on this row's own last send. Previously it compared
   // against the *old* session while creating a *new* one, so replaying the
   // original id passed the check forever.
   if (Date.now() - session.lastSentAt.getTime() < RESEND_COOLDOWN_MS) {
-    return Response.json({ error: "الرجاء الانتظار قبل إعادة الإرسال" }, { status: 429 });
+    return authJson({ error: "ط§ظ„ط±ط¬ط§ط، ط§ظ„ط§ظ†طھط¸ط§ط± ظ‚ط¨ظ„ ط¥ط¹ط§ط¯ط© ط§ظ„ط¥ط±ط³ط§ظ„" }, { status: 429 });
   }
 
   if (session.resendCount >= MAX_RESENDS) {
-    return Response.json(
-      { error: "تم تجاوز عدد مرات إعادة الإرسال. سجّل الدخول من جديد." },
+    return authJson(
+      { error: "طھظ… طھط¬ط§ظˆط² ط¹ط¯ط¯ ظ…ط±ط§طھ ط¥ط¹ط§ط¯ط© ط§ظ„ط¥ط±ط³ط§ظ„. ط³ط¬ظ‘ظ„ ط§ظ„ط¯ط®ظˆظ„ ظ…ظ† ط¬ط¯ظٹط¯." },
       { status: 429 }
     );
   }
@@ -80,15 +80,24 @@ export async function POST(request: Request) {
   }
 
   if (!recipient) {
-    return Response.json({ error: "تعذر إرسال الرمز" }, { status: 400 });
+    return authJson({ error: "طھط¹ط°ط± ط¥ط±ط³ط§ظ„ ط§ظ„ط±ظ…ط²" }, { status: 400 });
   }
 
   const otp = generateOTP();
-  const otpCodeHash = await bcrypt.hash(otp, 10);
+  const otpCodeHash = hashOneTimeCode(
+    otp,
+    session.purpose === "ACTIVATE" ? "2fa-activate" : "2fa-login"
+  );
 
   // Rotate in place: `attempts` carries over, so the 5-attempt lockout holds.
-  await prisma.twoFASession.update({
-    where: { id: session.id },
+  const rotated = await prisma.twoFASession.updateMany({
+    where: {
+      id: session.id,
+      verified: false,
+      otpCodeHash: session.otpCodeHash,
+      lastSentAt: session.lastSentAt,
+      resendCount: { lt: MAX_RESENDS },
+    },
     data: {
       otpCodeHash,
       expiresAt: new Date(Date.now() + OTP_TTL_MS),
@@ -96,22 +105,25 @@ export async function POST(request: Request) {
       resendCount: { increment: 1 },
     },
   });
+  if (rotated.count !== 1) {
+    return authJson({ error: "ط§ظ„ط¬ظ„ط³ط© ط؛ظٹط± طµط§ظ„ط­ط©" }, { status: 409 });
+  }
 
   const delivery = await sendEmail(
     recipient,
-    "رمز التحقق بخطوتين",
-    `رمز التحقق بخطوتين: ${otp}\nصالح لمدة 10 دقائق. لا تشاركه مع أحد.`,
+    "ط±ظ…ط² ط§ظ„طھط­ظ‚ظ‚ ط¨ط®ط·ظˆطھظٹظ†",
+    `ط±ظ…ط² ط§ظ„طھط­ظ‚ظ‚ ط¨ط®ط·ظˆطھظٹظ†: ${otp}\nطµط§ظ„ط­ ظ„ظ…ط¯ط© 10 ط¯ظ‚ط§ط¦ظ‚. ظ„ط§ طھط´ط§ط±ظƒظ‡ ظ…ط¹ ط£ط­ط¯.`,
     session.school.name
   );
 
   if (!delivery.success) {
     await prisma.twoFASession.deleteMany({ where: { id: session.id } });
     console.error("[2fa-resend] failed to deliver code", session.schoolId);
-    return Response.json(
-      { error: "تعذر إرسال رمز التحقق عبر البريد. سجّل الدخول من جديد." },
+    return authJson(
+      { error: "طھط¹ط°ط± ط¥ط±ط³ط§ظ„ ط±ظ…ط² ط§ظ„طھط­ظ‚ظ‚ ط¹ط¨ط± ط§ظ„ط¨ط±ظٹط¯. ط³ط¬ظ‘ظ„ ط§ظ„ط¯ط®ظˆظ„ ظ…ظ† ط¬ط¯ظٹط¯." },
       { status: 502 }
     );
   }
 
-  return Response.json({ success: true, twoFaSessionId: session.id });
+  return authJson({ success: true, twoFaSessionId: session.id });
 }

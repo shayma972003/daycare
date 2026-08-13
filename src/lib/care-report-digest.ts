@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/notifications";
 import { astDayStart, astDayEnd } from "@/lib/datetime";
 import { renderDailySummary, type ChildSummary } from "@/lib/care-report-notify";
+import { logSafeError } from "@/lib/safe-logger";
 
 /**
  * End-of-day summary email, one per guardian (task 2.7).
@@ -139,7 +140,7 @@ export async function sendDailyDigests(now: Date = new Date()): Promise<DigestRe
       // Isolated per guardian: one bad address must not stop the rest of the
       // nursery's parents receiving theirs.
       result.failures++;
-      console.error("[care-digest] guardian failed:", error);
+      logSafeError("care-digest-guardian", error);
     }
   }
 

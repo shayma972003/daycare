@@ -7,6 +7,7 @@ import {
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { env, storageEnabled } from "@/lib/env";
+import { logSafeError } from "@/lib/safe-logger";
 
 /**
  * Cloudflare R2 object storage (task 0.34).
@@ -208,7 +209,7 @@ export async function deleteObjects(keys: string[]): Promise<number> {
         console.error("[r2] some objects were not deleted:", result.Errors.length);
       }
     } catch (error) {
-      console.error("[r2] delete failed:", error);
+      logSafeError("r2-delete", error);
     }
   }
 

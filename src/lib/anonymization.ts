@@ -30,6 +30,7 @@ import {
 import { discardFilesOwnedBy } from "@/lib/stored-files";
 import { STORED_FILE_OWNER } from "@/lib/stored-file-ownership";
 import type { Prisma } from "@/generated/prisma/client";
+import { logSafeError } from "@/lib/safe-logger";
 
 /**
  * Bounded per run so one invocation cannot exceed the function timeout.
@@ -611,7 +612,7 @@ export async function runAnonymizationSweep(
       result.students++;
     } catch (error) {
       result.failures++;
-      console.error(`[anonymization] student ${student.id} failed:`, error);
+      logSafeError("anonymization-student", error);
     }
   }
 
@@ -628,7 +629,7 @@ export async function runAnonymizationSweep(
       result.teachers++;
     } catch (error) {
       result.failures++;
-      console.error(`[anonymization] teacher ${teacher.id} failed:`, error);
+      logSafeError("anonymization-teacher", error);
     }
   }
 
@@ -653,7 +654,7 @@ export async function runAnonymizationSweep(
       result.guardians++;
     } catch (error) {
       result.failures++;
-      console.error(`[anonymization] guardian ${guardian.id} failed:`, error);
+      logSafeError("anonymization-guardian", error);
     }
   }
 

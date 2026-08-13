@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { logSafeError } from "@/lib/safe-logger";
 
 const RETENTION_DAYS = 30;
 
@@ -60,7 +61,7 @@ export async function cleanupExpiredTrash(): Promise<TrashCleanupResult> {
       result.students++;
     } catch (error) {
       result.failures++;
-      console.error(`[trash-cleanup] student ${student.id} failed:`, error);
+      logSafeError("trash-cleanup-student", error);
     }
   }
 
@@ -91,7 +92,7 @@ export async function cleanupExpiredTrash(): Promise<TrashCleanupResult> {
       result.teachers++;
     } catch (error) {
       result.failures++;
-      console.error(`[trash-cleanup] teacher ${teacher.id} failed:`, error);
+      logSafeError("trash-cleanup-teacher", error);
     }
   }
 
@@ -118,7 +119,7 @@ export async function cleanupExpiredTrash(): Promise<TrashCleanupResult> {
       result.classes++;
     } catch (error) {
       result.failures++;
-      console.error(`[trash-cleanup] class ${cls.id} failed:`, error);
+      logSafeError("trash-cleanup-class", error);
     }
   }
 
@@ -131,7 +132,7 @@ export async function cleanupExpiredTrash(): Promise<TrashCleanupResult> {
     result.guardians = count;
   } catch (error) {
     result.failures++;
-    console.error("[trash-cleanup] guardian purge failed:", error);
+    logSafeError("trash-cleanup-guardian", error);
   }
 
   console.log("[trash-cleanup] done:", result);

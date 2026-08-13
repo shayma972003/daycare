@@ -13,6 +13,7 @@ import {
 } from "@/lib/rate-limit";
 import { astDayStart } from "@/lib/datetime";
 import { hashOneTimeCode } from "@/lib/one-time-code";
+import { logSafeError } from "@/lib/safe-logger";
 
 function generateOTP(): string {
   return String(randomInt(100000, 1000000));
@@ -243,7 +244,7 @@ export const authOptions: NextAuthOptions = {
           if (err instanceof Error && SIGNAL_ERRORS.some((p) => err.message.startsWith(p))) {
             throw err;
           }
-          console.error("[auth] authorize error:", err);
+          logSafeError("auth-authorize", err);
           return null;
         }
       },

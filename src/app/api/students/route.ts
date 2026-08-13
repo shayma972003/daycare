@@ -15,6 +15,7 @@ import {
   parsePaymentStatus,
 } from "@/lib/enum-labels";
 import { protectIdNumber } from "@/lib/pii-crypto";
+import { logSafeError } from "@/lib/safe-logger";
 import { resolveStageId, foreignStageResponse } from "@/lib/academic-stage";
 import { studentDetailDto, studentDetailSelect, studentListDto } from "@/lib/roster-dto";
 import { withNoStore } from "@/lib/auth-response";
@@ -66,7 +67,7 @@ export async function GET(request: Request) {
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
 
-  updatePaymentStatuses(schoolId).catch((err) => console.error("updatePaymentStatuses failed:", err));
+  updatePaymentStatuses(schoolId).catch((err) => logSafeError("students-payment-status", err));
 
   const { searchParams } = new URL(request.url);
   const search = searchParams.get("search");

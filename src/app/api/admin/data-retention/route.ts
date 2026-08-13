@@ -8,6 +8,7 @@ import {
   SYSTEM_SETTINGS_ID,
 } from "@/lib/data-retention";
 import { z } from "zod";
+import { logSafeError } from "@/lib/safe-logger";
 
 /**
  * Retention policy administration.
@@ -48,7 +49,7 @@ export async function GET(request: Request) {
       recent,
     });
   } catch (error) {
-    console.error("[GET /api/admin/data-retention] error:", error);
+    logSafeError("admin-data-retention-get", error);
     return Response.json({ error: "حدث خطأ، يرجى المحاولة مجدداً" }, { status: 500 });
   }
 }
@@ -111,7 +112,7 @@ export async function PUT(request: Request) {
 
     return Response.json({ ...updated, rescheduled });
   } catch (error) {
-    console.error("[PUT /api/admin/data-retention] error:", error);
+    logSafeError("admin-data-retention-put", error);
     return Response.json({ error: "تعذر حفظ الإعدادات" }, { status: 500 });
   }
 }

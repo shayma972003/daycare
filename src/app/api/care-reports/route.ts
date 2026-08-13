@@ -13,6 +13,7 @@ import {
 import { keyFromUrl, schoolIdFromKey } from "@/lib/r2";
 import { notifyGuardiansOfReport } from "@/lib/care-report-notify";
 import { z } from "zod";
+import { logSafeError } from "@/lib/safe-logger";
 
 /**
  * Daily care reports (tasks 2.1–2.4).
@@ -201,7 +202,7 @@ export async function POST(request: Request) {
   void notifyGuardiansOfReport(
     schoolId,
     created.map((report) => report.id)
-  ).catch((error) => console.error("[care-reports] notify failed:", error));
+  ).catch((error) => logSafeError("care-reports-notify", error));
 
   await logAction({
     school_id: schoolId,

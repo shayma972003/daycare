@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { logSafeError } from "@/lib/safe-logger";
 
 /**
  * Liveness and readiness probe.
@@ -21,7 +22,7 @@ export async function GET() {
       latencyMs: Date.now() - startedAt,
     });
   } catch (error) {
-    console.error("[health] database unreachable:", error);
+    logSafeError("health-database", error);
     // 503, not 500: this is "not ready to serve", which is what a load balancer
     // and an uptime monitor both need to hear.
     return Response.json(

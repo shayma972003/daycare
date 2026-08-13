@@ -1,6 +1,7 @@
 import { verifyAdminSessionFromRequest } from "@/lib/admin-auth";
 import { runAnonymizationSweep } from "@/lib/anonymization";
 import { z } from "zod";
+import { logSafeError } from "@/lib/safe-logger";
 
 /**
  * Runs the retention sweep on demand.
@@ -35,7 +36,7 @@ export async function POST(request: Request) {
     const result = await runAnonymizationSweep({ executedBy: session.adminId });
     return Response.json({ success: true, ...result });
   } catch (error) {
-    console.error("[POST /api/admin/data-retention/run] error:", error);
+    logSafeError("admin-data-retention-run", error);
     return Response.json({ error: "تعذر تنفيذ عملية التجهيل" }, { status: 500 });
   }
 }

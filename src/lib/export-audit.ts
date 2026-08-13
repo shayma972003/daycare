@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { clientIp } from "@/lib/rate-limit";
+import { logSafeError } from "@/lib/safe-logger";
 
 /**
  * Records a bulk export.
@@ -51,6 +52,6 @@ export async function logExport({
       },
     });
   } catch (error) {
-    console.error("[export-audit] failed to record export:", error);
+    logSafeError("export-audit", error);
   }
 }

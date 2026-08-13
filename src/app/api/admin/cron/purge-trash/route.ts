@@ -10,6 +10,7 @@ import {
   purgeExpiredEnrollmentTokens,
 } from "@/lib/stored-files";
 import { runBoundedRetention } from "@/lib/bounded-retention";
+import { logSafeError } from "@/lib/safe-logger";
 
 /** Nightly housekeeping. Scheduled in vercel.json. */
 export async function GET(request: Request) {
@@ -49,7 +50,7 @@ export async function GET(request: Request) {
       storageComputed++;
     } catch (error) {
       storageFailures++;
-      console.error(`[purge-trash] storage usage failed for ${school.id}:`, error);
+      logSafeError("purge-trash-storage-usage", error);
     }
   }
 

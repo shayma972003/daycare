@@ -2,6 +2,7 @@ import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { deactivateExpiredExpenses } from "@/lib/expense-updater";
 import { z } from "zod";
+import { logSafeError } from "@/lib/safe-logger";
 
 const createSchema = z.object({
   title: z.string().min(1),
@@ -25,7 +26,7 @@ export async function GET(request: Request) {
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
 
-  deactivateExpiredExpenses(schoolId).catch((err) => console.error("deactivateExpiredExpenses failed:", err));
+  deactivateExpiredExpenses(schoolId).catch((err) => logSafeError("expenses-deactivate-expired", err));
 
   const { searchParams } = new URL(request.url);
   const typeFilter = searchParams.get("type"); // "one_time" | "monthly" | null

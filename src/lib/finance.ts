@@ -376,7 +376,7 @@ export async function getFinancialSummary(schoolId: string, type: ReportPeriodTy
   // Salary invoices actually issued in the period — the only evidence the system
   // holds that a salary was settled.
   const salaryInvoices = await prisma.invoice.aggregate({
-    where: { schoolId, type: "TEACHER", createdAt: { gte: range.from, lte: range.to } },
+    where: { schoolId, type: "TEACHER", generationStatus: "COMPLETED", createdAt: { gte: range.from, lte: range.to } },
     _sum: { amount: true },
   });
   const salariesPaid = salaryInvoices._sum.amount ?? 0;

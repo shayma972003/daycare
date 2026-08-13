@@ -1030,6 +1030,7 @@ model AdminInvoice {
   request_hash String?
   generation_status InvoiceGenerationStatus @default(COMPLETED)
   generation_error String?
+  generation_lease_expires_at DateTime?
   created_at   DateTime @default(now())
 
   school School @relation(fields: [school_id], references: [id])
@@ -1037,6 +1038,7 @@ model AdminInvoice {
   @@unique([school_id, idempotency_key])
   @@unique([school_id, invoice_number])
   @@index([school_id, generation_status, created_at])
+  @@index([generation_status, generation_lease_expires_at])
 }
 
 model TwoFASession {
@@ -1827,6 +1829,7 @@ model Invoice {
   requestHash String?
   generationStatus InvoiceGenerationStatus @default(COMPLETED)
   generationError String?
+  generationLeaseExpiresAt DateTime?
   createdAt DateTime    @default(now())
 
   @@index([schoolId, createdAt])
@@ -1834,6 +1837,7 @@ model Invoice {
   @@index([teacherId])
   @@unique([schoolId, operationKind, idempotencyKey])
   @@index([schoolId, generationStatus, createdAt])
+  @@index([generationStatus, generationLeaseExpiresAt])
 }
 
 model NotificationLog {

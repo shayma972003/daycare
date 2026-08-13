@@ -19,7 +19,7 @@ export async function GET(
   const { id } = await params;
 
   const invoice = await prisma.invoice.findFirst({
-    where: { id, schoolId },
+    where: { id, schoolId, generationStatus: "COMPLETED" },
     include: { student: true, teacher: true },
   });
 

@@ -81,6 +81,7 @@ export function AdminInvoiceModal({ open, schoolId, onClose, onIssued }: AdminIn
 
 function AdminInvoiceModalContent({ schoolId, onClose, onIssued }: Omit<AdminInvoiceModalProps, "open">) {
   const t = useT();
+  const [idempotencyKey] = useState(() => createIdempotencyKey("admin-invoice"));
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -209,7 +210,7 @@ function AdminInvoiceModalContent({ schoolId, onClose, onIssued }: Omit<AdminInv
           total: calcRowTotal(r.quantity, r.price, r.vat),
         })),
         total_amount: grandTotal,
-      }, { headers: { "Idempotency-Key": createIdempotencyKey("admin-invoice") } });
+      }, { headers: { "Idempotency-Key": idempotencyKey } });
 
       onIssued(res.data);
       onClose();

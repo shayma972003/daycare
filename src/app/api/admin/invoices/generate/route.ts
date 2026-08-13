@@ -30,7 +30,8 @@ import {
 import { access } from "fs/promises";
 import { join } from "path";
 import { allocateInvoiceNumber } from "@/lib/invoice-number";
-import { claimAdminInvoice, failAdminInvoiceClaim, idempotencyConflictResponse, invoiceRequestHash, missingIdempotencyKeyResponse, readIdempotencyKey } from "@/lib/invoice-idempotency";
+import { claimAdminInvoice, completeAdminInvoiceClaim, failAdminInvoiceClaim, idempotencyConflictResponse, invoiceRequestHash, missingIdempotencyKeyResponse, readIdempotencyKey } from "@/lib/invoice-idempotency";
+import { logSafeError } from "@/lib/safe-logger";
 
 Font.register({
   family: "Arabic",
@@ -292,13 +293,11 @@ export async function POST(request: Request) {
     const pdfBuffer = await renderToBuffer(pdfDoc as Parameters<typeof renderToBuffer>[0]);
     const fileUrl = savePdf(pdfBuffer);
 
-    const invoice = await prisma.adminInvoice.update({
-      where: { id: claim.id },
-      data: {
+    await completeAdminInvoiceClaim(claim.id, claim.leaseExpiresAt, {
         file_url: fileUrl,
-        generation_status: "COMPLETED",
-        generation_error: null,
-      },
+    });
+    const invoice = await prisma.adminInvoice.findUniqueOrThrow({
+      where: { id: claim.id },
     });
 
     await prisma.adminActivityLog.create({
@@ -307,8 +306,8 @@ export async function POST(request: Request) {
 
     return Response.json({ invoice_id: invoice.id, file_url: fileUrl }, { status: 201 });
   } catch (error) {
-    await failAdminInvoiceClaim(claim.id).catch(() => undefined);
-    console.error("Admin invoice generation error:", error);
+    await failAdminInvoiceClaim(claim.id, claim.leaseExpiresAt).catch(() => undefined);
+    logSafeError("admin-invoice-generate", error);
     return Response.json({ error: "تعذر إنشاء الفاتورة" }, { status: 500 });
   }
 }

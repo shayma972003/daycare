@@ -17,7 +17,7 @@ export async function GET(
   });
   if (!school) return Response.json({ error: "Not found" }, { status: 404 });
 
-  const count = await prisma.adminInvoice.count({ where: { school_id } });
+  const count = await prisma.adminInvoice.count({ where: { school_id, generation_status: "COMPLETED" } });
   const invoiceNumber = `SINV-${String(count + 1).padStart(4, "0")}`;
 
   const planName = school.subscription_plan?.name ?? "";

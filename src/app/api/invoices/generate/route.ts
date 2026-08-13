@@ -23,7 +23,7 @@ import {
 import { access } from "fs/promises";
 import { join } from "path";
 import { money, moneyAdd, moneyMaxZero, moneyMultiply, moneyNumber, moneySubtract } from "@/lib/money";
-import { claimInvoice, failInvoiceClaim, idempotencyConflictResponse, invoiceRequestHash, missingIdempotencyKeyResponse, readIdempotencyKey } from "@/lib/invoice-idempotency";
+import { claimInvoice, completeInvoiceClaim, failInvoiceClaim, idempotencyConflictResponse, invoiceRequestHash, missingIdempotencyKeyResponse, readIdempotencyKey } from "@/lib/invoice-idempotency";
 
 Font.register({
   family: "Arabic",
@@ -216,7 +216,7 @@ export async function POST(request: Request) {
     // identity is read from the database for the same reason.
     const inv = { ...rawInv, ...(await recomputeInvoiceTotals(schoolId, rawInv)) };
     const requestHash = invoiceRequestHash({ studentId, invoiceData: rawInv });
-    const claim = await claimInvoice({ schoolId, operationKind: "student-custom", key: idempotencyKey, requestHash, type: "STUDENT", studentId });
+    const claim = await claimInvoice({ schoolId, operationKind: "student-custom", key: idempotencyKey, requestHash, type: "STUDENT" });
     if (claim.state === "completed") return Response.json({ ...claim.invoice, replayed: true }, { status: 200 });
     if (claim.state === "conflict") return idempotencyConflictResponse(claim.code);
 
@@ -419,9 +419,7 @@ export async function POST(request: Request) {
         student: { ...inv.student, idNumber: null },
       };
 
-      const invoice = await prisma.invoice.update({
-        where: { id: claim.id },
-        data: {
+      await completeInvoiceClaim(claim.id, claim.leaseExpiresAt, {
           schoolId,
           type: "STUDENT",
           studentId,
@@ -429,9 +427,10 @@ export async function POST(request: Request) {
           vat_amount: inv.vatAmount ?? 0,
           pdfUrl: fileUrl,
           data: persistedInvoiceData as object,
-          generationStatus: "COMPLETED",
-          generationError: null,
-        },
+      });
+      const invoice = await prisma.invoice.findUniqueOrThrow({
+        where: { id: claim.id },
+        select: { id: true, amount: true, pdfUrl: true, createdAt: true },
       });
 
       await logAction({
@@ -446,7 +445,7 @@ export async function POST(request: Request) {
 
       return Response.json({ id: invoice.id, amount: invoice.amount, pdfUrl: fileUrl, createdAt: invoice.createdAt }, { status: 201 });
     } catch (error) {
-      await failInvoiceClaim(claim.id).catch(() => undefined);
+      await failInvoiceClaim(claim.id, claim.leaseExpiresAt).catch(() => undefined);
       logSafeError("invoice-generate", error);
       return Response.json({ error: "تعذر إنشاء الفاتورة" }, { status: 500 });
     }
@@ -470,7 +469,7 @@ export async function POST(request: Request) {
   if (!school) return Response.json({ error: "School not found" }, { status: 404 });
   const operationKind = studentId ? "student-auto" : "teacher-auto";
   const requestHash = invoiceRequestHash(parsed.data);
-  const claim = await claimInvoice({ schoolId, operationKind, key: idempotencyKey, requestHash, type: studentId ? "STUDENT" : "TEACHER", studentId, teacherId });
+  const claim = await claimInvoice({ schoolId, operationKind, key: idempotencyKey, requestHash, type: studentId ? "STUDENT" : "TEACHER" });
   if (claim.state === "completed") return Response.json({ ...claim.invoice, replayed: true }, { status: 200 });
   if (claim.state === "conflict") return idempotencyConflictResponse(claim.code);
 
@@ -480,7 +479,7 @@ export async function POST(request: Request) {
     schoolId,
     studentId ? "student" : "teacher",
     await prisma.invoice.count({
-      where: { schoolId, type: studentId ? "STUDENT" : "TEACHER" },
+      where: { schoolId, type: studentId ? "STUDENT" : "TEACHER", generationStatus: "COMPLETED" },
     })
   );
   const allocated = await allocateInvoiceNumber(schoolId, studentId ? "student" : "teacher");
@@ -504,7 +503,10 @@ export async function POST(request: Request) {
       where: { id: studentId, schoolId, deletedAt: null },
       include: { class: true, guardian: true },
     });
-    if (!student) return Response.json({ error: "Student not found" }, { status: 404 });
+    if (!student) {
+      await failInvoiceClaim(claim.id, claim.leaseExpiresAt);
+      return Response.json({ error: "Student not found" }, { status: 404 });
+    }
 
     const lateHoursFee = moneyMultiply(school.settings?.hourlyLateFee, student.lateHours ?? 0);
     amount = moneyNumber(moneyAdd(monthlyFee, lateHoursFee));
@@ -620,7 +622,10 @@ export async function POST(request: Request) {
       where: { id: teacherId!, schoolId, deletedAt: null },
       include: { classes: true },
     });
-    if (!teacher) return Response.json({ error: "Teacher not found" }, { status: 404 });
+    if (!teacher) {
+      await failInvoiceClaim(claim.id, claim.leaseExpiresAt);
+      return Response.json({ error: "Teacher not found" }, { status: 404 });
+    }
 
     const deduction = moneyNumber(moneyMultiply(teacher.lateDeductionRate, teacher.lateHours ?? 0));
     const netSalary = moneyNumber(moneyMaxZero(moneySubtract(teacher.monthlySalary, deduction)));
@@ -692,9 +697,7 @@ export async function POST(request: Request) {
     const pdfBuffer = await renderToBuffer(pdfDoc as Parameters<typeof renderToBuffer>[0]);
     const fileUrl = savePdf(pdfBuffer);
 
-    const invoice = await prisma.invoice.update({
-      where: { id: claim.id },
-      data: {
+    await completeInvoiceClaim(claim.id, claim.leaseExpiresAt, {
         schoolId,
         type: invoiceType,
         studentId: studentId ?? null,
@@ -707,9 +710,9 @@ export async function POST(request: Request) {
         vat_amount: invoiceType === "STUDENT" ? studentVatAmount : 0,
         pdfUrl: fileUrl,
         data: invoiceData,
-        generationStatus: "COMPLETED",
-        generationError: null,
-      },
+    });
+    const invoice = await prisma.invoice.findUniqueOrThrow({
+      where: { id: claim.id },
     });
 
     const entityName = invoiceData.studentName ?? invoiceData.teacherName ?? "";
@@ -725,7 +728,7 @@ export async function POST(request: Request) {
 
     return Response.json({ ...invoice, pdfUrl: fileUrl });
   } catch (error) {
-    await failInvoiceClaim(claim.id).catch(() => undefined);
+    await failInvoiceClaim(claim.id, claim.leaseExpiresAt).catch(() => undefined);
     logSafeError("invoice-auto-generate", error);
     return Response.json({ error: "تعذر إنشاء الفاتورة" }, { status: 500 });
   }

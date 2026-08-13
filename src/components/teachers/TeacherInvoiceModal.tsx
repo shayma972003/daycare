@@ -96,6 +96,7 @@ export function TeacherInvoiceModal({ open, teacherId, onClose, onIssued }: Teac
 
 function TeacherInvoiceModalContent({ teacherId, onClose, onIssued }: Omit<TeacherInvoiceModalProps, "open">) {
   const t = useT();
+  const [idempotencyKey] = useState(() => createIdempotencyKey("teacher-invoice"));
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -232,7 +233,7 @@ function TeacherInvoiceModalContent({ teacherId, onClose, onIssued }: Omit<Teach
           })),
           netSalary,
         },
-      }, { headers: { "Idempotency-Key": createIdempotencyKey("teacher-invoice") } });
+      }, { headers: { "Idempotency-Key": idempotencyKey } });
 
       onIssued({
         id: res.data.id,

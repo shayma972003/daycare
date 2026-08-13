@@ -11,7 +11,7 @@ export async function GET(
   const { school_id } = await params;
 
   const invoices = await prisma.adminInvoice.findMany({
-    where: { school_id },
+    where: { school_id, generation_status: "COMPLETED" },
     orderBy: { created_at: "desc" },
   });
 

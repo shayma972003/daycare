@@ -32,6 +32,7 @@ export async function GET(request: Request) {
       // Belt and braces: the child ids already prove the relationship, but a
       // tenant filter costs nothing and means one bug cannot cross schools.
       schoolId: context.claims.schoolId,
+      generationStatus: "COMPLETED",
     },
     orderBy: { createdAt: "desc" },
     take: 60,

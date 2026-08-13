@@ -19,7 +19,7 @@ export async function GET(request: Request) {
   const teacherId = searchParams.get("teacherId");
   const type = searchParams.get("type");
 
-  const where: Record<string, unknown> = { schoolId };
+  const where: Record<string, unknown> = { schoolId, generationStatus: "COMPLETED" };
   if (studentId) where.studentId = studentId;
   if (teacherId) where.teacherId = teacherId;
   if (type === "STUDENT" || type === "TEACHER") where.type = type;

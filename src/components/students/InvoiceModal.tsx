@@ -84,6 +84,7 @@ export function InvoiceModal({ open, studentId, onClose, onIssued }: InvoiceModa
 
 function InvoiceModalContent({ studentId, onClose, onIssued }: Omit<InvoiceModalProps, "open">) {
   const t = useT();
+  const [idempotencyKey] = useState(() => createIdempotencyKey("student-invoice"));
   const [prefill, setPrefill] = useState<PrefillData | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -256,7 +257,7 @@ function InvoiceModalContent({ studentId, onClose, onIssued }: Omit<InvoiceModal
           vatAmount,
           grandTotal,
         },
-      }, { headers: { "Idempotency-Key": createIdempotencyKey("student-invoice") } });
+      }, { headers: { "Idempotency-Key": idempotencyKey } });
 
       onIssued({
         id: res.data.id,

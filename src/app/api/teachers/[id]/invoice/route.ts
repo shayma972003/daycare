@@ -4,7 +4,7 @@ import { logAction } from "@/lib/activity-logger";
 import { astDateInputValue, astDateOnly, astParts } from "@/lib/datetime";
 import { findInvoiceThisMonth, duplicateInvoiceResponse } from "@/lib/invoice-duplicates";
 import { moneyMaxZero, moneyMultiply, moneyString, moneySubtract } from "@/lib/money";
-import { claimInvoice, failInvoiceClaim, idempotencyConflictResponse, invoiceRequestHash, missingIdempotencyKeyResponse, readIdempotencyKey } from "@/lib/invoice-idempotency";
+import { claimInvoice, completeInvoiceClaim, failInvoiceClaim, idempotencyConflictResponse, invoiceRequestHash, missingIdempotencyKeyResponse, readIdempotencyKey } from "@/lib/invoice-idempotency";
 
 export async function POST(
   request: Request,
@@ -32,7 +32,7 @@ export async function POST(
   if (!teacher) {
     return Response.json({ error: "Not found" }, { status: 404 });
   }
-  const claim = await claimInvoice({ schoolId, operationKind: "teacher-direct", key: idempotencyKey, requestHash: invoiceRequestHash({ teacherId: id }), type: "TEACHER", teacherId: id });
+  const claim = await claimInvoice({ schoolId, operationKind: "teacher-direct", key: idempotencyKey, requestHash: invoiceRequestHash({ teacherId: id }), type: "TEACHER" });
   if (claim.state === "completed") return Response.json({ ...claim.invoice, replayed: true }, { status: 200 });
   if (claim.state === "conflict") return idempotencyConflictResponse(claim.code);
 
@@ -40,7 +40,10 @@ export async function POST(
   const force = new URL(request.url).searchParams.get("force") === "1";
   if (!force) {
     const existing = await findInvoiceThisMonth(schoolId, { teacherId: id });
-    if (existing) return duplicateInvoiceResponse(existing);
+    if (existing) {
+      await failInvoiceClaim(claim.id, claim.leaseExpiresAt);
+      return duplicateInvoiceResponse(existing);
+    }
   }
 
   const now = new Date();
@@ -79,9 +82,8 @@ export async function POST(
     periodTo: monthEnd.toISOString().slice(0, 10),
   };
 
-  const invoice = await prisma.invoice.update({
-    where: { id: claim.id },
-    data: {
+  const invoice = await (async () => {
+    await completeInvoiceClaim(claim.id, claim.leaseExpiresAt, {
       schoolId,
       type: "TEACHER",
       teacherId: id,
@@ -91,11 +93,10 @@ export async function POST(
       // omission is deliberate rather than the bug it was on the other paths.
       vat_amount: 0,
       data: invoiceData,
-      generationStatus: "COMPLETED",
-    },
-    include: { teacher: true },
-  }).catch(async (error) => {
-    await failInvoiceClaim(claim.id).catch(() => undefined);
+    });
+    return prisma.invoice.findUniqueOrThrow({ where: { id: claim.id }, include: { teacher: true } });
+  })().catch(async (error) => {
+    await failInvoiceClaim(claim.id, claim.leaseExpiresAt).catch(() => undefined);
     throw error;
   });
 

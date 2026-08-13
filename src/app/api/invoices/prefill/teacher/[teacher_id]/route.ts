@@ -27,7 +27,7 @@ export async function GET(
       where: { id: teacher_id, schoolId, deletedAt: null },
       include: { classes: { take: 1 } },
     }),
-    prisma.invoice.count({ where: { schoolId } }),
+    prisma.invoice.count({ where: { schoolId, generationStatus: "COMPLETED" } }),
     prisma.teacherAttendance.aggregate({
       where: {
         teacherId: teacher_id,

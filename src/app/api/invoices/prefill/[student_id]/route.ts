@@ -25,7 +25,7 @@ export async function GET(
       where: { id: student_id, schoolId, deletedAt: null },
       include: { class: true, guardian: true },
     }),
-    prisma.invoice.count({ where: { schoolId } }),
+    prisma.invoice.count({ where: { schoolId, generationStatus: "COMPLETED" } }),
   ]);
 
   if (!student) {

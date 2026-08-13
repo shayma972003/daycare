@@ -1,6 +1,7 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { bulkSummary, type BulkItemResult } from "@/lib/bulk-result";
 
 const schema = z.object({
   teacherIds: z.array(z.string()).min(1),
@@ -38,14 +39,13 @@ export async function POST(request: Request) {
   todayAst.setUTCHours(0, 0, 0, 0);
   const tomorrowAst = new Date(todayAst.getTime() + 24 * 60 * 60 * 1000);
 
-  let processed = 0;
-  let skipped = 0;
+  const results: BulkItemResult[] = [];
 
   if (action === "checkin") {
     for (const teacherId of teacherIds) {
       const teacher = await prisma.teacher.findFirst({ where: { id: teacherId, schoolId, deletedAt: null } });
       if (!teacher) {
-        skipped++;
+        results.push({ id: teacherId, status: "failed", code: "NOT_FOUND" });
         continue;
       }
 
@@ -54,14 +54,14 @@ export async function POST(request: Request) {
       });
 
       if (existing && !existing.checkoutAt) {
-        skipped++;
+        results.push({ id: teacherId, status: "skipped", code: "ALREADY_CHECKED_IN" });
         continue;
       }
 
       await prisma.teacherAttendance.create({
         data: { teacherId, schoolId, checkinAt: nowUtc, date: todayAst },
       });
-      processed++;
+      results.push({ id: teacherId, status: "succeeded" });
     }
   } else {
     const school = await prisma.school.findUnique({ where: { id: schoolId } });
@@ -72,7 +72,7 @@ export async function POST(request: Request) {
     for (const teacherId of teacherIds) {
       const teacher = await prisma.teacher.findFirst({ where: { id: teacherId, schoolId, deletedAt: null } });
       if (!teacher) {
-        skipped++;
+        results.push({ id: teacherId, status: "failed", code: "NOT_FOUND" });
         continue;
       }
 
@@ -81,7 +81,7 @@ export async function POST(request: Request) {
       });
 
       if (!existing) {
-        skipped++;
+        results.push({ id: teacherId, status: "skipped", code: "NOT_CHECKED_IN" });
         continue;
       }
 
@@ -104,9 +104,10 @@ export async function POST(request: Request) {
         data: { attendanceHours: { increment: actualHours }, lateHours: { increment: lateHours } },
       });
 
-      processed++;
+      results.push({ id: teacherId, status: "succeeded" });
     }
   }
 
-  return Response.json({ processed, skipped }, { status: 200 });
+  const summary = bulkSummary(results);
+  return Response.json({ processed: summary.succeeded, ...summary }, { status: summary.failed > 0 ? 207 : 200 });
 }

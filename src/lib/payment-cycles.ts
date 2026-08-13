@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { astDateOnly } from "@/lib/datetime";
 import type { PaymentCycleStatus } from "@/generated/prisma/enums";
 import { money } from "@/lib/money";
+import type { Prisma } from "@/generated/prisma/client";
 
 /** Statuses that represent money already accounted for — never regenerated. */
 const SETTLED_STATUSES: PaymentCycleStatus[] = ["PAID", "CANCELLED"];
@@ -44,8 +45,10 @@ function addMonthClamped(date: Date, months: number): Date {
  * history and re-billed them for months they had settled. Settled cycles are now
  * left untouched; only unpaid ones are recalculated.
  */
-export async function generatePaymentCycles(studentId: string) {
-  const student = await prisma.student.findUnique({
+type PaymentCycleClient = typeof prisma | Prisma.TransactionClient;
+
+async function generatePaymentCyclesWithClient(studentId: string, client: PaymentCycleClient) {
+  const student = await client.student.findUnique({
     where: { id: studentId },
     select: {
       id: true,
@@ -57,7 +60,7 @@ export async function generatePaymentCycles(studentId: string) {
   });
   if (!student?.enrollment_date || !student.enrollmentEndDate) return;
 
-  const settings = await prisma.settings.findUnique({
+  const settings = await client.settings.findUnique({
     where: { schoolId: student.schoolId },
     select: { monthlyStudentFee: true },
   });
@@ -79,7 +82,7 @@ export async function generatePaymentCycles(studentId: string) {
     schedule.push({ due_date: dueDate, cycle_number: i + 1 });
   }
 
-  const existing = await prisma.paymentCycle.findMany({
+  const existing = await client.paymentCycle.findMany({
     where: { student_id: studentId },
     select: { id: true, cycle_number: true, status: true },
   });
@@ -104,10 +107,11 @@ export async function generatePaymentCycles(studentId: string) {
 
   // One transaction: a crash between the delete and the create used to leave the
   // student with no schedule at all.
-  await prisma.$transaction([
-    prisma.paymentCycle.deleteMany({ where: { id: { in: removable } } }),
-    ...(toCreate.length > 0
-      ? [prisma.paymentCycle.createMany({ data: toCreate })]
-      : []),
-  ]);
+  await client.paymentCycle.deleteMany({ where: { id: { in: removable } } });
+  if (toCreate.length > 0) await client.paymentCycle.createMany({ data: toCreate });
+}
+
+export async function generatePaymentCycles(studentId: string, tx?: Prisma.TransactionClient) {
+  if (tx) return generatePaymentCyclesWithClient(studentId, tx);
+  return prisma.$transaction((transaction) => generatePaymentCyclesWithClient(studentId, transaction));
 }

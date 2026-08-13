@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
 import { PAYMENT_STATUSES } from "@/lib/payment-status";
 import { z } from "zod";
+import { bulkSummary } from "@/lib/bulk-result";
 
 const schema = z.object({
   ids: z.array(z.string()).min(1).max(500),
@@ -36,11 +37,14 @@ export async function PUT(request: Request) {
   }
 
   const { ids, paymentStatus } = parsed.data;
+  const uniqueIds = [...new Set(ids)];
+  const owned = await prisma.student.findMany({ where: { id: { in: uniqueIds }, schoolId, deletedAt: null }, select: { id: true } });
+  const ownedIds = new Set(owned.map((item) => item.id));
 
   const { count } = await prisma.student.updateMany({
     // `deletedAt: null` was missing, so students sitting in the trash were
     // silently mutated along with the live ones.
-    where: { id: { in: ids }, schoolId, deletedAt: null },
+    where: { id: { in: [...ownedIds] }, schoolId, deletedAt: null },
     data: { paymentStatus },
   });
 
@@ -53,5 +57,7 @@ export async function PUT(request: Request) {
   });
 
   // Reports how many rows actually changed, not how many were requested.
-  return Response.json({ updated: count });
+  return Response.json({ updated: count, ...bulkSummary(uniqueIds.map((id) => ownedIds.has(id)
+    ? { id, status: "succeeded" as const }
+    : { id, status: "failed" as const, code: "NOT_FOUND" })) });
 }

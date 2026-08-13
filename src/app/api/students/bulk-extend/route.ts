@@ -4,6 +4,7 @@ import { logAction } from "@/lib/activity-logger";
 import { generatePaymentCycles } from "@/lib/payment-cycles";
 import { formatAst } from "@/lib/datetime";
 import { z } from "zod";
+import { bulkSummary, type BulkItemResult } from "@/lib/bulk-result";
 
 const schema = z.object({
   // Capped like bulk-status: each id triggers a payment-cycle regeneration, so
@@ -52,17 +53,22 @@ export async function POST(request: Request) {
     return Response.json({ error: "لا يوجد طلاب صالحين" }, { status: 400 });
   }
 
-  await prisma.student.updateMany({
-    // `schoolId` repeated even though the ids came from a scoped query above:
-    // if that filter is ever loosened, the write must still refuse to cross a
-    // tenant boundary rather than silently follow it.
-    where: { id: { in: students.map((s) => s.id) }, schoolId, deletedAt: null },
-    data: { enrollmentEndDate: newDate },
-  });
-
+  const results: BulkItemResult[] = ids
+    .filter((id) => !students.some((student) => student.id === id))
+    .map((id) => ({ id, status: "failed", code: "NOT_FOUND" }));
   for (const student of students) {
-    await generatePaymentCycles(student.id);
+    try {
+      await prisma.$transaction(async (tx) => {
+        const updated = await tx.student.updateMany({ where: { id: student.id, schoolId, deletedAt: null }, data: { enrollmentEndDate: newDate } });
+        if (updated.count !== 1) throw new Error("student_not_available");
+        await generatePaymentCycles(student.id, tx);
+      });
+      results.push({ id: student.id, status: "succeeded" });
+    } catch {
+      results.push({ id: student.id, status: "failed", code: "UPDATE_FAILED" });
+    }
   }
+  const summary = bulkSummary(results);
 
   await logAction({
     school_id: schoolId,
@@ -79,5 +85,5 @@ export async function POST(request: Request) {
     request,
   });
 
-  return Response.json({ success: true, updated: students.length }, { status: 200 });
+  return Response.json({ success: summary.failed === 0, updated: summary.succeeded, ...summary }, { status: summary.failed ? 207 : 200 });
 }

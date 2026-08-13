@@ -4,6 +4,8 @@ import { logAction } from "@/lib/activity-logger";
 import { protectIdNumber } from "@/lib/pii-crypto";
 import { z } from "zod";
 import * as XLSX from "xlsx";
+import { bulkSummary, type BulkItemResult } from "@/lib/bulk-result";
+import { Prisma } from "@/generated/prisma/client";
 
 // Expected Excel column headers (Arabic):
 // الاسم | الفترة | رقم الهوية | تاريخ الميلاد | الجنسية | البريد الإلكتروني
@@ -83,9 +85,11 @@ export async function POST(request: Request) {
     }
   });
 
-  if (valid.length > 0) {
-    await prisma.teacher.createMany({
-      data: valid.map((v) => ({
+  const results: BulkItemResult[] = [];
+  for (const [index, v] of valid.entries()) {
+    try {
+      await prisma.teacher.create({
+      data: {
         schoolId,
         name: v.name,
         period: v.period as "MORNING" | "EVENING",
@@ -100,10 +104,14 @@ export async function POST(request: Request) {
         joinDate: v.joinDate ? new Date(v.joinDate) : new Date(),
         monthlySalary: v.monthlySalary,
         lateDeductionRate: v.lateDeductionRate,
-      })),
-      skipDuplicates: true,
-    });
+      },
+      });
+      results.push({ id: `row-${index + 2}`, status: "succeeded" });
+    } catch (error) {
+      results.push({ id: `row-${index + 2}`, status: "failed", code: error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002" ? "DUPLICATE" : "WRITE_FAILED" });
+    }
   }
+  const summary = bulkSummary(results);
 
   await logAction({
     school_id: schoolId,
@@ -113,5 +121,5 @@ export async function POST(request: Request) {
     request,
   });
 
-  return Response.json({ added: valid.length, failed: errors.length, errors });
+  return Response.json({ ...summary, added: summary.succeeded, failed: summary.failed + errors.length, errors }, { status: summary.failed || errors.length ? 207 : 200 });
 }

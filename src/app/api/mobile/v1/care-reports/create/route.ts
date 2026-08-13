@@ -103,16 +103,13 @@ export async function POST(request: Request) {
     return Response.json({ error: "التاريخ غير صحيح" }, { status: 422 });
   }
 
-  const created: { id: string; studentId: string }[] = [];
-
-  for (const student of writable) {
+  const writes = writable.flatMap((student) => {
     const fields = buildReportFields({ ...template, studentId: student.id });
     // Nothing was filled in. Skipped rather than saved: a parent seeing an
     // empty "meal" entry assumes something was meant by it.
-    if (!fields) continue;
+    if (!fields) return [];
 
-    const report = await prisma.careReport.create({
-      data: {
+    return [{
         schoolId,
         studentId: student.id,
         classId: student.classId,
@@ -123,15 +120,16 @@ export async function POST(request: Request) {
         // itself is written separately, exactly as the dashboard does.
         type: template.type,
         ...fields,
-      },
-      select: { id: true, studentId: true },
-    });
-    created.push(report);
-  }
+      }];
+  });
 
-  if (created.length === 0) {
+  if (writes.length === 0) {
     return Response.json({ error: "لم تُدخلي أي تفاصيل" }, { status: 422 });
   }
+
+  const created = await prisma.$transaction(
+    writes.map((data) => prisma.careReport.create({ data, select: { id: true, studentId: true } }))
+  );
 
   return Response.json({ created: created.length, reports: created }, { status: 201 });
 }

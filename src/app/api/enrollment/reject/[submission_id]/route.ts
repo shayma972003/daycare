@@ -1,7 +1,8 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { logAction } from "@/lib/activity-logger";
+import { activityLogData } from "@/lib/activity-logger";
 import { ENROLLMENT_MANAGE_PERMISSION } from "@/lib/enrollment-access";
+import { lockEnrollmentSubmission } from "@/lib/enrollment-atomic";
 import { keyFromUrl } from "@/lib/r2";
 import {
   completeStoredFileDeletion,
@@ -12,6 +13,7 @@ import {
 import { STORED_FILE_OWNER } from "@/lib/stored-file-ownership";
 
 class EnrollmentReviewConflict extends Error {}
+class EnrollmentReviewNotFound extends Error {}
 
 export async function POST(
   request: Request,
@@ -21,65 +23,72 @@ export async function POST(
   try {
     session = await requireSession();
   } catch (error) {
-    // 403 when the caller is known but lacks the permission; 401 otherwise.
-    return (
-      sessionErrorResponse(error) ??
-      Response.json({ error: "Unauthorized" }, { status: 401 })
-    );
+    return sessionErrorResponse(error) ?? Response.json({ error: "Unauthorized" }, { status: 401 });
   }
   if (!session.can(ENROLLMENT_MANAGE_PERMISSION)) {
     return Response.json({ error: "Forbidden", code: "FORBIDDEN" }, { status: 403 });
   }
+
   const schoolId = session.user.schoolId;
   const { submission_id } = await params;
+  let fileOwner: ExactStoredFileOwner | null = null;
 
-  const sub = await prisma.enrollmentSubmission.findFirst({
-    where: { id: submission_id, school_id: schoolId },
-  });
-  if (!sub) return Response.json({ error: "Not found" }, { status: 404 });
+  try {
+    fileOwner = await prisma.$transaction(async (tx) => {
+      const locked = await lockEnrollmentSubmission(tx, { id: submission_id, schoolId });
+      if (!locked) throw new EnrollmentReviewNotFound();
 
-  if (sub.status === "approved") {
-    return Response.json({ error: "Enrollment request is no longer pending" }, { status: 409 });
-  }
-
-  const fileKey = keyFromUrl(sub.evaluation_file_url);
-  const fileOwner: ExactStoredFileOwner | null = fileKey
-    ? {
-        key: fileKey,
-        schoolId,
-        ownerType: STORED_FILE_OWNER.ENROLLMENT_SUBMISSION,
-        ownerId: sub.id,
-      }
-    : null;
-
-  if (sub.status === "pending_review") {
-    try {
-      await prisma.$transaction(async (tx) => {
-        const rejected = await tx.enrollmentSubmission.updateMany({
-          where: { id: submission_id, school_id: schoolId, status: "pending_review" },
-          data: { status: "rejected", reviewed_at: new Date() },
-        });
-        if (rejected.count !== 1) throw new EnrollmentReviewConflict();
-
-        if (fileOwner) {
-          const marked = await markStoredFileForDeletion(tx, fileOwner);
-          if (marked !== "pending") throw new StoredFileOwnershipError();
-        }
+      const submission = await tx.enrollmentSubmission.findFirst({
+        where: { id: submission_id, school_id: schoolId },
       });
-    } catch (error) {
-      if (error instanceof EnrollmentReviewConflict) {
-        return Response.json({ error: "Enrollment request is no longer pending" }, { status: 409 });
+      if (!submission) throw new EnrollmentReviewNotFound();
+      if (submission.status !== "pending_review") throw new EnrollmentReviewConflict();
+
+      const fileKey = keyFromUrl(submission.evaluation_file_url);
+      const owner: ExactStoredFileOwner | null = fileKey
+        ? {
+            key: fileKey,
+            schoolId,
+            ownerType: STORED_FILE_OWNER.ENROLLMENT_SUBMISSION,
+            ownerId: submission.id,
+          }
+        : null;
+
+      if (owner) {
+        const marked = await markStoredFileForDeletion(tx, owner);
+        if (marked !== "pending") throw new StoredFileOwnershipError();
       }
-      if (error instanceof StoredFileOwnershipError) {
-        return Response.json({ error: "Enrollment file ownership is invalid" }, { status: 409 });
-      }
-      throw error;
+
+      const rejected = await tx.enrollmentSubmission.updateMany({
+        where: { id: submission_id, school_id: schoolId, status: "pending_review" },
+        data: { status: "rejected", reviewed_at: new Date() },
+      });
+      if (rejected.count !== 1) throw new EnrollmentReviewConflict();
+
+      await tx.activityLog.create({
+        data: activityLogData({
+          school_id: schoolId,
+          action: `رفض طلب تسجيل الطالب: ${submission.full_name}`,
+          entity_type: "enrollment",
+          entity_id: submission_id,
+          entity_name: submission.full_name,
+          performed_by: session.user.name ?? "المدير",
+          request,
+        }),
+      });
+      return owner;
+    });
+  } catch (error) {
+    if (error instanceof EnrollmentReviewNotFound) {
+      return Response.json({ error: "Not found" }, { status: 404 });
     }
-  } else if (fileOwner) {
-    const marked = await markStoredFileForDeletion(prisma, fileOwner);
-    if (marked !== "pending") {
+    if (error instanceof EnrollmentReviewConflict) {
+      return Response.json({ error: "Enrollment request is no longer pending" }, { status: 409 });
+    }
+    if (error instanceof StoredFileOwnershipError) {
       return Response.json({ error: "Enrollment file ownership is invalid" }, { status: 409 });
     }
+    throw error;
   }
 
   if (fileOwner) {
@@ -97,16 +106,6 @@ export async function POST(
       });
     }
   }
-
-  await logAction({
-    school_id: schoolId,
-    action: `رفض طلب تسجيل الطالب: ${sub.full_name}`,
-    entity_type: "enrollment",
-    entity_id: submission_id,
-    entity_name: sub.full_name,
-    performed_by: session.user.name ?? "المدير",
-    request,
-  });
 
   return Response.json({ success: true });
 }

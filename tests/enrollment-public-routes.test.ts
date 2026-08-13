@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   transaction: vi.fn(),
   submissionCreate: vi.fn(),
   transferOwnership: vi.fn(),
+  queryRaw: vi.fn(),
   rateLimit: vi.fn(),
   storeUpload: vi.fn(),
 }));
@@ -68,11 +69,12 @@ beforeEach(() => {
   mocks.rateLimit.mockResolvedValue({ status: "allowed", remaining: 10, retryAfter: 0 });
   mocks.transaction.mockImplementation((callback: (tx: unknown) => unknown) =>
     callback({
+      $queryRaw: mocks.queryRaw,
       enrollmentSubmission: { create: mocks.submissionCreate },
-      enrollmentToken: { update: mocks.update },
       storedFile: { updateMany: vi.fn() },
     })
   );
+  mocks.queryRaw.mockResolvedValue([{ submissions_count: 1, max_submissions: 3 }]);
 });
 
 describe("public enrollment handlers", () => {
@@ -261,6 +263,32 @@ describe("public enrollment handlers", () => {
         nextOwnerId: "submission-1",
       })
     );
+  });
+
+  it("does not create a submission when the atomic slot reservation loses", async () => {
+    mocks.findUnique.mockResolvedValue({
+      id: "token-id",
+      token: "raw-token",
+      school_id: "school-1",
+      status: "active",
+      otp_verified: true,
+      expires_at: new Date(Date.now() + 60_000),
+      submissions_count: 0,
+      max_submissions: 1,
+    });
+    mocks.queryRaw.mockResolvedValue([]);
+
+    const response = await submitEnrollment(
+      new Request("http://localhost/api/enrollment/submit", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ token: "raw-token", full_name: "Child" }),
+      })
+    );
+
+    expect(response.status).toBe(429);
+    expect(mocks.submissionCreate).not.toHaveBeenCalled();
+    expect(await response.text()).not.toContain("raw-token");
   });
 
   it("rejects a registered-looking URL when ownership belongs to another token", async () => {

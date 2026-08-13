@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   enrollmentTokenFindUnique: vi.fn(),
   enrollmentTokenUpdate: vi.fn(),
   enrollmentSubmissionCreate: vi.fn(),
+  enrollmentReservation: vi.fn(),
   transaction: vi.fn(),
   requireSession: vi.fn(),
   rateLimit: vi.fn(),
@@ -72,10 +73,11 @@ beforeEach(() => {
   for (const mock of Object.values(mocks)) mock.mockReset();
   mocks.transaction.mockImplementation((callback: (tx: unknown) => unknown) =>
     callback({
+      $queryRaw: mocks.enrollmentReservation,
       enrollmentSubmission: { create: mocks.enrollmentSubmissionCreate },
-      enrollmentToken: { update: mocks.enrollmentTokenUpdate },
     })
   );
+  mocks.enrollmentReservation.mockResolvedValue([{ submissions_count: 1, max_submissions: 4 }]);
 
   vi.stubGlobal("fetch", mocks.fetch);
   mocks.fetch.mockResolvedValue(new Response("{}", { status: 200 }));

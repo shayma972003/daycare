@@ -7,6 +7,9 @@ const mocks = vi.hoisted(() => ({
   findMany: vi.fn(),
   deleteMany: vi.fn(),
   expiredTokens: vi.fn(),
+  tokenUpdateMany: vi.fn(),
+  tokenDeleteMany: vi.fn(),
+  storedFileCount: vi.fn(),
   rejectedSubmissions: vi.fn(),
   deleteObjects: vi.fn(),
   reportError: vi.fn(),
@@ -19,9 +22,14 @@ vi.mock("@/lib/prisma", () => ({
       findUnique: mocks.findUnique,
       findFirst: mocks.findFirst,
       findMany: mocks.findMany,
+      count: mocks.storedFileCount,
       deleteMany: mocks.deleteMany,
     },
-    enrollmentToken: { findMany: mocks.expiredTokens },
+    enrollmentToken: {
+      findMany: mocks.expiredTokens,
+      updateMany: mocks.tokenUpdateMany,
+      deleteMany: mocks.tokenDeleteMany,
+    },
     enrollmentSubmission: { findMany: mocks.rejectedSubmissions },
   },
 }));
@@ -38,6 +46,7 @@ import {
   discardFilesOwnedBy,
   discardStoredFile,
   StoredFileOwnershipError,
+  purgeExpiredEnrollmentTokens,
   transferStoredFileOwnership,
 } from "@/lib/stored-files";
 import { STORED_FILE_OWNER } from "@/lib/stored-file-ownership";
@@ -212,5 +221,33 @@ describe("StoredFile ownership lifecycle", () => {
     const candidateQuery = mocks.findMany.mock.calls[0]?.[0];
     expect(JSON.stringify(candidateQuery)).not.toContain("pending_review");
     expect(mocks.deleteMany).toHaveBeenCalledOnce();
+  });
+
+  it("retains token history and continues purging after one token failure", async () => {
+    mocks.expiredTokens.mockResolvedValue([
+      { id: "with-submission", school_id: "school-1", status: "completed", _count: { submissions: 1 } },
+      { id: "broken", school_id: "school-1", status: "expired", _count: { submissions: 0 } },
+      { id: "orphan", school_id: "school-1", status: "expired", _count: { submissions: 0 } },
+    ]);
+    mocks.tokenUpdateMany.mockResolvedValue({ count: 1 });
+    mocks.storedFileCount
+      .mockRejectedValueOnce(new Error("one token failed"))
+      .mockResolvedValueOnce(0);
+    mocks.tokenDeleteMany.mockResolvedValue({ count: 1 });
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    await expect(purgeExpiredEnrollmentTokens()).resolves.toEqual({
+      inspected: 3,
+      deleted: 1,
+      retainedWithSubmissions: 1,
+      retainedWithFiles: 0,
+      markedExpired: 1,
+      failures: 1,
+    });
+    expect(mocks.tokenDeleteMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ id: "orphan", submissions: { none: {} } }),
+    }));
+    expect(error).toHaveBeenCalledWith("[enrollment-token-purge] one token cleanup failed");
+    error.mockRestore();
   });
 });

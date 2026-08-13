@@ -11,7 +11,11 @@ const mocks = vi.hoisted(() => ({
   completeDeletion: vi.fn(),
   transferOwnership: vi.fn(),
   studentCreate: vi.fn(),
-  logAction: vi.fn(),
+  queryRaw: vi.fn(),
+  activityCreate: vi.fn(),
+  guardianFindFirst: vi.fn(),
+  guardianUpdateMany: vi.fn(),
+  guardianCreate: vi.fn(),
 }));
 
 vi.mock("@/lib/session", () => ({
@@ -63,7 +67,9 @@ vi.mock("@/lib/enum-labels", () => ({
   parseAttendanceType: () => "REGULAR",
 }));
 
-vi.mock("@/lib/activity-logger", () => ({ logAction: mocks.logAction }));
+vi.mock("@/lib/activity-logger", () => ({
+  activityLogData: (data: unknown) => data,
+}));
 
 import { GET as listSubmissions } from "@/app/api/enrollment/submissions/route";
 import { POST as rejectSubmission } from "@/app/api/enrollment/reject/[submission_id]/route";
@@ -83,11 +89,20 @@ beforeEach(() => {
   );
   mocks.transaction.mockImplementation((callback: (tx: unknown) => unknown) =>
     callback({
-      enrollmentSubmission: { updateMany: mocks.updateMany },
+      $queryRaw: mocks.queryRaw,
+      enrollmentSubmission: { findFirst: mocks.findFirst, updateMany: mocks.updateMany },
       student: { create: mocks.studentCreate },
+      guardian: {
+        findFirst: mocks.guardianFindFirst,
+        updateMany: mocks.guardianUpdateMany,
+        create: mocks.guardianCreate,
+      },
+      activityLog: { create: mocks.activityCreate },
       storedFile: { updateMany: vi.fn() },
     })
   );
+  mocks.queryRaw.mockResolvedValue([{ id: "submission-1" }]);
+  mocks.activityCreate.mockResolvedValue({});
   mocks.markForDeletion.mockResolvedValue("pending");
   mocks.completeDeletion.mockResolvedValue({ status: "deleted" });
   mocks.transferOwnership.mockResolvedValue(undefined);
@@ -139,7 +154,7 @@ describe("administrative enrollment handlers", () => {
       where: { id: "foreign", school_id: "school-1" },
     });
     expect(mocks.updateMany).not.toHaveBeenCalled();
-    expect(mocks.logAction).not.toHaveBeenCalled();
+    expect(mocks.activityCreate).not.toHaveBeenCalled();
   });
 
   it("keeps a rejected file retryable when object storage deletion fails", async () => {
@@ -169,7 +184,7 @@ describe("administrative enrollment handlers", () => {
         ownerId: "submission-1",
       })
     );
-    expect(mocks.logAction).not.toHaveBeenCalled();
+    expect(mocks.activityCreate).toHaveBeenCalledOnce();
   });
 
   it("deletes a rejected submission file before reporting success", async () => {
@@ -194,7 +209,7 @@ describe("administrative enrollment handlers", () => {
       where: { id: "submission-1", school_id: "school-1", status: "rejected" },
       data: { evaluation_file_url: null, evaluation_file_name: null },
     });
-    expect(mocks.logAction).toHaveBeenCalledOnce();
+    expect(mocks.activityCreate).toHaveBeenCalledOnce();
   });
 
   it("moves an approved submission file to the newly created student", async () => {
@@ -263,6 +278,6 @@ describe("administrative enrollment handlers", () => {
 
     expect(response.status).toBe(409);
     expect(mocks.updateMany).not.toHaveBeenCalled();
-    expect(mocks.logAction).not.toHaveBeenCalled();
+    expect(mocks.activityCreate).not.toHaveBeenCalled();
   });
 });

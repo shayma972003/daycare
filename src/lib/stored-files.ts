@@ -9,6 +9,7 @@ import {
 } from "@/lib/stored-file-ownership";
 
 type StoredFileDb = Pick<Prisma.TransactionClient, "storedFile">;
+type EnrollmentPurgeDb = Pick<Prisma.TransactionClient, "enrollmentToken" | "storedFile">;
 
 export class StoredFileOwnershipError extends Error {
   constructor(message = "Stored file ownership changed") {
@@ -191,6 +192,97 @@ export interface EnrollmentFileCleanupResult {
   inspected: number;
   deleted: number;
   pending: number;
+}
+
+export interface EnrollmentTokenPurgeResult {
+  inspected: number;
+  deleted: number;
+  retainedWithSubmissions: number;
+  retainedWithFiles: number;
+  markedExpired: number;
+  failures: number;
+}
+
+/**
+ * Purges only old enrollment tokens that have no historical submissions and no
+ * pending object cleanup. Each token is isolated so one retained or malformed
+ * row cannot stop the rest of the nightly job.
+ */
+export async function purgeExpiredEnrollmentTokens(
+  options: {
+    now?: Date;
+    retentionMs?: number;
+    limit?: number;
+    db?: EnrollmentPurgeDb;
+  } = {}
+): Promise<EnrollmentTokenPurgeResult> {
+  const db = options.db ?? prisma;
+  const now = options.now ?? new Date();
+  const cutoff = new Date(now.getTime() - (options.retentionMs ?? 7 * 24 * 60 * 60 * 1000));
+  const limit = Math.max(1, Math.min(options.limit ?? 100, 500));
+  const tokens = await db.enrollmentToken.findMany({
+    where: { expires_at: { lt: cutoff } },
+    select: {
+      id: true,
+      school_id: true,
+      status: true,
+      _count: { select: { submissions: true } },
+    },
+    orderBy: { expires_at: "asc" },
+    take: limit,
+  });
+
+  const result: EnrollmentTokenPurgeResult = {
+    inspected: tokens.length,
+    deleted: 0,
+    retainedWithSubmissions: 0,
+    retainedWithFiles: 0,
+    markedExpired: 0,
+    failures: 0,
+  };
+
+  for (const token of tokens) {
+    try {
+      if (token._count.submissions > 0) {
+        result.retainedWithSubmissions += 1;
+        if (token.status !== "expired") {
+          const marked = await db.enrollmentToken.updateMany({
+            where: { id: token.id, school_id: token.school_id, expires_at: { lt: cutoff } },
+            data: { status: "expired" },
+          });
+          result.markedExpired += marked.count;
+        }
+        continue;
+      }
+
+      const fileCount = await db.storedFile.count({
+        where: {
+          schoolId: token.school_id,
+          ownerType: STORED_FILE_OWNER.ENROLLMENT_TOKEN,
+          ownerId: token.id,
+        },
+      });
+      if (fileCount > 0) {
+        result.retainedWithFiles += 1;
+        continue;
+      }
+
+      const deleted = await db.enrollmentToken.deleteMany({
+        where: {
+          id: token.id,
+          school_id: token.school_id,
+          expires_at: { lt: cutoff },
+          submissions: { none: {} },
+        },
+      });
+      result.deleted += deleted.count;
+    } catch {
+      result.failures += 1;
+      console.error("[enrollment-token-purge] one token cleanup failed");
+    }
+  }
+
+  return result;
 }
 
 /**

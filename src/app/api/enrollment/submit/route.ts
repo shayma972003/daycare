@@ -11,6 +11,9 @@ import {
   transferStoredFileOwnership,
 } from "@/lib/stored-files";
 import { STORED_FILE_OWNER } from "@/lib/stored-file-ownership";
+import { reserveEnrollmentSlot } from "@/lib/enrollment-atomic";
+
+class EnrollmentSlotUnavailable extends Error {}
 
 const schema = z.object({
   token: z.string().min(1),
@@ -91,11 +94,18 @@ export async function POST(request: Request) {
     }
   }
 
-  const newCount = rec.submissions_count + 1;
-
   let submission;
+  let reservation;
   try {
-    submission = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
+      const reserved = await reserveEnrollmentSlot(tx, {
+        id: rec.id,
+        token,
+        schoolId: rec.school_id,
+        now: new Date(),
+      });
+      if (!reserved) throw new EnrollmentSlotUnavailable();
+
       const created = await tx.enrollmentSubmission.create({
         data: {
       token_id: rec.id,
@@ -146,16 +156,17 @@ export async function POST(request: Request) {
         });
       }
 
-      await tx.enrollmentToken.update({
-        where: { token },
-        data: {
-          submissions_count: newCount,
-          ...(newCount >= rec.max_submissions ? { status: "completed" } : {}),
-        },
-      });
-      return created;
+      return { submission: created, reservation: reserved };
     });
+    submission = result.submission;
+    reservation = result.reservation;
   } catch (error) {
+    if (error instanceof EnrollmentSlotUnavailable) {
+      return Response.json(
+        { error: "Enrollment submission is unavailable", limit_reached: true },
+        { status: 429 }
+      );
+    }
     if (error instanceof StoredFileOwnershipError) {
       return Response.json({ error: "Invalid evaluation file" }, { status: 422 });
     }
@@ -165,8 +176,8 @@ export async function POST(request: Request) {
   return Response.json({
     success: true,
     submission_id: submission.id,
-    submissions_count: newCount,
-    limit_reached: newCount >= rec.max_submissions,
-    max_submissions: rec.max_submissions,
+    submissions_count: reservation.submissionsCount,
+    limit_reached: reservation.submissionsCount >= reservation.maxSubmissions,
+    max_submissions: reservation.maxSubmissions,
   });
 }

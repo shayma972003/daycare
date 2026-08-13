@@ -1,12 +1,13 @@
+import { z } from "zod";
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { protectIdNumber } from "@/lib/pii-crypto";
-import { logAction } from "@/lib/activity-logger";
+import { activityLogData } from "@/lib/activity-logger";
 import { assertClassOwned, crossTenantResponse } from "@/lib/tenant-guard";
 import { resolveStageId, foreignStageResponse } from "@/lib/academic-stage";
 import { parseAcademicStage, parseAttendanceType } from "@/lib/enum-labels";
-import { z } from "zod";
 import { ENROLLMENT_MANAGE_PERMISSION } from "@/lib/enrollment-access";
+import { lockEnrollmentSubmission } from "@/lib/enrollment-atomic";
 import { keyFromUrl } from "@/lib/r2";
 import {
   StoredFileOwnershipError,
@@ -15,22 +16,14 @@ import {
 import { STORED_FILE_OWNER } from "@/lib/stored-file-ownership";
 
 class EnrollmentReviewConflict extends Error {}
+class EnrollmentReviewNotFound extends Error {}
 
 const schema = z.object({
   class_id: z.string().optional(),
   full_name: z.string().min(1).optional(),
   id_number: z.string().nullish(),
   nationality: z.string().nullish(),
-  /** What the parent typed — a hint, kept for the record. */
   academic_stage: z.string().nullish(),
-  /**
-   * The stage the school assigns while reviewing (task 2.44).
-   *
-   * Chosen here rather than on the parent's form: a parent knows their child's
-   * age, not which room this particular nursery puts them in, and the school is
-   * looking at the request anyway.
-   */
-  stage_id: z.string().nullish(),
   gender: z.string().nullish(),
   period: z.string().nullish(),
   date_of_birth: z.string().nullish(),
@@ -46,18 +39,21 @@ const schema = z.object({
   guardian_phone_3: z.string().nullish(),
   guardian_phone_4: z.string().nullish(),
   guardian_email_2: z.string().nullish(),
+  stage_id: z.string().nullish(),
 });
 
-function mapPeriod(v: string | null | undefined): "MORNING" | "EVENING" {
-  return v === "مسائي" || v === "EVENING" ? "EVENING" : "MORNING";
+function mapPeriod(value: string | null | undefined): "MORNING" | "EVENING" {
+  return value === "مسائي" || value === "EVENING" ? "EVENING" : "MORNING";
 }
-function mapPaymentMethod(v: string | null | undefined): "CASH" | "TRANSFER" | "CARD" {
-  if (v === "تحويل" || v === "TRANSFER") return "TRANSFER";
-  if (v === "CARD") return "CARD";
+
+function mapPaymentMethod(value: string | null | undefined): "CASH" | "TRANSFER" | "CARD" {
+  if (value === "تحويل" || value === "TRANSFER") return "TRANSFER";
+  if (value === "CARD") return "CARD";
   return "CASH";
 }
-function mapGender(v: string | null | undefined): "MALE" | "FEMALE" {
-  return v === "أنثى" || v === "FEMALE" ? "FEMALE" : "MALE";
+
+function mapGender(value: string | null | undefined): "MALE" | "FEMALE" {
+  return value === "أنثى" || value === "FEMALE" ? "FEMALE" : "MALE";
 }
 
 export async function POST(
@@ -68,26 +64,14 @@ export async function POST(
   try {
     session = await requireSession();
   } catch (error) {
-    // 403 when the caller is known but lacks the permission; 401 otherwise.
-    return (
-      sessionErrorResponse(error) ??
-      Response.json({ error: "Unauthorized" }, { status: 401 })
-    );
+    return sessionErrorResponse(error) ?? Response.json({ error: "Unauthorized" }, { status: 401 });
   }
   if (!session.can(ENROLLMENT_MANAGE_PERMISSION)) {
     return Response.json({ error: "Forbidden", code: "FORBIDDEN" }, { status: 403 });
   }
+
   const schoolId = session.user.schoolId;
   const { submission_id } = await params;
-
-  const sub = await prisma.enrollmentSubmission.findFirst({
-    where: { id: submission_id, school_id: schoolId },
-  });
-  if (!sub) return Response.json({ error: "Not found" }, { status: 404 });
-  if (sub.status !== "pending_review") {
-    return Response.json({ error: "تم مراجعة هذا الطلب مسبقاً" }, { status: 409 });
-  }
-
   let body: unknown;
   try {
     body = await request.json();
@@ -95,56 +79,13 @@ export async function POST(
     body = {};
   }
   const parsed = schema.safeParse(body);
-  const ov = parsed.success ? parsed.data : {};
+  const overrides = parsed.success ? parsed.data : {};
 
-  // Merge overrides with submission data (override wins)
-  const guardianPhone = ov.guardian_phone_1 ?? sub.guardian_phone_1;
-  let guardianId: string | null = null;
-
-  if (guardianPhone) {
-    const existing = await prisma.guardian.findFirst({
-      where: { schoolId, phone1: guardianPhone, deletedAt: null },
-    });
-    if (existing) {
-      guardianId = existing.id;
-      // Update guardian with any new info from overrides
-      await prisma.guardian.updateMany({
-        where: { id: existing.id, schoolId },
-        data: {
-          name: ov.guardian_name ?? sub.guardian_name ?? existing.name,
-          phone2: ov.guardian_phone_2 ?? sub.guardian_phone_2 ?? existing.phone2,
-          email: ov.guardian_email ?? sub.guardian_email ?? existing.email,
-          name_2: ov.guardian_name_2 ?? sub.guardian_name_2 ?? existing.name_2,
-          phone_3: ov.guardian_phone_3 ?? sub.guardian_phone_3 ?? existing.phone_3,
-          phone_4: ov.guardian_phone_4 ?? sub.guardian_phone_4 ?? existing.phone_4,
-          email_2: ov.guardian_email_2 ?? sub.guardian_email_2 ?? existing.email_2,
-        },
-      });
-    } else {
-      const created = await prisma.guardian.create({
-        data: {
-          schoolId,
-          name: ov.guardian_name ?? sub.guardian_name ?? "—",
-          phone1: guardianPhone,
-          phone2: ov.guardian_phone_2 ?? sub.guardian_phone_2 ?? null,
-          email: ov.guardian_email ?? sub.guardian_email ?? null,
-          name_2: ov.guardian_name_2 ?? sub.guardian_name_2 ?? null,
-          phone_3: ov.guardian_phone_3 ?? sub.guardian_phone_3 ?? null,
-          phone_4: ov.guardian_phone_4 ?? sub.guardian_phone_4 ?? null,
-          email_2: ov.guardian_email_2 ?? sub.guardian_email_2 ?? null,
-        },
-      });
-      guardianId = created.id;
-    }
-  }
-
-  // The class id comes from the reviewer's form and was written straight
-  // through, so a student could be attached to another school's class.
   let ownedClassId: string | null;
   let ownedStageId: string | null;
   try {
-    ownedClassId = await assertClassOwned(ov.class_id || null, schoolId);
-    ownedStageId = await resolveStageId(ov.stage_id, schoolId);
+    ownedClassId = await assertClassOwned(overrides.class_id || null, schoolId);
+    ownedStageId = await resolveStageId(overrides.stage_id, schoolId);
   } catch (error) {
     const denied = crossTenantResponse(error);
     if (denied) return denied;
@@ -153,42 +94,88 @@ export async function POST(
     throw error;
   }
 
-  const dobRaw = ov.date_of_birth ?? (sub.date_of_birth ? sub.date_of_birth.toString() : null);
-  let student;
   try {
-    student = await prisma.$transaction(async (tx) => {
+    const student = await prisma.$transaction(async (tx) => {
+      const locked = await lockEnrollmentSubmission(tx, { id: submission_id, schoolId });
+      if (!locked) throw new EnrollmentReviewNotFound();
+
+      const submission = await tx.enrollmentSubmission.findFirst({
+        where: { id: submission_id, school_id: schoolId },
+      });
+      if (!submission) throw new EnrollmentReviewNotFound();
+      if (submission.status !== "pending_review") throw new EnrollmentReviewConflict();
+
+      const guardianPhone = overrides.guardian_phone_1 ?? submission.guardian_phone_1;
+      let guardianId: string | null = null;
+      if (guardianPhone) {
+        const existing = await tx.guardian.findFirst({
+          where: { schoolId, phone1: guardianPhone, deletedAt: null },
+        });
+        if (existing) {
+          guardianId = existing.id;
+          await tx.guardian.updateMany({
+            where: { id: existing.id, schoolId },
+            data: {
+              name: overrides.guardian_name ?? submission.guardian_name ?? existing.name,
+              phone2: overrides.guardian_phone_2 ?? submission.guardian_phone_2 ?? existing.phone2,
+              email: overrides.guardian_email ?? submission.guardian_email ?? existing.email,
+              name_2: overrides.guardian_name_2 ?? submission.guardian_name_2 ?? existing.name_2,
+              phone_3: overrides.guardian_phone_3 ?? submission.guardian_phone_3 ?? existing.phone_3,
+              phone_4: overrides.guardian_phone_4 ?? submission.guardian_phone_4 ?? existing.phone_4,
+              email_2: overrides.guardian_email_2 ?? submission.guardian_email_2 ?? existing.email_2,
+            },
+          });
+        } else {
+          const createdGuardian = await tx.guardian.create({
+            data: {
+              schoolId,
+              name: overrides.guardian_name ?? submission.guardian_name ?? "—",
+              phone1: guardianPhone,
+              phone2: overrides.guardian_phone_2 ?? submission.guardian_phone_2 ?? null,
+              email: overrides.guardian_email ?? submission.guardian_email ?? null,
+              name_2: overrides.guardian_name_2 ?? submission.guardian_name_2 ?? null,
+              phone_3: overrides.guardian_phone_3 ?? submission.guardian_phone_3 ?? null,
+              phone_4: overrides.guardian_phone_4 ?? submission.guardian_phone_4 ?? null,
+              email_2: overrides.guardian_email_2 ?? submission.guardian_email_2 ?? null,
+            },
+          });
+          guardianId = createdGuardian.id;
+        }
+      }
+
+      const dobRaw = overrides.date_of_birth ?? submission.date_of_birth?.toString() ?? null;
       const created = await tx.student.create({
         data: {
-      schoolId,
-      name: (ov.full_name ?? sub.full_name) || "—",
-      classId: ownedClassId,
-      guardianId,
-      ...protectIdNumber(ov.id_number ?? sub.id_number),
-      nationality: ov.nationality ?? sub.nationality ?? null,
-      academicStage: parseAcademicStage(ov.academic_stage ?? sub.academic_stage),
-      ...(ownedStageId !== null && { stageId: ownedStageId }),
-      gender: mapGender(ov.gender ?? sub.gender),
-      period: mapPeriod(ov.period ?? sub.period),
-      dateOfBirth: dobRaw ? new Date(dobRaw) : null,
-      healthCondition: ov.health_condition ?? sub.health_condition ?? null,
-      allergies: ov.allergies ?? sub.allergies ?? null,
-      attendanceType: parseAttendanceType(ov.attendance_type ?? sub.attendance_type) ?? "REGULAR",
-      paymentMethod: mapPaymentMethod(ov.payment_method ?? sub.payment_method),
-      paymentStatus: "PENDING",
-      registrationDate: new Date(),
-      enrollment_date: sub.enrollment_date ?? new Date(),
-      evaluationFileUrl: sub.evaluation_file_url,
-      evaluationFileName: sub.evaluation_file_name,
+          schoolId,
+          name: (overrides.full_name ?? submission.full_name) || "—",
+          classId: ownedClassId,
+          guardianId,
+          ...protectIdNumber(overrides.id_number ?? submission.id_number),
+          nationality: overrides.nationality ?? submission.nationality ?? null,
+          academicStage: parseAcademicStage(overrides.academic_stage ?? submission.academic_stage),
+          ...(ownedStageId !== null && { stageId: ownedStageId }),
+          gender: mapGender(overrides.gender ?? submission.gender),
+          period: mapPeriod(overrides.period ?? submission.period),
+          dateOfBirth: dobRaw ? new Date(dobRaw) : null,
+          healthCondition: overrides.health_condition ?? submission.health_condition ?? null,
+          allergies: overrides.allergies ?? submission.allergies ?? null,
+          attendanceType: parseAttendanceType(overrides.attendance_type ?? submission.attendance_type) ?? "REGULAR",
+          paymentMethod: mapPaymentMethod(overrides.payment_method ?? submission.payment_method),
+          paymentStatus: "PENDING",
+          registrationDate: new Date(),
+          enrollment_date: submission.enrollment_date ?? new Date(),
+          evaluationFileUrl: submission.evaluation_file_url,
+          evaluationFileName: submission.evaluation_file_name,
         },
       });
 
-      const fileKey = keyFromUrl(sub.evaluation_file_url);
+      const fileKey = keyFromUrl(submission.evaluation_file_url);
       if (fileKey) {
         await transferStoredFileOwnership(tx, {
           key: fileKey,
           schoolId,
           ownerType: STORED_FILE_OWNER.ENROLLMENT_SUBMISSION,
-          ownerId: sub.id,
+          ownerId: submission.id,
           nextOwnerType: STORED_FILE_OWNER.STUDENT,
           nextOwnerId: created.id,
         });
@@ -199,9 +186,26 @@ export async function POST(
         data: { status: "approved", student_id: created.id, reviewed_at: new Date() },
       });
       if (reviewed.count !== 1) throw new EnrollmentReviewConflict();
+
+      await tx.activityLog.create({
+        data: activityLogData({
+          school_id: schoolId,
+          action: `تم قبول طلب تسجيل والموافقة على الطالب ${created.name}`,
+          entity_type: "student",
+          entity_id: created.id,
+          entity_name: created.name,
+          performed_by: session.user.name ?? "المدير",
+          request,
+        }),
+      });
       return created;
     });
+
+    return Response.json({ success: true, student_id: student.id });
   } catch (error) {
+    if (error instanceof EnrollmentReviewNotFound) {
+      return Response.json({ error: "Not found" }, { status: 404 });
+    }
     if (error instanceof EnrollmentReviewConflict) {
       return Response.json({ error: "Enrollment request is no longer pending" }, { status: 409 });
     }
@@ -210,16 +214,4 @@ export async function POST(
     }
     throw error;
   }
-
-  await logAction({
-    school_id: schoolId,
-    action: `تم قبول طلب تسجيل والموافقة على الطالب ${student.name}`,
-    entity_type: "student",
-    entity_id: student.id,
-    entity_name: student.name,
-    performed_by: session.user.name ?? "المدير",
-    request,
-  });
-
-  return Response.json({ success: true, student_id: student.id });
 }

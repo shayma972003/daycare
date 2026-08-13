@@ -107,16 +107,20 @@ export async function guardianChildIds(guardianAccountId: string): Promise<strin
   const account = await prisma.guardianAccount.findUnique({
     where: { id: guardianAccountId },
     select: {
+      schoolId: true,
       guardian: {
         select: {
           // Children where this guardian is the primary contact…
-          students: { where: { deletedAt: null }, select: { id: true } },
+          students: {
+            where: { deletedAt: null },
+            select: { id: true, schoolId: true },
+          },
           // …and every child they are merely attached to (task 2.34). A father
           // listed as the second contact must see his own child; before the link
           // table there was no way for him to.
           links: {
             where: { student: { deletedAt: null } },
-            select: { studentId: true },
+            select: { studentId: true, schoolId: true },
           },
         },
       },
@@ -129,8 +133,12 @@ export async function guardianChildIds(guardianAccountId: string): Promise<strin
   // gives them a link row too.
   return Array.from(
     new Set([
-      ...account.guardian.students.map((student) => student.id),
-      ...account.guardian.links.map((link) => link.studentId),
+      ...account.guardian.students
+        .filter((student) => student.schoolId === account.schoolId)
+        .map((student) => student.id),
+      ...account.guardian.links
+        .filter((link) => link.schoolId === account.schoolId)
+        .map((link) => link.studentId),
     ])
   );
 }

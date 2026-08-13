@@ -215,6 +215,7 @@ export async function POST(
     await tx.studentGuardian.upsert({
       where: { studentId_guardianId: { studentId: id, guardianId } },
       create: {
+        schoolId,
         studentId: id,
         guardianId,
         relation: parsed.data.relation ?? null,

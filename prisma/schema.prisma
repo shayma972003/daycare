@@ -392,15 +392,17 @@ model CareReport {
   school   School @relation(fields: [schoolId], references: [id])
 
   studentId String
-  student   Student @relation(fields: [studentId], references: [id])
+  student   Student @relation(fields: [studentId, schoolId], references: [id, schoolId], onDelete: Restrict)
   /// Snapshot of the class at the time. The child may move rooms later, and a
   /// report belongs to the day it describes.
   classId   String?
+  class     Class? @relation(fields: [classId, schoolId], references: [id, schoolId], onDelete: Restrict)
 
   /// Who filed it. `teacherId` may be null for an office account; the name is
   /// stored alongside so the report still reads correctly after that staff
   /// member leaves and their record is anonymised.
   teacherId      String?
+  teacher        Teacher? @relation(fields: [teacherId, schoolId], references: [id, schoolId], onDelete: Restrict)
   reportedByName String
 
   type CareReportType
@@ -616,7 +618,7 @@ model Shift {
   schoolId  String
   school    School  @relation(fields: [schoolId], references: [id])
   teacherId String
-  teacher   Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  teacher   Teacher @relation(fields: [teacherId, schoolId], references: [id, schoolId], onDelete: Cascade)
 
   /// The rota day. `@db.Date` so it compares by equality, like Attendance.
   date DateTime @db.Date
@@ -704,6 +706,7 @@ model AcademicStageOption {
   activities Activity[]
 
   @@unique([schoolId, nameAr])
+  @@unique([id, schoolId])
   @@index([schoolId, archivedAt])
 }
 
@@ -965,7 +968,7 @@ model PaymentCycle {
   created_at   DateTime  @default(now())
 
   school  School  @relation(fields: [school_id], references: [id])
-  student Student @relation(fields: [student_id], references: [id])
+  student Student @relation(fields: [student_id, school_id], references: [id, schoolId], onDelete: Restrict)
 
   @@index([school_id, due_date])
   @@index([student_id])
@@ -1080,6 +1083,7 @@ model Role {
   users User[]
 
   @@unique([schoolId, key])
+  @@unique([id, schoolId])
   @@index([schoolId])
 }
 
@@ -1113,7 +1117,7 @@ model User {
   /// layer treats a missing role as "owner" only for the school's first user —
   /// see resolvePermissions() in src/lib/authz.ts.
   roleId String?
-  roleRef Role?  @relation(fields: [roleId], references: [id])
+  roleRef Role?  @relation(fields: [roleId, schoolId], references: [id, schoolId], onDelete: Restrict)
 
   /// Links the login to the staff record it belongs to, so a teacher signing in
   /// can be scoped to her own classes. Null for an office account with no
@@ -1143,6 +1147,7 @@ model User {
 
   resetTokens PasswordResetToken[]
   schoolAdminInvitations SchoolAdminInvitation[]
+  devices DeviceToken[]
 
   @@unique([id, schoolId])
   @@index([schoolId])
@@ -1207,6 +1212,7 @@ model GuardianAccount {
   resetTokens PasswordResetToken[]
 
   @@unique([guardianId, schoolId])
+  @@unique([id, schoolId])
   @@index([schoolId])
   @@index([phone])
 }
@@ -1224,8 +1230,9 @@ model DeviceToken {
   /// Exactly one of these is set. Kept as two nullable columns rather than a
   /// polymorphic pair so the database can enforce the foreign key.
   guardianAccountId String?
-  guardianAccount   GuardianAccount? @relation(fields: [guardianAccountId], references: [id], onDelete: Cascade)
+  guardianAccount   GuardianAccount? @relation(fields: [guardianAccountId, schoolId], references: [id, schoolId], onDelete: Cascade)
   userId            String?
+  user              User? @relation(fields: [userId, schoolId], references: [id, schoolId], onDelete: Cascade)
 
   platform PushPlatform
   /// The provider's registration token. Unique because the same device
@@ -1385,7 +1392,9 @@ model Class {
   students        Student[]
   activityInvites ActivityInvite[]
   attendances     Attendance[]
+  careReports     CareReport[]
 
+  @@unique([id, schoolId])
   @@index([schoolId, deletedAt])
   @@index([schoolId, archivedAt])
   @@index([teacherId])
@@ -1477,7 +1486,9 @@ model Teacher {
   teacherAttendances TeacherAttendance[]
   invoices           Invoice[]
   shifts             Shift[]
+  careReports        CareReport[]
 
+  @@unique([id, schoolId])
   @@index([schoolId, idNumberHash])
   @@index([schoolId, deletedAt])
   @@index([retentionUntil, anonymizedAt])
@@ -1530,10 +1541,11 @@ model Guardian {
 /// wearing a migration's clothes. Primary is one column; *everyone else* is this
 /// table.
 model StudentGuardian {
+  schoolId   String
   studentId  String
   guardianId String
-  student    Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  guardian   Guardian @relation(fields: [guardianId], references: [id], onDelete: Cascade)
+  student    Student  @relation(fields: [studentId, schoolId], references: [id, schoolId], onDelete: Cascade)
+  guardian   Guardian @relation(fields: [guardianId, schoolId], references: [id, schoolId], onDelete: Cascade)
 
   /// "الأب" · "الأم" · "الجدة" — free text, because a family's own word for it
   /// is the one that should appear on the emergency sheet.
@@ -1552,6 +1564,7 @@ model StudentGuardian {
   createdAt DateTime @default(now())
 
   @@id([studentId, guardianId])
+  @@index([schoolId])
   @@index([guardianId])
 }
 
@@ -1566,9 +1579,9 @@ model Student {
   schoolId   String
   school     School    @relation(fields: [schoolId], references: [id])
   classId    String?
-  class      Class?    @relation(fields: [classId], references: [id])
+  class      Class?    @relation(fields: [classId, schoolId], references: [id, schoolId], onDelete: Restrict)
   guardianId String?
-  guardian   Guardian? @relation(fields: [guardianId], references: [id])
+  guardian   Guardian? @relation(fields: [guardianId, schoolId], references: [id, schoolId], onDelete: Restrict)
 
   /// Sensitive — health notes about a child.
   healthCondition String?
@@ -1580,7 +1593,7 @@ model Student {
   academicStage AcademicStage?
   /// The school's own academic stage (task 2.44).
   stageId       String?
-  stage         AcademicStageOption? @relation(fields: [stageId], references: [id])
+  stage         AcademicStageOption? @relation(fields: [stageId, schoolId], references: [id, schoolId], onDelete: Restrict)
   period        Period         @default(MORNING)
 
   /// Sensitive — national ID. See Teacher.idNumberHash for why this is an HMAC.
@@ -1673,6 +1686,7 @@ model Student {
   care_reports    CareReport[]
   guardianLinks   StudentGuardian[]
 
+  @@unique([id, schoolId])
   @@index([schoolId, idNumberHash])
   @@index([schoolId, deletedAt])
   @@index([schoolId, isActive])
@@ -1727,9 +1741,9 @@ model ActivityInvite {
 model Attendance {
   id          String    @id @default(cuid())
   studentId   String
-  student     Student   @relation(fields: [studentId], references: [id])
+  student     Student   @relation(fields: [studentId, schoolId], references: [id, schoolId], onDelete: Restrict)
   classId     String?
-  class       Class?    @relation(fields: [classId], references: [id])
+  class       Class?    @relation(fields: [classId, schoolId], references: [id, schoolId], onDelete: Restrict)
   schoolId    String
   checkinAt   DateTime?
   checkoutAt  DateTime?
@@ -1761,7 +1775,7 @@ model Attendance {
 model TeacherAttendance {
   id            String    @id @default(cuid())
   teacherId     String
-  teacher       Teacher   @relation(fields: [teacherId], references: [id])
+  teacher       Teacher   @relation(fields: [teacherId, schoolId], references: [id, schoolId], onDelete: Restrict)
   schoolId      String
   checkinAt     DateTime?
   checkoutAt    DateTime?
@@ -1782,9 +1796,9 @@ model Invoice {
   school    School      @relation(fields: [schoolId], references: [id])
   type      InvoiceType
   studentId String?
-  student   Student?    @relation(fields: [studentId], references: [id])
+  student   Student?    @relation(fields: [studentId, schoolId], references: [id, schoolId], onDelete: Restrict)
   teacherId String?
-  teacher   Teacher?    @relation(fields: [teacherId], references: [id])
+  teacher   Teacher?    @relation(fields: [teacherId, schoolId], references: [id, schoolId], onDelete: Restrict)
   amount    Float
   vat_amount Float      @default(0)
   pdfUrl    String?
@@ -1926,6 +1940,7 @@ model EnrollmentToken {
   school      School                 @relation(fields: [school_id], references: [id])
   submissions EnrollmentSubmission[]
 
+  @@unique([id, school_id])
   @@index([school_id, status])
   @@index([expires_at])
 }
@@ -1967,7 +1982,7 @@ model EnrollmentSubmission {
   reviewed_at  DateTime?
   student_id   String?
 
-  token  EnrollmentToken @relation(fields: [token_id], references: [id])
+  token  EnrollmentToken @relation(fields: [token_id, school_id], references: [id, school_id], onDelete: Restrict)
   school School          @relation(fields: [school_id], references: [id])
 
   @@index([school_id, status])

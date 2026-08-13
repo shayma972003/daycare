@@ -1,11 +1,16 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
+import { assertCan } from "@/lib/authz";
+import { z } from "zod";
+
+const querySchema = z.object({ source: z.enum(["activity", "other"]).optional() });
 
 export async function DELETE(request: Request) {
   let session;
   try {
     session = await requireSession();
+    assertCan(session, "settings.manage");
   } catch (error) {
     // 403 when the caller is known but lacks the permission; 401 otherwise.
     return (
@@ -15,8 +20,11 @@ export async function DELETE(request: Request) {
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
 
-  const { searchParams } = new URL(request.url);
-  const sourceParam = searchParams.get("source"); // "activity" | "other"
+  const parsed = querySchema.safeParse(Object.fromEntries(new URL(request.url).searchParams));
+  if (!parsed.success) {
+    return Response.json({ error: parsed.error.flatten() }, { status: 422 });
+  }
+  const sourceParam = parsed.data.source;
 
   let sourceFilter: Record<string, unknown> = {};
   if (sourceParam === "activity") {

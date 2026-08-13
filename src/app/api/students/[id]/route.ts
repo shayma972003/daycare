@@ -1,6 +1,6 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { logAction } from "@/lib/activity-logger";
+import { activityLogData, logAction } from "@/lib/activity-logger";
 import { generatePaymentCycles } from "@/lib/payment-cycles";
 import {
   assertClassOwned,
@@ -9,7 +9,10 @@ import {
 } from "@/lib/tenant-guard";
 import { parseAcademicStage, parseAttendanceType, parsePaymentStatus } from "@/lib/enum-labels";
 import { resolveStageId, foreignStageResponse } from "@/lib/academic-stage";
-import { protectIdNumber, revealIdNumber } from "@/lib/pii-crypto";
+import { protectIdNumber } from "@/lib/pii-crypto";
+import { studentDetailDto, studentDetailSelect } from "@/lib/roster-dto";
+import { withNoStore } from "@/lib/auth-response";
+import { logSafeError } from "@/lib/safe-logger";
 import {
   STUDENT_STATUSES,
   buildStudentDeparture,
@@ -55,7 +58,7 @@ const updateStudentSchema = z.object({
 });
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   let session;
@@ -74,7 +77,7 @@ export async function GET(
   try {
     const student = await prisma.student.findFirst({
       where: { id, schoolId, deletedAt: null },
-      include: { class: true, guardian: true },
+      select: studentDetailSelect,
     });
 
     if (!student) {
@@ -103,21 +106,42 @@ export async function GET(
       registrationFee = settings?.monthlyStudentFee ?? 0;
     }
 
-    return Response.json(
-      {
-        ...student,
-        idNumber: revealIdNumber(student),
-        encryptedIdNumber: undefined,
-        idNumberHash: undefined,
-        registration_fee: registrationFee,
-        registration_fee_is_default: registrationFeeIsDefault,
-        enrollmentDate: student.enrollment_date,
-        siblings,
-      },
-      { status: 200 }
+    const revealIdentity =
+      new URL(request.url).searchParams.get("revealIdentity") === "true" &&
+      session.can("students.manage");
+    if (revealIdentity) {
+      await prisma.activityLog.create({
+        data: activityLogData({
+          school_id: schoolId,
+          action: "كشف رقم هوية طالب كامل",
+          entity_type: "student_identity",
+          entity_id: student.id,
+          performed_by: session.user.name ?? "المدير",
+          request,
+        }),
+      });
+    }
+
+    return withNoStore(
+      Response.json(
+        studentDetailDto(
+          student as unknown as Record<string, unknown> & {
+            idNumber: string | null;
+            encryptedIdNumber: string | null;
+          },
+          {
+            contact: session.can("students.guardians") || session.can("students.manage"),
+            health: session.can("students.manage"),
+            financial: session.can("finance.view") || session.can("finance.manage"),
+            revealIdentity,
+          },
+          { registrationFee, registrationFeeIsDefault, siblings }
+        ),
+        { status: 200 }
+      )
     );
   } catch (err) {
-    console.error("[GET /api/students/[id]] error:", err);
+    logSafeError("student-detail", err);
     return Response.json({ error: "حدث خطأ، يرجى المحاولة مجدداً" }, { status: 500 });
   }
 }
@@ -168,6 +192,19 @@ export async function PUT(
   }
 
   const data = parsed.data;
+  const financialFields = [
+    "paymentMethod",
+    "enrollmentDate",
+    "enrollmentEndDate",
+    "paymentStatus",
+    "registration_fee",
+  ] as const;
+  if (
+    financialFields.some((field) => field in data) &&
+    !session.can("finance.manage")
+  ) {
+    return Response.json({ error: "Forbidden", code: "FORBIDDEN" }, { status: 403 });
+  }
   const updateData: Record<string, unknown> = {};
 
   if (data.name !== undefined) updateData.name = data.name;
@@ -348,7 +385,7 @@ export async function PUT(
   const student = await prisma.student.update({
     where: { id },
     data: updateData,
-    include: { class: true, guardian: true },
+    select: studentDetailSelect,
   });
 
   if ("enrollmentDate" in data || "enrollmentEndDate" in data || data.registration_fee !== undefined) {
@@ -365,7 +402,28 @@ export async function PUT(
     request,
   });
 
-  return Response.json(student, { status: 200 });
+  return withNoStore(
+    Response.json(
+      studentDetailDto(
+        student as unknown as Record<string, unknown> & {
+          idNumber: string | null;
+          encryptedIdNumber: string | null;
+        },
+        {
+          contact: true,
+          health: true,
+          financial: session.can("finance.view") || session.can("finance.manage"),
+          revealIdentity: false,
+        },
+        {
+          registrationFee: student.registration_fee,
+          registrationFeeIsDefault: false,
+          siblings: [],
+        }
+      ),
+      { status: 200 }
+    )
+  );
 }
 
 export async function DELETE(

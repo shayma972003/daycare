@@ -1,5 +1,7 @@
 import { rotateRefreshToken, revokeRefreshToken } from "@/lib/mobile-auth";
-import { clientIp } from "@/lib/rate-limit";
+import { clientIp, rateLimit, rateLimitResponse } from "@/lib/rate-limit";
+import { rateLimitSubject } from "@/lib/one-time-code";
+import { withNoStore } from "@/lib/auth-response";
 import { z } from "zod";
 
 const schema = z.object({ refreshToken: z.string().min(20) });
@@ -21,8 +23,17 @@ export async function POST(request: Request) {
 
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
-    return Response.json({ error: "التوكن مفقود" }, { status: 422 });
+    return withNoStore(Response.json({ error: "التوكن مفقود" }, { status: 422 }));
   }
+
+  const limitedResponse = rateLimitResponse(
+    await rateLimit({
+      key: `mobile:refresh:${rateLimitSubject(parsed.data.refreshToken)}:${rateLimitSubject(clientIp(request))}`,
+      limit: 20,
+      windowMs: 15 * 60 * 1000,
+    })
+  );
+  if (limitedResponse) return withNoStore(limitedResponse);
 
   const result = await rotateRefreshToken(parsed.data.refreshToken, {
     userAgent: request.headers.get("user-agent"),
@@ -30,16 +41,16 @@ export async function POST(request: Request) {
   });
 
   if (!result.ok) {
-    return Response.json(
+    return withNoStore(Response.json(
       { error: "تعذّر تجديد الجلسة، يرجى تسجيل الدخول مجدداً", code: "SESSION_INVALID" },
       { status: 401 }
-    );
+    ));
   }
 
-  return Response.json({
+  return withNoStore(Response.json({
     ...result.pair,
     account: { id: result.claims.sub, kind: result.claims.kind, schoolId: result.claims.schoolId },
-  });
+  }));
 }
 
 /** Sign-out. On a shared phone this has to actually end the session. */

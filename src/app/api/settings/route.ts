@@ -4,24 +4,24 @@ import { logAction } from "@/lib/activity-logger";
 import { z } from "zod";
 
 const updateSettingsSchema = z.object({
-  hourlyLateFee: z.number().optional(),
-  dailyStudentFee: z.number().optional(),
-  monthlyStudentFee: z.number().optional(),
-  reminderTemplate: z.string().optional(),
-  schoolName: z.string().optional(),
-  email: z.string().optional(),
+  hourlyLateFee: z.number().min(0).max(1_000_000).optional(),
+  dailyStudentFee: z.number().min(0).max(1_000_000).optional(),
+  monthlyStudentFee: z.number().min(0).max(1_000_000).optional(),
+  reminderTemplate: z.string().max(10_000).optional(),
+  schoolName: z.string().min(1).max(160).optional(),
+  email: z.string().email().max(320).optional(),
   // School hours
-  teacherCheckinTime: z.string().optional(),
-  teacherCheckoutTime: z.string().optional(),
-  studentCheckinTime: z.string().optional(),
-  studentCheckoutTime: z.string().optional(),
+  teacherCheckinTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
+  teacherCheckoutTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
+  studentCheckinTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
+  studentCheckoutTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
   // Legal info
-  commercialRegistration: z.string().optional(),
-  vatNumber: z.string().optional(),
-  contactNumber: z.string().optional(),
-  address: z.string().optional(),
-  phoneNumber: z.string().optional(),
-});
+  commercialRegistration: z.string().max(80).optional(),
+  vatNumber: z.string().max(80).optional(),
+  contactNumber: z.string().max(40).optional(),
+  address: z.string().max(500).optional(),
+  phoneNumber: z.string().max(40).optional(),
+}).strict();
 
 export async function GET(_request: Request) {
   let session;

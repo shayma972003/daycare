@@ -10,6 +10,7 @@ import { Topbar } from "@/components/layout/Topbar";
 import { useT } from "@/lib/i18n-provider";
 import { FormErrors, collectMessages } from "@/components/ui/FormErrors";
 import { astDateInputValue } from "@/lib/datetime";
+import { usePermissions } from "@/lib/use-permissions";
 
 
 type Class = { id: string; name: string };
@@ -49,6 +50,8 @@ export default function NewTeacherPage() {
   // Locale-aware translation — see src/lib/i18n.tsx.
   const t = useT();
   const router = useRouter();
+  const { can } = usePermissions();
+  const canManageFinance = can("finance.manage");
   const [classes, setClasses] = useState<Class[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -84,13 +87,19 @@ export default function NewTeacherPage() {
     setSaving(true);
     setError(null);
     try {
+      const { paymentMethod, monthlySalary, lateDeductionRate, ...basic } = data;
       await axios.post("/api/teachers", {
-        ...data,
+        ...basic,
         dateOfBirth: data.dateOfBirth || undefined,
         enrollmentEndDate: data.enrollmentEndDate || undefined,
         classId: data.classId || undefined,
-        monthlySalary: Number(data.monthlySalary),
-        lateDeductionRate: Number(data.lateDeductionRate),
+        ...(canManageFinance
+          ? {
+              paymentMethod,
+              monthlySalary: Number(monthlySalary),
+              lateDeductionRate: Number(lateDeductionRate),
+            }
+          : {}),
       });
       router.push("/teachers");
     } catch (err) {

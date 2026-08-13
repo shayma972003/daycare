@@ -3,6 +3,12 @@ import { prisma } from "@/lib/prisma";
 import { sendNotification } from "@/lib/notifications";
 import { buildMessageVars } from "@/lib/message-variables";
 import { logAction } from "@/lib/activity-logger";
+import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
+import { z } from "zod";
+
+const sendSchema = z
+  .object({ notifyGuardians: z.boolean().optional(), notifyStaff: z.boolean().optional() })
+  .strict();
 
 export async function POST(
   request: Request,
@@ -21,14 +27,27 @@ export async function POST(
   const schoolId = (session.user as { schoolId: string }).schoolId;
   const { id } = await params;
 
-  let body: { notifyGuardians?: boolean; notifyStaff?: boolean } = {};
+  const limitedResponse = rateLimitResponse(
+    await rateLimit({
+      key: `send:activity:${schoolId}:${session.user.id}`,
+      limit: 10,
+      windowMs: 60 * 60 * 1000,
+    })
+  );
+  if (limitedResponse) return limitedResponse;
+
+  let body: unknown = {};
   try {
     body = await request.json();
   } catch {
     // No body is the old call shape — both audiences, as the button reads.
   }
-  const notifyGuardians = body.notifyGuardians ?? true;
-  const notifyStaff = body.notifyStaff ?? true;
+  const parsed = sendSchema.safeParse(body);
+  if (!parsed.success) {
+    return Response.json({ error: parsed.error.flatten() }, { status: 422 });
+  }
+  const notifyGuardians = parsed.data.notifyGuardians ?? true;
+  const notifyStaff = parsed.data.notifyStaff ?? true;
 
   const activity = await prisma.activity.findFirst({
     where: { id, schoolId },

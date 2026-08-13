@@ -12,6 +12,7 @@ import { PAYMENT_STATUSES } from "@/lib/payment-status";
 import { useT } from "@/lib/i18n-provider";
 import { useAcademicStages, useStageName } from "@/lib/use-academic-stages";
 import { FormErrors, collectMessages } from "@/components/ui/FormErrors";
+import { usePermissions } from "@/lib/use-permissions";
 
 type Class = { id: string; name: string };
 type GuardianSuggestion = { id: string; name: string; phone1?: string | null; phone2?: string | null; email?: string | null; name_2?: string | null; phone_3?: string | null; phone_4?: string | null; email_2?: string | null };
@@ -60,6 +61,8 @@ export default function NewStudentPage() {
   const { stages } = useAcademicStages();
   const stageName = useStageName();
   const router = useRouter();
+  const { can } = usePermissions();
+  const canManageFinance = can("finance.manage");
   const [classes, setClasses] = useState<Class[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -183,10 +186,14 @@ export default function NewStudentPage() {
         gender: data.gender,
         allergies: data.allergies || undefined,
         attendanceType: data.attendanceType || undefined,
-        paymentMethod: data.paymentMethod,
-        paymentStatus: data.paymentStatus,
-        enrollmentDate: data.enrollmentDate || undefined,
-        enrollmentEndDate: data.enrollmentEndDate || undefined,
+        ...(canManageFinance
+          ? {
+              paymentMethod: data.paymentMethod,
+              paymentStatus: data.paymentStatus,
+              enrollmentDate: data.enrollmentDate || undefined,
+              enrollmentEndDate: data.enrollmentEndDate || undefined,
+            }
+          : {}),
         guardianId: guardianId || undefined,
         guardianName: data.guardianName || undefined,
         guardianPhone1: data.guardianPhone1 || undefined,
@@ -203,9 +210,13 @@ export default function NewStudentPage() {
         // created with the default contributed nothing to registration revenue
         // while the form showed them a figure taken from settings. Leaving the
         // field out states "not overridden" and lets the server resolve it.
-        registration_fee: registrationFeeIsDefault
-          ? undefined
-          : parseFloat(data.registrationFee) || 0,
+        ...(canManageFinance
+          ? {
+              registration_fee: registrationFeeIsDefault
+                ? undefined
+                : parseFloat(data.registrationFee) || 0,
+            }
+          : {}),
       });
       router.push("/students");
     } catch (err) {

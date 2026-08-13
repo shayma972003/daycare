@@ -9,6 +9,7 @@ import { recomputeInvoiceTotals } from "@/lib/invoice-totals";
 import { VAT_RATE } from "@/lib/finance";
 import { logAction } from "@/lib/activity-logger";
 import { z } from "zod";
+import { logSafeError } from "@/lib/safe-logger";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { createElement } from "react";
 import {
@@ -434,8 +435,7 @@ export async function POST(request: Request) {
 
       return Response.json({ id: invoice.id, amount: invoice.amount, pdfUrl: fileUrl, createdAt: invoice.createdAt }, { status: 201 });
     } catch (error) {
-      console.error("Invoice generation error:", error);
-      console.error("Error details:", JSON.stringify(error, Object.getOwnPropertyNames(error as object)));
+      logSafeError("invoice-generate", error);
       return Response.json({ error: "تعذر إنشاء الفاتورة" }, { status: 500 });
     }
   }
@@ -705,8 +705,7 @@ export async function POST(request: Request) {
 
     return Response.json({ ...invoice, pdfUrl: fileUrl });
   } catch (error) {
-    console.error("Auto-generate invoice error:", error);
-    console.error("Error details:", JSON.stringify(error, Object.getOwnPropertyNames(error as object)));
+    logSafeError("invoice-auto-generate", error);
     return Response.json({ error: "تعذر إنشاء الفاتورة" }, { status: 500 });
   }
 }

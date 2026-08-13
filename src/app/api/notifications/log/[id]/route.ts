@@ -1,6 +1,7 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
+import { assertCan } from "@/lib/authz";
 
 export async function DELETE(
   request: Request,
@@ -9,6 +10,7 @@ export async function DELETE(
   let session;
   try {
     session = await requireSession();
+    assertCan(session, "settings.manage");
   } catch (error) {
     // 403 when the caller is known but lacks the permission; 401 otherwise.
     return (

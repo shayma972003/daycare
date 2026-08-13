@@ -85,7 +85,9 @@ export async function logAction({
         request,
       }),
     });
-  } catch (error) {
-    console.error("Activity log failed:", error);
+  } catch {
+    // The audit payload itself can contain names and request metadata. Do not
+    // attach a raw Prisma error, which may echo query arguments.
+    console.error("[activity-log] write failed");
   }
 }

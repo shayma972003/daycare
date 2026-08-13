@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { sendNotification } from "@/lib/notifications";
 import { buildMessageVars } from "@/lib/message-variables";
 import { logAction } from "@/lib/activity-logger";
+import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 export async function POST(
   request: Request,
@@ -20,6 +21,15 @@ export async function POST(
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
   const { id } = await params;
+
+  const limitedResponse = rateLimitResponse(
+    await rateLimit({
+      key: `send:student-reminder:${schoolId}:${session.user.id}`,
+      limit: 20,
+      windowMs: 60 * 60 * 1000,
+    })
+  );
+  if (limitedResponse) return limitedResponse;
 
   const student = await prisma.student.findFirst({
     where: { id, schoolId, deletedAt: null },

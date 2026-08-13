@@ -33,7 +33,7 @@ export async function POST(
   // Each send costs the platform money; an authenticated user should not be
   // able to spam a mailbox by holding the button down.
   const limited = await rateLimit({
-    key: `reminder:teacher:${id}`,
+    key: `send:teacher-reminder:${schoolId}:${session.user.id}`,
     limit: 5,
     windowMs: 60 * 60 * 1000,
   });

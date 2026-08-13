@@ -16,6 +16,8 @@ import {
 } from "@/lib/enum-labels";
 import { protectIdNumber } from "@/lib/pii-crypto";
 import { resolveStageId, foreignStageResponse } from "@/lib/academic-stage";
+import { studentDetailDto, studentDetailSelect, studentListDto } from "@/lib/roster-dto";
+import { withNoStore } from "@/lib/auth-response";
 import { z } from "zod";
 
 const createStudentSchema = z.object({
@@ -79,6 +81,9 @@ export async function GET(request: Request) {
   if (classId) {
     where.classId = classId;
   }
+  if (paymentStatus && !session.can("finance.view") && !session.can("finance.manage")) {
+    return Response.json({ error: "Forbidden", code: "FORBIDDEN" }, { status: 403 });
+  }
   if (paymentStatus) {
     where.paymentStatus = paymentStatus;
   }
@@ -113,7 +118,17 @@ export async function GET(request: Request) {
     orderBy: { name: "asc" },
   });
 
-  return Response.json(students, { status: 200 });
+  return withNoStore(
+    Response.json(
+      students.map((student) =>
+        studentListDto(student, {
+          contact: session.can("students.guardians") || session.can("students.manage"),
+          financial: session.can("finance.view") || session.can("finance.manage"),
+        })
+      ),
+      { status: 200 }
+    )
+  );
 }
 
 export async function POST(request: Request) {
@@ -169,6 +184,15 @@ export async function POST(request: Request) {
     guardianEmail2,
     registration_fee,
   } = parsed.data;
+
+  if (
+    [paymentMethod, enrollmentDate, enrollmentEndDate, paymentStatus, registration_fee].some(
+      (value) => value !== undefined
+    ) &&
+    !session.can("finance.manage")
+  ) {
+    return Response.json({ error: "Forbidden", code: "FORBIDDEN" }, { status: 403 });
+  }
 
   // Every id here comes from the client and was previously written through
   // unchecked, which let a student be attached to another school's class,
@@ -258,7 +282,7 @@ export async function POST(request: Request) {
       }),
       ...(registration_fee !== undefined && { registration_fee }),
     },
-    include: { class: true, guardian: true },
+    select: studentDetailSelect,
   });
 
   await generatePaymentCycles(student.id);
@@ -273,5 +297,22 @@ export async function POST(request: Request) {
     request,
   });
 
-  return Response.json(student, { status: 201 });
+  return withNoStore(
+    Response.json(
+      studentDetailDto(
+        student as unknown as Record<string, unknown> & {
+          idNumber: string | null;
+          encryptedIdNumber: string | null;
+        },
+        {
+          contact: session.can("students.guardians") || session.can("students.manage"),
+          health: session.can("students.manage"),
+          financial: session.can("finance.view") || session.can("finance.manage"),
+          revealIdentity: false,
+        },
+        { registrationFee: student.registration_fee, registrationFeeIsDefault: false, siblings: [] }
+      ),
+      { status: 201 }
+    )
+  );
 }

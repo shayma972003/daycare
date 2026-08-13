@@ -17,6 +17,7 @@ import { astDateInputValue } from "@/lib/datetime";
 import { useT, useLocale } from "@/lib/i18n-provider";
 import { useAcademicStages, useStageName } from "@/lib/use-academic-stages";
 import { PermissionGate } from "@/components/auth/PermissionGate";
+import { usePermissions } from "@/lib/use-permissions";
 
 /** ACTIVE is excluded: this is the set of reasons a child *leaves*. */
 type StudentDepartureStatus = "GRADUATED" | "WITHDRAWN" | "TRANSFERRED";
@@ -111,6 +112,9 @@ export default function StudentProfilePage({
   const stageName = useStageName();
   const { id } = use(params);
   const router = useRouter();
+  const { can } = usePermissions();
+  const canViewFinance = can("finance.view") || can("finance.manage");
+  const canManageGuardians = can("students.guardians") || can("students.manage");
   const [classes, setClasses] = useState<Class[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -170,7 +174,7 @@ export default function StudentProfilePage({
 
   useEffect(() => {
     Promise.all([
-      axios.get<StudentData>(`/api/students/${id}`),
+      axios.get<StudentData>(`/api/students/${id}?revealIdentity=true`),
       axios.get<Invoice[]>(`/api/invoices?studentId=${id}`),
     ])
       .then(([studentRes, invRes]) => {
@@ -299,26 +303,38 @@ export default function StudentProfilePage({
         gender: data.gender,
         allergies: data.allergies || null,
         attendanceType: data.attendanceType || t("attendanceTypes.REGULAR"),
-        paymentMethod: data.paymentMethod,
-        enrollmentDate: data.enrollmentDate || null,
-        enrollmentEndDate: data.enrollmentEndDate || null,
-        paymentStatus: data.paymentStatus,
-        guardianId: guardianId || null,
-        guardianName: data.guardianName || null,
-        guardianPhone1: data.guardianPhone1 || null,
-        guardianPhone2: data.guardianPhone2 || null,
-        guardianEmail: data.guardianEmail || null,
-        guardianName2: data.guardianName2 || null,
-        guardianPhone3: data.guardianPhone3 || null,
-        guardianPhone4: data.guardianPhone4 || null,
-        guardianEmail2: data.guardianEmail2 || null,
+        ...(canViewFinance
+          ? {
+              paymentMethod: data.paymentMethod,
+              enrollmentDate: data.enrollmentDate || null,
+              enrollmentEndDate: data.enrollmentEndDate || null,
+              paymentStatus: data.paymentStatus,
+            }
+          : {}),
+        ...(canManageGuardians
+          ? {
+              guardianId: guardianId || null,
+              guardianName: data.guardianName || null,
+              guardianPhone1: data.guardianPhone1 || null,
+              guardianPhone2: data.guardianPhone2 || null,
+              guardianEmail: data.guardianEmail || null,
+              guardianName2: data.guardianName2 || null,
+              guardianPhone3: data.guardianPhone3 || null,
+              guardianPhone4: data.guardianPhone4 || null,
+              guardianEmail2: data.guardianEmail2 || null,
+            }
+          : {}),
         // See the matching note on the create form. Omitting the field here also
         // stops every profile save from regenerating the payment schedule: the
         // route treats any `registration_fee` in the body as a change and calls
         // `generatePaymentCycles`, which deletes and rebuilds the unpaid cycles.
-        registration_fee: registrationFeeIsDefault
-          ? undefined
-          : parseFloat(data.registrationFee) || 0,
+        ...(canViewFinance
+          ? {
+              registration_fee: registrationFeeIsDefault
+                ? undefined
+                : parseFloat(data.registrationFee) || 0,
+            }
+          : {}),
       });
       alert(t("studentProfile.saved"));
     } catch {

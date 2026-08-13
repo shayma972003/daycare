@@ -1,7 +1,10 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { logAction } from "@/lib/activity-logger";
-import { protectIdNumber, revealIdNumber } from "@/lib/pii-crypto";
+import { activityLogData, logAction } from "@/lib/activity-logger";
+import { protectIdNumber } from "@/lib/pii-crypto";
+import { teacherDetailDto, teacherDetailSelect } from "@/lib/roster-dto";
+import { withNoStore } from "@/lib/auth-response";
+import { logSafeError } from "@/lib/safe-logger";
 import { assertClassOwned, crossTenantResponse } from "@/lib/tenant-guard";
 import { astParts, astDateOnly } from "@/lib/datetime";
 import {
@@ -53,7 +56,7 @@ const updateTeacherSchema = z.object({
 });
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   let session;
@@ -72,7 +75,7 @@ export async function GET(
   try {
     const teacher = await prisma.teacher.findFirst({
       where: { id, schoolId, deletedAt: null },
-      include: { classes: true },
+      select: teacherDetailSelect,
     });
 
     if (!teacher) {
@@ -99,18 +102,41 @@ export async function GET(
       },
     });
 
-    return Response.json(
-      {
-        ...teacher,
-        idNumber: revealIdNumber(teacher),
-        encryptedIdNumber: undefined,
-        idNumberHash: undefined,
-        lateCountThisMonth,
-      },
-      { status: 200 }
+    const revealIdentity =
+      new URL(request.url).searchParams.get("revealIdentity") === "true" &&
+      session.can("staff.manage");
+    if (revealIdentity) {
+      await prisma.activityLog.create({
+        data: activityLogData({
+          school_id: schoolId,
+          action: "كشف رقم هوية موظف كامل",
+          entity_type: "teacher_identity",
+          entity_id: teacher.id,
+          performed_by: session.user.name ?? "المدير",
+          request,
+        }),
+      });
+    }
+
+    return withNoStore(
+      Response.json(
+        teacherDetailDto(
+          teacher as unknown as Record<string, unknown> & {
+            idNumber: string | null;
+            encryptedIdNumber: string | null;
+          },
+          {
+            contact: session.can("staff.manage"),
+            financial: session.can("finance.view") || session.can("finance.manage"),
+            revealIdentity,
+          },
+          lateCountThisMonth
+        ),
+        { status: 200 }
+      )
     );
   } catch (error) {
-    console.error("Teacher [id] GET error:", error);
+    logSafeError("teacher-detail", error);
     return Response.json({ error: "حدث خطأ، يرجى المحاولة مجدداً" }, { status: 500 });
   }
 }
@@ -145,6 +171,14 @@ export async function PUT(
   }
 
   const data = parsed.data;
+  if (
+    ["paymentMethod", "monthlySalary", "lateDeductionRate"].some(
+      (field) => field in data
+    ) &&
+    !session.can("finance.manage")
+  ) {
+    return Response.json({ error: "Forbidden", code: "FORBIDDEN" }, { status: 403 });
+  }
   const updateData: Record<string, unknown> = {};
 
   if (data.name !== undefined) updateData.name = data.name;
@@ -235,7 +269,7 @@ export async function PUT(
     prisma.teacher.update({
       where: { id },
       data: updateData,
-      include: { classes: true },
+      select: teacherDetailSelect,
     }),
     ...(classReassignment
       ? [
@@ -265,7 +299,23 @@ export async function PUT(
     request,
   });
 
-  return Response.json(teacher, { status: 200 });
+  return withNoStore(
+    Response.json(
+      teacherDetailDto(
+        teacher as unknown as Record<string, unknown> & {
+          idNumber: string | null;
+          encryptedIdNumber: string | null;
+        },
+        {
+          contact: true,
+          financial: session.can("finance.view") || session.can("finance.manage"),
+          revealIdentity: false,
+        },
+        0
+      ),
+      { status: 200 }
+    )
+  );
 }
 
 export async function DELETE(

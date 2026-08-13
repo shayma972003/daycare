@@ -233,7 +233,9 @@ export const ROUTE_PERMISSIONS: Record<string, RouteRule> = {
   // Sending reminders is a finance action, not a messaging one — it chases money
   // and it is what an accountant needs.
   "/api/reminders": { methods: { GET: "finance.view", POST: "finance.manage" } },
-  "/api/notifications": { default: null },
+  // Delivery logs contain recipient names and message content. The general
+  // in-app feed remains `/api/notifications/admin-messages`.
+  "/api/notifications": { default: "settings.manage" },
   "/api/notifications/alerts": { default: null },
   "/api/notifications/admin-messages": { default: null },
   "/api/notifications/log/:id": { default: "settings.manage" },

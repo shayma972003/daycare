@@ -5,6 +5,7 @@ import { sendNotification } from "@/lib/notifications";
 import { buildMessageVars } from "@/lib/message-variables";
 import { astDayStart } from "@/lib/datetime";
 import { z } from "zod";
+import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 /**
  * Payment and renewal reminders, as two separate lists (task 2.38).
@@ -136,6 +137,15 @@ export async function POST(request: Request) {
     );
   }
   const schoolId = session.user.schoolId;
+
+  const limitedResponse = rateLimitResponse(
+    await rateLimit({
+      key: `send:bulk-reminders:${schoolId}:${session.user.id}`,
+      limit: 5,
+      windowMs: 60 * 60 * 1000,
+    })
+  );
+  if (limitedResponse) return limitedResponse;
 
   let body: unknown;
   try {

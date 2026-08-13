@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { logSafeError } from "@/lib/safe-logger";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { createElement } from "react";
 import { Document, Page, Text, View, StyleSheet, Font } from "@react-pdf/renderer";
@@ -285,8 +286,7 @@ export async function POST(request: Request) {
       { status: 201 }
     );
   } catch (error) {
-    console.error("=== TEACHER INVOICE GENERATE ERROR ===");
-    console.error(error);
+    logSafeError("teacher-invoice-generate", error);
     return Response.json(
       { error: "تعذر إنشاء الفاتورة" },
       { status: 500 }

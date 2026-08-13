@@ -23,6 +23,10 @@ const RATE_LIMITED_CALL_SITES = [
   "src/app/api/guardian-accounts/route.ts",
   "src/app/api/guardian-accounts/[id]/invite/route.ts",
   "src/app/api/teachers/[id]/reminder/route.ts",
+  "src/app/api/students/[id]/reminder/route.ts",
+  "src/app/api/reminders/route.ts",
+  "src/app/api/activities/[id]/send/route.ts",
+  "src/app/api/mobile/v1/auth/refresh/route.ts",
 ] as const;
 
 describe("sensitive rate-limit call sites", () => {
@@ -30,7 +34,11 @@ describe("sensitive rate-limit call sites", () => {
     const source = readFileSync(join(process.cwd(), file), "utf8");
     expect(source).toContain("rateLimit(");
     expect(source).toContain("rateLimitResponse(");
-    expect(source).not.toMatch(/if\s*\(\s*!\w+\.ok\s*\)/);
+    // Check the result of rateLimit itself, not unrelated domain results such
+    // as `rotateRefreshToken(...).ok` in the mobile refresh route.
+    for (const match of source.matchAll(/const\s+(\w+)\s*=\s*await\s+rateLimit\s*\(/g)) {
+      expect(source).not.toContain(`if (!${match[1]}.ok)`);
+    }
     expect(source).not.toMatch(/tooManyRequests\s*\(/);
     expect(source).not.toMatch(/key\s*:\s*`[^`]*\$\{(?:token|password|otp|otp_code)\}/i);
   });

@@ -49,6 +49,7 @@ export default function HomePage() {
   const router = useRouter();
   const { can } = usePermissions();
   const canManageEnrollment = can(ENROLLMENT_MANAGE_PERMISSION);
+  const canViewDeliveryLogs = can("settings.manage");
   // One request covers both the checklist and the task list.
   const { tasks, setup, loading: tasksLoading } = useDashboardTasks();
   const [currentActivities, setCurrentActivities] = useState<Activity[]>([]);
@@ -106,6 +107,7 @@ export default function HomePage() {
   }, [activityRefresh, activityRequests, t]);
 
   useEffect(() => {
+    if (!canViewDeliveryLogs) return;
     const ticket = logRequests.begin();
     axios
       .get<{ logs: NotificationLog[]; total: number }>(buildLogsUrl(0), { signal: ticket.signal })
@@ -126,7 +128,7 @@ export default function HomePage() {
         });
       });
     return ticket.cancel;
-  }, [logRefresh, logRequests, t]);
+  }, [canViewDeliveryLogs, logRefresh, logRequests, t]);
 
   useEffect(() => {
     if (!canManageEnrollment) return;
@@ -375,6 +377,7 @@ export default function HomePage() {
         )}
 
             {/* ── سجل إشعارات الفعاليات ─────────────────────────────── */}
+            <PermissionGate permission="settings.manage">
             <section>
               <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
                 <h2 className="text-base font-bold text-[#111111]">{t("home.activityLog")}</h2>
@@ -484,6 +487,7 @@ export default function HomePage() {
                 )}
               </div>
             </section>
+            </PermissionGate>
       </div>
 
       <ActivityFormModal open={modalOpen} onClose={handleModalClose} activity={selectedActivity} onSaved={handleSaved} />

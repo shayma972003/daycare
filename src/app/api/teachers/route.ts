@@ -2,6 +2,9 @@ import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
 import { protectIdNumber } from "@/lib/pii-crypto";
+import { teacherDetailDto, teacherDetailSelect, teacherListDto } from "@/lib/roster-dto";
+import { withNoStore } from "@/lib/auth-response";
+import { logSafeError } from "@/lib/safe-logger";
 import { z } from "zod";
 
 const createTeacherSchema = z.object({
@@ -71,9 +74,9 @@ export async function GET(request: Request) {
       },
       orderBy: { name: "asc" },
     });
-    return Response.json(teachers, { status: 200 });
+    return withNoStore(Response.json(teachers.map(teacherListDto), { status: 200 }));
   } catch (error) {
-    console.error("Teachers API error:", error);
+    logSafeError("teachers-list", error);
     return Response.json({ error: "حدث خطأ، يرجى المحاولة مجدداً" }, { status: 500 });
   }
 }
@@ -122,6 +125,15 @@ export async function POST(request: Request) {
     enrollmentEndDate,
   } = parsed.data;
 
+  if (
+    [paymentMethod, monthlySalary, lateDeductionRate].some(
+      (value) => value !== undefined
+    ) &&
+    !session.can("finance.manage")
+  ) {
+    return Response.json({ error: "Forbidden", code: "FORBIDDEN" }, { status: 403 });
+  }
+
   const teacher = await prisma.teacher.create({
     data: {
       schoolId,
@@ -144,7 +156,7 @@ export async function POST(request: Request) {
         enrollmentEndDate: new Date(enrollmentEndDate),
       }),
     },
-    include: { classes: true },
+    select: teacherDetailSelect,
   });
 
   await logAction({
@@ -157,5 +169,21 @@ export async function POST(request: Request) {
     request,
   });
 
-  return Response.json(teacher, { status: 201 });
+  return withNoStore(
+    Response.json(
+      teacherDetailDto(
+        teacher as unknown as Record<string, unknown> & {
+          idNumber: string | null;
+          encryptedIdNumber: string | null;
+        },
+        {
+          contact: session.can("staff.manage"),
+          financial: session.can("finance.view") || session.can("finance.manage"),
+          revealIdentity: false,
+        },
+        0
+      ),
+      { status: 201 }
+    )
+  );
 }

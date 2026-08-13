@@ -16,6 +16,7 @@ import { astDateInputValue } from "@/lib/datetime";
 import { EMPLOYMENT_STATUS_LABEL_KEYS } from "@/lib/enum-labels";
 import type { EmploymentStatus } from "@/generated/prisma/enums";
 import { PermissionGate } from "@/components/auth/PermissionGate";
+import { usePermissions } from "@/lib/use-permissions";
 
 /** Every reason except "still employed", which is the reactivate action. */
 type TeacherDepartureStatus = Exclude<EmploymentStatus, "ACTIVE">;
@@ -64,6 +65,8 @@ export default function TeacherProfilePage() {
   const t = useT();
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const { can } = usePermissions();
+  const canViewFinance = can("finance.view") || can("finance.manage");
 
   const [teacher, setTeacher] = useState<Teacher | null>(null);
   const [classes, setClasses] = useState<ClassItem[]>([]);
@@ -113,7 +116,7 @@ export default function TeacherProfilePage() {
     setLoading(true); setError(null);
     try {
       const [teacherRes, invoicesRes] = await Promise.all([
-        axios.get<Teacher>(`/api/teachers/${id}`),
+        axios.get<Teacher>(`/api/teachers/${id}?revealIdentity=true`),
         axios.get<Invoice[]>(`/api/invoices?teacherId=${id}`),
       ]);
       const data = teacherRes.data;
@@ -172,9 +175,14 @@ export default function TeacherProfilePage() {
         idNumber: values.idNumber || null, dateOfBirth: values.dateOfBirth || null,
         nationality: values.nationality || null, email: values.email || null,
         phone1: values.phone1 || null, phone2: values.phone2 || null,
-        paymentMethod: values.paymentMethod || null,
+        ...(canViewFinance
+          ? {
+              paymentMethod: values.paymentMethod || null,
+              monthlySalary: values.monthlySalary || null,
+              lateDeductionRate: values.lateDeductionRate || null,
+            }
+          : {}),
         joinDate: values.joinDate || null, enrollmentEndDate: values.enrollmentEndDate || null,
-        monthlySalary: values.monthlySalary || null, lateDeductionRate: values.lateDeductionRate || null,
         qualification1: values.qualification1 || null,
         qualification2: values.qualification2 || null,
         qualification3: values.qualification3 || null,

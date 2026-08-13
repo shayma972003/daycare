@@ -1,6 +1,10 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
+import { withNoStore } from "@/lib/auth-response";
+import { z } from "zod";
+
+const patchSchema = z.object({ recipientId: z.string().min(1).optional() }).strict();
 
 export async function GET() {
   let session;
@@ -26,7 +30,7 @@ export async function GET() {
     where: { school_id: schoolId, read_at: null, delivered_at: { not: null } },
   });
 
-  return Response.json({
+  return withNoStore(Response.json({
     unreadCount,
     messages: recipients.map((r) => ({
       recipientId: r.id,
@@ -36,7 +40,7 @@ export async function GET() {
       sent_at: r.message.sent_at,
       read_at: r.read_at,
     })),
-  });
+  }));
 }
 
 export async function PATCH(request: Request) {
@@ -55,7 +59,11 @@ export async function PATCH(request: Request) {
   let body: unknown;
   try { body = await request.json(); } catch { return Response.json({ error: "Invalid JSON" }, { status: 400 }); }
 
-  const { recipientId } = body as { recipientId?: string };
+  const parsed = patchSchema.safeParse(body);
+  if (!parsed.success) {
+    return withNoStore(Response.json({ error: parsed.error.flatten() }, { status: 422 }));
+  }
+  const { recipientId } = parsed.data;
   if (recipientId) {
     const recipient = await prisma.adminMessageRecipient.findFirst({
       where: { id: recipientId, school_id: schoolId },
@@ -88,5 +96,5 @@ export async function PATCH(request: Request) {
     });
   }
 
-  return Response.json({ success: true });
+  return withNoStore(Response.json({ success: true }));
 }

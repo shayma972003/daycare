@@ -89,4 +89,19 @@ describe("permissionStore", () => {
     expect(permissionStore.getSnapshot()).toMatchObject({ status: "error", me: null });
     expect(permissionStore.getSnapshot().error).toBeInstanceOf(Error);
   });
+
+  it("aborts an in-flight protected request when the session cache is cleared", async () => {
+    const request = deferred<{ data: Me }>();
+    mockedGet.mockReturnValueOnce(request.promise);
+    const loading = permissionStore.syncSession("school:user:role");
+    const signal = mockedGet.mock.calls[0]?.[1]?.signal;
+
+    expect(signal?.aborted).toBe(false);
+    permissionStore.clear();
+    expect(signal?.aborted).toBe(true);
+
+    request.resolve({ data: me("user", ["*"]) });
+    await loading;
+    expect(permissionStore.getSnapshot().sessionKey).toBeNull();
+  });
 });

@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { SessionProvider } from "@/components/layout/SessionProvider";
+import { DashboardSessionBoundary } from "@/components/layout/DashboardSessionBoundary";
 import { AlertsProvider } from "@/components/layout/AlertsProvider";
 import { CommandPalette } from "@/components/layout/CommandPalette";
 
@@ -23,15 +24,17 @@ export default async function DashboardLayout({
     : null;
 
   return (
-    <SessionProvider>
-      <AlertsProvider>
+    <SessionProvider session={session}>
+      <DashboardSessionBoundary>
+        <AlertsProvider>
         {/* Mounted once for the whole dashboard — the shortcut has to work from
             every screen, not from a bar someone has to find first. */}
-        <CommandPalette />
-        <DashboardShell schoolName={school?.name} schoolLogo={school?.logoUrl}>
-          {children}
-        </DashboardShell>
-      </AlertsProvider>
+          <CommandPalette />
+          <DashboardShell schoolName={school?.name} schoolLogo={school?.logoUrl}>
+            {children}
+          </DashboardShell>
+        </AlertsProvider>
+      </DashboardSessionBoundary>
     </SessionProvider>
   );
 }

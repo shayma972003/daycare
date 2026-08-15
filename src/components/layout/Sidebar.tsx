@@ -125,7 +125,7 @@ function SidebarContent({
         <button
           onClick={() => {
             clearPermissions();
-            void signOut({ callbackUrl: "/login" });
+            void signOut({ callbackUrl: "/login", redirect: false });
           }}
           className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-white/30 hover:text-white/60 hover:bg-white/5 text-sm transition-all"
         >

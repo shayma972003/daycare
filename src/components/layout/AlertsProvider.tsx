@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import axios from "axios";
 import { useT } from "@/lib/i18n-provider";
 
@@ -38,26 +39,39 @@ function AlertModal({
 export function AlertsProvider({ children }: { children: React.ReactNode }) {
   const t = useT();
   const router = useRouter();
+  const { status } = useSession();
   const [expiredAlert, setExpiredAlert] = useState<ExpiredStudent[]>([]);
   const [suspendedAlert, setSuspendedAlert] = useState<SuspendedStudent[]>([]);
 
   useEffect(() => {
+    if (status !== "authenticated") return;
     const alreadyChecked = sessionStorage.getItem("alerts_checked");
     if (alreadyChecked) return;
+
+    let active = true;
+    const controller = new AbortController();
 
     // POST, not GET: the endpoint marks these alerts as shown, and a prefetch or
     // a cached GET would burn them without anyone seeing the popup.
     axios
       .post<{ expiredStudents: ExpiredStudent[]; suspendedStudents: SuspendedStudent[] }>(
-        "/api/notifications/alerts"
+        "/api/notifications/alerts",
+        undefined,
+        { signal: controller.signal }
       )
       .then(({ data }) => {
+        if (!active) return;
         if (data.expiredStudents?.length > 0) setExpiredAlert(data.expiredStudents);
         if (data.suspendedStudents?.length > 0) setSuspendedAlert(data.suspendedStudents);
         sessionStorage.setItem("alerts_checked", "true");
       })
       .catch(() => {});
-  }, []);
+
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [status]);
 
   return (
     <>

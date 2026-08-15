@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import axios from "axios";
+import { useSession } from "next-auth/react";
 import { useT } from "@/lib/i18n-provider";
 
 interface AdminMsg {
@@ -16,6 +17,18 @@ interface AdminMsg {
 interface NotifData {
   unreadCount: number;
   messages: AdminMsg[];
+}
+
+function isUnauthorized(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "response" in error &&
+    typeof error.response === "object" &&
+    error.response !== null &&
+    "status" in error.response &&
+    error.response.status === 401
+  );
 }
 
 /**
@@ -36,28 +49,40 @@ function timeAgo(dateStr: string | null, t: (key: string, vars?: Record<string, 
 
 export default function AdminNotificationBell() {
   const t = useT();
+  const { status, update } = useSession();
   const [data, setData] = useState<NotifData>({ unreadCount: 0, messages: [] });
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const requestController = useRef<AbortController | null>(null);
 
   async function load() {
+    if (status !== "authenticated") return;
     try {
-      const res = await axios.get<NotifData>("/api/notifications/admin-messages");
+      const res = await axios.get<NotifData>("/api/notifications/admin-messages", {
+        signal: requestController.current?.signal,
+      });
       setData(res.data);
-    } catch {
+    } catch (error) {
+      if (isUnauthorized(error)) void update();
       // not critical
     }
   }
 
   useEffect(() => {
+    requestController.current?.abort();
+    if (status !== "authenticated") return;
+
     let active = true;
+    const controller = new AbortController();
+    requestController.current = controller;
     const refresh = () => {
       axios
-        .get<NotifData>("/api/notifications/admin-messages")
+        .get<NotifData>("/api/notifications/admin-messages", { signal: controller.signal })
         .then((res) => {
           if (active) setData(res.data);
         })
-        .catch(() => {
+        .catch((error: unknown) => {
+          if (active && isUnauthorized(error)) void update();
           // Notifications are non-critical; the next poll retries.
         });
     };
@@ -65,9 +90,11 @@ export default function AdminNotificationBell() {
     const interval = setInterval(refresh, 60000);
     return () => {
       active = false;
+      controller.abort();
+      if (requestController.current === controller) requestController.current = null;
       clearInterval(interval);
     };
-  }, []);
+  }, [status, update]);
 
   // Close on outside click
   useEffect(() => {

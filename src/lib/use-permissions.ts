@@ -41,6 +41,7 @@ let generation = 0;
 let inFlight: {
   sessionKey: string;
   generation: number;
+  controller: AbortController;
   promise: Promise<PermissionSnapshot>;
 } | null = null;
 const listeners = new Set<() => void>();
@@ -59,10 +60,12 @@ function fetchPermissions(sessionKey: string, force = false): Promise<Permission
   }
 
   const requestGeneration = ++generation;
+  inFlight?.controller.abort();
+  const controller = new AbortController();
   publish({ sessionKey, status: "loading", me: null, error: null });
 
   const promise = axios
-    .get<Me>("/api/me")
+    .get<Me>("/api/me", { signal: controller.signal })
     .then((response) => {
       if (generation !== requestGeneration || snapshot.sessionKey !== sessionKey) {
         return snapshot;
@@ -94,7 +97,7 @@ function fetchPermissions(sessionKey: string, force = false): Promise<Permission
       if (inFlight?.generation === requestGeneration) inFlight = null;
     });
 
-  inFlight = { sessionKey, generation: requestGeneration, promise };
+  inFlight = { sessionKey, generation: requestGeneration, controller, promise };
   return promise;
 }
 
@@ -125,6 +128,7 @@ export const permissionStore = {
   },
   clear() {
     generation += 1;
+    inFlight?.controller.abort();
     inFlight = null;
     if (snapshot !== EMPTY_SNAPSHOT) publish(EMPTY_SNAPSHOT);
   },

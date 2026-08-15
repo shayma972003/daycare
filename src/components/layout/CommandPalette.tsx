@@ -86,15 +86,27 @@ export function CommandPalette() {
 
   // Debounced: three tables per keystroke is not a search box, it is a load test.
   useEffect(() => {
-    if (query.trim().length < 2) return;
+    if (!open || query.trim().length < 2) return;
+    let active = true;
+    const controller = new AbortController();
     const timer = setTimeout(() => {
       axios
-        .get<{ results: SearchResult[] }>(`/api/search?q=${encodeURIComponent(query.trim())}`)
-        .then((response) => setResults(response.data.results))
-        .catch(() => setResults([]));
+        .get<{ results: SearchResult[] }>(`/api/search?q=${encodeURIComponent(query.trim())}`, {
+          signal: controller.signal,
+        })
+        .then((response) => {
+          if (active) setResults(response.data.results);
+        })
+        .catch(() => {
+          if (active) setResults([]);
+        });
     }, 220);
-    return () => clearTimeout(timer);
-  }, [query]);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [open, query]);
 
   const visibleActions = permissionsLoading
     ? []

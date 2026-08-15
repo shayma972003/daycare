@@ -212,7 +212,7 @@ export async function POST(request: Request) {
     ].join("\n"),
     school.name
   );
-  if (!emailDelivery.success) {
+  if (emailDelivery.status === "failed") {
     console.error("[admin-schools] invitation email delivery failed", school.id);
   }
 
@@ -222,7 +222,7 @@ export async function POST(request: Request) {
       name: school.name,
       email,
       invitationStatus: "pending",
-      emailDelivery: emailDelivery.success ? "sent" : "failed",
+      emailDelivery: emailDelivery.status,
     },
     {
       status: emailDelivery.success ? 201 : 207,

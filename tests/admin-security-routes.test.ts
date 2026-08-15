@@ -181,7 +181,7 @@ beforeEach(() => {
   );
   mocks.bcryptCompare.mockResolvedValue(false);
   mocks.bcryptHash.mockResolvedValue(NEW_HASH);
-  mocks.sendEmail.mockResolvedValue({ success: true });
+  mocks.sendEmail.mockResolvedValue({ success: true, status: "sent" });
   mocks.rateLimit.mockResolvedValue({ status: "allowed", remaining: 4, retryAfter: 0 });
   mocks.resetRateLimit.mockResolvedValue({ status: "reset" });
   mocks.clientIp.mockReturnValue("127.0.0.1");
@@ -541,7 +541,11 @@ describe("admin school creation", () => {
   });
 
   it("keeps the invitation resendable and reports email failure explicitly", async () => {
-    mocks.sendEmail.mockResolvedValue({ success: false, error: "provider unavailable" });
+    mocks.sendEmail.mockResolvedValue({
+      success: false,
+      status: "failed",
+      error: "provider unavailable",
+    });
 
     const response = await createSchool(
       await authenticatedRequest("/api/admin/schools", validSchoolBody())
@@ -558,6 +562,27 @@ describe("admin school creation", () => {
     expect(logged).not.toContain(token!);
     expect(logged).not.toContain(tokenHash);
     expect(logged).not.toContain("provider unavailable");
+  });
+
+  it("keeps the nursery and invitation while reporting disabled delivery", async () => {
+    mocks.sendEmail.mockResolvedValueOnce({ success: false, status: "disabled" });
+
+    const response = await createSchool(
+      await authenticatedRequest("/api/admin/schools", validSchoolBody())
+    );
+    const result = await response.json();
+
+    expect(response.status).toBe(207);
+    expect(result.emailDelivery).toBe("disabled");
+    expect(mocks.transaction).toHaveBeenCalledTimes(1);
+    expect(mocks.schoolCreate).toHaveBeenCalledTimes(1);
+    expect(mocks.userCreate).toHaveBeenCalledTimes(1);
+    expect(mocks.schoolAdminInvitationCreate).toHaveBeenCalledTimes(1);
+    expect(mocks.adminActivityCreate).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(console.error)).not.toHaveBeenCalledWith(
+      "[admin-schools] invitation email delivery failed",
+      expect.anything()
+    );
   });
 
   it("returns a conflict for a concurrent unique-email failure", async () => {
@@ -654,7 +679,11 @@ describe("admin school invitation rotation", () => {
   });
 
   it("keeps the rotated invitation pending and reports delivery failure", async () => {
-    mocks.sendEmail.mockResolvedValueOnce({ success: false, error: "provider unavailable" });
+    mocks.sendEmail.mockResolvedValueOnce({
+      success: false,
+      status: "failed",
+      error: "provider unavailable",
+    });
 
     const response = await resendSchoolInvite(
       await authenticatedRequest("/api/admin/schools/school-1/invite"),

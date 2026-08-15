@@ -118,9 +118,28 @@ describe("school administrator invitation UI", () => {
     expect(document.activeElement).toBe(trigger);
   });
 
+  it("shows a load error instead of an empty count and retries without an unhandled rejection", async () => {
+    const user = userEvent.setup();
+    axiosMocks.get.mockRejectedValueOnce({ response: { status: 500, data: {} } });
+    render(inEnglish(<AdminSchoolsPage />));
+
+    expect(
+      await screen.findByText("Could not load nurseries. Please try again.")
+    ).not.toBeNull();
+    expect(screen.queryByText("0 registered nurseries")).toBeNull();
+    expect(screen.queryByText("No results")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+
+    expect(await screen.findByText("0 registered nurseries")).not.toBeNull();
+    expect(screen.getByText("No results")).not.toBeNull();
+    expect(axiosMocks.get).toHaveBeenCalledTimes(2);
+  });
+
   it.each([
     ["sent", "Nursery created and invitation sent"],
     ["failed", "Nursery created, but email delivery failed"],
+    ["disabled", "Nursery created, but email delivery is disabled in this test environment"],
   ] as const)(
     "shows the real %s email-delivery result after creation",
     async (emailDelivery, expectedTitle) => {
@@ -163,6 +182,56 @@ describe("school administrator invitation UI", () => {
     expect(await screen.findByText("That email address is already in use")).not.toBeNull();
     expect(screen.queryByLabelText(/temporary password/i)).toBeNull();
     expect(screen.queryByRole("button", { name: /copy password/i })).toBeNull();
+  });
+
+  it.each([
+    [422, "Check the entered nursery details and try again."],
+    [429, "Too many attempts. Wait a moment and try again."],
+    [500, "The nursery could not be created because the service is unavailable."],
+  ] as const)("shows the expected message for a %s create failure", async (status, message) => {
+    const user = userEvent.setup();
+    axiosMocks.post.mockRejectedValueOnce({ response: { status, data: {} } });
+    render(inEnglish(<AdminSchoolsPage />));
+
+    await user.click(screen.getByRole("button", { name: /Create an account/ }));
+    await user.click(await reachCreateAction(user));
+
+    expect(await screen.findByText(message)).not.toBeNull();
+    expect(screen.queryByText("Awaiting acceptance")).toBeNull();
+  });
+
+  it("prevents duplicate create requests while the first request is pending", async () => {
+    const user = userEvent.setup();
+    let resolveCreate!: (value: unknown) => void;
+    const pendingCreate = new Promise((resolve) => {
+      resolveCreate = resolve;
+    });
+    axiosMocks.post.mockReturnValueOnce(pendingCreate);
+    render(inEnglish(<AdminSchoolsPage />));
+
+    await user.click(screen.getByRole("button", { name: /Create an account/ }));
+    const create = await reachCreateAction(user);
+    await user.click(create);
+    await user.click(create);
+
+    expect(axiosMocks.post).toHaveBeenCalledTimes(1);
+    expect(create.disabled).toBe(true);
+
+    await act(async () => {
+      resolveCreate({
+        status: 201,
+        data: {
+          id: "school-pending",
+          name: "Safe nursery",
+          email: "owner@example.test",
+          invitationStatus: "pending",
+          emailDelivery: "sent",
+        },
+      });
+      await pendingCreate;
+    });
+
+    expect(await screen.findByText("Nursery created and invitation sent")).not.toBeNull();
   });
 
   it("shows resend only for inactive accounts and prevents duplicate requests", async () => {

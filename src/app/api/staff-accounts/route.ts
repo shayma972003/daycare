@@ -241,7 +241,7 @@ export async function POST(request: Request) {
     {
       ...user,
       invitationSent: delivered.success,
-      deliveryStatus: delivered.success ? "sent" : "failed",
+      deliveryStatus: delivered.status,
     },
     { status: delivered.success ? 201 : 207 }
   );

@@ -166,7 +166,7 @@ beforeEach(() => {
   mocks.transaction.mockImplementation(
     async (operation: (tx: typeof mocks.tx) => Promise<unknown>) => operation(mocks.tx)
   );
-  mocks.sendEmail.mockResolvedValue({ success: true });
+  mocks.sendEmail.mockResolvedValue({ success: true, status: "sent" });
 });
 
 describe("guardian account tenant and permission guards", () => {
@@ -286,7 +286,11 @@ describe("guardian account creation", () => {
   });
 
   it("keeps the account and returns 207 when invitation delivery fails", async () => {
-    mocks.sendEmail.mockResolvedValueOnce({ success: false, error: "provider secret detail" });
+    mocks.sendEmail.mockResolvedValueOnce({
+      success: false,
+      status: "failed",
+      error: "provider secret detail",
+    });
     const response = await createGuardianAccount(createRequest({ guardianId: "guardian-1" }));
     const body = await response.json();
     expect(response.status).toBe(207);
@@ -380,7 +384,11 @@ describe("guardian invitation rotation", () => {
   });
 
   it("returns 207 while retaining the rotated invitation after email failure", async () => {
-    mocks.sendEmail.mockResolvedValueOnce({ success: false, error: "provider down" });
+    mocks.sendEmail.mockResolvedValueOnce({
+      success: false,
+      status: "failed",
+      error: "provider down",
+    });
     const { request, context } = resendRequest();
     const response = await resendGuardianInvite(request, context);
     expect(response.status).toBe(207);

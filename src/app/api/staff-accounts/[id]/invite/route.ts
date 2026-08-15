@@ -180,7 +180,7 @@ export async function POST(
   return Response.json(
     {
       sent: delivered.success,
-      deliveryStatus: delivered.success ? "sent" : "failed",
+      deliveryStatus: delivered.status,
     },
     { status: delivered.success ? 200 : 207 }
   );

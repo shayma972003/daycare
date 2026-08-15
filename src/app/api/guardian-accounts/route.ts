@@ -295,7 +295,7 @@ export async function POST(request: Request) {
       email: account.email,
       phone: account.phone,
       invitationSent: delivered.success,
-      deliveryStatus: delivered.success ? "sent" : "failed",
+      deliveryStatus: delivered.status,
     },
     { status: delivered.success ? 201 : 207 }
   );

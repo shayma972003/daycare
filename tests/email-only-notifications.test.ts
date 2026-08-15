@@ -18,6 +18,8 @@ const mocks = vi.hoisted(() => ({
   bcryptHash: vi.fn(),
 }));
 
+const emailConfig = vi.hoisted(() => ({ deliveryEnabled: true }));
+
 vi.mock("@/lib/env", () => ({
   env: {
     FROM_EMAIL: "no-reply@example.com",
@@ -26,6 +28,9 @@ vi.mock("@/lib/env", () => ({
   },
   emailEnabled: true,
   emailProvider: "resend",
+  get emailDeliveryEnabled() {
+    return emailConfig.deliveryEnabled;
+  },
 }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -70,6 +75,7 @@ import { POST as sendActivationOtp } from "@/app/api/settings/2fa/send-activatio
 import { POST as submitEnrollment } from "@/app/api/enrollment/submit/route";
 
 beforeEach(() => {
+  emailConfig.deliveryEnabled = true;
   for (const mock of Object.values(mocks)) mock.mockReset();
   mocks.transaction.mockImplementation((callback: (tx: unknown) => unknown) =>
     callback({
@@ -173,6 +179,24 @@ describe("email-only notification delivery", () => {
     await expect(
       sendNotification("school-1", "Guardian", null, "Message", {}, "Test School")
     ).resolves.toEqual({ status: "no_email" });
+
+    expect(mocks.fetch).not.toHaveBeenCalled();
+    expect(mocks.notificationCreate).not.toHaveBeenCalled();
+  });
+
+  it("returns disabled without contacting a provider or recording a SENT row", async () => {
+    emailConfig.deliveryEnabled = false;
+
+    await expect(
+      sendNotification(
+        "school-1",
+        "Guardian",
+        "guardian@example.com",
+        "Message",
+        {},
+        "Test School"
+      )
+    ).resolves.toEqual({ status: "disabled" });
 
     expect(mocks.fetch).not.toHaveBeenCalled();
     expect(mocks.notificationCreate).not.toHaveBeenCalled();

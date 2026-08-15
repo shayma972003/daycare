@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   provider: "resend" as "resend" | "smtp" | "none",
   enabled: true,
+  deliveryEnabled: true,
   fetch: vi.fn(),
   sendMail: vi.fn(),
   createTransport: vi.fn(),
@@ -23,6 +24,9 @@ vi.mock("@/lib/env", () => ({
   env: mocks.env,
   get emailEnabled() {
     return mocks.enabled;
+  },
+  get emailDeliveryEnabled() {
+    return mocks.deliveryEnabled;
   },
   get emailProvider() {
     return mocks.provider;
@@ -48,6 +52,7 @@ function resendPayload(): Record<string, unknown> {
 beforeEach(() => {
   mocks.provider = "resend";
   mocks.enabled = true;
+  mocks.deliveryEnabled = true;
   mocks.fetch.mockReset();
   mocks.sendMail.mockReset();
   mocks.createTransport.mockReset();
@@ -69,7 +74,7 @@ describe("central email sender identity", () => {
         },
         language: "ar",
       })
-    ).resolves.toEqual({ success: true });
+    ).resolves.toEqual({ success: true, status: "sent" });
 
     const payload = resendPayload();
     expect(payload.from).toBe(
@@ -157,10 +162,31 @@ describe("central email sender identity", () => {
 
     const result = await sendEmail("owner@example.test", "Subject", "Body", "School");
 
-    expect(result).toEqual({ success: false, error: "Email delivery failed" });
+    expect(result).toEqual({
+      success: false,
+      status: "failed",
+      error: "Email delivery failed",
+    });
     expect(JSON.stringify(result)).not.toContain("secret-provider-diagnostic");
     expect(JSON.stringify(result)).not.toContain(mocks.env.RESEND_API_KEY);
   });
+
+  it.each(["resend", "smtp"] as const)(
+    "does not initialize or contact the %s provider while delivery is disabled",
+    async (provider) => {
+      mocks.provider = provider;
+      mocks.deliveryEnabled = false;
+      mocks.enabled = false;
+
+      await expect(
+        sendEmail("owner@example.test", "Subject", "Body", "School")
+      ).resolves.toEqual({ success: false, status: "disabled" });
+
+      expect(mocks.fetch).not.toHaveBeenCalled();
+      expect(mocks.createTransport).not.toHaveBeenCalled();
+      expect(mocks.sendMail).not.toHaveBeenCalled();
+    }
+  );
 });
 
 describe("email call-site classification", () => {

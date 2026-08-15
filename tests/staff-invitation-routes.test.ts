@@ -160,7 +160,7 @@ beforeEach(() => {
   mocks.transaction.mockImplementation(
     async (operation: (tx: typeof mocks.tx) => Promise<unknown>) => operation(mocks.tx)
   );
-  mocks.sendEmail.mockResolvedValue({ success: true });
+  mocks.sendEmail.mockResolvedValue({ success: true, status: "sent" });
   mocks.rateLimit.mockResolvedValue({ status: "allowed", remaining: 4, retryAfter: 0 });
   mocks.tooManyRequests.mockImplementation((retryAfter: number) =>
     Response.json({ error: "Too many" }, { status: 429, headers: { "Retry-After": String(retryAfter) } })
@@ -246,7 +246,11 @@ describe("staff account creation by invitation", () => {
   });
 
   it("keeps the account and returns 207 when email delivery fails", async () => {
-    mocks.sendEmail.mockResolvedValueOnce({ success: false, error: "provider unavailable" });
+    mocks.sendEmail.mockResolvedValueOnce({
+      success: false,
+      status: "failed",
+      error: "provider unavailable",
+    });
     const response = await createStaff(
       createRequest({ name: "Staff One", email: "staff@example.test", roleId: "role-1" })
     );
@@ -351,7 +355,11 @@ describe("staff invitation rotation", () => {
   });
 
   it("returns 207 and keeps the rotated invitation when resend delivery fails", async () => {
-    mocks.sendEmail.mockResolvedValueOnce({ success: false, error: "provider unavailable" });
+    mocks.sendEmail.mockResolvedValueOnce({
+      success: false,
+      status: "failed",
+      error: "provider unavailable",
+    });
     const { request, context } = resendRequest();
     const response = await resendStaffInvite(request, context);
 

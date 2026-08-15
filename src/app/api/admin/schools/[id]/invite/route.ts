@@ -73,14 +73,14 @@ export async function POST(
     invitation.schoolName
   );
 
-  if (!delivery.success) {
+  if (delivery.status === "failed") {
     console.error("[admin-schools] invitation email delivery failed", schoolId);
   }
 
   return Response.json(
     {
       invitationStatus: "pending",
-      emailDelivery: delivery.success ? "sent" : "failed",
+      emailDelivery: delivery.status,
     },
     {
       status: delivery.success ? 200 : 207,

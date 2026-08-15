@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import axios from "axios";
 import Link from "next/link";
 import { useLocale, useT } from "@/lib/i18n-provider";
@@ -32,7 +32,7 @@ interface SchoolRow {
 interface CreatedAccount {
   name: string;
   email: string;
-  emailDelivery: "sent" | "failed";
+  emailDelivery: "sent" | "failed" | "disabled";
 }
 
 interface CreateSchoolResponse {
@@ -40,7 +40,7 @@ interface CreateSchoolResponse {
   name: string;
   email: string;
   invitationStatus: "pending";
-  emailDelivery: "sent" | "failed";
+  emailDelivery: "sent" | "failed" | "disabled";
 }
 
 const STATUS_LABELS: Record<string, { label: string; cls: string }> = {
@@ -87,6 +87,11 @@ const EMPTY_FORM: CreateSchoolForm = {
 
 const WIZARD_STEPS = ["بيانات الحساب", "الهوية التجارية", "معلومات المدرسة", "الضريبة والزكاة"];
 
+async function fetchAdminSchools(signal: AbortSignal): Promise<SchoolRow[]> {
+  const response = await axios.get<SchoolRow[]>("/api/admin/schools", { signal });
+  return response.data;
+}
+
 function CreateSchoolModal({ onClose, onCreated }: { onClose: () => void; onCreated: (s: SchoolRow) => void }) {
   const t = useT();
   const [step, setStep] = useState(0);
@@ -94,6 +99,7 @@ function CreateSchoolModal({ onClose, onCreated }: { onClose: () => void; onCrea
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [created, setCreated] = useState<CreatedAccount | null>(null);
+  const submitInFlight = useRef(false);
 
   function set<K extends keyof CreateSchoolForm>(key: K, value: CreateSchoolForm[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -111,6 +117,8 @@ function CreateSchoolModal({ onClose, onCreated }: { onClose: () => void; onCrea
   const canProceedStep0 = form.schoolName.trim().length >= 2 && /\S+@\S+\.\S+/.test(form.email);
 
   async function handleSubmit() {
+    if (submitInFlight.current) return;
+    submitInFlight.current = true;
     setError("");
     setLoading(true);
     try {
@@ -154,12 +162,15 @@ function CreateSchoolModal({ onClose, onCreated }: { onClose: () => void; onCrea
         invitation_status: "pending",
       });
     } catch (err) {
-      if (axios.isAxiosError(err) && err.response?.status === 409) {
-        setError(t("adminSchools.duplicateEmail"));
-      } else {
-        setError(t("adminSchools.genericError"));
-      }
+      const status = axios.isAxiosError(err) ? err.response?.status : undefined;
+      if (status === 409) setError(t("adminSchools.duplicateEmail"));
+      else if (status === 422) setError(t("adminSchools.validationError"));
+      else if (status === 429) setError(t("adminSchools.rateLimitError"));
+      else if (status !== undefined && status >= 500) {
+        setError(t("adminSchools.serverError"));
+      } else setError(t("adminSchools.genericError"));
     } finally {
+      submitInFlight.current = false;
       setLoading(false);
     }
   }
@@ -201,14 +212,18 @@ function CreateSchoolModal({ onClose, onCreated }: { onClose: () => void; onCrea
               <p className={`font-bold text-sm ${created.emailDelivery === "sent" ? "text-emerald-400" : "text-amber-300"}`}>
                 {created.emailDelivery === "sent"
                   ? t("adminSchools.createdSentTitle")
-                  : t("adminSchools.createdFailedTitle")}
+                  : created.emailDelivery === "disabled"
+                    ? t("adminSchools.createdDisabledTitle")
+                    : t("adminSchools.createdFailedTitle")}
               </p>
               <p className="text-gray-300 text-sm">{t("adminSchools.schoolLabel")}: <span className="text-white font-medium">{created.name}</span></p>
               <p className="text-gray-300 text-sm">{t("adminSchools.emailLabel")}: <span className="text-white font-medium" dir="ltr">{created.email}</span></p>
               <p className="text-gray-400 text-xs mt-2">
                 {created.emailDelivery === "sent"
                   ? t("adminSchools.createdSentBody")
-                  : t("adminSchools.createdFailedBody")}
+                  : created.emailDelivery === "disabled"
+                    ? t("adminSchools.createdDisabledBody")
+                    : t("adminSchools.createdFailedBody")}
               </p>
             </div>
             <button onClick={onClose} className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-sm transition-colors">
@@ -416,7 +431,7 @@ export default function AdminSchoolsPage() {
   const t = useT();
   const { locale } = useLocale();
   const [schools, setSchools] = useState<SchoolRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadState, setLoadState] = useState<"loading" | "error" | "ready">("loading");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [showCreate, setShowCreate] = useState(false);
@@ -425,9 +440,57 @@ export default function AdminSchoolsPage() {
     Record<string, { kind: "success" | "warning" | "error"; text: string }>
   >({});
   const resendInFlight = useRef(new Set<string>());
+  const loadSequence = useRef(0);
+  const loadAbortController = useRef<AbortController | null>(null);
+
+  const loadSchools = useCallback(async () => {
+    loadAbortController.current?.abort();
+    const controller = new AbortController();
+    loadAbortController.current = controller;
+    const sequence = ++loadSequence.current;
+    try {
+      const loadedSchools = await fetchAdminSchools(controller.signal);
+      if (controller.signal.aborted || sequence !== loadSequence.current) return;
+      setSchools(loadedSchools);
+      setLoadState("ready");
+    } catch (error) {
+      if (
+        controller.signal.aborted ||
+        sequence !== loadSequence.current ||
+        axios.isCancel(error)
+      ) {
+        return;
+      }
+      setLoadState("error");
+    }
+  }, []);
 
   useEffect(() => {
-    axios.get<SchoolRow[]>("/api/admin/schools").then((r) => setSchools(r.data)).finally(() => setLoading(false));
+    const controller = new AbortController();
+    loadAbortController.current = controller;
+    const sequence = ++loadSequence.current;
+
+    void fetchAdminSchools(controller.signal)
+      .then((loadedSchools) => {
+        if (controller.signal.aborted || sequence !== loadSequence.current) return;
+        setSchools(loadedSchools);
+        setLoadState("ready");
+      })
+      .catch((error) => {
+        if (
+          controller.signal.aborted ||
+          sequence !== loadSequence.current ||
+          axios.isCancel(error)
+        ) {
+          return;
+        }
+        setLoadState("error");
+      });
+
+    return () => {
+      loadSequence.current += 1;
+      controller.abort();
+    };
   }, []);
 
   const filtered = schools.filter((s) => {
@@ -452,7 +515,7 @@ export default function AdminSchoolsPage() {
     try {
       const response = await axios.post<{
         invitationStatus: "pending";
-        emailDelivery: "sent" | "failed";
+        emailDelivery: "sent" | "failed" | "disabled";
       }>(`/api/admin/schools/${school.id}/invite`);
 
       setSchools((current) =>
@@ -469,7 +532,9 @@ export default function AdminSchoolsPage() {
           text:
             response.data.emailDelivery === "sent"
               ? t("adminSchools.resendSent")
-              : t("adminSchools.resendFailed"),
+              : response.data.emailDelivery === "disabled"
+                ? t("adminSchools.resendDisabled")
+                : t("adminSchools.resendFailed"),
         },
       }));
     } catch {
@@ -496,9 +561,11 @@ export default function AdminSchoolsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">{t("adminSchools.title")}</h1>
-          <p className="text-gray-400 text-sm mt-1">
-            {t("adminSchools.registeredCount", { count: schools.length })}
-          </p>
+          {loadState === "ready" && (
+            <p className="text-gray-400 text-sm mt-1">
+              {t("adminSchools.registeredCount", { count: schools.length })}
+            </p>
+          )}
         </div>
         <DialogTrigger asChild>
           <button
@@ -534,8 +601,24 @@ export default function AdminSchoolsPage() {
 
       {/* Table */}
       <div className="bg-[#1e1e2e] rounded-2xl border border-white/5 overflow-hidden">
-        {loading ? (
-          <div className="p-8 text-gray-400 text-sm text-center">{t("adminSchools.loading")}</div>
+        {loadState === "loading" ? (
+          <div role="status" className="p-8 text-gray-400 text-sm text-center">
+            {t("adminSchools.loading")}
+          </div>
+        ) : loadState === "error" ? (
+          <div role="alert" className="flex flex-col items-center gap-4 p-8 text-center">
+            <p className="text-sm text-red-300">{t("adminSchools.loadError")}</p>
+            <button
+              type="button"
+              onClick={() => {
+                setLoadState("loading");
+                void loadSchools();
+              }}
+              className="rounded-xl border border-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/5"
+            >
+              {t("adminSchools.retry")}
+            </button>
+          </div>
         ) : (
           <table className="w-full text-sm">
             <thead>

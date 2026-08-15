@@ -26,6 +26,12 @@ const requiredSecret = (name: string) =>
 const optional = <T extends z.ZodType>(schema: T) =>
   z.preprocess((v) => (v === "" ? undefined : v), schema.optional());
 
+const explicitBoolean = z
+  .enum(["true", "false"], {
+    error: 'must be exactly "true" or "false"',
+  })
+  .transform((value) => value === "true");
+
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 
@@ -47,6 +53,12 @@ const envSchema = z.object({
   PII_INDEX_PEPPER: optional(z.string().min(32)),
   /** Independent key for low-entropy OTP HMACs. Required in production. */
   OTP_HASH_PEPPER: optional(z.string().min(32)),
+
+  /**
+   * Deliberate outbound-delivery switch. Development and test default to off;
+   * production must state its intent explicitly.
+   */
+  EMAIL_DELIVERY_ENABLED: optional(explicitBoolean),
 
   // ─── Optional — each gates exactly one feature ─────────────────────────────
   /** Scheduled jobs reject every request while unset (fail-closed). */
@@ -105,6 +117,14 @@ const envSchema = z.object({
       });
     }
   }
+
+  if (value.EMAIL_DELIVERY_ENABLED === undefined) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["EMAIL_DELIVERY_ENABLED"],
+      message: "EMAIL_DELIVERY_ENABLED is required in production",
+    });
+  }
 });
 
 type ParsedEnv = z.infer<typeof envSchema>;
@@ -121,14 +141,15 @@ function loadEnv(): Env {
       .map((i) => `  • ${i.path.join(".")}: ${i.message}`)
       .join("\n");
 
-    const hasPiiIssue = parsed.error.issues.some(
+    const hasRequiredProductionIssue = parsed.error.issues.some(
       (issue) =>
         issue.path[0] === "PII_ENCRYPTION_KEY" ||
         issue.path[0] === "PII_INDEX_PEPPER" ||
-        issue.path[0] === "OTP_HASH_PEPPER"
+        issue.path[0] === "OTP_HASH_PEPPER" ||
+        issue.path[0] === "EMAIL_DELIVERY_ENABLED"
     );
 
-    if (isBuildPhase && !hasPiiIssue) {
+    if (isBuildPhase && !hasRequiredProductionIssue) {
       console.warn(`⚠️  Environment validation skipped during build:\n${issues}`);
       return { ...(process.env as unknown as ParsedEnv), APP_URL: "" };
     }
@@ -155,7 +176,7 @@ function loadEnv(): Env {
   const hasResend = Boolean(value.RESEND_API_KEY);
   const hasSmtp = Boolean(value.SMTP_HOST && value.SMTP_USER && value.SMTP_PASSWORD);
 
-  if (!value.FROM_EMAIL || (!hasResend && !hasSmtp)) {
+  if (value.EMAIL_DELIVERY_ENABLED && (!value.FROM_EMAIL || (!hasResend && !hasSmtp))) {
     console.warn(
       "⚠️  No email backend configured — email is the only notification channel, " +
         "so OTP, password reset and reminders will not be delivered. Set FROM_EMAIL " +
@@ -172,6 +193,9 @@ function loadEnv(): Env {
 
 export const env = loadEnv();
 
+/** Development and tests are safe-by-default; production was validated above. */
+export const emailDeliveryEnabled = env.EMAIL_DELIVERY_ENABLED ?? false;
+
 /** Which backend `sendEmail` will use — the first one fully configured. */
 export const emailProvider: "resend" | "smtp" | "none" = !env.FROM_EMAIL
   ? "none"
@@ -181,8 +205,8 @@ export const emailProvider: "resend" | "smtp" | "none" = !env.FROM_EMAIL
       ? "smtp"
       : "none";
 
-/** Email delivery is configured and usable. */
-export const emailEnabled = emailProvider !== "none";
+/** Email delivery is explicitly enabled and has a configured backend. */
+export const emailEnabled = emailDeliveryEnabled && emailProvider !== "none";
 
 /**
  * Object storage is fully configured.

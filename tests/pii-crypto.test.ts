@@ -82,11 +82,35 @@ describe("production environment validation", () => {
     vi.stubEnv("PII_ENCRYPTION_KEY", "");
     vi.stubEnv("PII_INDEX_PEPPER", "");
     vi.stubEnv("OTP_HASH_PEPPER", "");
+    vi.stubEnv("EMAIL_DELIVERY_ENABLED", "");
 
     try {
       await expect(import("@/lib/env")).rejects.toThrow(/PII_ENCRYPTION_KEY is required in production/);
       await expect(import("@/lib/env")).rejects.toThrow(/PII_INDEX_PEPPER is required in production/);
       await expect(import("@/lib/env")).rejects.toThrow(/OTP_HASH_PEPPER is required in production/);
+      await expect(import("@/lib/env")).rejects.toThrow(/EMAIL_DELIVERY_ENABLED is required in production/);
+    } finally {
+      vi.unstubAllEnvs();
+      vi.resetModules();
+    }
+  });
+
+  it('parses the literal "false" as disabled instead of a truthy string', async () => {
+    vi.resetModules();
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("DATABASE_URL", "postgresql://user:password@example.test/database");
+    vi.stubEnv("NEXTAUTH_SECRET", "n".repeat(32));
+    vi.stubEnv("NEXTAUTH_URL", "https://example.test");
+    vi.stubEnv("ADMIN_JWT_SECRET", "a".repeat(32));
+    vi.stubEnv("PII_ENCRYPTION_KEY", randomBytes(32).toString("base64"));
+    vi.stubEnv("PII_INDEX_PEPPER", "i".repeat(32));
+    vi.stubEnv("OTP_HASH_PEPPER", "o".repeat(32));
+    vi.stubEnv("EMAIL_DELIVERY_ENABLED", "false");
+
+    try {
+      const loaded = await import("@/lib/env");
+      expect(loaded.emailDeliveryEnabled).toBe(false);
+      expect(loaded.emailEnabled).toBe(false);
     } finally {
       vi.unstubAllEnvs();
       vi.resetModules();

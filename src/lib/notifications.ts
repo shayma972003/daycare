@@ -2,7 +2,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { replaceVariables } from "@/lib/utils";
 import { type MessageContext } from "@/lib/message-variables";
-import { env, emailEnabled, emailProvider } from "@/lib/env";
+import { env, emailDeliveryEnabled, emailEnabled, emailProvider } from "@/lib/env";
 import { platformName, type PlatformLanguage } from "@/lib/branding";
 
 export type NotificationVars = Record<string, string>;
@@ -30,6 +30,11 @@ export interface SendEmailOptions {
   sender?: EmailSender;
   language?: PlatformLanguage;
 }
+
+export type EmailDeliveryResult =
+  | { success: true; status: "sent" }
+  | { success: false; status: "disabled" }
+  | { success: false; status: "failed"; error: string };
 
 /**
  * Message bodies and school names are user-controlled and land inside an HTML
@@ -85,11 +90,17 @@ export async function sendEmail(
   body: string,
   schoolName: string,
   options: SendEmailOptions = {}
-): Promise<{ success: boolean; error?: string }> {
+): Promise<EmailDeliveryResult> {
   try {
+    // This must remain before provider selection, dynamic imports and fetch.
+    // A disabled environment must not initialize or contact either backend.
+    if (!emailDeliveryEnabled) {
+      return { success: false, status: "disabled" };
+    }
+
     if (!emailEnabled) {
       console.warn("No email backend configured, skipping email");
-      return { success: false, error: "Email not configured" };
+      return { success: false, status: "failed", error: "Email not configured" };
     }
 
     const language = options.language ?? "ar";
@@ -143,7 +154,7 @@ body{font-family:'Tajawal',Arial,sans-serif;background:#f4f6fb;margin:0;padding:
         html,
         ...(replyTo ? { replyTo } : {}),
       });
-      return { success: true };
+      return { success: true, status: "sent" };
     }
 
     const response = await fetch("https://api.resend.com/emails", {
@@ -161,10 +172,12 @@ body{font-family:'Tajawal',Arial,sans-serif;background:#f4f6fb;margin:0;padding:
       }),
     });
 
-    if (!response.ok) return { success: false, error: "Email delivery failed" };
-    return { success: true };
+    if (!response.ok) {
+      return { success: false, status: "failed", error: "Email delivery failed" };
+    }
+    return { success: true, status: "sent" };
   } catch {
-    return { success: false, error: "Email delivery failed" };
+    return { success: false, status: "failed", error: "Email delivery failed" };
   }
 }
 
@@ -183,6 +196,7 @@ export interface NotificationSubject {
 export type NotificationDeliveryResult =
   | { status: "sent" }
   | { status: "failed"; reason: "email_delivery" | "delivery_log" }
+  | { status: "disabled" }
   | { status: "no_email" };
 
 export async function sendNotification(
@@ -218,6 +232,10 @@ export async function sendNotification(
       language: "ar",
     }
   );
+
+  // Disabled delivery is an intentional non-attempt. Recording it as SENT or
+  // FAILED would make operational reporting claim that a provider was called.
+  if (delivery.status === "disabled") return { status: "disabled" };
 
   try {
     await prisma.notificationLog.create({

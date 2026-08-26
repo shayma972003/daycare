@@ -7,10 +7,10 @@ import { useT } from "@/lib/i18n-provider";
 import { useDashboardNavigation } from "@/components/layout/DashboardShell";
 
 interface TopbarProps {
-  title: string;
+  title?: string;
 }
 
-export function Topbar({ title }: TopbarProps) {
+export function Topbar({ title }: TopbarProps = {}) {
   const t = useT();
   const router = useRouter();
   const { mobileOpen, openMobile, closeMobile, triggerRef } = useDashboardNavigation();
@@ -28,7 +28,7 @@ export function Topbar({ title }: TopbarProps) {
       >
         <span aria-hidden className="text-xl leading-none">☰</span>
       </button>
-      <h1 className="min-w-0 flex-1 truncate text-base font-bold text-navy sm:text-lg">{title}</h1>
+      <h1 className="min-w-0 flex-1 truncate text-base font-bold text-navy sm:text-lg">{title ?? t("dashboard.title")}</h1>
       <div className="flex shrink-0 items-center gap-1 sm:gap-2">
         {/* The palette's own trigger. A keyboard shortcut nobody is told about
             is a shortcut nobody uses — and this is also the only way in on a

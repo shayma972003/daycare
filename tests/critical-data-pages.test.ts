@@ -9,7 +9,6 @@ function source(path: string) {
 const students = source("src/app/(dashboard)/students/page.tsx");
 const teachers = source("src/app/(dashboard)/teachers/page.tsx");
 const classes = source("src/app/(dashboard)/classes/page.tsx");
-const dashboard = source("src/app/(dashboard)/dashboard/page.tsx");
 
 describe("critical data page request contracts", () => {
   it.each([
@@ -37,11 +36,19 @@ describe("critical data page request contracts", () => {
     ["students", students, "onRetry={refreshStudents}"],
     ["teachers", teachers, "onRetry={refreshTeachers}"],
     ["classes", classes, "onRetry={refreshClasses}"],
-    ["dashboard activities", dashboard, "onRetry={retryActivities}"],
-    ["dashboard logs", dashboard, "onRetry={retryLogs}"],
   ])("renders an explicit Retry path for %s", (_name, page, retryBinding) => {
     expect(page).toContain(retryBinding);
     expect(page).toContain('collectionView(');
+  });
+
+  it("uses one cancellable source per dashboard section", () => {
+    const dashboardComponent = source("src/components/dashboard/SchoolDashboard.tsx");
+    expect(dashboardComponent).toContain('"/api/dashboard/tasks"');
+    expect(dashboardComponent).toContain('"/api/attendance/page-data"');
+    expect(dashboardComponent).toContain("/api/calendar?");
+    expect(dashboardComponent).toContain("/api/notifications?source=activity");
+    expect(dashboardComponent.match(/return \(\) => controller\.abort\(\);/g)).toHaveLength(4);
+    expect(dashboardComponent).not.toContain("catch(() => {})");
   });
 
   it("uses item-level results where available and conservative count-only outcomes otherwise", () => {

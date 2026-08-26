@@ -196,6 +196,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 
 describe("admin route protection", () => {
@@ -332,6 +333,7 @@ describe("admin sessions and authentication routes", () => {
 
 describe("admin school creation", () => {
   it("returns only a derived invitation state in the school list", async () => {
+    vi.useFakeTimers({ now: new Date("2026-08-19T12:00:00.000Z") });
     mocks.schoolFindMany.mockResolvedValueOnce([
       {
         id: "school-1",

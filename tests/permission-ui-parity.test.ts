@@ -60,7 +60,7 @@ describe("critical web action and API permission parity", () => {
       "src/components/layout/Sidebar.tsx",
       "src/components/layout/Topbar.tsx",
       "src/components/layout/CommandPalette.tsx",
-      "src/app/(dashboard)/dashboard/page.tsx",
+      "src/components/dashboard/SchoolDashboard.tsx",
     ]) {
       expect(source(path)).toContain("PermissionGate");
     }

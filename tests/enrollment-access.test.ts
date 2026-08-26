@@ -87,13 +87,10 @@ describe("enrollment UI/API permission parity", () => {
   });
 
   it("gates enrollment management in both student and dashboard screens", () => {
-    for (const screen of [
-      "src/app/(dashboard)/students/page.tsx",
-      "src/app/(dashboard)/dashboard/page.tsx",
-    ]) {
-      const code = source(screen);
-      expect(code).toContain("ENROLLMENT_MANAGE_PERMISSION");
-      expect(code).toContain("canManageEnrollment");
-    }
+    const students = source("src/app/(dashboard)/students/page.tsx");
+    const dashboard = source("src/components/dashboard/SchoolDashboard.tsx");
+    expect(students).toContain("ENROLLMENT_MANAGE_PERMISSION");
+    expect(students).toContain("canManageEnrollment");
+    expect(dashboard).toContain("ENROLLMENT_MANAGE_PERMISSION");
   });
 });

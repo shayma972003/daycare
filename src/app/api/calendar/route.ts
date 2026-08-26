@@ -123,6 +123,23 @@ export async function GET(request: Request) {
     },
   });
 
+  // CalendarEventClass stores only ids, so resolve the names in one tenant-
+  // scoped query. The dashboard needs these names to describe a class-targeted
+  // event without guessing from a child count (which can legitimately be zero).
+  const calendarClassIds = Array.from(new Set([
+    ...events.flatMap((event) => event.classes.map((link) => link.classId)),
+    ...activities.flatMap((activity) => activity.activityInvites.map((invite) => invite.classId)),
+  ]));
+  const calendarClasses = calendarClassIds.length > 0
+    ? await prisma.class.findMany({
+        where: { schoolId, deletedAt: null, id: { in: calendarClassIds } },
+        select: { id: true, name: true },
+      })
+    : [];
+  const classNameById = new Map(calendarClasses.map((classRow) => [classRow.id, classRow.name]));
+  const classNamesFor = (classIds: string[]) =>
+    classIds.map((classId) => classNameById.get(classId)).filter((name): name is string => Boolean(name));
+
   const activityRows = activities
     .filter((activity) => {
       if (!classId) return true;
@@ -165,6 +182,16 @@ export async function GET(request: Request) {
         message: activity.message,
         active: activity.isActive,
       },
+      classNames: classNamesFor(activity.activityInvites.map((invite) => invite.classId)),
+      target: activity.activityInvites.length > 0
+        ? {
+            kind: "classes" as const,
+            classNames: classNamesFor(activity.activityInvites.map((invite) => invite.classId)),
+            count: null,
+          }
+        : activity.childrenCount > 0
+          ? { kind: "students" as const, classNames: [], count: activity.childrenCount }
+          : { kind: "all" as const, classNames: [], count: null },
     }));
 
   return Response.json(
@@ -173,6 +200,14 @@ export async function GET(request: Request) {
         ...event,
         kind: "event" as const,
         classIds: event.classes.map((link) => link.classId),
+        classNames: classNamesFor(event.classes.map((link) => link.classId)),
+        target: event.classes.length > 0
+          ? {
+              kind: "classes" as const,
+              classNames: classNamesFor(event.classes.map((link) => link.classId)),
+              count: null,
+            }
+          : { kind: "all" as const, classNames: [], count: null },
         classes: undefined,
       }))
       .concat(activityRows as never[])

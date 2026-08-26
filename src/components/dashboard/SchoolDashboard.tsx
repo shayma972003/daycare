@@ -27,12 +27,21 @@ interface AttendanceData { students: AttendancePerson[]; teachers: AttendancePer
 interface CalendarRow {
   id: string;
   kind: "event" | "activity";
-  title?: string;
-  name?: string;
+  type?: "LESSON" | "ACTIVITY" | "ANNOUNCEMENT" | "UNIT";
+  title?: string | null;
+  name?: string | null;
+  description?: string | null;
   startAt: string;
   endAt?: string | null;
   allDay?: boolean;
-  type?: string;
+  classIds?: string[];
+  classNames?: string[];
+  childrenCount?: number | null;
+  target?: {
+    kind: "all" | "classes" | "students";
+    classNames: string[];
+    count: number | null;
+  };
 }
 interface NotificationLog { id: string; recipientName: string; type: string; status: string; sentAt: string }
 interface Resource<T> { state: LoadState; data: T | null; error: string | null }
@@ -71,11 +80,11 @@ function SummaryMetric({ label, value, detail, tone = "purple" }: { label: strin
   );
 }
 
-function ActionLink({ href, label, permission, tone = "purple" }: { href: string; label: string; permission: string; tone?: "purple" | "pink" }) {
+function ActionLink({ href, label, permission, tone = "purple", ariaLabel }: { href: string; label: string; permission: string; tone?: "purple" | "pink"; ariaLabel?: string }) {
   const toneClass = tone === "pink" ? "border-[#e855b4]/30 text-[#ad347d] hover:bg-[#e855b4]/10" : "border-[#4f00c1]/20 text-[#4f00c1] hover:bg-[#4f00c1]/5";
   return (
     <PermissionGate permission={permission}>
-      <Link href={href} className={`inline-flex min-h-10 items-center justify-center rounded-xl border px-4 py-2 text-sm font-medium transition-colors ${toneClass}`}>{label}</Link>
+      <Link href={href} aria-label={ariaLabel} className={`inline-flex min-h-10 items-center justify-center rounded-xl border px-4 py-2 text-sm font-medium transition-colors ${toneClass}`}>{label}</Link>
     </PermissionGate>
   );
 }
@@ -84,6 +93,89 @@ function statusLabel(person: AttendancePerson, present: string, absent: string, 
   if (!person.today_attendance) return absent;
   if (person.today_attendance.checkin_time && !person.today_attendance.checkout_time) return present;
   return checkedOut;
+}
+
+function attendanceCounts(people: AttendancePerson[]) {
+  const present = people.filter((person) => Boolean(person.today_attendance?.checkin_time)).length;
+  return { present, absent: Math.max(people.length - present, 0) };
+}
+
+function eventTargetLabel(event: CalendarRow, t: ReturnType<typeof useT>, locale: "ar" | "en") {
+  const target = event.target;
+  const classNames = target?.classNames ?? event.classNames ?? [];
+  if (target?.kind === "classes" || (event.classIds?.length ?? 0) > 0) {
+    return classNames.length > 0
+      ? t("dashboard.eventTargetClasses", { classes: classNames.join(locale === "ar" ? "، " : ", ") })
+      : t("dashboard.eventTargetClass");
+  }
+  const count = target?.kind === "students" ? target.count : event.kind === "activity" ? event.childrenCount : null;
+  if (typeof count === "number" && count > 0) return t("dashboard.eventTargetStudents", { count });
+  return t("dashboard.eventTargetAll");
+}
+
+function eventTypeLabel(event: CalendarRow, t: ReturnType<typeof useT>) {
+  const type = event.type ?? (event.kind === "activity" ? "ACTIVITY" : "ANNOUNCEMENT");
+  return t(`dashboard.eventType${type}`);
+}
+
+function eventTimeLabel(event: CalendarRow, t: ReturnType<typeof useT>, locale: "ar" | "en") {
+  if (event.allDay) return t("dashboard.allDay");
+  const start = new Date(event.startAt);
+  if (Number.isNaN(start.getTime())) return t("dashboard.timeUnavailable");
+  const startLabel = formatAst(start, { hour: "2-digit", minute: "2-digit" }, locale);
+  if (!event.endAt) return startLabel;
+  const end = new Date(event.endAt);
+  if (Number.isNaN(end.getTime())) return startLabel;
+  return `${startLabel} – ${formatAst(end, { hour: "2-digit", minute: "2-digit" }, locale)}`;
+}
+
+function AttendanceSummaryCard({
+  kind,
+  permission,
+  resource,
+  retry,
+  retryLabel,
+  t,
+}: {
+  kind: "students" | "teachers";
+  permission: "attendance.students" | "attendance.staff";
+  resource: Resource<AttendanceData>;
+  retry: () => void;
+  retryLabel: string;
+  t: ReturnType<typeof useT>;
+}) {
+  return (
+    <article className="min-w-0 rounded-xl border border-slate-100 bg-slate-50/70 p-4" aria-labelledby={`dashboard-${kind}-attendance`}>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h3 id={`dashboard-${kind}-attendance`} className="text-sm font-semibold text-slate-800">{t(`dashboard.${kind}`)}</h3>
+        <ActionLink
+          href="/attendance"
+          label={t("dashboard.openAttendance")}
+          ariaLabel={t(kind === "students" ? "dashboard.openStudentAttendance" : "dashboard.openStaffAttendance")}
+          permission={permission}
+        />
+      </div>
+      <ResourceState resource={resource} retry={retry} retryLabel={retryLabel}>
+        {(data) => {
+          const people = data[kind];
+          const counts = attendanceCounts(people);
+          return people.length === 0 ? (
+            <p className="rounded-lg bg-white px-3 py-4 text-sm text-slate-500">{t("dashboard.noPeople")}</p>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-2" aria-label={t(`dashboard.${kind}AttendanceSummary`)}>
+                <div className="rounded-lg bg-white px-3 py-2"><p className="text-xs text-slate-500">{t("dashboard.presentCount")}</p><p className="mt-1 text-xl font-semibold text-[#4f00c1]">{counts.present}</p></div>
+                <div className="rounded-lg bg-white px-3 py-2"><p className="text-xs text-slate-500">{t("dashboard.absentCount")}</p><p className="mt-1 text-xl font-semibold text-[#e855b4]">{counts.absent}</p></div>
+              </div>
+              <div className="mt-3 max-h-40 space-y-1 overflow-y-auto pe-1">
+                {people.slice(0, 8).map((person) => <div key={person.id} className="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 text-sm"><div className="min-w-0"><p className="truncate font-medium text-slate-800">{person.full_name}</p>{person.class_name && <p className="truncate text-xs text-slate-400">{person.class_name}</p>}</div><span className="shrink-0 text-xs text-slate-600">{statusLabel(person, t("dashboard.present"), t("dashboard.absent"), t("dashboard.checkedOut"))}</span></div>)}
+              </div>
+            </>
+          );
+        }}
+      </ResourceState>
+    </article>
+  );
 }
 
 export function SchoolDashboard() {
@@ -102,6 +194,7 @@ export function SchoolDashboard() {
   const [eventsRetry, setEventsRetry] = useState(0);
   const [logsRetry, setLogsRetry] = useState(0);
   const canViewLogs = can("settings.manage");
+  const canViewCalendar = can("schedule.view");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -185,12 +278,24 @@ export function SchoolDashboard() {
 
         <section aria-labelledby="dashboard-attendance" className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6">
           <div className="mb-5"><h2 id="dashboard-attendance" className="text-base font-semibold text-slate-900">{t("dashboard.attendanceTitle")}</h2><p className="mt-1 text-sm text-slate-500">{t("dashboard.attendanceHint")}</p></div>
-          <ResourceState resource={attendance} retry={retryAttendance} retryLabel={retryLabel}>{(data) => <div className="grid gap-6 lg:grid-cols-2">{([["students", data.students, "#4f00c1"], ["teachers", data.teachers, "#e855b4"]] as const).map(([kind, people, color]) => <div key={kind} className="min-w-0"><div className="mb-3 flex items-center justify-between gap-3"><h3 className="text-sm font-semibold text-slate-800">{t(`dashboard.${kind}`)}</h3><span className="text-xs text-slate-500">{people.filter((person) => person.today_attendance?.checkin_time).length}/{people.length}</span></div>{people.length === 0 ? <p className="rounded-xl bg-slate-50 px-3 py-4 text-sm text-slate-500">{t("dashboard.noPeople")}</p> : <div className="max-h-52 space-y-1 overflow-y-auto pe-1">{people.slice(0, 8).map((person) => <div key={person.id} className="flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm hover:bg-slate-50"><div className="min-w-0"><p className="truncate font-medium text-slate-800">{person.full_name}</p>{person.class_name && <p className="truncate text-xs text-slate-400">{person.class_name}</p>}</div><span className="shrink-0 text-xs" style={{ color }}>{statusLabel(person, t("dashboard.present"), t("dashboard.absent"), t("dashboard.checkedOut"))}</span></div>)}</div>}</div>)}</div>}</ResourceState>
+          <div className="grid gap-4 lg:grid-cols-2"><AttendanceSummaryCard kind="students" permission="attendance.students" resource={attendance} retry={retryAttendance} retryLabel={retryLabel} t={t} /><AttendanceSummaryCard kind="teachers" permission="attendance.staff" resource={attendance} retry={retryAttendance} retryLabel={retryLabel} t={t} /></div>
         </section>
 
         <section aria-labelledby="dashboard-events" className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6">
-          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 id="dashboard-events" className="text-base font-semibold text-slate-900">{t("dashboard.eventsTitle")}</h2><p className="mt-1 text-sm text-slate-500">{t("dashboard.eventsHint")}</p></div><ActionLink href="/calendar" label={t("dashboard.openCalendar")} permission="schedule.view" /></div>
-          <ResourceState resource={events} retry={retryEvents} retryLabel={retryLabel}>{(data) => data.length === 0 ? <p className="rounded-xl bg-slate-50 px-4 py-4 text-sm text-slate-500">{t("dashboard.noEvents")}</p> : <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{data.slice(0, 6).map((event) => <Link key={`${event.kind}-${event.id}`} href="/calendar" className="rounded-xl border border-slate-100 p-3 transition-colors hover:border-[#4f00c1]/30 hover:bg-[#4f00c1]/5"><p className="truncate text-sm font-medium text-slate-800">{event.title ?? event.name ?? t("dashboard.untitledEvent")}</p><p className="mt-1 text-xs text-slate-500">{formatAst(new Date(event.startAt), { weekday: "short", hour: "2-digit", minute: "2-digit" }, locale)}</p></Link>)}</div>}</ResourceState>
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 id="dashboard-events" className="text-base font-semibold text-slate-900">{t("dashboard.todayEventsTitle")}</h2><p className="mt-1 text-sm text-slate-500">{t("dashboard.todayEventsHint")}</p></div><ActionLink href="/calendar" label={t("dashboard.openCalendar")} permission="schedule.view" /></div>
+          <ResourceState resource={events} retry={retryEvents} retryLabel={retryLabel}>{(data) => {
+            const dayStart = astDayStart();
+            const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+            const todayEvents = data.filter((event) => {
+              const start = new Date(event.startAt);
+              const end = event.endAt ? new Date(event.endAt) : start;
+              return !Number.isNaN(start.getTime()) && start < dayEnd && (event.endAt ? end >= dayStart : start >= dayStart);
+            }).sort((left, right) => new Date(left.startAt).getTime() - new Date(right.startAt).getTime());
+            return todayEvents.length === 0 ? <p className="rounded-xl bg-slate-50 px-4 py-4 text-sm text-slate-500">{t("dashboard.noTodayEvents")}</p> : <div role="list" tabIndex={0} aria-label={t("dashboard.todayEventsTitle")} className="flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-2 pe-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4f00c1]" style={{ scrollSnapType: "x proximity" }}>{todayEvents.map((event) => {
+              const card = <div className="min-w-[17rem] max-w-[22rem] snap-start rounded-xl border border-slate-100 bg-slate-50/70 p-4 transition-colors hover:border-[#4f00c1]/30 hover:bg-[#4f00c1]/5"><div className="flex items-start justify-between gap-3"><p className="min-w-0 truncate text-sm font-semibold text-slate-800">{event.title ?? event.name ?? t("dashboard.untitledEvent")}</p><span className="shrink-0 rounded-full bg-white px-2 py-1 text-[11px] text-slate-500">{eventTypeLabel(event, t)}</span></div><p className="mt-3 text-sm font-medium text-[#4f00c1]">{eventTimeLabel(event, t, locale)}</p><p className="mt-1 truncate text-xs text-slate-500">{eventTargetLabel(event, t, locale)}</p></div>;
+              return canViewCalendar ? <Link key={`${event.kind}-${event.id}`} href="/calendar" className="block rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4f00c1]" aria-label={`${event.title ?? event.name ?? t("dashboard.untitledEvent")}, ${eventTypeLabel(event, t)}`}>{card}</Link> : <div key={`${event.kind}-${event.id}`}>{card}</div>;
+            })}</div>;
+          }}</ResourceState>
         </section>
 
         <section aria-labelledby="dashboard-actions" className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6"><h2 id="dashboard-actions" className="mb-4 text-base font-semibold text-slate-900">{t("dashboard.quickActions")}</h2><div className="flex flex-wrap gap-2"><ActionLink href="/students/new" label={t("dashboard.addStudent")} permission="students.manage" /><ActionLink href="/attendance" label={t("dashboard.recordAttendance")} permission="attendance.students" /><ActionLink href="/calendar?create=1" label={t("dashboard.createEvent")} permission="schedule.manage" /><ActionLink href="/students" label={t("dashboard.sendReminder")} permission="finance.manage" /><ActionLink href="/students" label={t("dashboard.reviewEnrollments")} permission={ENROLLMENT_MANAGE_PERMISSION} /></div></section>

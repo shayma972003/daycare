@@ -13,6 +13,7 @@
  */
 
 import { z } from "zod";
+import { normalizeNumerals } from "@/lib/phone-normalizer";
 
 /**
  * A Saudi mobile number in any of the forms people actually type.
@@ -22,13 +23,16 @@ import { z } from "zod";
  * human is how a nursery ends up storing it in the notes field instead.
  * Normalisation to one stored form happens server-side in `phone-normalizer`.
  */
-export const saudiPhone = z
-  .string()
-  .trim()
-  .regex(
-    /^(?:\+?966|00966|0)?[\s-]?5[\s-]?\d(?:[\s-]?\d){7}$/,
-    "رقم الجوال غير صحيح"
-  );
+export const saudiPhone = z.preprocess(
+  (value) => (typeof value === "string" ? normalizeNumerals(value) : value),
+  z
+    .string()
+    .trim()
+    .regex(
+      /^(?:\+?966|00966|0)?[\s-]?5[\s-]?\d(?:[\s-]?\d){7}$/,
+      "رقم الجوال غير صحيح"
+    )
+);
 
 /** Optional phone: empty string is "not provided", not "invalid". */
 export const optionalPhone = z

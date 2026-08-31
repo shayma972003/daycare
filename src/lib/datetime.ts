@@ -163,3 +163,11 @@ export function astInputValue(at: Date | string): string {
 export function astInputToDate(value: string): Date {
   return new Date(new Date(`${value}:00Z`).getTime() - AST_OFFSET_MS);
 }
+
+/** Formats a duration without wrapping after 24 hours (for example 27:15). */
+export function formatDurationHours(hours: number | null | undefined): string {
+  const totalMinutes = Math.max(0, Math.round(Number(hours ?? 0) * 60));
+  const wholeHours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${String(wholeHours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}

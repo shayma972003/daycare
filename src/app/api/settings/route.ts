@@ -1,61 +1,52 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
+import { withNoStore } from "@/lib/auth-response";
 import { z } from "zod";
 
+const optionalText = (max: number) => z.string().max(max).nullable().optional();
+const optionalTime = z
+  .string()
+  .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
+  .nullable()
+  .optional();
+
 const updateSettingsSchema = z.object({
-  hourlyLateFee: z.number().min(0).max(1_000_000).optional(),
-  dailyStudentFee: z.number().min(0).max(1_000_000).optional(),
-  monthlyStudentFee: z.number().min(0).max(1_000_000).optional(),
-  reminderTemplate: z.string().max(10_000).optional(),
-  schoolName: z.string().min(1).max(160).optional(),
-  email: z.string().email().max(320).optional(),
-  // School hours
-  teacherCheckinTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
-  teacherCheckoutTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
-  studentCheckinTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
-  studentCheckoutTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
-  // Legal info
-  commercialRegistration: z.string().max(80).optional(),
-  vatNumber: z.string().max(80).optional(),
-  contactNumber: z.string().max(40).optional(),
-  address: z.string().max(500).optional(),
-  phoneNumber: z.string().max(40).optional(),
+    hourlyLateFee: z.number().min(0).max(1_000_000).optional(),
+    dailyStudentFee: z.number().min(0).max(1_000_000).optional(),
+    monthlyStudentFee: z.number().min(0).max(1_000_000).optional(),
+    reminderTemplate: z.string().max(10_000).optional(),
+    schoolName: z.string().trim().min(1).max(160).optional(),
+    email: z.string().email().max(320).nullable().optional(),
+    teacherCheckinTime: optionalTime,
+    teacherCheckoutTime: optionalTime,
+    studentCheckinTime: optionalTime,
+    studentCheckoutTime: optionalTime,
+    commercialRegistration: optionalText(80),
+    vatNumber: optionalText(80),
+    contactNumber: optionalText(40),
+    address: optionalText(500),
+    phoneNumber: optionalText(40),
 }).strict();
 
-export async function GET(_request: Request) {
+function sessionFailure(error: unknown) {
+  return sessionErrorResponse(error) ?? Response.json({ error: "Unauthorized" }, { status: 401 });
+}
+
+export async function GET() {
   let session;
   try {
     session = await requireSession();
   } catch (error) {
-    // 403 when the caller is known but lacks the permission; 401 otherwise.
-    return (
-      sessionErrorResponse(error) ??
-      Response.json({ error: "Unauthorized" }, { status: 401 })
-    );
+    return sessionFailure(error);
   }
-  const schoolId = (session.user as { schoolId: string }).schoolId;
+  const schoolId = session.user.schoolId;
 
   const [settings, school] = await Promise.all([
     prisma.settings.findUnique({ where: { schoolId } }),
     prisma.school.findUnique({ where: { id: schoolId } }),
   ]);
 
-  /**
-   * Two tiers in one response.
-   *
-   * The route is readable by every signed-in member of the school, because the
-   * fee settings and the school's hours are needed on almost every screen and a
-   * teacher who cannot read them sees an empty timetable. That is why the
-   * permission table lists `GET: null`.
-   *
-   * It was returning the whole `School` row with it: the commercial
-   * registration, the VAT number, the postal address and whether two-factor is
-   * switched on. None of that is needed to render a timetable — the first two
-   * belong on tax documents, and the last is a fact about the account's
-   * defences. They are now gated behind `settings.manage`, the same permission
-   * that lets someone change them.
-   */
   const operational = {
     settings: settings ?? {
       schoolId,
@@ -75,21 +66,24 @@ export async function GET(_request: Request) {
   };
 
   if (!session.can("settings.manage")) {
-    return Response.json(operational, { status: 200 });
+    return withNoStore(Response.json(operational, { status: 200 }));
   }
 
-  return Response.json(
-    {
-      ...operational,
-      schoolEmail: school?.email ?? "",
-      commercialRegistration: school?.commercialRegistration ?? "",
-      vatNumber: school?.vatNumber ?? "",
-      contactNumber: school?.contactNumber ?? "",
-      address: school?.address ?? "",
-      phoneNumber: school?.phoneNumber ?? "",
-      twoFaEnabled: school?.twoFaEnabled ?? false,
-    },
-    { status: 200 }
+  return withNoStore(
+    Response.json(
+      {
+        ...operational,
+        schoolEmail: school?.email ?? "",
+        loginEmail: session.user.email ?? "",
+        commercialRegistration: school?.commercialRegistration ?? "",
+        vatNumber: school?.vatNumber ?? "",
+        contactNumber: school?.contactNumber ?? "",
+        address: school?.address ?? "",
+        phoneNumber: school?.phoneNumber ?? "",
+        twoFaEnabled: school?.twoFaEnabled ?? false,
+      },
+      { status: 200 }
+    )
   );
 }
 
@@ -98,13 +92,12 @@ export async function PUT(request: Request) {
   try {
     session = await requireSession();
   } catch (error) {
-    // 403 when the caller is known but lacks the permission; 401 otherwise.
-    return (
-      sessionErrorResponse(error) ??
-      Response.json({ error: "Unauthorized" }, { status: 401 })
-    );
+    return sessionFailure(error);
   }
-  const schoolId = (session.user as { schoolId: string }).schoolId;
+  if (!session.can("settings.manage")) {
+    return Response.json({ error: "Forbidden", code: "FORBIDDEN" }, { status: 403 });
+  }
+  const schoolId = session.user.schoolId;
 
   let body: unknown;
   try {
@@ -112,10 +105,9 @@ export async function PUT(request: Request) {
   } catch {
     return Response.json({ error: "Invalid JSON" }, { status: 400 });
   }
-
   const parsed = updateSettingsSchema.safeParse(body);
   if (!parsed.success) {
-    return Response.json({ error: parsed.error.flatten() }, { status: 400 });
+    return Response.json({ error: parsed.error.flatten() }, { status: 422 });
   }
 
   const {
@@ -144,6 +136,7 @@ export async function PUT(request: Request) {
 
   const schoolData: Record<string, unknown> = {};
   if (schoolName !== undefined) schoolData.name = schoolName;
+  // School.email is the public contact/Reply-To address, not a User credential.
   if (email !== undefined) schoolData.email = email;
   if (teacherCheckinTime !== undefined) schoolData.teacherCheckinTime = teacherCheckinTime;
   if (teacherCheckoutTime !== undefined) schoolData.teacherCheckoutTime = teacherCheckoutTime;
@@ -155,64 +148,25 @@ export async function PUT(request: Request) {
   if (address !== undefined) schoolData.address = address;
   if (phoneNumber !== undefined) schoolData.phoneNumber = phoneNumber;
 
-  /**
-   * The account email is the login credential, and it lives on `User`, not on
-   * `School`.
-   *
-   * Editing it here only ever touched `School.email`, so the address shown in
-   * settings drifted away from the one that actually signs in — and password
-   * reset, 2FA and every notification kept going to the old one. The two are
-   * written together now, inside a transaction, so they cannot diverge again.
-   *
-   * Refused rather than silently skipped when the school has more than one user
-   * (there is no way to know whose login was meant) or when the address is
-   * already taken (`User.email` is unique, and a raw constraint violation would
-   * surface as a 500).
-   */
-  if (email !== undefined) {
-    const users = await prisma.user.findMany({
-      where: { schoolId },
-      select: { id: true, email: true },
-    });
-
-    if (users.length > 1) {
-      return Response.json(
-        { error: "لا يمكن تغيير البريد من هنا لوجود أكثر من مستخدم للمنشأة" },
-        { status: 409 }
-      );
-    }
-
-    if (users.length === 1 && users[0].email !== email) {
-      const taken = await prisma.user.findFirst({
-        where: { email, id: { not: users[0].id } },
-        select: { id: true },
-      });
-      if (taken) {
-        return Response.json(
-          { error: "هذا البريد مستخدم في حساب آخر" },
-          { status: 409 }
-        );
-      }
-      schoolData.__syncUserId = users[0].id;
-    }
+  if (Object.keys(settingsData).length === 0 && Object.keys(schoolData).length === 0) {
+    return Response.json({ error: "No settings changes supplied" }, { status: 422 });
   }
 
-  const syncUserId = schoolData.__syncUserId as string | undefined;
-  delete schoolData.__syncUserId;
-
-  const [settings] = await prisma.$transaction([
-    prisma.settings.upsert({
-      where: { schoolId },
-      create: { schoolId, ...settingsData },
-      update: settingsData,
-    }),
-    ...(Object.keys(schoolData).length > 0
-      ? [prisma.school.update({ where: { id: schoolId }, data: schoolData })]
-      : []),
-    ...(syncUserId
-      ? [prisma.user.update({ where: { id: syncUserId }, data: { email: email! } })]
-      : []),
-  ]);
+  const result = await prisma.$transaction(async (tx) => {
+    const savedSettings =
+      Object.keys(settingsData).length > 0
+        ? await tx.settings.upsert({
+            where: { schoolId },
+            create: { schoolId, ...settingsData },
+            update: settingsData,
+          })
+        : await tx.settings.findUnique({ where: { schoolId } });
+    const savedSchool =
+      Object.keys(schoolData).length > 0
+        ? await tx.school.update({ where: { id: schoolId }, data: schoolData })
+        : null;
+    return { settings: savedSettings, school: savedSchool };
+  });
 
   await logAction({
     school_id: schoolId,
@@ -222,5 +176,5 @@ export async function PUT(request: Request) {
     request,
   });
 
-  return Response.json(settings, { status: 200 });
+  return withNoStore(Response.json(result, { status: 200 }));
 }

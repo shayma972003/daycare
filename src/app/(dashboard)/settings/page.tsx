@@ -11,6 +11,9 @@ import { PasswordRules } from "@/components/ui/PasswordRules";
 import { useT, useLocale } from "@/lib/i18n-provider";
 import { AcademicStagesPanel } from "@/components/settings/AcademicStagesPanel";
 import { formatAst } from "@/lib/datetime";
+import { describeApiError } from "@/lib/api-error";
+import { usePermissions } from "@/lib/use-permissions";
+import { PermissionGate } from "@/components/auth/PermissionGate";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -25,6 +28,7 @@ interface SettingsData {
   logoUrl: string | null;
   plan: string;
   schoolEmail: string;
+  loginEmail: string;
   teacherCheckinTime: string;
   teacherCheckoutTime: string;
   studentCheckinTime: string;
@@ -107,14 +111,20 @@ export default function SettingsPage() {
   // Locale-aware translation — see src/lib/i18n.tsx.
   const t = useT();
   const router = useRouter();
+  const { can } = usePermissions();
+  const canManageSettings = can("settings.manage");
   const [search, setSearch] = useState("");
+  const [activeCategory, setActiveCategory] = useState("school");
 
   // Settings state
   const [settingsData, setSettingsData] = useState<SettingsData | null>(null);
   const [loadingSettings, setLoadingSettings] = useState(true);
   const [settingsError, setSettingsError] = useState("");
-  const [savingSettings, setSavingSettings] = useState(false);
-  const [settingsSaved, setSettingsSaved] = useState(false);
+  type SaveSection = "school" | "hours" | "fees" | "notifications";
+  const [savingSection, setSavingSection] = useState<SaveSection | null>(null);
+  const [sectionFeedback, setSectionFeedback] = useState<
+    Partial<Record<SaveSection, { ok: boolean; text: string }>>
+  >({});
 
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [logoUploading, setLogoUploading] = useState(false);
@@ -122,6 +132,7 @@ export default function SettingsPage() {
 
   const [schoolName, setSchoolName] = useState("");
   const [email, setEmail] = useState("");
+  const [loginEmail, setLoginEmail] = useState("");
   const [hourlyLateFee, setHourlyLateFee] = useState(0);
   const [dailyStudentFee, setDailyStudentFee] = useState(0);
   const [monthlyStudentFee, setMonthlyStudentFee] = useState(0);
@@ -211,7 +222,8 @@ export default function SettingsPage() {
         setSettingsData(d);
         setSchoolName(d.schoolName);
         setLogoUrl(d.logoUrl ?? null);
-        setEmail(d.schoolEmail);
+        setEmail(d.schoolEmail ?? "");
+        setLoginEmail(d.loginEmail ?? "");
         setHourlyLateFee(d.settings.hourlyLateFee);
         setDailyStudentFee(d.settings.dailyStudentFee);
         setMonthlyStudentFee(d.settings.monthlyStudentFee);
@@ -291,33 +303,121 @@ export default function SettingsPage() {
     }
   }
 
-  async function handleSaveSettings() {
-    setSavingSettings(true);
-    try {
-      await axios.put("/api/settings", {
-        schoolName,
-        email,
-        hourlyLateFee,
-        dailyStudentFee,
-        monthlyStudentFee,
-        reminderTemplate,
-        teacherCheckinTime,
-        teacherCheckoutTime,
-        studentCheckinTime,
-        studentCheckoutTime,
-        commercialRegistration,
-        vatNumber,
-        contactNumber,
-        address,
-        phoneNumber,
-      });
-      setSettingsSaved(true);
-      setTimeout(() => setSettingsSaved(false), 3000);
-    } catch {
-      alert(t("settings.saveFailed"));
-    } finally {
-      setSavingSettings(false);
+  const nullable = (value: string) => value.trim() || null;
+
+  function changed(payload: Record<string, unknown>, key: string, next: unknown, current: unknown) {
+    if (next !== current) payload[key] = next;
+  }
+
+  function sectionPayload(section: SaveSection): Record<string, unknown> {
+    if (!settingsData) return {};
+    const payload: Record<string, unknown> = {};
+    if (section === "school") {
+      changed(payload, "schoolName", schoolName.trim(), settingsData.schoolName);
+      changed(payload, "email", nullable(email), nullable(settingsData.schoolEmail ?? ""));
+      changed(payload, "commercialRegistration", nullable(commercialRegistration), nullable(settingsData.commercialRegistration ?? ""));
+      changed(payload, "vatNumber", nullable(vatNumber), nullable(settingsData.vatNumber ?? ""));
+      changed(payload, "contactNumber", nullable(contactNumber), nullable(settingsData.contactNumber ?? ""));
+      changed(payload, "address", nullable(address), nullable(settingsData.address ?? ""));
+      changed(payload, "phoneNumber", nullable(phoneNumber), nullable(settingsData.phoneNumber ?? ""));
+    } else if (section === "hours") {
+      changed(payload, "teacherCheckinTime", nullable(teacherCheckinTime), nullable(settingsData.teacherCheckinTime ?? ""));
+      changed(payload, "teacherCheckoutTime", nullable(teacherCheckoutTime), nullable(settingsData.teacherCheckoutTime ?? ""));
+      changed(payload, "studentCheckinTime", nullable(studentCheckinTime), nullable(settingsData.studentCheckinTime ?? ""));
+      changed(payload, "studentCheckoutTime", nullable(studentCheckoutTime), nullable(settingsData.studentCheckoutTime ?? ""));
+    } else if (section === "fees") {
+      changed(payload, "hourlyLateFee", hourlyLateFee, Number(settingsData.settings.hourlyLateFee));
+      changed(payload, "dailyStudentFee", dailyStudentFee, Number(settingsData.settings.dailyStudentFee));
+      changed(payload, "monthlyStudentFee", monthlyStudentFee, Number(settingsData.settings.monthlyStudentFee));
+    } else {
+      changed(payload, "reminderTemplate", reminderTemplate, settingsData.settings.reminderTemplate);
     }
+    return payload;
+  }
+
+  function commitSection(section: SaveSection) {
+    setSettingsData((current) => {
+      if (!current) return current;
+      if (section === "school") {
+        return {
+          ...current,
+          schoolName: schoolName.trim(),
+          schoolEmail: email.trim(),
+          commercialRegistration,
+          vatNumber,
+          contactNumber,
+          address,
+          phoneNumber,
+        };
+      }
+      if (section === "hours") {
+        return {
+          ...current,
+          teacherCheckinTime,
+          teacherCheckoutTime,
+          studentCheckinTime,
+          studentCheckoutTime,
+        };
+      }
+      if (section === "fees") {
+        return {
+          ...current,
+          settings: { ...current.settings, hourlyLateFee, dailyStudentFee, monthlyStudentFee },
+        };
+      }
+      return { ...current, settings: { ...current.settings, reminderTemplate } };
+    });
+  }
+
+  async function handleSaveSection(section: SaveSection) {
+    if (!canManageSettings || savingSection) return;
+    const payload = sectionPayload(section);
+    setSectionFeedback((current) => ({ ...current, [section]: undefined }));
+    if (Object.keys(payload).length === 0) {
+      setSectionFeedback((current) => ({
+        ...current,
+        [section]: { ok: true, text: t("settings.noChanges") },
+      }));
+      return;
+    }
+    setSavingSection(section);
+    try {
+      await axios.put("/api/settings", payload);
+      commitSection(section);
+      setSectionFeedback((current) => ({
+        ...current,
+        [section]: { ok: true, text: t("common.success") },
+      }));
+    } catch (error) {
+      setSectionFeedback((current) => ({
+        ...current,
+        [section]: { ok: false, text: describeApiError(error, t("settings.saveFailed")) },
+      }));
+    } finally {
+      setSavingSection(null);
+    }
+  }
+
+  function sectionSaveAction(section: SaveSection) {
+    const feedback = sectionFeedback[section];
+    if (!canManageSettings) return null;
+    return (
+      <div className="flex flex-wrap items-center gap-3 border-t border-gray-100 pt-4">
+        <button
+          type="button"
+          onClick={() => void handleSaveSection(section)}
+          disabled={savingSection !== null}
+          className="rounded-lg bg-[#4f00c1] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#3f009b] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {savingSection === section ? t("common.loading") : t("settings.save")}
+        </button>
+        {feedback && (
+          <p role={feedback.ok ? "status" : "alert"} className={`text-sm ${feedback.ok ? "text-success-text" : "text-red-700"}`}>
+            {feedback.text}
+          </p>
+        )}
+      </div>
+    );
   }
 
   async function handleChangePassword() {
@@ -577,29 +677,28 @@ export default function SettingsPage() {
 
   // ── Search filter ─────────────────────────────────────────────────────────
 
-  const sections = useMemo(
+  const categories = useMemo(
     () => [
-      { id: "school-info", title: t("settings.schoolInfo") },
-      { id: "school-hours", title: t("settings.schoolHours") },
-      { id: "password", title: t("settings.changePassword") },
-      { id: "security", title: t("settings.securityPrivacy") },
-      { id: "trash", title: t("settings.trash") },
-      { id: "subscription", title: t("settings.subscription.title") },
-      { id: "fees", title: t("settings.fees.title") },
-      { id: "academic-stages", title: t("settings.stages.title") },
-      { id: "message-template", title: t("settings.messageTemplate.title") },
-      { id: "notification-log", title: t("settings.notificationLog.title") },
+      { id: "school", title: t("settings.schoolInfo"), sections: ["school-info"] },
+      { id: "hours", title: t("settings.schoolHours"), sections: ["school-hours"] },
+      { id: "fees", title: t("settings.fees.title"), sections: ["fees", "subscription"] },
+      { id: "stages", title: t("settings.stages.title"), sections: ["academic-stages"] },
+      { id: "notifications", title: t("settings.notificationsSection"), sections: ["message-template", "notification-log"] },
+      { id: "security", title: t("settings.accountSecurity"), sections: ["password", "security"] },
+      { id: "data", title: t("settings.dataSection"), sections: ["trash"] },
     ],
     [t]
   );
 
   const filteredSections = useMemo(() => {
-    if (!search.trim()) return sections.map((s) => s.id);
+    if (!search.trim()) {
+      return categories.find((category) => category.id === activeCategory)?.sections ?? [];
+    }
     const q = search.toLowerCase();
-    return sections
-      .filter((s) => s.title.toLowerCase().includes(q))
-      .map((s) => s.id);
-  }, [search, sections]);
+    return categories
+      .filter((category) => category.title.toLowerCase().includes(q))
+      .flatMap((category) => category.sections);
+  }, [activeCategory, categories, search]);
 
   function showSection(id: string) {
     return filteredSections.includes(id);
@@ -617,7 +716,7 @@ export default function SettingsPage() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div dir="rtl" className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50">
       <Topbar title={t("settings.title")} />
 
       {/* Confirm delete one log */}
@@ -806,10 +905,36 @@ export default function SettingsPage() {
         </div>
       )}
 
-      <div className="p-6 space-y-6">
+      <div className="space-y-6 p-4 sm:p-6">
+        <div className="rounded-xl border border-gray-200 bg-white p-3">
+          <label className="sr-only" htmlFor="settings-category">{t("settings.category")}</label>
+          <select
+            id="settings-category"
+            value={activeCategory}
+            onChange={(event) => setActiveCategory(event.target.value)}
+            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm md:hidden"
+          >
+            {categories.map((category) => (
+              <option key={category.id} value={category.id}>{category.title}</option>
+            ))}
+          </select>
+          <nav aria-label={t("settings.category")} className="hidden flex-wrap gap-2 md:flex">
+            {categories.map((category) => (
+              <button
+                key={category.id}
+                type="button"
+                onClick={() => setActiveCategory(category.id)}
+                aria-current={activeCategory === category.id ? "page" : undefined}
+                className={`rounded-lg px-3 py-2 text-sm font-medium ${activeCategory === category.id ? "bg-[#4f00c1] text-white" : "text-gray-600 hover:bg-gray-50"}`}
+              >
+                {category.title}
+              </button>
+            ))}
+          </nav>
+        </div>
         {/* Search */}
         <div className="relative">
-          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">
+          <span className="absolute start-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">
             🔍
           </span>
           <input
@@ -817,7 +942,7 @@ export default function SettingsPage() {
             placeholder={t("settings.search")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pr-9 pl-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm bg-white"
+            className="w-full rounded-xl border border-gray-200 bg-white py-2.5 pe-4 ps-9 text-sm focus:outline-none focus:ring-2 focus:ring-[#4f00c1]"
           />
         </div>
 
@@ -847,7 +972,7 @@ export default function SettingsPage() {
                         <span className="text-2xl">🏫</span>
                       )}
                     </div>
-                    <div>
+                    {canManageSettings && <div>
                       <label className={`cursor-pointer px-4 py-2 border border-gray-300 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-all inline-block ${logoUploading ? "opacity-50 pointer-events-none" : ""}`}>
                         {logoUploading ? t("settings.uploading") : t("common.upload")}
                         <input
@@ -859,7 +984,7 @@ export default function SettingsPage() {
                         />
                       </label>
                       <p className="text-xs text-gray-400 mt-1.5">{t("settings.logoHint")}</p>
-                    </div>
+                    </div>}
                   </div>
                 </FormField>
 
@@ -869,6 +994,7 @@ export default function SettingsPage() {
                       type="text"
                       value={schoolName}
                       onChange={(e) => setSchoolName(e.target.value)}
+                      disabled={!canManageSettings}
                       className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                     />
                   </FormField>
@@ -877,6 +1003,7 @@ export default function SettingsPage() {
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
+                      disabled={!canManageSettings}
                       dir="ltr"
                       className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                     />
@@ -886,6 +1013,7 @@ export default function SettingsPage() {
                       type="text"
                       value={commercialRegistration}
                       onChange={(e) => setCommercialRegistration(e.target.value)}
+                      disabled={!canManageSettings}
                       className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                     />
                   </FormField>
@@ -894,6 +1022,7 @@ export default function SettingsPage() {
                       type="text"
                       value={vatNumber}
                       onChange={(e) => setVatNumber(e.target.value)}
+                      disabled={!canManageSettings}
                       dir="ltr"
                       className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                     />
@@ -903,6 +1032,7 @@ export default function SettingsPage() {
                       type="text"
                       value={contactNumber}
                       onChange={(e) => setContactNumber(e.target.value)}
+                      disabled={!canManageSettings}
                       dir="ltr"
                       className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                     />
@@ -912,6 +1042,7 @@ export default function SettingsPage() {
                       type="text"
                       value={address}
                       onChange={(e) => setAddress(e.target.value)}
+                      disabled={!canManageSettings}
                       className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                     />
                   </FormField>
@@ -920,12 +1051,14 @@ export default function SettingsPage() {
                       type="text"
                       value={phoneNumber}
                       onChange={(e) => setPhoneNumber(e.target.value)}
+                      disabled={!canManageSettings}
                       dir="ltr"
                       placeholder="5XXXXXXXX"
                       className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                     />
                   </FormField>
                 </div>
+                {sectionSaveAction("school")}
               </SettingsSection>
             )}
 
@@ -937,20 +1070,22 @@ export default function SettingsPage() {
                   <div>
                     <h3 className="text-sm font-semibold text-[#111111] mb-3">{t("settings.teachersLabel")}</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <FormField label={t("settings.checkinTime")}>
+                      <FormField label={t("settings.shiftStartTime")}>
                         <input
                           type="time"
                           value={teacherCheckinTime}
                           onChange={(e) => setTeacherCheckinTime(e.target.value)}
+                          disabled={!canManageSettings}
                           dir="ltr"
                           className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                         />
                       </FormField>
-                      <FormField label={t("settings.checkoutTime")}>
+                      <FormField label={t("settings.shiftEndTime")}>
                         <input
                           type="time"
                           value={teacherCheckoutTime}
                           onChange={(e) => setTeacherCheckoutTime(e.target.value)}
+                          disabled={!canManageSettings}
                           dir="ltr"
                           className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                         />
@@ -960,26 +1095,29 @@ export default function SettingsPage() {
                   <div>
                     <h3 className="text-sm font-semibold text-[#111111] mb-3">{t("settings.studentsLabel")}</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <FormField label={t("settings.checkinTime")}>
+                      <FormField label={t("settings.shiftStartTime")}>
                         <input
                           type="time"
                           value={studentCheckinTime}
                           onChange={(e) => setStudentCheckinTime(e.target.value)}
+                          disabled={!canManageSettings}
                           dir="ltr"
                           className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                         />
                       </FormField>
-                      <FormField label={t("settings.checkoutTime")}>
+                      <FormField label={t("settings.shiftEndTime")}>
                         <input
                           type="time"
                           value={studentCheckoutTime}
                           onChange={(e) => setStudentCheckoutTime(e.target.value)}
+                          disabled={!canManageSettings}
                           dir="ltr"
                           className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                         />
                       </FormField>
                     </div>
                   </div>
+                  {sectionSaveAction("hours")}
                 </div>
               </SettingsSection>
             )}
@@ -1044,6 +1182,14 @@ export default function SettingsPage() {
             {/* ── Security & Privacy ────────────────────────────────── */}
             {showSection("security") && (
               <SettingsSection id="security" title={t("settings.securityPrivacy")}>
+                {loginEmail && (
+                  <FormField label={t("settings.loginEmail")}>
+                    <div dir="ltr" className="rounded-lg border border-gray-100 bg-gray-50 px-4 py-2.5 text-sm text-gray-700">
+                      {loginEmail}
+                    </div>
+                  </FormField>
+                )}
+                {canManageSettings && (
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <p className="text-sm font-medium text-[#111111]">{t("settings.twoFa.title")}</p>
@@ -1065,6 +1211,7 @@ export default function SettingsPage() {
                     />
                   </button>
                 </div>
+                )}
 
                 {twoFaSuccessMsg && (
                   <div className="p-3 bg-success-bg border border-success-text/20 rounded-xl text-sm text-success-text">
@@ -1072,29 +1219,29 @@ export default function SettingsPage() {
                   </div>
                 )}
 
-                <button
+                <PermissionGate permission="settings.manage"><button
                   type="button"
                   onClick={() => router.push("/settings/logs")}
                   className="w-full px-5 py-2.5 rounded-md bg-white border border-[#666666] text-[#666666] text-sm font-medium hover:border-[#2F96A6] hover:text-[#2F96A6] hover:bg-[#E0F7FA] transition-all text-right"
                 >
                   {t("settings.logsLink")}
-                </button>
+                </button></PermissionGate>
 
-                <button
+                <PermissionGate permission="staff.manage"><button
                   type="button"
                   onClick={() => router.push("/settings/permissions")}
                   className="w-full px-5 py-2.5 rounded-md bg-white border border-[#666666] text-[#666666] text-sm font-medium hover:border-[#2F96A6] hover:text-[#2F96A6] hover:bg-[#E0F7FA] transition-all text-right"
                 >
                   {t("settings.permissionsLink")}
-                </button>
+                </button></PermissionGate>
 
-                <button
+                <PermissionGate permission="settings.storage"><button
                   type="button"
                   onClick={() => router.push("/settings/storage")}
                   className="w-full px-5 py-2.5 rounded-md bg-white border border-[#666666] text-[#666666] text-sm font-medium hover:border-[#2F96A6] hover:text-[#2F96A6] hover:bg-[#E0F7FA] transition-all text-right"
                 >
                   {t("settings.storageLink")}
-                </button>
+                </button></PermissionGate>
               </SettingsSection>
             )}
 
@@ -1222,6 +1369,7 @@ export default function SettingsPage() {
                         onChange={(e) =>
                           setHourlyLateFee(parseFloat(e.target.value) || 0)
                         }
+                        disabled={!canManageSettings}
                         className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                       />
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
@@ -1238,6 +1386,7 @@ export default function SettingsPage() {
                         onChange={(e) =>
                           setDailyStudentFee(parseFloat(e.target.value) || 0)
                         }
+                        disabled={!canManageSettings}
                         className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                       />
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
@@ -1254,6 +1403,7 @@ export default function SettingsPage() {
                         onChange={(e) =>
                           setMonthlyStudentFee(parseFloat(e.target.value) || 0)
                         }
+                        disabled={!canManageSettings}
                         className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                       />
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
@@ -1262,6 +1412,7 @@ export default function SettingsPage() {
                     </div>
                   </FormField>
                 </div>
+                {sectionSaveAction("fees")}
               </SettingsSection>
             )}
 
@@ -1282,6 +1433,7 @@ export default function SettingsPage() {
                   <textarea
                     value={reminderTemplate}
                     onChange={(e) => setReminderTemplate(e.target.value)}
+                    disabled={!canManageSettings}
                     rows={5}
                     placeholder={t("settings.messageTemplate.placeholder")}
                     className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm resize-none"
@@ -1315,27 +1467,8 @@ export default function SettingsPage() {
                     {t("settings.variablesHint")}
                   </p>
                 </div>
+                {sectionSaveAction("notifications")}
               </SettingsSection>
-            )}
-
-            {/* ── Save Settings Button ─────────────────────────────── */}
-            {filteredSections.some((id) =>
-              ["school-info", "school-hours", "fees", "message-template"].includes(id)
-            ) && (
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={handleSaveSettings}
-                  disabled={savingSettings}
-                  className="px-8 py-3 bg-[#F64651] hover:bg-[#D93A44] text-white rounded-xl font-bold text-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed shadow-md"
-                >
-                  {savingSettings ? t("common.loading") : t("settings.save")}
-                </button>
-                {settingsSaved && (
-                  <span className="text-success-text text-sm font-medium">
-                    {t("common.success")}
-                  </span>
-                )}
-              </div>
             )}
 
             {/* ── Notification Log ─────────────────────────────────── */}

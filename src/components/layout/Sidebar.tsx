@@ -10,6 +10,7 @@ import { PermissionGate } from "@/components/auth/PermissionGate";
 import { clearPermissions, usePermissions } from "@/lib/use-permissions";
 import { NAV_GROUPS } from "@/lib/nav";
 import { Drawer } from "@/components/ui/Drawer";
+import { SchoolLogo } from "@/components/layout/SchoolLogo";
 import type { RefObject } from "react";
 
 interface SidebarProps {
@@ -48,7 +49,7 @@ function SidebarContent({
       <div className="relative flex items-center gap-3 p-5 mb-2">
         <div className="w-11 h-11 rounded-full overflow-hidden border-2 border-white/10 bg-white/5 flex-shrink-0 flex items-center justify-center">
           {schoolLogo ? (
-            <img src={schoolLogo} alt={schoolName ?? t("layout.schoolLogo")} className="w-full h-full object-contain" />
+            <SchoolLogo src={schoolLogo} name={schoolName ?? t("layout.schoolLogo")} className="h-full w-full bg-white/5 text-white/80" />
           ) : (
             <span className="text-white/20 text-xs">✦</span>
           )}

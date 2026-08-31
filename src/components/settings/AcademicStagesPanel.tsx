@@ -14,12 +14,15 @@ import axios from "axios";
 import { describeApiError } from "@/lib/api-error";
 import { useT, useLocale } from "@/lib/i18n-provider";
 import { useAcademicStages, useStageName, type AcademicStage } from "@/lib/use-academic-stages";
+import { usePermissions } from "@/lib/use-permissions";
 
 export function AcademicStagesPanel() {
   const t = useT();
   const { locale } = useLocale();
   const stageName = useStageName();
   const { stages, setStages, loading } = useAcademicStages({ includeArchived: true });
+  const { can } = usePermissions();
+  const canManage = can("settings.manage");
 
   /** Whichever name `stageName` did not use, so both are visible here. */
   function secondaryName(stage: AcademicStage): string | null {
@@ -153,7 +156,7 @@ export function AcademicStagesPanel() {
               key={stage.id}
               className="flex flex-wrap items-center gap-2 border border-gray-100 rounded-xl px-3 py-2"
             >
-              {editing === stage.id ? (
+              {editing === stage.id && canManage ? (
                 <>
                   <input
                     value={draft.nameAr}
@@ -209,7 +212,7 @@ export function AcademicStagesPanel() {
                     })}
                   </span>
 
-                  <button
+                  {canManage && <><button
                     onClick={() => move(index, -1)}
                     disabled={busy || index === 0}
                     aria-label={t("settings.stages.moveUp")}
@@ -241,6 +244,7 @@ export function AcademicStagesPanel() {
                   >
                     {t("settings.stages.archive")}
                   </button>
+                  </>}
                 </>
               )}
             </li>
@@ -248,7 +252,7 @@ export function AcademicStagesPanel() {
         </ul>
       )}
 
-      <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-100">
+      {canManage && <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-100">
         <input
           value={newAr}
           onChange={(e) => setNewAr(e.target.value)}
@@ -269,7 +273,7 @@ export function AcademicStagesPanel() {
         >
           {t("settings.stages.add")}
         </button>
-      </div>
+      </div>}
 
       {archived.length > 0 && (
         <div className="pt-3 border-t border-gray-100">
@@ -278,13 +282,13 @@ export function AcademicStagesPanel() {
             {archived.map((stage) => (
               <li key={stage.id} className="flex items-center gap-2 text-sm text-gray-400">
                 <span className="flex-1">{stageName(stage)}</span>
-                <button
+                {canManage && <button
                   onClick={() => setArchived(stage, false)}
                   disabled={busy}
                   className="text-xs text-[#2F96A6] hover:underline disabled:opacity-50"
                 >
                   {t("settings.stages.restore")}
-                </button>
+                </button>}
               </li>
             ))}
           </ul>

@@ -16,12 +16,16 @@ import { DataErrorState, RefreshIndicator } from "@/components/ui/DataLoadState"
 import {
   collectionView,
   countedBulkOutcome,
+  exactBulkOutcome,
   type BulkOutcome,
   type CollectionStatus,
 } from "@/lib/collection-state";
 import { LatestRequest, type RequestTicket } from "@/lib/latest-request";
 import { describeApiError } from "@/lib/api-error";
 import { usePermissions } from "@/lib/use-permissions";
+import { deviceHeaders, deviceTimeZone } from "@/lib/device-date";
+import type { BulkItemResult } from "@/lib/bulk-result";
+import { isTeacherOperational } from "@/lib/teacher-lifecycle";
 
 interface TodayAttendance {
   id: string;
@@ -36,11 +40,14 @@ interface Teacher {
   name: string;
   period?: "MORNING" | "EVENING" | null;
   classes?: { id: string; name: string }[];
+  isActive: boolean;
+  status?: string | null;
+  enrollmentEndDate?: string | null;
 }
 
 async function loadTeacherAttendance(ticket: RequestTicket) {
   const response = await axios.get<TodayAttendance[]>("/api/attendance/teachers/today", {
-    signal: ticket.signal,
+    signal: ticket.signal, headers: deviceHeaders(),
   });
   const map: Record<string, TodayAttendance> = {};
   response.data.forEach((attendance) => {
@@ -159,6 +166,7 @@ export default function TeachersPage() {
   }, []);
 
   function toggleSelect(id: string) {
+    if (!isTeacherOperational(teachers.find((teacher) => teacher.id === id)!, new Date(), deviceTimeZone())) return;
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -168,8 +176,9 @@ export default function TeachersPage() {
   }
 
   function toggleAll() {
-    if (selected.size === teachers.length) setSelected(new Set());
-    else setSelected(new Set(teachers.map((tc) => tc.id)));
+    const eligible = teachers.filter((teacher) => isTeacherOperational(teacher, new Date(), deviceTimeZone()));
+    if (selected.size === eligible.length) setSelected(new Set());
+    else setSelected(new Set(eligible.map((tc) => tc.id)));
   }
 
   function refreshTeachers() {
@@ -209,7 +218,7 @@ export default function TeachersPage() {
     setActionLoading(id + ":checkin");
     setOperationError(null);
     try {
-      await axios.post(`/api/teachers/${id}/checkin`);
+      await axios.post(`/api/teachers/${id}/checkin`, undefined, { headers: deviceHeaders() });
       await refreshAttendance();
     } catch (error) {
       setOperationError(describeApiError(error, t("common.error")));
@@ -222,7 +231,7 @@ export default function TeachersPage() {
     setActionLoading(id + ":checkout");
     setOperationError(null);
     try {
-      await axios.post(`/api/teachers/${id}/checkout`);
+      await axios.post(`/api/teachers/${id}/checkout`, undefined, { headers: deviceHeaders() });
       await refreshAttendance();
     } catch (error) {
       setOperationError(describeApiError(error, t("common.error")));
@@ -238,11 +247,14 @@ export default function TeachersPage() {
     setOperationError(null);
     setBulkOutcome(null);
     try {
-      const response = await axios.post<{ processed: number; skipped: number }>(
+      const response = await axios.post<{ processed: number; skipped: number; results: BulkItemResult[] }>(
         "/api/attendance/teachers/bulk-action",
-        { teacherIds: ids, action: bulkAction }
+        { teacherIds: ids, action: bulkAction }, { headers: deviceHeaders() }
       );
-      presentBulkOutcome(countedBulkOutcome(ids, response.data.processed));
+      presentBulkOutcome(exactBulkOutcome(
+        ids,
+        ids.map((id) => response.data.results.some((result) => result.id === id && result.status === "succeeded"))
+      ));
       await refreshAttendance();
     } catch (error) {
       setOperationError(describeApiError(error, t("common.error")));
@@ -438,7 +450,7 @@ export default function TeachersPage() {
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50">
                     <th className="px-4 py-3 text-start">
-                      <input type="checkbox" checked={selected.size === teachers.length && teachers.length > 0} onChange={toggleAll} className="rounded" />
+                      <input type="checkbox" checked={selected.size > 0 && selected.size === teachers.filter((teacher) => isTeacherOperational(teacher, new Date(), deviceTimeZone())).length} onChange={toggleAll} className="rounded" />
                     </th>
                     <th className="px-4 py-3 text-start font-medium text-gray-600">{t("teachers.columns.name")}</th>
                     <th className="px-4 py-3 text-start font-medium text-gray-600">{t("teachers.columns.period")}</th>
@@ -454,17 +466,19 @@ export default function TeachersPage() {
                     const checkedIn = !!att?.checkinAt;
                     const checkedOut = !!att?.checkoutAt;
                     const primaryClass = teacher.classes?.[0];
+                    const operational = isTeacherOperational(teacher, new Date(), deviceTimeZone());
 
                     return (
-                      <tr key={teacher.id} className="hover:bg-gray-50/50 transition-colors">
+                      <tr key={teacher.id} className={`hover:bg-gray-50/50 transition-colors ${operational ? "" : "opacity-60"}`}>
                         <td className="px-4 py-3">
-                          <input type="checkbox" checked={selected.has(teacher.id)} onChange={() => toggleSelect(teacher.id)} className="rounded" />
+                          <input type="checkbox" disabled={!operational} checked={selected.has(teacher.id)} onChange={() => toggleSelect(teacher.id)} className="rounded" />
                         </td>
 
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2.5">
                             <AvatarPlaceholder name={teacher.name} />
                             <span className="font-medium text-[#111111] text-sm">{teacher.name}</span>
+                            {!operational && <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-700">{teacher.isActive && teacher.status === "ACTIVE" ? t("teacherProfile.contractExpired") : t("fields.inactive")}</span>}
                           </div>
                         </td>
 
@@ -505,7 +519,7 @@ export default function TeachersPage() {
                         {/* Actions */}
                         <td className="px-4 py-3">
                           <div className="flex gap-2">
-                            {!checkedIn ? (
+                            {!operational ? <span className="text-xs text-gray-500">{t("teacherProfile.notEligible")}</span> : !checkedIn ? (
                               <PermissionGate permission="attendance.staff">
                                 <button
                                   onClick={() => handleCheckin(teacher.id)}

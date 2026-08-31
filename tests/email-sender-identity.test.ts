@@ -204,7 +204,6 @@ describe("email call-site classification", () => {
       "src/app/api/reminders/route.ts",
       "src/app/api/activities/[id]/send/route.ts",
       "src/app/api/students/[id]/reminder/route.ts",
-      "src/app/api/teachers/[id]/reminder/route.ts",
     ];
     const platformOnly = [
       "src/lib/auth.ts",

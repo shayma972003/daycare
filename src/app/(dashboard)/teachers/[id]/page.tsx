@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -12,11 +12,13 @@ import { TeacherInvoiceModal } from "@/components/teachers/TeacherInvoiceModal";
 import { ShiftsPanel } from "@/components/teachers/ShiftsPanel";
 import { FormErrors, collectMessages } from "@/components/ui/FormErrors";
 import { useT, useLocale } from "@/lib/i18n-provider";
-import { astDateInputValue } from "@/lib/datetime";
+import { formatDurationHours } from "@/lib/datetime";
 import { EMPLOYMENT_STATUS_LABEL_KEYS } from "@/lib/enum-labels";
 import type { EmploymentStatus } from "@/generated/prisma/enums";
 import { PermissionGate } from "@/components/auth/PermissionGate";
 import { usePermissions } from "@/lib/use-permissions";
+import { deviceDateInputValue, deviceTimeZone } from "@/lib/device-date";
+import { isTeacherOperational } from "@/lib/teacher-lifecycle";
 
 /** Every reason except "still employed", which is the reactivate action. */
 type TeacherDepartureStatus = Exclude<EmploymentStatus, "ACTIVE">;
@@ -65,8 +67,9 @@ export default function TeacherProfilePage() {
   const t = useT();
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { can } = usePermissions();
+  const { can, status: permissionStatus } = usePermissions();
   const canViewFinance = can("finance.view") || can("finance.manage");
+  const canManageFinance = can("finance.manage");
 
   const [teacher, setTeacher] = useState<Teacher | null>(null);
   const [classes, setClasses] = useState<ClassItem[]>([]);
@@ -88,8 +91,8 @@ export default function TeacherProfilePage() {
   const [showDepartureModal, setShowDepartureModal] = useState(false);
   const [departureStatus, setDepartureStatus] =
     useState<TeacherDepartureStatus>("CONTRACT_ENDED");
-  // Today in Riyadh terms — see the note on `astDateInputValue`.
-  const [departureDate, setDepartureDate] = useState(() => astDateInputValue());
+  // A bare calendar date in the user's device zone; no UTC day conversion.
+  const [departureDate, setDepartureDate] = useState(() => deviceDateInputValue());
 
   // Extra qualifications (4–10) stored as array of strings
   const [extraQuals, setExtraQuals] = useState<string[]>([]);
@@ -98,6 +101,8 @@ export default function TeacherProfilePage() {
   /* A blocked submit used to do nothing and say nothing — see FormErrors. */
   const [invalidFields, setInvalidFields] = useState<string[]>([]);
   function onInvalid(fieldErrors: unknown) {
+    setSaveSuccess(false);
+    setSaveError(null);
     setInvalidFields(collectMessages(fieldErrors));
   }
 
@@ -112,16 +117,18 @@ export default function TeacherProfilePage() {
     },
   });
 
-  async function loadTeacher() {
+  const loadTeacher = useCallback(async () => {
     setLoading(true); setError(null);
     try {
-      const [teacherRes, invoicesRes] = await Promise.all([
-        axios.get<Teacher>(`/api/teachers/${id}?revealIdentity=true`),
-        axios.get<Invoice[]>(`/api/invoices?teacherId=${id}`),
-      ]);
+      const teacherRes = await axios.get<Teacher>(`/api/teachers/${id}?revealIdentity=true`);
       const data = teacherRes.data;
       setTeacher(data);
-      setInvoices(invoicesRes.data);
+      if (canViewFinance) {
+        const invoicesRes = await axios.get<Invoice[]>(`/api/invoices?teacherId=${id}`);
+        setInvoices(invoicesRes.data);
+      } else {
+        setInvoices([]);
+      }
       reset({
         name: data.name ?? "", period: (data.period as "MORNING" | "EVENING") ?? "",
         classId: data.classes?.[0]?.id ?? "", idNumber: data.idNumber ?? "",
@@ -143,14 +150,14 @@ export default function TeacherProfilePage() {
         if (v) extras.push(v);
       }
       setExtraQuals(extras);
-    } catch {
-      setError(t("common.error"));
+    } catch (cause) {
+      setError(describeApiError(cause, t("common.error")));
     } finally {
       setLoading(false);
     }
-  }
+  }, [canViewFinance, id, reset, t]);
 
-  useEffect(() => { if (id) loadTeacher(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [id]);
+  useEffect(() => { if (id && permissionStatus === "ready") void loadTeacher(); }, [id, loadTeacher, permissionStatus]);
 
   const watchedPeriod = watch("period");
 
@@ -175,11 +182,11 @@ export default function TeacherProfilePage() {
         idNumber: values.idNumber || null, dateOfBirth: values.dateOfBirth || null,
         nationality: values.nationality || null, email: values.email || null,
         phone1: values.phone1 || null, phone2: values.phone2 || null,
-        ...(canViewFinance
+        ...(canManageFinance
           ? {
-              paymentMethod: values.paymentMethod || null,
-              monthlySalary: values.monthlySalary || null,
-              lateDeductionRate: values.lateDeductionRate || null,
+              ...(values.paymentMethod ? { paymentMethod: values.paymentMethod } : {}),
+              monthlySalary: values.monthlySalary,
+              lateDeductionRate: values.lateDeductionRate,
             }
           : {}),
         joinDate: values.joinDate || null, enrollmentEndDate: values.enrollmentEndDate || null,
@@ -193,7 +200,7 @@ export default function TeacherProfilePage() {
       });
       setSaveSuccess(true);
       await loadTeacher();
-    } catch { setSaveError(t("common.error")); }
+    } catch (error) { setSaveError(describeApiError(error, t("common.error"))); }
     finally { setSaving(false); }
   }
 
@@ -265,19 +272,6 @@ export default function TeacherProfilePage() {
    * This used to be `alert("تم الإرسال")` with no request at all — staff were
    * told a notice had been sent when nothing had happened.
    */
-  async function handleSendReminder() {
-    setActionLoading("reminder");
-    setActionMessage(null);
-    try {
-      const res = await axios.post<{ sentTo: string }>(`/api/teachers/${id}/reminder`);
-      setActionMessage({ text: t("teacherProfile.sentTo", { to: res.data.sentTo }), ok: true });
-    } catch (err) {
-      setActionMessage({ text: describeApiError(err, t("teacherProfile.reminderFailed")), ok: false });
-    } finally {
-      setActionLoading(null);
-    }
-  }
-
   function onInvoiceIssued(inv: { id: string; amount: number; pdfUrl: string | null; createdAt: string }) {
     setInvoices((prev) => [{ ...inv, type: "TEACHER" }, ...prev]);
   }
@@ -315,6 +309,7 @@ export default function TeacherProfilePage() {
   const deductionRate = teacher?.lateDeductionRate ?? 0;
   const lateDeduction = lateHrs * deductionRate;
   const netSalary = baseSalary - lateDeduction;
+  const teacherOperational = teacher ? isTeacherOperational(teacher as Teacher & { isActive: boolean }, new Date(), deviceTimeZone()) : false;
 
   if (loading) return <div className="flex items-center justify-center min-h-screen text-gray-400 text-sm">{t("common.loading")}</div>;
   if (error || !teacher) return <div className="flex items-center justify-center min-h-screen text-red-500 text-sm">{error ?? t("common.error")}</div>;
@@ -331,9 +326,11 @@ export default function TeacherProfilePage() {
         {/* The reason and the last working day, not just "inactive" — the date
             is what the erasure schedule counts from, so it belongs on screen
             rather than only in the database. */}
-        {!teacher.isActive && (
+        {!teacherOperational && (
           <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">
-            {teacher.status && teacher.status !== "ACTIVE"
+            {teacher.isActive && teacher.status === "ACTIVE"
+              ? t("teacherProfile.contractExpired")
+              : teacher.status && teacher.status !== "ACTIVE"
               ? t(EMPLOYMENT_STATUS_LABEL_KEYS[teacher.status])
               : t("fields.inactive")}
             {teacher.leftAt && ` · ${formatDate(teacher.leftAt, locale)}`}
@@ -374,10 +371,12 @@ export default function TeacherProfilePage() {
                   <div>
                     <label className={labelCls}>{t("fields.phone1")}</label>
                     <input {...register("phone1")} className={inputCls} dir="ltr" />
+                    {errors.phone1?.message && <p role="alert" className="mt-1 text-xs text-red-600">{String(errors.phone1.message)}</p>}
                   </div>
                   <div>
                     <label className={labelCls}>{t("fields.phone2")}</label>
                     <input {...register("phone2")} className={inputCls} dir="ltr" />
+                    {errors.phone2?.message && <p role="alert" className="mt-1 text-xs text-red-600">{String(errors.phone2.message)}</p>}
                   </div>
                   <div>
                     <label className={labelCls}>{t("fields.period")}</label>
@@ -426,28 +425,28 @@ export default function TeacherProfilePage() {
                     <label className={labelCls}>{t("fields.contractEnd")}</label>
                     <input type="date" {...register("enrollmentEndDate")} className={inputCls} dir="ltr" />
                   </div>
-                  <div>
+                  {canViewFinance && <div>
                     <label className={labelCls}>{t("fields.lateDeduction")}</label>
                     <div className="relative">
-                      <input type="number" min={0} step="0.01" {...register("lateDeductionRate", { valueAsNumber: true })} className={inputCls} />
+                      <input disabled={!canManageFinance} type="number" min={0} step="0.01" {...register("lateDeductionRate", { valueAsNumber: true })} className={inputCls} />
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">{t("fields.perHour")}</span>
                     </div>
-                  </div>
-                  <div>
+                  </div>}
+                  {canViewFinance && <div>
                     <label className={labelCls}>{t("fields.monthlySalary")}</label>
                     <div className="relative">
-                      <input type="number" min={0} {...register("monthlySalary", { valueAsNumber: true })} className={inputCls} />
+                      <input disabled={!canManageFinance} type="number" min={0} {...register("monthlySalary", { valueAsNumber: true })} className={inputCls} />
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">{t("common.sar")}</span>
                     </div>
-                  </div>
-                  <div className="sm:col-span-2">
+                  </div>}
+                  {canViewFinance && <div className="sm:col-span-2">
                     <label className={labelCls}>{t("fields.paymentMethod")}</label>
-                    <select {...register("paymentMethod")} className={selectCls}>
+                    <select disabled={!canManageFinance} {...register("paymentMethod")} className={selectCls}>
                       <option value="">{t("common.select")}</option>
                       <option value="CASH">{t("fields.cash")}</option>
                       <option value="TRANSFER">{t("fields.transfer")}</option>
                     </select>
-                  </div>
+                  </div>}
                 </div>
               </div>
 
@@ -498,11 +497,11 @@ export default function TeacherProfilePage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-gray-100 mt-2">
                   <div>
                     <label className={labelCls}>{t("fields.attendanceHours")}</label>
-                    <div className={readonlyCls}>{teacher.attendanceHours ?? 0} {t("common.hours")}</div>
+                    <div className={readonlyCls} dir="ltr">{formatDurationHours(teacher.attendanceHours)}</div>
                   </div>
                   <div>
                     <label className={labelCls}>{t("fields.lateHours")}</label>
-                    <div className={readonlyCls}>{teacher.lateHours ?? 0} {t("common.hours")}</div>
+                    <div className={readonlyCls} dir="ltr">{formatDurationHours(teacher.lateHours)}</div>
                   </div>
                 </div>
               </div>
@@ -542,19 +541,8 @@ export default function TeacherProfilePage() {
                   </PermissionGate>
 
                   {/* 2. ارسال تذكير بالدفع */}
-                  <button
-                    type="button"
-                    onClick={handleSendReminder}
-                    className="w-full px-5 py-2.5 rounded-md bg-white font-medium text-sm
-                               border border-[#666666] text-[#666666]
-                               hover:border-[#2F96A6] hover:text-[#2F96A6] hover:bg-[#E0F7FA]
-                               active:scale-[0.98] transition-all"
-                  >
-                    {t("teacherProfile.sendPaymentReminder")}
-                  </button>
-
                   {/* 3. إصدار فاتورة */}
-                  <button
+                  <PermissionGate permission="finance.manage"><button
                     type="button"
                     onClick={() => setInvoiceModalOpen(true)}
                     className="w-full px-5 py-2.5 rounded-md bg-white font-medium text-sm
@@ -563,7 +551,7 @@ export default function TeacherProfilePage() {
                                active:scale-[0.98] transition-all"
                   >
                     {t("teachers.profile.actions.issueInvoice")}
-                  </button>
+                  </button></PermissionGate>
 
                   {/* 4. إنهاء الخدمة — أو إعادة التفعيل لمن أُنهيت خدمته */}
                   <button
@@ -585,7 +573,7 @@ export default function TeacherProfilePage() {
                   </button>
 
                   {/* 5. حذف رسوم التأخير */}
-                  <button
+                  <PermissionGate permission="finance.manage"><button
                     type="button"
                     onClick={() => setShowLateFeeConfirm(true)}
                     disabled={actionLoading === "lateFee"}
@@ -595,7 +583,7 @@ export default function TeacherProfilePage() {
                                active:scale-[0.98] transition-all disabled:opacity-60"
                   >
                     {actionLoading === "lateFee" ? t("common.loading") : t("teachers.profile.actions.deleteLateFee")}
-                  </button>
+                  </button></PermissionGate>
 
                   {/* 6. نقل إلى سلة المحذوفات */}
                   <PermissionGate permission="staff.delete">
@@ -613,7 +601,7 @@ export default function TeacherProfilePage() {
                 </div>
               </div>
 
-              <div className="bg-white rounded-xl shadow-md p-4 space-y-3">
+              {canViewFinance && <div className="bg-white rounded-xl shadow-md p-4 space-y-3">
                 <h3 className="font-bold text-[#111111] text-sm">{t("teachers.profile.salaryCalc.title")}</h3>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between items-center py-1.5 border-b border-gray-50">
@@ -628,15 +616,15 @@ export default function TeacherProfilePage() {
                     <span className="font-bold text-[#111111]">{t("teachers.profile.salaryCalc.netSalary")}</span>
                     <span className="font-bold text-[#F64651] text-base">{formatCurrency(netSalary, locale)}</span>
                   </div>
-                  <p className="text-xs text-gray-400 text-center pt-1">{lateHrs} {t("common.hours")} × {formatCurrency(deductionRate, locale)} = {formatCurrency(lateDeduction, locale)}</p>
+                  <p className="text-xs text-gray-400 text-center pt-1"><span dir="ltr">{formatDurationHours(lateHrs)}</span> × {formatCurrency(deductionRate, locale)} = {formatCurrency(lateDeduction, locale)}</p>
                 </div>
-              </div>
+              </div>}
             </div>
           </div>
         </form>
 
         {/* ── بطاقة الفواتير المصدرة ─────────────────────────────── */}
-        <div className="mt-6 bg-white rounded-xl shadow-md overflow-hidden">
+        {canViewFinance && <div className="mt-6 bg-white rounded-xl shadow-md overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100">
             <h2 className="font-bold text-[#111111] text-base">{t("teachers.profile.invoices")}</h2>
           </div>
@@ -673,14 +661,14 @@ export default function TeacherProfilePage() {
               </tbody>
             </table>
           )}
-        </div>
+        </div>}
       </div>
 
-      <TeacherInvoiceModal open={invoiceModalOpen} teacherId={id} onClose={() => setInvoiceModalOpen(false)} onIssued={onInvoiceIssued} />
+      {canManageFinance && <TeacherInvoiceModal open={invoiceModalOpen} teacherId={id} onClose={() => setInvoiceModalOpen(false)} onIssued={onInvoiceIssued} />}
 
       {showDepartureModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-96 space-y-4" dir="rtl">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-96 space-y-4">
             <p className="text-base font-bold text-[#111111] text-center">{t("teacherProfile.endServiceTitle")}</p>
 
             <div>

@@ -5,6 +5,8 @@ import { protectIdNumber } from "@/lib/pii-crypto";
 import { teacherDetailDto, teacherDetailSelect, teacherListDto } from "@/lib/roster-dto";
 import { withNoStore } from "@/lib/auth-response";
 import { logSafeError } from "@/lib/safe-logger";
+import { optionalPhone } from "@/lib/form-schemas";
+import { normalizePhone } from "@/lib/phone-normalizer";
 import { z } from "zod";
 
 const createTeacherSchema = z.object({
@@ -14,8 +16,8 @@ const createTeacherSchema = z.object({
   dateOfBirth: z.string().optional(),
   nationality: z.string().optional(),
   email: z.string().optional(),
-  phone1: z.string().optional(),
-  phone2: z.string().optional(),
+  phone1: optionalPhone,
+  phone2: optionalPhone,
   paymentMethod: z.enum(["CASH", "TRANSFER", "CARD"]).optional(),
   joinDate: z.string().optional(),
   /**
@@ -70,6 +72,8 @@ export async function GET(request: Request) {
         name: true,
         period: true,
         isActive: true,
+        status: true,
+        enrollmentEndDate: true,
         classes: { select: { id: true, name: true } },
       },
       orderBy: { name: "asc" },
@@ -143,8 +147,8 @@ export async function POST(request: Request) {
       ...(dateOfBirth !== undefined && { dateOfBirth: new Date(dateOfBirth) }),
       ...(nationality !== undefined && { nationality }),
       ...(email !== undefined && { email }),
-      ...(phone1 !== undefined && { phone1 }),
-      ...(phone2 !== undefined && { phone2 }),
+      ...(phone1 !== undefined && { phone1: normalizePhone(phone1) }),
+      ...(phone2 !== undefined && { phone2: normalizePhone(phone2) }),
       ...(paymentMethod !== undefined && { paymentMethod }),
       ...(joinDate !== undefined && { joinDate: new Date(joinDate) }),
       ...(monthlySalary !== undefined && { monthlySalary }),

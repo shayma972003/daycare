@@ -66,7 +66,7 @@ describe("critical data page request contracts", () => {
   it("uses item-level results where available and conservative count-only outcomes otherwise", () => {
     expect(students).toContain("exactBulkOutcome(ids, results.map((result) => result.status === \"fulfilled\"))");
     expect(students).toContain("countedBulkOutcome(ids, response.data.updated)");
-    expect(teachers).toContain("countedBulkOutcome(ids, response.data.processed)");
+    expect(teachers).toContain("response.data.results.some((result) => result.id === id && result.status === \"succeeded\")");
     expect(students).toContain("setSelected(new Set(outcome.remainingSelection))");
     expect(teachers).toContain("setSelected(new Set(outcome.remainingSelection))");
   });

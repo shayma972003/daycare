@@ -22,7 +22,6 @@ const RATE_LIMITED_CALL_SITES = [
   "src/app/api/staff-accounts/[id]/invite/route.ts",
   "src/app/api/guardian-accounts/route.ts",
   "src/app/api/guardian-accounts/[id]/invite/route.ts",
-  "src/app/api/teachers/[id]/reminder/route.ts",
   "src/app/api/students/[id]/reminder/route.ts",
   "src/app/api/reminders/route.ts",
   "src/app/api/activities/[id]/send/route.ts",

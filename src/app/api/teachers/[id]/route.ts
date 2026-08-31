@@ -6,6 +6,8 @@ import { teacherDetailDto, teacherDetailSelect } from "@/lib/roster-dto";
 import { withNoStore } from "@/lib/auth-response";
 import { logSafeError } from "@/lib/safe-logger";
 import { assertClassOwned, crossTenantResponse } from "@/lib/tenant-guard";
+import { optionalPhone } from "@/lib/form-schemas";
+import { normalizePhone } from "@/lib/phone-normalizer";
 import { astParts, astDateOnly } from "@/lib/datetime";
 import {
   EMPLOYMENT_STATUSES,
@@ -23,14 +25,14 @@ const updateTeacherSchema = z.object({
   dateOfBirth: z.string().nullish(),
   nationality: z.string().nullish(),
   email: z.string().nullish(),
-  phone1: z.string().nullish(),
-  phone2: z.string().nullish(),
-  paymentMethod: z.enum(["CASH", "TRANSFER", "CARD"]).nullish(),
+  phone1: optionalPhone,
+  phone2: optionalPhone,
+  paymentMethod: z.enum(["CASH", "TRANSFER", "CARD"]).optional(),
   joinDate: z.string().nullish(),
   // Bounded like the create route: a negative salary is subtracted from the
   // month's wage bill, and nothing on screen explains the shortfall.
-  monthlySalary: z.number().min(0).max(1_000_000).nullish(),
-  lateDeductionRate: z.number().min(0).max(100).nullish(),
+  monthlySalary: z.number().min(0).max(1_000_000).optional(),
+  lateDeductionRate: z.number().min(0).max(100).optional(),
   qualification1: z.string().nullish(),
   qualification2: z.string().nullish(),
   qualification3: z.string().nullish(),
@@ -189,14 +191,14 @@ export async function PUT(
   }
   if ("nationality" in data) updateData.nationality = data.nationality ?? null;
   if ("email" in data) updateData.email = data.email ?? null;
-  if ("phone1" in data) updateData.phone1 = data.phone1 ?? null;
-  if ("phone2" in data) updateData.phone2 = data.phone2 ?? null;
-  if ("paymentMethod" in data) updateData.paymentMethod = data.paymentMethod ?? null;
+  if ("phone1" in data) updateData.phone1 = normalizePhone(data.phone1);
+  if ("phone2" in data) updateData.phone2 = normalizePhone(data.phone2);
+  if ("paymentMethod" in data) updateData.paymentMethod = data.paymentMethod;
   if ("joinDate" in data) {
     updateData.joinDate = data.joinDate ? new Date(data.joinDate) : null;
   }
-  if ("monthlySalary" in data) updateData.monthlySalary = data.monthlySalary ?? null;
-  if ("lateDeductionRate" in data) updateData.lateDeductionRate = data.lateDeductionRate ?? null;
+  if ("monthlySalary" in data) updateData.monthlySalary = data.monthlySalary;
+  if ("lateDeductionRate" in data) updateData.lateDeductionRate = data.lateDeductionRate;
   for (const n of [1,2,3,4,5,6,7,8,9,10] as const) {
     const key = `qualification${n}` as keyof typeof data;
     if (key in data) updateData[key] = (data[key] as string | null | undefined) ?? null;

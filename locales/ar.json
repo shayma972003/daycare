@@ -1007,13 +1007,14 @@
     "endDate": "تاريخ الانتهاء"
   },
   "teacherProfile": {
+    "contractExpired": "انتهى العقد",
+    "notEligible": "غير مؤهل لحضور جديد",
     "lateFeeRemoved": "تم حذف رسوم التأخير",
     "lateFeeFailed": "تعذر حذف رسوم التأخير",
     "serviceEnded": "تم إنهاء الخدمة",
     "endFailed": "تعذر إنهاء الخدمة",
     "reactivated": "تمت إعادة التفعيل",
     "reactivateFailed": "تعذرت إعادة التفعيل",
-    "reminderFailed": "تعذر إرسال الإشعار",
     "reactivate": "إعادة التفعيل",
     "endService": "إنهاء الخدمة",
     "endServiceTitle": "إنهاء خدمة الموظف",
@@ -1030,11 +1031,9 @@
     "salaryDetails": "تفاصيل الراتب",
     "netSalaryColon": "صافي الراتب:",
     "addQualification": "+ إضافة مؤهل",
-    "sendPaymentReminder": "ارسال تذكير بالدفع",
     "repeatedLateness": "تأخير متكرر",
     "retentionNotice": "تُحفظ بيانات الموظف الشخصية لمدة الاحتفاظ المعتمدة ابتداءً من هذا التاريخ، ثم تُزال تلقائياً مع بقاء سجل الرواتب والإحصاءات كاملاً.",
     "trashNotice": "سيتم نقل ملف {name} إلى سلة المحذوفات.\nيمكنك استعادته خلال 30 يوماً.",
-    "sentTo": "تم الإرسال إلى {to}",
     "employmentData": "بيانات التوظيف",
     "qualificationN": "المؤهل {n}"
   },

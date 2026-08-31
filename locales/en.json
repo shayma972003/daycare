@@ -1007,13 +1007,14 @@
     "endDate": "End date"
   },
   "teacherProfile": {
+    "contractExpired": "Contract ended",
+    "notEligible": "Not eligible for new attendance",
     "lateFeeRemoved": "The late fee was removed",
     "lateFeeFailed": "Could not remove the late fee",
     "serviceEnded": "Service ended",
     "endFailed": "Could not end the service",
     "reactivated": "Reactivated",
     "reactivateFailed": "Could not reactivate",
-    "reminderFailed": "Could not send the notice",
     "reactivate": "Reactivate",
     "endService": "End service",
     "endServiceTitle": "End this staff member’s service",
@@ -1030,11 +1031,9 @@
     "salaryDetails": "Salary details",
     "netSalaryColon": "Net salary:",
     "addQualification": "+ Add a qualification",
-    "sendPaymentReminder": "Send a payment reminder",
     "repeatedLateness": "Repeated lateness",
     "retentionNotice": "The employee's personal data is kept for the approved retention period starting from this date, then removed automatically — the payroll and statistics record stays complete.",
     "trashNotice": "{name}'s file will be moved to the trash.\nYou can restore it within 30 days.",
-    "sentTo": "Sent to {to}",
     "employmentData": "Employment details",
     "qualificationN": "Qualification {n}"
   },

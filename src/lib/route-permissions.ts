@@ -120,7 +120,6 @@ export const ROUTE_PERMISSIONS: Record<string, RouteRule> = {
   // their attendance; what they are paid is a separate question.
   "/api/teachers/:id/invoice": { default: "finance.manage" },
   "/api/teachers/:id/late-fee": { default: "finance.manage" },
-  "/api/teachers/:id/reminder": { default: "finance.manage" },
 
   // ── Classes ─────────────────────────────────────────────────────────────
   "/api/classes": { methods: { GET: "classes.view", POST: "classes.manage" } },

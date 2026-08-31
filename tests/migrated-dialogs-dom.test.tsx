@@ -13,6 +13,7 @@ import { ShiftsPanel } from "@/components/teachers/ShiftsPanel";
 const axiosMocks = vi.hoisted(() => ({
   get: vi.fn(),
   post: vi.fn(),
+  patch: vi.fn(),
   delete: vi.fn(),
 }));
 
@@ -25,6 +26,9 @@ vi.mock("axios", () => ({
 
 vi.mock("@/components/auth/PermissionGate", () => ({
   PermissionGate: ({ children }: { children: ReactNode }) => <>{children}</>,
+}));
+vi.mock("@/lib/use-permissions", () => ({
+  usePermissions: () => ({ can: (permission: string) => permission === "schedule.manage" }),
 }));
 
 afterEach(cleanup);
@@ -129,10 +133,14 @@ describe("migrated dialog record isolation", () => {
         weekStart: "2026-08-09",
         days: ["2026-08-10", "2026-08-11"],
         teachers: [{ id: "teacher-1", name: "Teacher one" }],
+        classes: [],
         shifts: [
           {
             id: "shift-1",
             teacherId: "teacher-1",
+            teacherName: "Teacher one",
+            classId: null,
+            className: null,
             date: "2026-08-10",
             startTime: "07:00",
             endTime: "15:00",
@@ -142,6 +150,9 @@ describe("migrated dialog record isolation", () => {
           {
             id: "shift-2",
             teacherId: "teacher-1",
+            teacherName: "Teacher one",
+            classId: null,
+            className: null,
             date: "2026-08-11",
             startTime: "10:00",
             endTime: "18:00",

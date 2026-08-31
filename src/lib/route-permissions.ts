@@ -200,7 +200,7 @@ export const ROUTE_PERMISSIONS: Record<string, RouteRule> = {
   },
   "/api/units/:id/lessons": { default: "units.manage" },
   // Rota — staff scheduling, so it rides with the schedule permissions.
-  "/api/shifts": { methods: { GET: "schedule.view", POST: "schedule.manage", DELETE: "schedule.delete" } },
+  "/api/shifts": { methods: { GET: "schedule.view", POST: "schedule.manage", PATCH: "schedule.manage", DELETE: "schedule.manage" } },
   // Roster counts are read by the dashboard; any signed-in member may see them.
   "/api/statistics/roster": { default: null },
 

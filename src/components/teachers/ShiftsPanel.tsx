@@ -1,301 +1,130 @@
 "use client";
 
-/**
- * Staff rota, as a panel rather than a screen of its own.
- *
- * The week grid stays. Filling a rota is a sweep across a row — Sunday to
- * Thursday for one person, then the next — and a form that asks "which teacher,
- * which day" for each cell turns one gesture into five. What went away is the
- * top-level menu entry: a rota is something the administration does to its
- * staff, so it belongs behind the staff list, not beside it.
- *
- * `teacherId` narrows the grid to one person, which is how it is opened from a
- * teacher's own profile.
- */
-
 import { useCallback, useEffect, useState } from "react";
 import axios from "axios";
 import { describeApiError } from "@/lib/api-error";
 import { WEEKDAY_LABEL_KEYS } from "@/lib/attendance-schedule";
+import { deviceHeaders } from "@/lib/device-date";
 import { useT } from "@/lib/i18n-provider";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogTitle,
-  closeDialogOnOpenChange,
-} from "@/components/ui/Dialog";
+import { usePermissions } from "@/lib/use-permissions";
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, closeDialogOnOpenChange } from "@/components/ui/Dialog";
 
-interface Teacher {
-  id: string;
-  name: string;
+interface Teacher { id: string; name: string }
+interface Classroom { id: string; name: string }
+interface Shift { id: string; teacherId: string; teacherName: string; classId: string | null; className: string | null; date: string; startTime: string; endTime: string; notes: string | null }
+interface ShiftsResponse { weekStart: string; days: string[]; teachers: Teacher[]; classes: Classroom[]; shifts: Shift[] }
+interface Editor { shiftId?: string; date: string; teacherId: string; classId: string; startTime: string; endTime: string; notes: string }
+
+const blankEditor = (date: string, teacherId = ""): Editor => ({ date, teacherId, classId: "", startTime: "07:00", endTime: "15:00", notes: "" });
+
+function requestShifts(start: string | null | undefined, teacherId: string | undefined, signal?: AbortSignal) {
+  return axios.get<ShiftsResponse>("/api/shifts", {
+    params: { ...(start ? { start } : {}), ...(teacherId ? { teacherId } : {}) },
+    headers: deviceHeaders(), signal,
+  });
 }
-
-interface Shift {
-  id: string;
-  teacherId: string;
-  date: string;
-  startTime: string;
-  endTime: string;
-  role: string | null;
-  notes: string | null;
-}
-
-interface ShiftsResponse {
-  weekStart: string;
-  days: string[];
-  teachers: Teacher[];
-  shifts: Shift[];
-}
-
-/** Prefilled when a blank cell is opened — the shift most rooms actually run. */
-const DEFAULT_START = "07:00";
-const DEFAULT_END = "15:00";
 
 export function ShiftsPanel({ teacherId }: { teacherId?: string }) {
-  // Locale-aware translation — see src/lib/i18n.ts.
   const t = useT();
+  const { can } = usePermissions();
+  const canManage = can("schedule.manage");
   const [data, setData] = useState<ShiftsResponse | null>(null);
   const [weekStart, setWeekStart] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [editing, setEditing] = useState<{ teacherId: string; date: string } | null>(null);
-  const [startTime, setStartTime] = useState(DEFAULT_START);
-  const [endTime, setEndTime] = useState(DEFAULT_END);
+  const [editor, setEditor] = useState<Editor | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const load = useCallback(async (start?: string | null) => {
+  const load = useCallback(async (start?: string | null, signal?: AbortSignal) => {
     try {
-      const response = await axios.get<ShiftsResponse>(
-        `/api/shifts${start ? `?start=${start}` : ""}`
-      );
-      setData(response.data);
-      setError(null);
-    } catch (err) {
-      setError(describeApiError(err, t("shifts.loadFailed")));
-    }
-  }, [t]);
+      const response = await requestShifts(start, teacherId, signal);
+      setData(response.data); setError(null);
+    } catch (cause) {
+      if (!axios.isCancel(cause)) setError(describeApiError(cause, t("shifts.loadFailed")));
+    } finally { if (!signal?.aborted) setLoading(false); }
+  }, [t, teacherId]);
 
   useEffect(() => {
-    let cancelled = false;
-    axios
-      .get<ShiftsResponse>(`/api/shifts${weekStart ? `?start=${weekStart}` : ""}`)
-      .then((response) => {
-        if (!cancelled) setData(response.data);
-      })
-      .catch((err) => {
-        if (!cancelled) setError(describeApiError(err, t("shifts.loadFailed")));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [weekStart, t]);
+    const controller = new AbortController();
+    requestShifts(weekStart, teacherId, controller.signal)
+      .then((response) => { setData(response.data); setError(null); })
+      .catch((cause) => { if (!axios.isCancel(cause)) setError(describeApiError(cause, t("shifts.loadFailed"))); })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
+  }, [teacherId, t, weekStart]);
 
-  function shiftFor(teacherId: string, date: string): Shift | undefined {
-    return data?.shifts.find(
-      (shift) => shift.teacherId === teacherId && shift.date === date
-    );
-  }
-
-  function openCell(teacherId: string, date: string) {
-    const existing = shiftFor(teacherId, date);
-    setStartTime(existing?.startTime ?? DEFAULT_START);
-    setEndTime(existing?.endTime ?? DEFAULT_END);
-    setEditing({ teacherId, date });
-  }
-
-  async function save() {
-    if (!editing) return;
-    setSaving(true);
-    setError(null);
-    try {
-      await axios.post("/api/shifts", { ...editing, startTime, endTime });
-      setEditing(null);
-      await load(data?.weekStart);
-    } catch (err) {
-      setError(describeApiError(err, t("shifts.saveFailed")));
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function remove() {
-    if (!editing) return;
-    setSaving(true);
-    try {
-      await axios.delete("/api/shifts", { data: editing });
-      setEditing(null);
-      await load(data?.weekStart);
-    } catch (err) {
-      setError(describeApiError(err, t("shifts.deleteFailed")));
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  function shiftWeek(days: number) {
+  function shiftWeek(offset: number) {
     if (!data) return;
-    const start = new Date(`${data.weekStart}T00:00:00Z`);
-    start.setUTCDate(start.getUTCDate() + days);
-    setWeekStart(start.toISOString().slice(0, 10));
+    const date = new Date(`${data.weekStart}T00:00:00.000Z`); date.setUTCDate(date.getUTCDate() + offset);
+    setLoading(true);
+    setWeekStart(date.toISOString().slice(0, 10));
+  }
+  function openCreate(date: string) { setEditor(blankEditor(date, teacherId ?? "")); }
+  function openEdit(shift: Shift) {
+    setEditor({ shiftId: shift.id, date: shift.date, teacherId: shift.teacherId, classId: shift.classId ?? "", startTime: shift.startTime, endTime: shift.endTime, notes: shift.notes ?? "" });
+  }
+  async function save() {
+    if (!editor || !editor.teacherId || saving) return;
+    setSaving(true); setError(null);
+    try {
+      const payload = { ...editor, classId: editor.classId || null, notes: editor.notes.trim() || null };
+      if (editor.shiftId) await axios.patch("/api/shifts", payload, { headers: deviceHeaders() });
+      else await axios.post("/api/shifts", payload, { headers: deviceHeaders() });
+      setEditor(null); await load(data?.weekStart);
+    } catch (cause) { setError(describeApiError(cause, t("shifts.saveFailed"))); }
+    finally { setSaving(false); }
+  }
+  async function remove() {
+    if (!editor?.shiftId || saving) return;
+    setSaving(true); setError(null);
+    try {
+      await axios.delete("/api/shifts", { data: { shiftId: editor.shiftId } });
+      setEditor(null); await load(data?.weekStart);
+    } catch (cause) { setError(describeApiError(cause, t("shifts.deleteFailed"))); }
+    finally { setSaving(false); }
   }
 
-  const roster = teacherId
-    ? (data?.teachers ?? []).filter((teacher) => teacher.id === teacherId)
-    : (data?.teachers ?? []);
-
-  return (
-    <>
-      <div className="space-y-4">
-        {error && (
-          <div role="alert" className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">
-            {error}
-          </div>
-        )}
-
-        <div className="bg-white rounded-2xl shadow-sm p-4 flex items-center gap-2 flex-wrap">
-          <button onClick={() => shiftWeek(-7)} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm hover:bg-gray-50">
-            {t("attendance.previousWeek")}
-          </button>
-          <button onClick={() => setWeekStart(null)} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm hover:bg-gray-50">
-            {t("attendance.thisWeek")}
-          </button>
-          <button onClick={() => shiftWeek(7)} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm hover:bg-gray-50">
-            {t("common.next")}
-          </button>
-          {data && <span className="text-sm text-gray-500">{t("attendance.weekFrom", { date: data.weekStart })}</span>}
-        </div>
-
-        <div className="bg-white rounded-2xl shadow-sm p-4 overflow-x-auto">
-          {!data ? (
-            <p className="text-sm text-gray-400 py-8 text-center">{t("common.loadingDots")}</p>
-          ) : roster.length === 0 ? (
-            <p className="text-sm text-gray-400 py-8 text-center">{t("shifts.noActiveStaff")}</p>
-          ) : (
-            <table className="w-full text-sm min-w-[560px] border-separate border-spacing-0">
-              <thead>
-                <tr>
-                  {!teacherId && (
-                    <th className="sticky start-0 bg-white px-3 py-2 text-start text-gray-500 font-medium border-b border-gray-100">
-                      {t("fields.employee")}
-                    </th>
-                  )}
-                  {data.days.map((date) => (
-                    <th key={date} className="px-2 py-2 text-center border-b border-gray-100">
-                      <div className="text-gray-600 font-medium">
-                        {t(WEEKDAY_LABEL_KEYS[new Date(`${date}T00:00:00Z`).getUTCDay()])}
-                      </div>
-                      <div className="text-[11px] text-gray-400">{date.slice(5)}</div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {roster.map((teacher) => (
-                  <tr key={teacher.id}>
-                    {!teacherId && (
-                      <td className="sticky start-0 bg-white px-3 py-2 border-b border-gray-50 text-[#111111] whitespace-nowrap">
-                        {teacher.name}
-                      </td>
-                    )}
-                    {data.days.map((date) => {
-                      const shift = shiftFor(teacher.id, date);
-                      return (
-                        <td key={date} className="px-1 py-1 border-b border-gray-50 text-center">
-                          <button
-                            onClick={() => openCell(teacher.id, date)}
-                            className={`w-full rounded-lg px-2 py-2 text-xs transition-colors ${
-                              shift
-                                ? "bg-[#E0F7FA] text-[#12626f] hover:bg-[#c9eff5]"
-                                : "text-gray-300 hover:bg-gray-50"
-                            }`}
-                            dir="ltr"
-                          >
-                            {shift ? `${shift.startTime}–${shift.endTime}` : "+"}
-                          </button>
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
+  return <>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-gray-100 bg-white p-3">
+        <button type="button" onClick={() => shiftWeek(-7)} className="rounded-lg border px-3 py-2 text-sm">{t("attendance.previousWeek")}</button>
+        <button type="button" onClick={() => { setLoading(true); if (weekStart === null) void load(null); else setWeekStart(null); }} className="rounded-lg border px-3 py-2 text-sm">{t("attendance.thisWeek")}</button>
+        <button type="button" onClick={() => shiftWeek(7)} className="rounded-lg border px-3 py-2 text-sm">{t("common.next")}</button>
+        {data && <span className="text-sm text-gray-500">{t("attendance.weekFrom", { date: data.weekStart })}</span>}
       </div>
-
-      {editing && (
-        <Dialog
-          open
-          onOpenChange={(nextOpen) =>
-            closeDialogOnOpenChange(nextOpen, saving, () => setEditing(null))
-          }
-        >
-          <DialogContent dismissBlocked={saving} overlayClassName="bg-black/40" className="max-w-xs space-y-4 p-6">
-            <DialogTitle>
-              {data?.teachers.find((t) => t.id === editing.teacherId)?.name} — {editing.date}
-            </DialogTitle>
-            <DialogDescription className="sr-only">
-              {t("shifts.editDescription")}
-            </DialogDescription>
-
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">{t("common.from")}</label>
-              {/* `type="time"` gives the platform's own picker on a phone, which
-                  is better than anything hand-built — see the note on task 2.15. */}
-              <input
-                type="time"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm"
-                dir="ltr"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">{t("common.to")}</label>
-              <input
-                type="time"
-                value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm"
-                dir="ltr"
-              />
-            </div>
-
-            <DialogFooter className="pt-3">
-              <button
-                type="button"
-                onClick={save}
-                disabled={saving}
-                className="flex-1 px-4 py-2.5 bg-[#2F96A6] text-white rounded-xl text-sm font-medium hover:bg-[#26808e] disabled:opacity-60"
-              >
-                {saving ? "..." : t("common.save")}
-              </button>
-              {shiftFor(editing.teacherId, editing.date) && (
-                <button
-                  type="button"
-                  onClick={remove}
-                  disabled={saving}
-                  className="px-4 py-2.5 border border-red-200 text-red-600 rounded-xl text-sm hover:bg-red-50"
-                >
-                  {t("common.delete")}
-                </button>
-              )}
-              <DialogClose asChild>
-                <button
-                  type="button"
-                  disabled={saving}
-                  className="px-4 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {t("common.cancel")}
-                </button>
-              </DialogClose>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
-    </>
-  );
+      {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error} <button type="button" onClick={() => { setLoading(true); void load(data?.weekStart); }} className="underline">{t("common.retry")}</button></div>}
+      {loading && !data ? <p className="py-8 text-center text-sm text-gray-400">{t("common.loading")}</p> :
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
+          {data?.days.map((date) => {
+            const shifts = data.shifts.filter((shift) => shift.date === date);
+            const eligibleTeacherIds = new Set(data.teachers.map((teacher) => teacher.id));
+            return <section key={date} className="min-w-0 rounded-xl border border-gray-200 bg-white p-4">
+              <header className="mb-3 flex items-center justify-between gap-3">
+                <div><h3 className="font-semibold text-gray-900">{t(WEEKDAY_LABEL_KEYS[new Date(`${date}T00:00:00Z`).getUTCDay()])}</h3><p className="text-xs text-gray-500" dir="ltr">{date}</p></div>
+                {canManage && data.teachers.length > 0 && <button type="button" onClick={() => openCreate(date)} className="rounded-lg bg-[#4f00c1] px-3 py-2 text-xs font-semibold text-white">{t("shifts.add")}</button>}
+              </header>
+              <div className="space-y-2">
+                {shifts.length === 0 ? <p className="rounded-lg bg-gray-50 p-3 text-sm text-gray-500">{t("shifts.noShifts")}</p> : shifts.map((shift) =>
+                  <button key={shift.id} type="button" disabled={!canManage || !eligibleTeacherIds.has(shift.teacherId)} onClick={() => openEdit(shift)} className="w-full rounded-lg border border-gray-100 p-3 text-start hover:border-[#4f00c1] disabled:cursor-default disabled:hover:border-gray-100">
+                    <span className="block font-medium text-gray-900">{shift.teacherName}</span>
+                    <span className="block text-sm text-gray-600" dir="ltr">{shift.startTime}–{shift.endTime}</span>
+                    {shift.className && <span className="block text-xs text-gray-500">{shift.className}</span>}
+                  </button>)}
+              </div>
+            </section>;
+          })}
+        </div>}
+    </div>
+    {editor && <Dialog open onOpenChange={(open) => closeDialogOnOpenChange(open, saving, () => setEditor(null))}>
+      <DialogContent dismissBlocked={saving} className="max-w-md space-y-4 p-5">
+        <DialogHeader><div><DialogTitle>{editor.shiftId ? t("shifts.edit") : t("shifts.add")}</DialogTitle><DialogDescription>{t("shifts.editDescription")}</DialogDescription></div></DialogHeader>
+        <label className="block text-sm">{t("shifts.day")}<input readOnly value={editor.date} dir="ltr" className="mt-1 w-full rounded-lg border bg-gray-50 px-3 py-2" /></label>
+        <label className="block text-sm">{t("fields.employee")}<select disabled={!!teacherId} value={editor.teacherId} onChange={(e) => setEditor({ ...editor, teacherId: e.target.value })} className="mt-1 w-full rounded-lg border px-3 py-2"><option value="">{t("common.select")}</option>{data?.teachers.map((teacher) => <option key={teacher.id} value={teacher.id}>{teacher.name}</option>)}</select></label>
+        <label className="block text-sm">{t("fields.classroom")}<select value={editor.classId} onChange={(e) => setEditor({ ...editor, classId: e.target.value })} className="mt-1 w-full rounded-lg border px-3 py-2"><option value="">{t("shifts.noClass")}</option>{data?.classes.map((room) => <option key={room.id} value={room.id}>{room.name}</option>)}</select></label>
+        <div className="grid grid-cols-2 gap-3"><label className="text-sm">{t("common.from")}<input type="time" value={editor.startTime} onChange={(e) => setEditor({ ...editor, startTime: e.target.value })} dir="ltr" className="mt-1 w-full rounded-lg border px-3 py-2" /></label><label className="text-sm">{t("common.to")}<input type="time" value={editor.endTime} onChange={(e) => setEditor({ ...editor, endTime: e.target.value })} dir="ltr" className="mt-1 w-full rounded-lg border px-3 py-2" /></label></div>
+        <label className="block text-sm">{t("shifts.notes")}<textarea value={editor.notes} onChange={(e) => setEditor({ ...editor, notes: e.target.value })} className="mt-1 w-full rounded-lg border px-3 py-2" /></label>
+        <DialogFooter className="pt-4"><button type="button" onClick={() => void save()} disabled={saving || !editor.teacherId} className="rounded-lg bg-[#4f00c1] px-4 py-2 text-white disabled:opacity-50">{saving ? t("common.loading") : t("common.save")}</button>{editor.shiftId && <button type="button" onClick={() => void remove()} disabled={saving} className="rounded-lg border border-red-200 px-4 py-2 text-red-700">{t("common.delete")}</button>}<DialogClose asChild><button type="button" disabled={saving} className="rounded-lg border px-4 py-2">{t("common.cancel")}</button></DialogClose></DialogFooter>
+      </DialogContent>
+    </Dialog>}
+  </>;
 }

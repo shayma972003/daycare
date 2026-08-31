@@ -820,7 +820,13 @@
     "editDescription": "Edit the start and end time for this shift.",
     "noActiveStaff": "No active staff",
     "manage": "Rota",
-    "forThisTeacher": "This week's shifts"
+    "forThisTeacher": "This week's shifts",
+    "add": "Add shift",
+    "edit": "Edit shift",
+    "day": "Day",
+    "notes": "Notes",
+    "noClass": "No classroom",
+    "noShifts": "No shifts scheduled"
   },
   "plans": {
     "basic": "Basic",

@@ -615,7 +615,7 @@ model CalendarEventClass {
 
 /// A staff member's scheduled shift (task 2.28).
 ///
-/// One row per person per day, not a recurring rule. A nursery's rota is agreed
+/// One row per scheduled time range, not a recurring rule. A nursery's rota is agreed
 /// week by week and changes constantly — someone swaps, someone is off sick —
 /// and a recurrence model would spend all its time being overridden. Copying
 /// last week forward is a button, not a data structure.
@@ -625,6 +625,9 @@ model Shift {
   school    School  @relation(fields: [schoolId], references: [id])
   teacherId String
   teacher   Teacher @relation(fields: [teacherId, schoolId], references: [id, schoolId], onDelete: Cascade)
+  classId   String?
+  class     Class?   @relation(fields: [classId], references: [id], onDelete: SetNull)
+  classNameSnapshot String?
 
   /// The rota day. `@db.Date` so it compares by equality, like Attendance.
   date DateTime @db.Date
@@ -641,11 +644,12 @@ model Shift {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  /// One shift per person per day. A split shift is expressed by widening the
-  /// range or with a note — two rows would break the weekly grid's one-cell
-  /// assumption and give no way to say which is which.
-  @@unique([teacherId, date])
+  /// Exact duplicate ranges are rejected. Separate, non-overlapping ranges on
+  /// the same day represent split shifts and are validated by the API.
+  @@unique([teacherId, date, startTime, endTime])
   @@index([schoolId, date])
+  @@index([teacherId, date])
+  @@index([classId, date])
 }
 
 /// Cached storage consumption per school (tasks 2.29–2.31).
@@ -1414,6 +1418,7 @@ model Class {
   activityInvites ActivityInvite[]
   attendances     Attendance[]
   careReports     CareReport[]
+  shifts          Shift[]
 
   @@unique([id, schoolId])
   @@index([schoolId, deletedAt])

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, use, useRef } from "react";
+import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
 import { Topbar } from "@/components/layout/Topbar";
@@ -38,7 +38,6 @@ type ClassData = {
   period: "MORNING" | "EVENING" | null;
   registrationDate: string | null;
   notes: string | null;
-  imageUrl: string | null;
   students: ClassStudent[];
   _count: { students: number };
 };
@@ -66,11 +65,6 @@ export default function ClassProfilePage({
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [studentSearch, setStudentSearch] = useState("");
 
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [uploadingImage, setUploadingImage] = useState(false);
-  const [imageError, setImageError] = useState("");
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState({
     name: "",
@@ -92,6 +86,7 @@ export default function ClassProfilePage({
   const [availableError, setAvailableError] = useState<string | null>(null);
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [isAdding, setIsAdding] = useState(false);
+  const [removingStudentId, setRemovingStudentId] = useState<string | null>(null);
 
   function fillForm(c: ClassData) {
     setForm({
@@ -102,8 +97,6 @@ export default function ClassProfilePage({
       registrationDate: c.registrationDate ? c.registrationDate.slice(0, 10) : "",
       notes: c.notes ?? "",
     });
-    setImageUrl(c.imageUrl ?? null);
-    setImagePreview(c.imageUrl ?? null);
   }
 
   useEffect(() => {
@@ -183,28 +176,18 @@ export default function ClassProfilePage({
     }
   }
 
-  async function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 100 * 1024 * 1024) {
-      setImageError(t("common.fileTooLarge"));
-      e.target.value = "";
-      return;
-    }
-    setImageError("");
-    const reader = new FileReader();
-    reader.onload = (ev) => setImagePreview(ev.target?.result as string);
-    reader.readAsDataURL(file);
-    setUploadingImage(true);
+  async function handleRemoveStudent(student: ClassStudent) {
+    if (removingStudentId) return;
+    if (!window.confirm(t("classes.removeStudentConfirm"))) return;
+    setRemovingStudentId(student.id);
+    setError(null);
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const res = await axios.post<{ url: string }>("/api/upload", fd);
-      setImageUrl(res.data.url);
-    } catch {
-      setError(t("common.uploadFailed"));
+      await axios.delete(`/api/classes/${id}/students?studentId=${encodeURIComponent(student.id)}`);
+      refreshClass();
+    } catch (requestError) {
+      setError(axios.isAxiosError(requestError) ? (requestError.response?.data?.error ?? t("common.error")) : t("common.error"));
     } finally {
-      setUploadingImage(false);
+      setRemovingStudentId(null);
     }
   }
 
@@ -231,7 +214,6 @@ export default function ClassProfilePage({
         period: form.period || null,
         registrationDate: form.registrationDate || null,
         notes: form.notes || null,
-        imageUrl: imageUrl ?? null,
       });
       setCls(res.data);
       fillForm(res.data);
@@ -273,7 +255,7 @@ export default function ClassProfilePage({
 
   if (loading) {
     return (
-      <div dir="rtl" className="min-h-screen bg-brand-bg">
+      <div className="min-h-screen bg-brand-bg">
         <Topbar title={t("classes.form.title")} />
         <div className="flex justify-center items-center h-64">
           <div className="w-7 h-7 border-2 border-gray-200 border-t-[#F64651] rounded-full animate-spin" />
@@ -284,7 +266,7 @@ export default function ClassProfilePage({
 
   if (notFound || !cls) {
     return (
-      <div dir="rtl" className="min-h-screen bg-brand-bg">
+      <div className="min-h-screen bg-brand-bg">
         <Topbar title={t("classes.form.title")} />
         <div className="p-6 text-center text-gray-400">{t("common.noData")}</div>
       </div>
@@ -296,7 +278,7 @@ export default function ClassProfilePage({
   );
 
   return (
-    <div dir="rtl" className="min-h-screen bg-brand-bg">
+    <div className="min-h-screen bg-brand-bg">
       <Topbar title={cls.name} />
       <div className="p-6 space-y-5">
         <div className="flex items-center justify-between flex-wrap gap-3">
@@ -322,7 +304,7 @@ export default function ClassProfilePage({
                 <PermissionGate permission="classes.manage">
                   <button
                     onClick={saveEditing}
-                    disabled={saving || uploadingImage}
+                    disabled={saving}
                     className="px-4 py-2 bg-[#F64651] text-white rounded-lg text-sm font-medium hover:bg-[#D93A44] disabled:opacity-60 transition-colors"
                   >
                     {saving ? t("common.loading") : t("classes.form.save")}
@@ -354,47 +336,6 @@ export default function ClassProfilePage({
             {error}
           </div>
         )}
-
-        {/* Class image */}
-        <div className="bg-white rounded-xl shadow-md overflow-hidden">
-          {editing ? (
-            <div className="p-4">
-              <div
-                className="border-2 border-dashed border-gray-200 rounded-xl overflow-hidden cursor-pointer hover:border-[#F64651] transition-colors"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                {imagePreview ? (
-                  <img src={imagePreview} alt={cls.name} className="w-full h-40 object-cover" />
-                ) : (
-                  <div className="h-32 flex flex-col items-center justify-center gap-2 text-gray-400">
-                    <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center text-xl">🖼</div>
-                    <span className="text-xs">{t("classes.uploadHint")}</span>
-                  </div>
-                )}
-              </div>
-              <input ref={fileInputRef} type="file" accept=".jpg,.jpeg,.png" className="hidden" onChange={handleImageChange} />
-              {imageError && (
-                <p className="text-xs mt-1 text-right" style={{ color: "#F64651" }}>{imageError}</p>
-              )}
-              {uploadingImage && <p className="text-xs text-gray-400 mt-1">{t("studentProfile.uploading")}</p>}
-              {imagePreview && (
-                <button
-                  type="button"
-                  onClick={() => { setImageUrl(null); setImagePreview(null); }}
-                  className="text-xs text-red-500 hover:underline mt-1"
-                >
-                  {t("common.deleteImage")}
-                </button>
-              )}
-            </div>
-          ) : cls.imageUrl ? (
-            <img src={cls.imageUrl} alt={cls.name} className="w-full h-48 object-cover" />
-          ) : (
-            <div className="w-full h-40 bg-gray-100 flex items-center justify-center text-gray-400">
-              <div className="w-12 h-12 bg-gray-200 rounded flex items-center justify-center text-xs">[img]</div>
-            </div>
-          )}
-        </div>
 
         {/* Info card */}
         <div className="bg-white rounded-xl shadow-md p-6">
@@ -573,6 +514,17 @@ export default function ClassProfilePage({
                       </span>
                     )}
                   </p>
+
+                  <PermissionGate permission="classes.assign">
+                    <button
+                      type="button"
+                      onClick={(event) => { event.stopPropagation(); void handleRemoveStudent(student); }}
+                      disabled={removingStudentId === student.id}
+                      className="mt-2 w-full rounded-lg border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
+                    >
+                      {removingStudentId === student.id ? t("common.loading") : t("classes.removeStudent")}
+                    </button>
+                  </PermissionGate>
 
                   <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 bg-white border border-gray-200 rounded-xl shadow-lg p-3 hidden group-hover:block z-10 text-right">
                     <div className="flex items-center gap-3">

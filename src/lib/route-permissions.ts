@@ -131,9 +131,9 @@ export const ROUTE_PERMISSIONS: Record<string, RouteRule> = {
       DELETE: "classes.archive",
     },
   },
-  "/api/classes/:id/students": { default: "classes.view" },
   "/api/classes/:id/available-students": { default: "classes.assign" },
   "/api/classes/:id/add-students": { default: "classes.assign" },
+  "/api/classes/:id/students": { methods: { GET: "classes.view", DELETE: "classes.assign" } },
 
   // ── Attendance ──────────────────────────────────────────────────────────
   "/api/attendance/page-data": { default: "attendance.students" },

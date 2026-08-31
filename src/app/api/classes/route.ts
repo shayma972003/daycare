@@ -16,7 +16,6 @@ const createClassSchema = z.object({
   period: z.enum(["MORNING", "EVENING"]).optional(),
   registrationDate: z.string().optional(),
   notes: z.string().optional(),
-  imageUrl: z.string().optional(),
 });
 
 export async function GET(request: Request) {
@@ -63,7 +62,6 @@ export async function GET(request: Request) {
       notes: true,
       teacherId: true,
       teacher: { select: { id: true, name: true } },
-      imageUrl: true,
       needsTeacherWarning: true,
       // Only ids are needed for the list's student count — full student rows
       // (with base64 avatar/evaluation blobs) are never needed here.
@@ -100,7 +98,7 @@ export async function POST(request: Request) {
     return Response.json({ error: parsed.error.flatten() }, { status: 422 });
   }
 
-  const { name, teacherId, group, stageId, period, registrationDate, notes, imageUrl } = parsed.data;
+  const { name, teacherId, group, stageId, period, registrationDate, notes } = parsed.data;
 
   // Proven to belong to this school before it is stored: the id comes from the
   // client, and a room pointing at another tenant's stage would render that
@@ -141,7 +139,6 @@ export async function POST(request: Request) {
       ...(period !== undefined && { period }),
       ...(registrationDate !== undefined && { registrationDate: new Date(registrationDate) }),
       ...(notes !== undefined && { notes }),
-      ...(imageUrl !== undefined && { imageUrl }),
     },
     include: {
       teacher: { select: { id: true, name: true } },

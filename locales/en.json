@@ -428,6 +428,8 @@
     "enrolledHere": "Children enrolled in this class",
     "noAvailableStudents": "No children available to add",
     "uploadHint": "Click to upload an image (jpg, png)",
+    "removeStudent": "Remove from class",
+    "removeStudentConfirm": "Remove this student from the class only? The student, attendance, and subscription will not be deleted.",
     "periodMismatch": "The child is registered as {student} but the class is {class}",
     "selectedCount": "{count} selected",
     "noHeadTeacher": "This class has no lead teacher",

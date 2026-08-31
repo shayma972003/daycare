@@ -428,6 +428,8 @@
     "enrolledHere": "الأطفال المسجلين في هذا الفصل",
     "noAvailableStudents": "لا يوجد طلاب متاحون للإضافة",
     "uploadHint": "انقر لرفع صورة (jpg, png)",
+    "removeStudent": "إزالة من الفصل",
+    "removeStudentConfirm": "إزالة هذا الطالب من الفصل فقط؟ لن يُحذف الطالب أو حضوره أو اشتراكه.",
     "periodMismatch": "الطالب مسجل كـ {student} لكن الفصل {class}",
     "selectedCount": "{count} طالب محدد",
     "noHeadTeacher": "هذا الفصل بدون معلم مسؤول",

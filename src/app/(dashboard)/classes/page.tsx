@@ -26,7 +26,6 @@ interface ClassItem {
   notes?: string | null;
   teacherId?: string | null;
   teacher?: { id: string; name: string } | null;
-  imageUrl?: string | null;
   students: { id: string }[];
   needsTeacherWarning?: boolean;
 }
@@ -204,19 +203,6 @@ export default function ClassesPage() {
                     ⚠
                   </span>
                 )}
-                {/* Image */}
-                <div className="w-full bg-gray-100 flex items-center justify-center text-gray-400" style={{ height: 120 }}>
-                  {cls.imageUrl ? (
-                    <img src={cls.imageUrl} alt={cls.name} className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="flex flex-col items-center gap-1">
-                      <div className="w-10 h-10 bg-gray-200 rounded flex items-center justify-center text-xs">
-                        {t("common.imagePlaceholder")}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
                 {/* Card body */}
                 <div className="p-3 space-y-2">
                   <p className="font-bold text-[#111111] text-sm leading-tight line-clamp-1">

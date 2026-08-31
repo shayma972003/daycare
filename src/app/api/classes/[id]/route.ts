@@ -25,7 +25,6 @@ const updateClassSchema = z.object({
   period: z.enum(["MORNING", "EVENING"]).nullish(),
   registrationDate: z.string().nullish(),
   notes: z.string().nullish(),
-  imageUrl: z.string().nullish(),
 });
 
 export async function GET(
@@ -74,10 +73,9 @@ export async function GET(
   }
 
   // Capacity resolved server-side so every screen reports "over" the same way.
-  return Response.json(
-    { ...cls, capacityState: capacityState(cls._count.students, cls.capacity) },
-    { status: 200 }
-  );
+  const { imageUrl: _legacyImageUrl, ...classData } = cls;
+  void _legacyImageUrl;
+  return Response.json({ ...classData, capacityState: capacityState(cls._count.students, cls.capacity) }, { status: 200 });
 }
 
 export async function PUT(
@@ -145,7 +143,6 @@ export async function PUT(
     updateData.registrationDate = data.registrationDate ? new Date(data.registrationDate) : null;
   }
   if ("notes" in data) updateData.notes = data.notes ?? null;
-  if ("imageUrl" in data) updateData.imageUrl = data.imageUrl ?? null;
 
   const existing = await prisma.class.findFirst({ where: { id, schoolId, deletedAt: null } });
   if (!existing) {
@@ -184,7 +181,9 @@ export async function PUT(
     request,
   });
 
-  return Response.json(cls, { status: 200 });
+  const { imageUrl: _legacyImageUrl, ...classData } = cls;
+  void _legacyImageUrl;
+  return Response.json(classData, { status: 200 });
 }
 
 export async function DELETE(

@@ -1,8 +1,9 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { generatePaymentCycles } from "@/lib/payment-cycles";
-import { updatePaymentStatuses } from "@/lib/payment-status-updater";
-import { logAction } from "@/lib/activity-logger";
+import { requestTimeZone, calendarToday } from "@/lib/device-date";
+import { subscriptionFilterWhere } from "@/lib/student-lifecycle";
+import { activityLogData } from "@/lib/activity-logger";
 import {
   assertClassOwned,
   assertGuardianOwned,
@@ -11,15 +12,14 @@ import {
 import { assertStudentCapacity, planLimitResponse } from "@/lib/plan-limits";
 import {
   parseAcademicStage,
-  parseAttendanceType,
   parsePaymentStatus,
 } from "@/lib/enum-labels";
 import { protectIdNumber } from "@/lib/pii-crypto";
-import { logSafeError } from "@/lib/safe-logger";
 import { resolveStageId, foreignStageResponse } from "@/lib/academic-stage";
 import { studentDetailDto, studentDetailSelect, studentListDto } from "@/lib/roster-dto";
 import { withNoStore } from "@/lib/auth-response";
 import { moneyNumber } from "@/lib/money";
+import { logSafeError } from "@/lib/safe-logger";
 import { z } from "zod";
 
 const createStudentSchema = z.object({
@@ -36,7 +36,9 @@ const createStudentSchema = z.object({
   nationality: z.string().optional(),
   gender: z.enum(["MALE", "FEMALE"]).optional(),
   allergies: z.string().optional(),
-  attendanceType: z.string().optional(),
+  billingCycle: z.enum(["DAILY", "WEEKLY", "MONTHLY", "YEARLY", "CUSTOM"]).optional(),
+  billingIntervalDays: z.number().int().positive().optional().nullable(),
+  cycleFee: z.number().min(0).optional().nullable(),
   paymentMethod: z.enum(["CASH", "TRANSFER", "CARD"]).optional(),
   enrollmentDate: z.string().optional(),
   enrollmentEndDate: z.string().optional(),
@@ -67,13 +69,17 @@ export async function GET(request: Request) {
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
 
-  updatePaymentStatuses(schoolId).catch((err) => logSafeError("students-payment-status", err));
+  let timeZone: string;
+  try { timeZone = requestTimeZone(request); }
+  catch { return Response.json({ error: "Invalid time zone" }, { status: 422 }); }
+  const today = calendarToday(new Date(), timeZone);
 
   const { searchParams } = new URL(request.url);
   const search = searchParams.get("search");
   const classId = searchParams.get("classId");
   const paymentStatus = searchParams.get("paymentStatus");
   const gender = searchParams.get("gender");
+  const subscription = searchParams.get("subscription");
 
   const where: Record<string, unknown> = { schoolId, deletedAt: null };
 
@@ -87,50 +93,62 @@ export async function GET(request: Request) {
     return Response.json({ error: "Forbidden", code: "FORBIDDEN" }, { status: 403 });
   }
   if (paymentStatus) {
-    where.paymentStatus = paymentStatus;
+    where.AND = paymentStatus === "PENDING"
+      ? [{ OR: [{ paymentStatus: "PENDING" }, { paymentStatus: { in: ["PAID", "LATE"] }, enrollmentEndDate: { lt: today } }] }]
+      : [ { paymentStatus }, ...(["PAID", "LATE"].includes(paymentStatus) ? [subscriptionFilterWhere("current", today)] : []) ];
   }
   if (gender) {
     where.gender = gender;
   }
+  Object.assign(where, subscriptionFilterWhere(subscription, today));
 
-  const students = await prisma.student.findMany({
-    where,
-    select: {
-      id: true,
-      name: true,
-      period: true,
-      paymentStatus: true,
-      classId: true,
-      class: { select: { id: true, name: true } },
-      guardian: { select: { id: true, name: true, phone1: true, phone2: true, email: true } },
-      isActive: true,
-      needsClassWarning: true,
-      /**
-       * Included again since uploads moved to R2 (task 0.35).
-       *
-       * It was excluded because the column held a base64 payload, and sixty of
-       * those made the roster a multi-megabyte response. It now holds a short
-       * `/api/files/…` path, so the cost is a few dozen bytes per row and the
-       * list can show faces instead of initials.
-       *
-       * `evaluationFileUrl` stays out: nothing in a list renders it.
-       */
-      avatarUrl: true,
-    },
-    orderBy: { name: "asc" },
-  });
+  try {
+    const students = await prisma.student.findMany({
+      where,
+      select: {
+        id: true,
+        name: true,
+        period: true,
+        paymentStatus: true,
+        classId: true,
+        class: { select: { id: true, name: true } },
+        guardian: { select: { id: true, name: true, phone1: true, phone2: true, email: true } },
+        isActive: true,
+        enrollmentEndDate: true,
+        billingCycle: true,
+        billingIntervalDays: true,
+        status: true,
+        needsClassWarning: true,
+        /**
+         * Included again since uploads moved to R2 (task 0.35).
+         *
+         * It was excluded because the column held a base64 payload, and sixty of
+         * those made the roster a multi-megabyte response. It now holds a short
+         * `/api/files/…` path, so the cost is a few dozen bytes per row and the
+         * list can show faces instead of initials.
+         *
+         * `evaluationFileUrl` stays out: nothing in a list renders it.
+         */
+        avatarUrl: true,
+      },
+      orderBy: { name: "asc" },
+    });
 
-  return withNoStore(
-    Response.json(
-      students.map((student) =>
-        studentListDto(student, {
-          contact: session.can("students.guardians") || session.can("students.manage"),
-          financial: session.can("finance.view") || session.can("finance.manage"),
-        })
-      ),
-      { status: 200 }
-    )
-  );
+    return withNoStore(
+      Response.json(
+        students.map((student) =>
+          studentListDto(student, {
+            contact: session.can("students.guardians") || session.can("students.manage"),
+            financial: session.can("finance.view") || session.can("finance.manage"),
+          }, timeZone)
+        ),
+        { status: 200 }
+      )
+    );
+  } catch (error) {
+    logSafeError("students.list", error);
+    return withNoStore(Response.json({ error: "Unable to load students" }, { status: 500 }));
+  }
 }
 
 export async function POST(request: Request) {
@@ -170,7 +188,9 @@ export async function POST(request: Request) {
     nationality,
     gender,
     allergies,
-    attendanceType,
+    billingCycle,
+    billingIntervalDays,
+    cycleFee,
     paymentMethod,
     enrollmentDate,
     enrollmentEndDate,
@@ -219,23 +239,12 @@ export async function POST(request: Request) {
     throw error;
   }
 
-  if (!guardianId && guardianName) {
-    // Try to find existing guardian by phone1 or email within school
-    const existing = await prisma.guardian.findFirst({
-      where: {
-        schoolId,
-        deletedAt: null,
-        OR: [
-          ...(guardianPhone1 ? [{ phone1: guardianPhone1 }] : []),
-          ...(guardianEmail ? [{ email: guardianEmail }] : []),
-        ],
-      },
-    });
-
-    if (existing) {
-      guardianId = existing.id;
-    } else {
-      const created = await prisma.guardian.create({
+  const student = await prisma.$transaction(async (tx) => {
+    let resolvedGuardianId = guardianId;
+    if (!resolvedGuardianId && guardianName) {
+      // Contact values are not proof of identity. Sharing an existing family
+      // must be an explicit guardianId link (for example when adding a sibling).
+      resolvedGuardianId = (await tx.guardian.create({
         data: {
           schoolId,
           name: guardianName,
@@ -247,17 +256,14 @@ export async function POST(request: Request) {
           phone_4: guardianPhone4 ?? null,
           email_2: guardianEmail2 ?? null,
         },
-      });
-      guardianId = created.id;
+      })).id;
     }
-  }
-
-  const student = await prisma.student.create({
+    const created = await tx.student.create({
     data: {
       schoolId,
       name,
       ...(ownedClassId !== null && { classId: ownedClassId }),
-      ...(guardianId !== null && { guardianId }),
+      ...(resolvedGuardianId !== null && { guardianId: resolvedGuardianId }),
       ...(healthCondition !== undefined && { healthCondition }),
       // Free-text values from older clients and imports are mapped onto the
       // enum rather than rejected.
@@ -269,9 +275,9 @@ export async function POST(request: Request) {
       ...(nationality !== undefined && { nationality }),
       ...(gender !== undefined && { gender }),
       ...(allergies !== undefined && { allergies }),
-      ...(attendanceType !== undefined && {
-        attendanceType: parseAttendanceType(attendanceType) ?? "REGULAR",
-      }),
+      ...(billingCycle !== undefined && { billingCycle }),
+      ...(billingIntervalDays !== undefined && { billingIntervalDays: billingIntervalDays ?? null }),
+      ...(cycleFee !== undefined && { cycleFee: cycleFee ?? null }),
       ...(paymentMethod !== undefined && { paymentMethod }),
       ...(enrollmentDate !== undefined && {
         enrollment_date: new Date(enrollmentDate),
@@ -285,11 +291,23 @@ export async function POST(request: Request) {
       ...(registration_fee !== undefined && { registration_fee }),
     },
     select: studentDetailSelect,
+    });
+    await generatePaymentCycles(created.id, tx);
+    await tx.activityLog.create({
+      data: activityLogData({
+        school_id: schoolId,
+        action: `إضافة طالب جديد: ${created.name}`,
+        entity_type: "student",
+        entity_id: created.id,
+        entity_name: created.name,
+        performed_by: session.user.name ?? "المدير",
+        request,
+      }),
+    });
+    return created;
   });
 
-  await generatePaymentCycles(student.id);
-
-  await logAction({
+  /* await logAction({
     school_id: schoolId,
     action: `إضافة طالب جديد: ${student.name}`,
     entity_type: "student",
@@ -297,7 +315,7 @@ export async function POST(request: Request) {
     entity_name: student.name,
     performed_by: session.user.name ?? "المدير",
     request,
-  });
+  }); */
 
   return withNoStore(
     Response.json(

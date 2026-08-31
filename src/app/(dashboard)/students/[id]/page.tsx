@@ -10,14 +10,22 @@ import { Topbar } from "@/components/layout/Topbar";
 import { formatDate, formatCurrency } from "@/lib/utils";
 import { InvoiceModal } from "@/components/students/InvoiceModal";
 import { FormErrors, collectMessages } from "@/components/ui/FormErrors";
+import { DataErrorState } from "@/components/ui/DataLoadState";
+import { describeApiError } from "@/lib/api-error";
 import { StudentCareFeed } from "@/components/care/StudentCareFeed";
 import { STUDENT_STATUS_LABEL_KEYS } from "@/lib/enum-labels";
 import { PAYMENT_STATUSES } from "@/lib/payment-status";
-import { astDateInputValue } from "@/lib/datetime";
+import { astDateInputValue, formatDurationHours } from "@/lib/datetime";
 import { useT, useLocale } from "@/lib/i18n-provider";
 import { useAcademicStages, useStageName } from "@/lib/use-academic-stages";
 import { PermissionGate } from "@/components/auth/PermissionGate";
 import { usePermissions } from "@/lib/use-permissions";
+import { BILLING_CYCLES, BILLING_CYCLE_LABEL_KEYS } from "@/lib/billing-cycles";
+import { renewalNeedsReactivation, renewalErrorKey, subscriptionExpired } from "@/lib/student-lifecycle";
+import { RenewalConfirmation } from "@/components/students/RenewalConfirmation";
+import { calendarToday, dateLabel, deviceHeaders } from "@/lib/device-date";
+import { automaticSubscriptionEnd } from "@/lib/subscription-period";
+import { useDeviceDay } from "@/lib/use-device-day";
 
 /** ACTIVE is excluded: this is the set of reasons a child *leaves*. */
 type StudentDepartureStatus = "GRADUATED" | "WITHDRAWN" | "TRANSFERRED";
@@ -46,6 +54,7 @@ type StudentData = {
   stageId: string | null;
   period: string;
   classId: string | null;
+  class?: { id: string; name: string } | null;
   idNumber: string | null;
   dateOfBirth: string | null;
   nationality: string | null;
@@ -56,7 +65,9 @@ type StudentData = {
   guardian: { id: string; name: string; phone1?: string | null; phone2?: string | null; email?: string | null; name_2?: string | null; phone_3?: string | null; phone_4?: string | null; email_2?: string | null } | null;
   registration_fee: number;
   registration_fee_is_default?: boolean;
-  attendanceType: string;
+  billingCycle: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY" | "CUSTOM";
+  billingIntervalDays: number | null;
+  cycleFee: number | null;
   paymentMethod: string;
   enrollmentDate: string | null;
   enrollmentEndDate: string | null;
@@ -64,6 +75,7 @@ type StudentData = {
   attendanceHours: number;
   lateHours: number;
   isActive: boolean;
+  status: string;
   siblings: Sibling[];
   evaluationFileUrl?: string | null;
   evaluationFileName?: string | null;
@@ -90,7 +102,9 @@ type FormData = {
   guardianPhone4: string;
   guardianEmail2: string;
   registrationFee: string;
-  attendanceType: string;
+  billingCycle: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY" | "CUSTOM";
+  billingIntervalDays: number | null;
+  cycleFee: string;
   paymentMethod: string;
   enrollmentDate: string;
   enrollmentEndDate: string;
@@ -116,11 +130,22 @@ export default function StudentProfilePage({
   const canViewFinance = can("finance.view") || can("finance.manage");
   const canManageGuardians = can("students.guardians") || can("students.manage");
   const [classes, setClasses] = useState<Class[]>([]);
+  const [classesLoading, setClassesLoading] = useState(false);
+  const [classesError, setClassesError] = useState<string | null>(null);
+  const [classesRetry, setClassesRetry] = useState(0);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadRetry, setLoadRetry] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [renewing, setRenewing] = useState(false);
+  const deviceDay = useDeviceDay();
+  const renewalInFlight = useRef(false);
+  const [showRenewal, setShowRenewal] = useState(false);
+  const [renewalError, setRenewalError] = useState<string | null>(null);
   const [student, setStudent] = useState<StudentData | null>(null);
   const [guardianId, setGuardianId] = useState<string | null>(null);
+  const initialGuardianId = useRef<string | null>(null);
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
   const [guardianLinked, setGuardianLinked] = useState(false);
   const [suggestions, setSuggestions] = useState<GuardianSuggestion[]>([]);
@@ -149,6 +174,7 @@ export default function StudentProfilePage({
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const guardianSearchController = useRef<AbortController | null>(null);
 
   // Same schema as the create form — an edit that accepts what creation refuses
   // is how invalid rows get in through the side door (task 2.41).
@@ -167,17 +193,21 @@ export default function StudentProfilePage({
     setInvalidFields(collectMessages(fieldErrors));
   }
 
-  const { register, handleSubmit, reset, watch, setValue, formState: { errors } } =
+  const { register, handleSubmit, reset, resetField, getValues, watch, formState: { dirtyFields } } =
     useForm<FormData>({
       resolver: zodResolver(studentFormSchema) as Resolver<FormData>,
     });
 
   useEffect(() => {
+    const controller = new AbortController();
+    setLoadError(null);
+    setLoading(true);
     Promise.all([
-      axios.get<StudentData>(`/api/students/${id}?revealIdentity=true`),
-      axios.get<Invoice[]>(`/api/invoices?studentId=${id}`),
+      axios.get<StudentData>(`/api/students/${id}?revealIdentity=true`, { signal: controller.signal, headers: deviceHeaders() }),
+      axios.get<Invoice[]>(`/api/invoices?studentId=${id}`, { signal: controller.signal }),
     ])
       .then(([studentRes, invRes]) => {
+        if (controller.signal.aborted) return;
         const s = studentRes.data;
         setStudent(s);
         setInvoices(invRes.data);
@@ -185,6 +215,7 @@ export default function StudentProfilePage({
           setGuardianId(s.guardianId);
           setGuardianLinked(true);
         }
+        initialGuardianId.current = s.guardianId ?? null;
         setEvalFileUrl(s.evaluationFileUrl ?? null);
         setEvalFileName(s.evaluationFileName ?? null);
         setAvatarUrl(s.avatarUrl ?? null);
@@ -209,26 +240,46 @@ export default function StudentProfilePage({
           guardianPhone4: s.guardian?.phone_4 ?? "",
           guardianEmail2: s.guardian?.email_2 ?? "",
           registrationFee: String(s.registration_fee ?? 0),
-          attendanceType: s.attendanceType ?? t("attendanceTypes.REGULAR"),
+          billingCycle: s.billingCycle ?? "MONTHLY",
+          billingIntervalDays: s.billingIntervalDays ?? null,
+          cycleFee: s.cycleFee == null ? "" : String(s.cycleFee),
           paymentMethod: s.paymentMethod,
           enrollmentDate: s.enrollmentDate ? s.enrollmentDate.slice(0, 10) : "",
           enrollmentEndDate: s.enrollmentEndDate ? s.enrollmentEndDate.slice(0, 10) : "",
           paymentStatus: s.paymentStatus,
         });
       })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [id, reset, t]);
+      .catch((error) => {
+        if (!controller.signal.aborted && !axios.isCancel(error)) {
+          setLoadError(describeApiError(error, t("common.error")));
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, [id, loadRetry, reset, t]);
 
   const periodVal = watch("period");
 
   useEffect(() => {
     if (loading) return;
+    const controller = new AbortController();
+    setClassesLoading(true);
+    setClassesError(null);
     axios
-      .get<Class[]>("/api/classes", { params: periodVal ? { period: periodVal } : {} })
+      .get<Class[]>("/api/students/class-options", { params: periodVal ? { period: periodVal } : {}, signal: controller.signal })
       .then((r) => setClasses(r.data))
-      .catch(() => {});
-  }, [periodVal, loading]);
+      .catch((error) => {
+        if (!controller.signal.aborted && !axios.isCancel(error)) {
+          setClassesError(describeApiError(error, t("common.error")));
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setClassesLoading(false);
+      });
+    return () => controller.abort();
+  }, [periodVal, loading, classesRetry, t]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -241,14 +292,21 @@ export default function StudentProfilePage({
   }, []);
 
   const searchGuardians = useCallback((query: string) => {
+    guardianSearchController.current?.abort();
     if (query.length < 3) { setSuggestions([]); setShowSuggestions(false); return; }
     if (searchTimer.current) clearTimeout(searchTimer.current);
     searchTimer.current = setTimeout(async () => {
+      const controller = new AbortController();
+      guardianSearchController.current = controller;
       try {
-        const res = await axios.post<GuardianSuggestion[]>("/api/guardians/search", { query });
-        setSuggestions(res.data);
-        setShowSuggestions(res.data.length > 0);
-      } catch { /* ignore */ }
+        const res = await axios.post<GuardianSuggestion[]>("/api/guardians/search", { query }, { signal: controller.signal });
+        if (!controller.signal.aborted) {
+          setSuggestions(res.data);
+          setShowSuggestions(res.data.length > 0);
+        }
+      } catch (error) {
+        if (!controller.signal.aborted && !axios.isCancel(error)) setShowSuggestions(false);
+      }
     }, 300);
   }, []);
 
@@ -259,16 +317,27 @@ export default function StudentProfilePage({
   }
 
   function handleGuardian2FieldChange(value: string) {
-    if (value.length < 3) return;
+    guardianSearchController.current?.abort();
+    if (value.length < 3) { setSuggestions([]); setShowSuggestions(false); return; }
     if (searchTimer.current) clearTimeout(searchTimer.current);
     searchTimer.current = setTimeout(async () => {
+      const controller = new AbortController();
+      guardianSearchController.current = controller;
       try {
-        const res = await axios.post<GuardianSuggestion[]>("/api/guardians/search", { query: value });
+        const res = await axios.post<GuardianSuggestion[]>("/api/guardians/search", { query: value }, { signal: controller.signal });
+        if (controller.signal.aborted) return;
         if (res.data.length === 1) selectGuardian(res.data[0]);
         else if (res.data.length > 1) { setSuggestions(res.data); setShowSuggestions(true); }
-      } catch { /* ignore */ }
+      } catch (error) {
+        if (!controller.signal.aborted && !axios.isCancel(error)) setShowSuggestions(false);
+      }
     }, 300);
   }
+
+  useEffect(() => () => {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    guardianSearchController.current?.abort();
+  }, []);
 
   function selectGuardian(g: GuardianSuggestion) {
     setGuardianId(g.id);
@@ -288,10 +357,34 @@ export default function StudentProfilePage({
     setShowSuggestions(false);
   }
 
+  function syncSavedSubscription(saved: Pick<StudentData, "billingCycle" | "billingIntervalDays" | "cycleFee" | "enrollmentDate" | "enrollmentEndDate" | "paymentStatus" | "isActive" | "status">, submitted?: FormData) {
+    setStudent((previous) => previous ? { ...previous,
+      billingCycle: saved.billingCycle, billingIntervalDays: saved.billingIntervalDays,
+      cycleFee: saved.cycleFee, enrollmentDate: saved.enrollmentDate,
+      enrollmentEndDate: saved.enrollmentEndDate, paymentStatus: saved.paymentStatus,
+      isActive: saved.isActive, status: saved.status,
+    } : previous);
+    const values = {
+      billingCycle: saved.billingCycle,
+      billingIntervalDays: saved.billingIntervalDays,
+      cycleFee: saved.cycleFee == null ? "" : String(saved.cycleFee),
+      enrollmentDate: saved.enrollmentDate?.slice(0, 10) ?? "",
+      enrollmentEndDate: saved.enrollmentEndDate?.slice(0, 10) ?? "",
+      paymentStatus: saved.paymentStatus,
+    };
+    for (const key of Object.keys(values) as (keyof typeof values)[]) {
+      // Keep an edit made while Save was pending; renewal itself deliberately
+      // replaces subscription fields, but never touches unsaved contact data.
+      if (!submitted || getValues(key) === submitted[key]) resetField(key, { defaultValue: values[key] });
+    }
+  }
+
   async function onSave(data: FormData) {
+    if (saving || renewalInFlight.current) return;
+    const submittedValues = getValues();
     setSaving(true);
     try {
-      await axios.put(`/api/students/${id}`, {
+      const payloadDraft = {
         name: data.name,
         classId: data.classId || null,
         healthCondition: data.healthCondition || null,
@@ -302,7 +395,9 @@ export default function StudentProfilePage({
         nationality: data.nationality || null,
         gender: data.gender,
         allergies: data.allergies || null,
-        attendanceType: data.attendanceType || t("attendanceTypes.REGULAR"),
+        ...(data.billingCycle && { billingCycle: data.billingCycle }),
+        ...(data.billingIntervalDays !== undefined && { billingIntervalDays: data.billingIntervalDays }),
+        ...(data.cycleFee !== undefined && { cycleFee: data.cycleFee === "" ? null : Number(data.cycleFee) }),
         ...(canViewFinance
           ? {
               paymentMethod: data.paymentMethod,
@@ -335,7 +430,24 @@ export default function StudentProfilePage({
                 : parseFloat(data.registrationFee) || 0,
             }
           : {}),
-      });
+      };
+      const guardianKeys = new Set(["guardianId", "guardianName", "guardianPhone1", "guardianPhone2", "guardianEmail", "guardianName2", "guardianPhone3", "guardianPhone4", "guardianEmail2"]);
+      const payload = Object.fromEntries(Object.entries(payloadDraft).filter(([key]) => {
+        if (guardianKeys.has(key)) {
+          const guardianChanged = guardianId !== initialGuardianId.current || Object.keys(dirtyFields).some((field) => guardianKeys.has(field));
+          return guardianChanged;
+        }
+        return Boolean((dirtyFields as Record<string, unknown>)[key]);
+      }));
+      const response = await axios.put<StudentData>(`/api/students/${id}`, payload, { headers: deviceHeaders() });
+      syncSavedSubscription(response.data, submittedValues);
+      // Submitted fields are no longer dirty. A later Save must not resend the
+      // previous subscription or undo dates returned by renewal.
+      for (const key of Object.keys(dirtyFields) as (keyof FormData)[]) {
+        if (["billingCycle", "billingIntervalDays", "cycleFee", "enrollmentDate", "enrollmentEndDate", "paymentStatus"].includes(key)) continue;
+        if (!Object.hasOwn(payload, key === "registrationFee" ? "registration_fee" : key)) continue;
+        if (getValues(key) === submittedValues[key]) resetField(key, { defaultValue: submittedValues[key] });
+      }
       alert(t("studentProfile.saved"));
     } catch {
       alert(t("common.error"));
@@ -500,7 +612,38 @@ export default function StudentProfilePage({
     }
   }
 
+  useEffect(() => {
+    if (student && !dirtyFields.paymentStatus && !["CANCELLED", "SUSPENDED"].includes(student.paymentStatus) && subscriptionExpired(student.enrollmentEndDate)) {
+      resetField("paymentStatus", { defaultValue: "PENDING" });
+    }
+  }, [deviceDay, student, dirtyFields.paymentStatus, resetField]);
+
   const guardianNameVal = watch("guardianName");
+  const renewalStart = deviceDay ? calendarToday() : null;
+  const renewalEnd = renewalStart && student && (student.billingCycle !== "CUSTOM" || student.billingIntervalDays)
+    ? automaticSubscriptionEnd(renewalStart, student.billingCycle ?? "MONTHLY", student.billingIntervalDays) : null;
+
+  async function renewSubscription(reactivate: boolean) {
+    if (!renewalEnd || renewalInFlight.current) return;
+    renewalInFlight.current = true;
+    setRenewing(true);
+    setRenewalError(null);
+    try {
+      const response = await axios.post<{ student: StudentData }>(`/api/students/${id}/renew`, {
+        mode: "automatic",
+        reactivate,
+      }, { headers: deviceHeaders() });
+      const renewed = response.data.student;
+      syncSavedSubscription(renewed);
+      alert(t("students.subscriptionRenewed"));
+      setShowRenewal(false);
+    } catch (error) {
+      setRenewalError(axios.isAxiosError(error) ? t(renewalErrorKey(error.response?.data?.code)) : t("common.error"));
+    } finally {
+      renewalInFlight.current = false;
+      setRenewing(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -513,9 +656,24 @@ export default function StudentProfilePage({
     );
   }
 
+  if (loadError && !student) {
+    return (
+      <div className="min-h-screen bg-brand-bg">
+        <Topbar title={t("students.profile.title")} />
+        <div className="p-6">
+          <DataErrorState message={loadError} retryLabel={t("common.retry")} onRetry={() => setLoadRetry((value) => value + 1)} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div dir="rtl" className="min-h-screen bg-brand-bg">
       <Topbar title={t("students.profile.title")} />
+      {showRenewal && student && renewalStart && renewalEnd && (
+        <RenewalConfirmation startDate={dateLabel(renewalStart, locale)} endDate={dateLabel(renewalEnd, locale)} cycle={student.billingCycle} needsReactivation={renewalNeedsReactivation(student)} pending={renewing} error={renewalError}
+          onConfirm={renewSubscription} onClose={() => { if (!renewalInFlight.current) setShowRenewal(false); }} />
+      )}
       <div className="p-6">
         <button
           onClick={() => router.push("/students")}
@@ -634,7 +792,6 @@ export default function StudentProfilePage({
                       className={inputCls}
                       onChange={(e) => {
                         register("period").onChange(e);
-                        setValue("classId", "");
                       }}
                     >
                       <option value="MORNING">{t("periods.MORNING")}</option>
@@ -643,10 +800,13 @@ export default function StudentProfilePage({
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">{t("students.profile.class")}</label>
-                    <select {...register("classId")} className={inputCls}>
+                    {classesError ? (
+                      <DataErrorState message={classesError} retryLabel={t("common.retry")} onRetry={() => setClassesRetry((value) => value + 1)} />
+                    ) : <select {...register("classId")} className={inputCls} disabled={classesLoading}>
                       <option value="">— {t("common.select")} —</option>
-                      {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
+                          {[...(student?.class && !classes.some((c) => c.id === student.class?.id) ? [student.class] : []), ...classes].map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>}
+                    {!classesError && !classesLoading && classes.length === 0 && <p className="mt-1 text-xs text-gray-500">{t("students.noClasses")}</p>}
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">{t("students.profile.dateOfBirth")}</label>
@@ -654,11 +814,11 @@ export default function StudentProfilePage({
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">{t("students.profile.attendanceHours")}</label>
-                    <input value={student?.attendanceHours ?? 0} readOnly className={readonlyCls} />
+                    <input value={formatDurationHours(student?.attendanceHours)} readOnly className={readonlyCls} />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">{t("students.profile.lateHours")}</label>
-                    <input value={student?.lateHours ?? 0} readOnly className={readonlyCls} />
+                    <input value={formatDurationHours(student?.lateHours)} readOnly className={readonlyCls} />
                   </div>
                 </div>
 
@@ -863,13 +1023,16 @@ export default function StudentProfilePage({
                 <h2 className="text-base font-bold text-[#111111] mb-5">{t("studentProfile.enrollmentInfo")}</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">{t("studentProfile.attendanceType")}</label>
-                    <select {...register("attendanceType")} className={inputCls}>
-                      <option value="دوام منتظم">{t("attendanceTypes.REGULAR")}</option>
-                      <option value="شفتات">{t("attendanceTypes.SHIFTS")}</option>
-                      <option value="غيره">{t("attendanceTypes.OTHER")}</option>
+                    <label htmlFor="student-billing-cycle" className="block text-xs font-medium text-gray-500 mb-1">{t("students.profile.billingCycle")}</label>
+                    <select id="student-billing-cycle" {...register("billingCycle")} className={inputCls}>
+                      {BILLING_CYCLES.filter((cycle) => ["DAILY", "MONTHLY", "YEARLY"].includes(cycle)).map((cycle) => <option key={cycle} value={cycle}>{t(BILLING_CYCLE_LABEL_KEYS[cycle])}</option>)}
                     </select>
                   </div>
+                  {canViewFinance && <div>
+                    <label htmlFor="student-cycle-fee" className="block text-xs font-medium text-gray-500 mb-1">{t("students.profile.cycleFee")}</label>
+                    <input id="student-cycle-fee" {...register("cycleFee")} type="number" min="0" step="0.01" dir="ltr" className={inputCls} />
+                    <p className="mt-1 text-xs text-gray-500">{t("students.cycleFeeSettingsHint")}</p>
+                  </div>}
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">{t("students.profile.paymentMethod")}</label>
                     <select {...register("paymentMethod")} className={inputCls}>
@@ -879,9 +1042,9 @@ export default function StudentProfilePage({
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">{t("studentProfile.paymentStatusLabel")}</label>
+                    <label htmlFor="student-payment-status" className="block text-xs font-medium text-gray-500 mb-1">{t("studentProfile.paymentStatusLabel")}</label>
                     {/* Generated from the enum — see the note on the create form. */}
-                    <select {...register("paymentStatus")} className={inputCls}>
+                    <select id="student-payment-status" {...register("paymentStatus")} className={inputCls}>
                       {PAYMENT_STATUSES.map((status) => (
                         <option key={status} value={status}>
                           {t(`paymentStatus.${status}`)}
@@ -890,12 +1053,12 @@ export default function StudentProfilePage({
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">{t("fields.joinDate")}</label>
-                    <input {...register("enrollmentDate")} type="date" dir="ltr" className={inputCls} />
+                    <label htmlFor="student-subscription-start" className="block text-xs font-medium text-gray-500 mb-1">{t("students.subscriptionStartDate")}</label>
+                    <input id="student-subscription-start" {...register("enrollmentDate")} type="date" dir="ltr" className={inputCls} />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">{t("students.profile.enrollmentEndDate")}</label>
-                    <input {...register("enrollmentEndDate")} type="date" dir="ltr" className={inputCls} />
+                    <label htmlFor="student-subscription-end" className="block text-xs font-medium text-gray-500 mb-1">{t("students.profile.enrollmentEndDate")}</label>
+                    <input id="student-subscription-end" {...register("enrollmentEndDate")} type="date" dir="ltr" className={inputCls} />
                   </div>
                   <div>
                     <div className="flex items-center justify-between mb-1">
@@ -935,12 +1098,29 @@ export default function StudentProfilePage({
                   <PermissionGate permission="students.manage">
                     <button
                       type="submit"
-                      disabled={saving}
+                      disabled={saving || renewing}
                       className="w-full px-5 py-2.5 rounded-md bg-coral text-white font-medium text-sm
                                  hover:bg-coral-dark active:scale-[0.98] transition-all disabled:opacity-60"
                     >
                       {saving ? t("common.loading") : t("students.profile.actions.save")}
                     </button>
+                  </PermissionGate>
+
+                  <PermissionGate permission="students.manage">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (dirtyFields.billingCycle || dirtyFields.billingIntervalDays || dirtyFields.cycleFee) {
+                          setRenewalError(t("students.renewalSaveTermsFirst")); return;
+                        }
+                        setRenewalError(null); setShowRenewal(true);
+                      }}
+                      disabled={saving || renewing || !renewalEnd}
+                      className="w-full px-5 py-2.5 rounded-md bg-white font-medium text-sm border border-[#4f00c1] text-[#4f00c1] hover:bg-[#4f00c1]/5 disabled:opacity-60"
+                    >
+                      {renewing ? t("common.loading") : t("students.renewSubscription")}
+                    </button>
+                    {!showRenewal && renewalError && <p role="alert" className="text-sm text-red-700">{renewalError}</p>}
                   </PermissionGate>
 
                   {/* 2. ارسال تذكير بالدفع */}

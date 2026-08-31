@@ -33,7 +33,6 @@ export async function reserveEnrollmentSlot(
       AND "token" = ${input.token}
       AND "school_id" = ${input.schoolId}
       AND "status" = 'active'
-      AND "otp_verified" = true
       AND "expires_at" > ${input.now}
       AND "submissions_count" < "max_submissions"
     RETURNING "submissions_count", "max_submissions"

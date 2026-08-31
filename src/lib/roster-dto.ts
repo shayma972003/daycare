@@ -1,4 +1,5 @@
 import { maskIdNumber, revealIdNumber } from "@/lib/pii-crypto";
+import { subscriptionExpired, subscriptionExpiringSoon, subscriptionPaymentStatus } from "@/lib/student-lifecycle";
 
 export interface RosterDtoAccess {
   contact: boolean;
@@ -37,7 +38,6 @@ export const studentDetailSelect = {
   nationality: true,
   gender: true,
   registrationDate: true,
-  attendanceType: true,
   attendanceHours: true,
   lateHours: true,
   paymentMethod: true,
@@ -124,10 +124,15 @@ export function studentListDto(
       email: string | null;
     } | null;
     isActive: boolean;
+    enrollmentEndDate: Date | string | null;
+    billingCycle?: string;
+    billingIntervalDays?: number | null;
+    status?: string;
     needsClassWarning: boolean;
     avatarUrl: string | null;
   },
-  access: Pick<RosterDtoAccess, "contact" | "financial">
+  access: Pick<RosterDtoAccess, "contact" | "financial">,
+  timeZone = "UTC"
 ) {
   return {
     id: student.id,
@@ -144,8 +149,14 @@ export function studentListDto(
           email: student.guardian.email,
         }
       : null,
-    ...(access.financial ? { paymentStatus: student.paymentStatus } : {}),
+    ...(access.financial ? { paymentStatus: subscriptionPaymentStatus(student.paymentStatus, student.enrollmentEndDate, new Date(), timeZone) } : {}),
     isActive: student.isActive,
+    enrollmentEndDate: student.enrollmentEndDate,
+    subscriptionExpired: subscriptionExpired(student.enrollmentEndDate, new Date(), timeZone),
+    subscriptionExpiringSoon: subscriptionExpiringSoon(student.enrollmentEndDate, new Date(), timeZone),
+    billingCycle: student.billingCycle,
+    billingIntervalDays: student.billingIntervalDays,
+    status: student.status,
     needsClassWarning: student.needsClassWarning,
     avatarUrl: student.avatarUrl,
   };
@@ -158,7 +169,8 @@ export function studentDetailDto(
     registrationFee: number | null;
     registrationFeeIsDefault: boolean;
     siblings: Array<{ id: string; name: string; avatarUrl: string | null }>;
-  }
+  },
+  timeZone = "UTC"
 ) {
   const guardian = student.guardian as Record<string, unknown> | null;
   const base = {
@@ -173,7 +185,10 @@ export function studentDetailDto(
     nationality: student.nationality,
     gender: student.gender,
     registrationDate: student.registrationDate,
-    attendanceType: student.attendanceType,
+    billingCycle: student.billingCycle,
+    billingIntervalDays: student.billingIntervalDays,
+    enrollmentDate: student.enrollment_date,
+    enrollmentEndDate: student.enrollmentEndDate,
     attendanceHours: student.attendanceHours,
     lateHours: student.lateHours,
     isActive: student.isActive,
@@ -213,7 +228,7 @@ export function studentDetailDto(
     ...(access.financial
       ? {
           paymentMethod: student.paymentMethod,
-          paymentStatus: student.paymentStatus,
+          paymentStatus: subscriptionPaymentStatus(student.paymentStatus, student.enrollmentEndDate as Date | string | null, new Date(), timeZone),
           billingCycle: student.billingCycle,
           billingIntervalDays: student.billingIntervalDays,
           cycleFee: student.cycleFee,
@@ -231,6 +246,8 @@ export function teacherListDto(teacher: {
   name: string;
   period: unknown;
   isActive: boolean;
+  status: unknown;
+  enrollmentEndDate: Date | null;
   classes: Array<{ id: string; name: string }>;
 }) {
   return { ...teacher };

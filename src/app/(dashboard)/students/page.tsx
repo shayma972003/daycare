@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import axios from "axios";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Topbar } from "@/components/layout/Topbar";
 import { PaymentStatusBadge, PeriodBadge } from "@/components/ui/StatusBadge";
 import { AvatarPlaceholder } from "@/components/ui/IconPlaceholder";
@@ -25,6 +25,13 @@ import {
   type CollectionStatus,
 } from "@/lib/collection-state";
 import { LatestRequest, type RequestTicket } from "@/lib/latest-request";
+import { RenewalReactivationChoice, RenewalConfirmation } from "@/components/students/RenewalConfirmation";
+import { renewalErrorKey, renewalNeedsReactivation, subscriptionExpired, subscriptionExpiringSoon, subscriptionPaymentStatus } from "@/lib/student-lifecycle";
+import { calendarToday, dateLabel, deviceHeaders } from "@/lib/device-date";
+import { automaticSubscriptionEnd } from "@/lib/subscription-period";
+import { useDeviceDay } from "@/lib/use-device-day";
+import type { BillingCycle } from "@/generated/prisma/enums";
+import type { BulkItemResult } from "@/lib/bulk-result";
 import {
   Dialog,
   DialogClose,
@@ -40,11 +47,16 @@ type Student = {
   id: string;
   name: string;
   period: "MORNING" | "EVENING";
-  paymentStatus: "PAID" | "LATE" | "CANCELLED" | "SUSPENDED";
+  paymentStatus: "PAID" | "PENDING" | "LATE" | "CANCELLED" | "SUSPENDED";
+  billingCycle?: BillingCycle;
+  billingIntervalDays?: number | null;
+  status?: string;
   class?: { id: string; name: string } | null;
   classId?: string | null;
   guardian?: { id: string; name: string; phone1?: string | null; phone2?: string | null; email?: string | null } | null;
   isActive: boolean;
+  enrollmentEndDate?: string | null;
+  subscriptionExpired?: boolean;
   needsClassWarning?: boolean;
   avatarUrl?: string | null;
 };
@@ -76,7 +88,6 @@ type EnrollmentSubmission = {
   date_of_birth: string | null;
   health_condition: string | null;
   allergies: string | null;
-  attendance_type: string | null;
   payment_method: string | null;
   submitted_at: string;
 };
@@ -84,7 +95,7 @@ type EnrollmentSubmission = {
 function studentBulkPermission(action: string): string | null {
   if (action === "checkin" || action === "checkout") return "attendance.students";
   if (action === "reminder") return "finance.manage";
-  if (action === "extend_subscription" || (PAYMENT_STATUSES as string[]).includes(action)) {
+  if (action === "renew_subscription" || action === "extend_subscription" || (PAYMENT_STATUSES as string[]).includes(action)) {
     return "students.manage";
   }
   return null;
@@ -93,7 +104,7 @@ function studentBulkPermission(action: string): string | null {
 async function loadStudentAttendance(ticket: RequestTicket) {
   const res = await axios.get<Array<StudentAttendance & { studentId: string }>>(
     "/api/attendance/students/today",
-    { signal: ticket.signal }
+    { signal: ticket.signal, headers: deviceHeaders() }
   );
   const map: Record<string, StudentAttendance> = {};
   res.data.forEach((attendance) => {
@@ -129,6 +140,9 @@ export default function StudentsPage() {
   const stageName = useStageName();
   const { locale } = useLocale();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const subscriptionFilter = searchParams.get("subscription");
+  const deviceDay = useDeviceDay();
   const { can } = usePermissions();
   const canManageEnrollment = can(ENROLLMENT_MANAGE_PERMISSION);
   const canManageAttendance = can("attendance.students");
@@ -157,6 +171,14 @@ export default function StudentsPage() {
   const [showExtendModal, setShowExtendModal] = useState(false);
   const [newEndDate, setNewEndDate] = useState("");
   const [isExtending, setIsExtending] = useState(false);
+  const extendingInFlight = useRef(false);
+  const [reactivateOnRenewal, setReactivateOnRenewal] = useState(false);
+  const [extendError, setExtendError] = useState<string | null>(null);
+  const [renewalStudent, setRenewalStudent] = useState<Student | null>(null);
+  const [automaticBulk, setAutomaticBulk] = useState(false);
+  const renewalToday = deviceDay ? calendarToday() : null;
+  const automaticEnd = renewalToday && renewalStudent && (renewalStudent.billingCycle !== "CUSTOM" || renewalStudent.billingIntervalDays)
+    ? automaticSubscriptionEnd(renewalToday, renewalStudent.billingCycle ?? "MONTHLY", renewalStudent.billingIntervalDays) : null;
   const [xlsxUploading, setXlsxUploading] = useState(false);
   const [xlsxResult, setXlsxResult] = useState<{ added: number; failed: number; errors: string[] } | null>(null);
   const xlsxInputRef = useRef<HTMLInputElement>(null);
@@ -189,6 +211,9 @@ export default function StudentsPage() {
   function closeExtendModal() {
     setShowExtendModal(false);
     setNewEndDate("");
+    setReactivateOnRenewal(false);
+    setExtendError(null);
+    setAutomaticBulk(false);
   }
 
   function closeEnrollmentModal() {
@@ -225,7 +250,6 @@ export default function StudentsPage() {
       date_of_birth_str: sub.date_of_birth ? sub.date_of_birth.slice(0, 10) : "",
       health_condition: sub.health_condition ?? "",
       allergies: sub.allergies ?? "",
-      attendance_type: sub.attendance_type ?? "",
       payment_method: sub.payment_method ?? "",
       guardian_name: sub.guardian_name ?? "",
       guardian_phone_1: sub.guardian_phone_1 ?? "",
@@ -264,9 +288,10 @@ export default function StudentsPage() {
       if (classFilter) params.set("classId", classFilter);
       if (statusFilter) params.set("paymentStatus", statusFilter);
       if (genderFilter) params.set("gender", genderFilter);
+      if (["expired", "current", "expiring"].includes(subscriptionFilter ?? "")) params.set("subscription", subscriptionFilter!);
 
       axios
-        .get<Student[]>(`/api/students?${params}`, { signal: ticket.signal })
+        .get<Student[]>(`/api/students?${params}`, { signal: ticket.signal, headers: deviceHeaders() })
         .then((response) => {
           ticket.commit(() => {
             setStudents(response.data);
@@ -287,7 +312,7 @@ export default function StudentsPage() {
       clearTimeout(timer);
       ticket.cancel();
     };
-  }, [search, classFilter, statusFilter, genderFilter, listRefresh, studentRequests, t]);
+  }, [search, classFilter, statusFilter, genderFilter, subscriptionFilter, deviceDay, listRefresh, studentRequests, t]);
 
   useEffect(() => {
     if (!canManageAttendance) return;
@@ -379,7 +404,7 @@ export default function StudentsPage() {
   async function checkin(studentId: string) {
     setOperationError(null);
     try {
-      await axios.post("/api/attendance/students/checkin", { student_id: studentId });
+      await axios.post("/api/attendance/students/checkin", { student_id: studentId }, { headers: deviceHeaders() });
       await refreshAttendance();
     } catch (error) {
       setOperationError(describeApiError(error, t("common.error")));
@@ -388,7 +413,7 @@ export default function StudentsPage() {
   async function checkout(studentId: string) {
     setOperationError(null);
     try {
-      await axios.post("/api/attendance/students/checkout", { student_id: studentId });
+      await axios.post("/api/attendance/students/checkout", { student_id: studentId }, { headers: deviceHeaders() });
       await refreshAttendance();
     } catch (error) {
       setOperationError(describeApiError(error, t("common.error")));
@@ -461,7 +486,8 @@ export default function StudentsPage() {
     const ids = Array.from(selected);
     if (!bulkAction || ids.length === 0) return;
 
-    if (bulkAction === "extend_subscription") {
+    if (bulkAction === "extend_subscription" || bulkAction === "renew_subscription") {
+      setAutomaticBulk(bulkAction === "renew_subscription");
       setShowExtendModal(true);
       return;
     }
@@ -474,10 +500,10 @@ export default function StudentsPage() {
         const results = await Promise.allSettled(
           ids.map((id) => {
             if (bulkAction === "checkin") {
-              return axios.post("/api/attendance/students/checkin", { student_id: id });
+              return axios.post("/api/attendance/students/checkin", { student_id: id }, { headers: deviceHeaders() });
             }
             if (bulkAction === "checkout") {
-              return axios.post("/api/attendance/students/checkout", { student_id: id });
+              return axios.post("/api/attendance/students/checkout", { student_id: id }, { headers: deviceHeaders() });
             }
             return axios.post(`/api/students/${id}/reminder`);
           })
@@ -504,24 +530,46 @@ export default function StudentsPage() {
 
   async function handleExtendSubscription() {
     const ids = Array.from(selected);
-    if (!newEndDate || ids.length === 0) return;
+    if ((!automaticBulk && !newEndDate) || ids.length === 0 || extendingInFlight.current) return;
+    extendingInFlight.current = true;
     setIsExtending(true);
+    setExtendError(null);
     try {
-      const response = await axios.post<{ updated: number }>("/api/students/bulk-extend", {
+      const response = await axios.post<{ updated: number; results?: BulkItemResult[] }>("/api/students/bulk-extend", {
         ids,
-        enrollmentEndDate: newEndDate,
-      });
-      const outcome = countedBulkOutcome(ids, response.data.updated);
+        ...(automaticBulk ? { mode: "automatic" } : { enrollmentEndDate: newEndDate, mode: "manual" }),
+        ...(reactivateOnRenewal ? { reactivate: true } : {}),
+      }, { headers: deviceHeaders() });
+      const outcome = response.data.results
+        ? exactBulkOutcome(ids, ids.map((id) => response.data.results!.some((result) => result.id === id && result.status === "succeeded")))
+        : countedBulkOutcome(ids, response.data.updated);
+      const codes = [...new Set(response.data.results?.filter((result) => result.status !== "succeeded").map((result) => result.code))];
+      if (codes.length) setExtendError(codes.map((code) => t(renewalErrorKey(code))).join(" "));
       presentBulkOutcome(outcome);
       if (outcome.failed === 0) {
         closeExtendModal();
       }
       refreshStudents();
     } catch (err) {
-      alert(axios.isAxiosError(err) ? err.response?.data?.error ?? t("common.somethingWentWrong") : t("common.somethingWentWrong"));
+      setExtendError(axios.isAxiosError(err) ? t(renewalErrorKey(err.response?.data?.code)) : t("common.somethingWentWrong"));
     } finally {
+      extendingInFlight.current = false;
       setIsExtending(false);
     }
+  }
+
+  async function renewOne(reactivate: boolean) {
+    if (!renewalStudent || extendingInFlight.current) return;
+    extendingInFlight.current = true;
+    setIsExtending(true);
+    setExtendError(null);
+    try {
+      await axios.post(`/api/students/${renewalStudent.id}/renew`, { mode: "automatic", reactivate }, { headers: deviceHeaders() });
+      setRenewalStudent(null);
+      refreshStudents();
+    } catch (error) {
+      setExtendError(axios.isAxiosError(error) ? t(renewalErrorKey(error.response?.data?.code)) : t("common.somethingWentWrong"));
+    } finally { extendingInFlight.current = false; setIsExtending(false); }
   }
 
   async function handleXlsxUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -586,7 +634,6 @@ export default function StudentsPage() {
                       <th className="px-4 py-3 font-semibold text-gray-700">{t("students.fullName")}</th>
                       <th className="px-4 py-3 font-semibold text-gray-700">{t("students.guardianName")}</th>
                       <th className="px-4 py-3 font-semibold text-gray-700">{t("students.guardianPhone")}</th>
-                      <th className="px-4 py-3 font-semibold text-gray-700">{t("students.attendanceType")}</th>
                       <th className="px-4 py-3 font-semibold text-gray-700">{t("students.submittedAt")}</th>
                       <th className="px-4 py-3 font-semibold text-gray-700">{t("common.actions")}</th>
                     </tr>
@@ -597,7 +644,6 @@ export default function StudentsPage() {
                         <td className="px-4 py-3 font-medium text-[#111111]">{sub.full_name}</td>
                         <td className="px-4 py-3 text-gray-600">{sub.guardian_name ?? "—"}</td>
                         <td className="px-4 py-3 text-gray-600 font-mono text-xs" dir="ltr">{sub.guardian_phone_1 ?? "—"}</td>
-                        <td className="px-4 py-3 text-gray-600">{sub.attendance_type ?? "—"}</td>
                         <td className="px-4 py-3 text-gray-400 text-xs">
                           {formatAst(new Date(sub.submitted_at), { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }, locale)}
                         </td>
@@ -672,6 +718,18 @@ export default function StudentsPage() {
           </select>
 
           {/* Bulk action */}
+          <select aria-label={t("students.subscriptionFilter")} value={subscriptionFilter ?? ""}
+            onChange={(event) => prepareQueryChange(() => {
+              const params = new URLSearchParams(searchParams.toString());
+              if (event.target.value) params.set("subscription", event.target.value); else params.delete("subscription");
+              router.push(`/students${params.size ? `?${params}` : ""}`);
+            })}
+            className="rounded-lg border border-gray-200 px-3 py-2 text-sm">
+            <option value="">{t("students.subscriptionAll")}</option>
+            <option value="expired">{t("students.subscriptionExpired")}</option>
+            <option value="current">{t("students.subscriptionCurrent")}</option>
+            <option value="expiring">{t("students.subscriptionExpiringWeek")}</option>
+          </select>
           <PermissionGate anyOf={["attendance.students", "finance.manage", "students.manage"]}>
           <div className="flex items-center gap-2">
             <select
@@ -704,6 +762,7 @@ export default function StudentsPage() {
                 <option value="PENDING">{t("students.setStatus", { status: t("paymentStatus.PENDING") })}</option>
               </PermissionGate>
               <PermissionGate permission="students.manage">
+                <option value="renew_subscription">{t("students.renewSubscription")}</option>
                 <option value="extend_subscription">{t("students.extendSubscription")}</option>
               </PermissionGate>
             </select>
@@ -874,10 +933,13 @@ export default function StudentsPage() {
                   <th className="px-4 py-3">{t("students.columns.period")}</th>
                   <th className="px-4 py-3">{t("students.columns.class")}</th>
                   <th className="px-4 py-3">{t("students.columns.actions")}</th>
+                  <th className="px-4 py-3 whitespace-nowrap">{t("students.subscriptionEndColumn")}</th>
                 </tr>
               </thead>
               <tbody>
                 {students.map((student) => {
+                  const expired = subscriptionExpired(student.enrollmentEndDate);
+                  const expiring = subscriptionExpiringSoon(student.enrollmentEndDate);
                   const att = todayAtt[student.id] ?? null;
                   const checkedIn = !!att?.checkinAt;
                   const checkedOut = !!att?.checkoutAt;
@@ -911,9 +973,10 @@ export default function StudentsPage() {
                               <span className="text-xs text-gray-500">{t("students.checkedInAt", { time: formatTime(att.checkinAt, locale) })}</span>
                               <span className="text-xs text-gray-400">{t("students.checkedOutAt", { time: formatTime(att.checkoutAt, locale) })}</span>
                             </div>
+                          ) : expired ? (
+                            <span className="text-xs text-orange-700">{t("students.subscriptionExpired")}</span>
                           ) : (
                             <div className="flex flex-col gap-1">
-                              <span className="font-mono text-sm text-gray-300">00:00</span>
                               <PermissionGate permission="attendance.students">
                                 <button
                                   onClick={() => checkin(student.id)}
@@ -939,10 +1002,14 @@ export default function StudentsPage() {
                           {!student.isActive && (
                             <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">{t("students.suspended")}</span>
                           )}
+                          {expiring && <span role="img" aria-label={t("students.subscriptionExpiringWeek")} title={t("students.subscriptionExpiringWeek")} className="inline-block h-2 w-2 shrink-0 rounded-full bg-red-600" />}
+                          {expired && (
+                            <span className="text-xs bg-orange-50 text-orange-700 px-2 py-0.5 rounded-full">{t("students.subscriptionExpired")}</span>
+                          )}
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <PaymentStatusBadge status={student.paymentStatus} />
+                        <PaymentStatusBadge status={subscriptionPaymentStatus(student.paymentStatus, student.enrollmentEndDate)} />
                       </td>
                       <td className="px-4 py-3">
                         <PeriodBadge period={student.period} />
@@ -976,7 +1043,26 @@ export default function StudentsPage() {
                               {t("students.actions.sendReminder")}
                             </button>
                           </PermissionGate>
+                          <PermissionGate permission="students.manage">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (student.billingCycle === "CUSTOM" && !student.billingIntervalDays) {
+                                  setOperationError(t(renewalErrorKey("BILLING_INTERVAL_REQUIRED")));
+                                  return;
+                                }
+                                setOperationError(null); setExtendError(null); setRenewalStudent(student);
+                              }}
+                              className="px-2.5 py-1 text-xs border border-[#4f00c1] text-[#4f00c1] rounded-lg hover:bg-[#4f00c1]/5 transition-colors"
+                            >
+                              {t("students.renewSubscription")}
+                            </button>
+                          </PermissionGate>
                         </div>
+                      </td>
+                      <td className={`px-4 py-3 whitespace-nowrap ${expired || expiring ? "font-medium text-red-700" : "text-gray-600"}`}>
+                        {student.enrollmentEndDate ? <><time dateTime={student.enrollmentEndDate.slice(0, 10)} dir="ltr">{dateLabel(student.enrollmentEndDate, locale)}</time>
+                          {expiring && <span className="mt-1 block text-xs">{t("students.subscriptionExpiringWeek")}</span>}</> : "—"}
                       </td>
                     </tr>
                   );
@@ -989,6 +1075,10 @@ export default function StudentsPage() {
       </div>
 
       {/* ── Extend Subscription Modal ── */}
+      {renewalStudent && renewalToday && automaticEnd && <RenewalConfirmation
+        startDate={dateLabel(renewalToday, locale)} endDate={dateLabel(automaticEnd, locale)} cycle={renewalStudent.billingCycle ?? "MONTHLY"}
+        needsReactivation={renewalNeedsReactivation(renewalStudent)} pending={isExtending} error={extendError}
+        onConfirm={renewOne} onClose={() => { if (!extendingInFlight.current) setRenewalStudent(null); }} />}
       <Dialog
         open={showExtendModal}
         onOpenChange={(nextOpen) =>
@@ -1008,21 +1098,32 @@ export default function StudentsPage() {
           }}
         >
             <DialogHeader className="mb-4 flex-col gap-1">
-              <DialogTitle>{t("students.extendSubscription")}</DialogTitle>
+              <DialogTitle>{t(automaticBulk ? "students.renewSubscription" : "students.extendSubscription")}</DialogTitle>
               <DialogDescription>
-                {t("students.newEndDatePrompt")}
+                {t(automaticBulk ? "students.renewalBulkHint" : "students.newEndDatePrompt")}
                 <span className="text-gray-400 text-xs block mt-0.5">
                   {t("students.appliesToSelected", { count: selected.size })}
                 </span>
               </DialogDescription>
             </DialogHeader>
-            <input
+            {!automaticBulk && <input
               type="date"
               dir="ltr"
               value={newEndDate}
               onChange={(e) => setNewEndDate(e.target.value)}
               className="w-full px-4 py-2.5 rounded-lg border border-gray-200 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-[#F64651]"
-            />
+            />}
+            {automaticBulk && renewalToday && <ul className="mb-4 max-h-48 space-y-2 overflow-y-auto rounded-lg bg-gray-50 p-3 text-sm">
+              {students.filter((student) => selected.has(student.id)).map((student) => <li key={student.id} className="flex flex-wrap justify-between gap-2">
+                <span>{student.name} · {t(`billingCycle.${student.billingCycle ?? "MONTHLY"}`)}</span>
+                <span>{student.billingCycle === "CUSTOM" && !student.billingIntervalDays
+                  ? t(renewalErrorKey("BILLING_INTERVAL_REQUIRED"))
+                  : <span dir="ltr">{dateLabel(automaticSubscriptionEnd(renewalToday, student.billingCycle ?? "MONTHLY", student.billingIntervalDays), locale)}</span>}</span>
+              </li>)}
+            </ul>}
+            <p className="mb-3 text-xs text-gray-500">{t(automaticBulk ? "students.renewalPeriodHint" : "students.extensionPeriodHint")}</p>
+            <RenewalReactivationChoice checked={reactivateOnRenewal} onChange={setReactivateOnRenewal} disabled={isExtending} />
+            {extendError && <p role="alert" className="mt-3 text-sm text-red-700">{extendError}</p>}
             <DialogFooter className="justify-start pt-3">
               <DialogClose asChild>
                 <button
@@ -1036,7 +1137,7 @@ export default function StudentsPage() {
               <button
                 type="button"
                 onClick={handleExtendSubscription}
-                disabled={!newEndDate || isExtending}
+                disabled={(!automaticBulk && !newEndDate) || isExtending}
                 className="px-4 py-2.5 rounded-lg bg-[#F64651] text-white text-sm hover:bg-[#D93A44] disabled:opacity-50 transition-colors"
               >
                 {isExtending ? t("common.updating") : t("common.approve")}
@@ -1267,15 +1368,6 @@ export default function StudentsPage() {
             <div className="bg-gray-50 rounded-xl p-4 mb-4 space-y-3">
               <h3 className="text-sm font-bold text-gray-700">{t("studentProfile.enrollmentInfo")}</h3>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">{t("students.attendanceType")}</label>
-                  <select className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.attendance_type ?? ""} onChange={(e) => setRE("attendance_type", e.target.value)}>
-                    <option value="">—</option>
-                    <option value="دوام منتظم">{t("attendanceTypes.REGULAR")}</option>
-                    <option value="شفتات">{t("attendanceTypes.SHIFTS")}</option>
-                    <option value="غيره">{t("attendanceTypes.OTHER")}</option>
-                  </select>
-                </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">{t("fields.paymentMethod")}</label>
                   <select className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.payment_method ?? ""} onChange={(e) => setRE("payment_method", e.target.value)}>

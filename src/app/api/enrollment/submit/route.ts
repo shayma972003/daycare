@@ -27,7 +27,6 @@ const schema = z.object({
   date_of_birth: z.string().nullish(),
   health_condition: z.string().nullish(),
   allergies: z.string().nullish(),
-  attendance_type: z.string().nullish(),
   payment_method: z.string().nullish(),
   enrollment_date: z.string().nullish(),
   evaluation_file_url: z.string().nullish(),
@@ -68,7 +67,6 @@ export async function POST(request: Request) {
   const rec = await prisma.enrollmentToken.findUnique({ where: { token } });
 
   if (!rec) return Response.json({ error: "invalid" }, { status: 404 });
-  if (!rec.otp_verified) return Response.json({ error: "لم يتم التحقق من الرمز" }, { status: 403 });
   if (rec.expires_at < new Date()) return Response.json({ error: "expired" }, { status: 410 });
   if (rec.submissions_count >= rec.max_submissions) {
     return Response.json({
@@ -130,7 +128,6 @@ export async function POST(request: Request) {
       date_of_birth: formData.date_of_birth ? new Date(formData.date_of_birth) : null,
       health_condition: formData.health_condition ?? null,
       allergies: formData.allergies ?? null,
-      attendance_type: formData.attendance_type ?? null,
       payment_method: formData.payment_method ?? null,
       /**
        * Anchored to the Riyadh business day the parent picked.

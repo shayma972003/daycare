@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { PaymentCycleStatus, PaymentStatus } from "@/generated/prisma/enums";
 import { astDayStart } from "@/lib/datetime";
+import { Prisma } from "@/generated/prisma/client";
 
 /** Days past due at which a cycle moves to the next state. */
 const LATE_AFTER_DAYS = 4;
@@ -26,7 +27,7 @@ export async function updatePaymentStatuses(school_id: string) {
 
   const cycles = await prisma.paymentCycle.findMany({
     where: { school_id, status: { in: ["PENDING", "OVERDUE"] } },
-    include: { student: { select: { id: true, suspension_notified_at: true } } },
+    include: { student: { select: { id: true, suspension_notified_at: true, enrollment_date: true } } },
   });
 
   const suspendedStudents: string[] = [];
@@ -41,7 +42,7 @@ export async function updatePaymentStatuses(school_id: string) {
     let newStatus: PaymentCycleStatus = cycle.status;
     if (daysPastDue >= SUSPENDED_AFTER_DAYS) {
       newStatus = "SUSPENDED";
-      if (!cycle.student.suspension_notified_at) suspendedStudents.push(cycle.student_id);
+      if (!cycle.student.suspension_notified_at && (!cycle.student.enrollment_date || cycle.due_date >= cycle.student.enrollment_date)) suspendedStudents.push(cycle.student_id);
     } else if (daysPastDue >= LATE_AFTER_DAYS) {
       newStatus = "OVERDUE";
     } else {
@@ -64,7 +65,8 @@ export async function updatePaymentStatuses(school_id: string) {
   if (suspendedStudents.length > 0) {
     await prisma.student.updateMany({
       where: { id: { in: suspendedStudents } },
-      data: { paymentStatus: "SUSPENDED", suspension_notified_at: now },
+      // Status is updated under the same student lock used by renewal below.
+      data: { suspension_notified_at: now },
     });
   }
 
@@ -72,18 +74,23 @@ export async function updatePaymentStatuses(school_id: string) {
 }
 
 async function updateStudentPaymentStatus(studentId: string) {
-  const cycles = await prisma.paymentCycle.findMany({
-    where: { student_id: studentId },
-    select: { status: true },
-  });
-
-  for (const status of STATUS_PRIORITY) {
-    if (cycles.some((c) => c.status === status)) {
-      await prisma.student.update({
-        where: { id: studentId },
-        data: { paymentStatus: CYCLE_TO_STUDENT[status] },
-      });
-      return;
+  await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "Student" WHERE "id" = ${studentId} FOR UPDATE`);
+    const student = await tx.student.findUnique({ where: { id: studentId }, select: { isActive: true, deletedAt: true, paymentStatus: true, enrollment_date: true, enrollmentEndDate: true } });
+    if (!student || !student.isActive || student.deletedAt || student.paymentStatus === "CANCELLED") return;
+    // Previous-period debts remain on their cycles, but cannot suspend a newly
+    // renewed period when the statistics screen refreshes its status rollup.
+    const cycles = await tx.paymentCycle.findMany({
+      where: { student_id: studentId, due_date: {
+        ...(student.enrollment_date ? { gte: student.enrollment_date } : {}),
+        ...(student.enrollmentEndDate ? { lte: student.enrollmentEndDate } : {}),
+      } }, select: { status: true },
+    });
+    for (const status of STATUS_PRIORITY) {
+      if (cycles.some((c) => c.status === status)) {
+        await tx.student.update({ where: { id: studentId }, data: { paymentStatus: CYCLE_TO_STUDENT[status] } });
+        return;
+      }
     }
-  }
+  });
 }

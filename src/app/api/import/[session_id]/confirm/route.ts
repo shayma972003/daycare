@@ -1,6 +1,6 @@
 import { requireSession, sessionErrorResponse } from '@/lib/session';
 import { prisma } from '@/lib/prisma';
-import { parseAcademicStage, parseAttendanceType, parsePaymentStatus } from '@/lib/enum-labels';
+import { parseAcademicStage, parsePaymentStatus } from '@/lib/enum-labels';
 import { normalizePhone } from '@/lib/phone-normalizer';
 import { logAction } from '@/lib/activity-logger';
 import { protectIdNumber } from '@/lib/pii-crypto';
@@ -127,7 +127,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ session
               enrollment_date: parseDate(data.enrollment_date),
               enrollmentEndDate: parseDate(data.enrollment_end_date),
               paymentMethod: (PAY_MAP[String(data.payment_method ?? '').trim()] ?? 'CASH') as 'CASH' | 'TRANSFER' | 'CARD',
-              attendanceType: parseAttendanceType(data.attendance_type ? String(data.attendance_type) : null) ?? 'REGULAR',
               paymentStatus: parsePaymentStatus(data.payment_status ? String(data.payment_status) : null) ?? 'PENDING',
               registration_fee: 0,
             },

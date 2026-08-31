@@ -5,7 +5,8 @@ import Link from "next/link";
 import axios from "axios";
 import { useSession } from "next-auth/react";
 import { useLocale, useT } from "@/lib/i18n-provider";
-import { astDayStart, formatAst } from "@/lib/datetime";
+import { deviceHeaders, deviceTimeZone, formatDeviceTime, localDayBounds } from "@/lib/device-date";
+import { useDeviceDay } from "@/lib/use-device-day";
 import { usePermissions } from "@/lib/use-permissions";
 import { PermissionGate } from "@/components/auth/PermissionGate";
 import { DataErrorState } from "@/components/ui/DataLoadState";
@@ -22,8 +23,9 @@ interface AttendancePerson {
   full_name: string;
   class_name: string | null;
   today_attendance: { checkin_time: string | null; checkout_time: string | null } | null;
+  eligible_for_attendance?: boolean;
 }
-interface AttendanceData { students: AttendancePerson[]; teachers: AttendancePerson[] }
+interface AttendanceData { students: AttendancePerson[] | null; teachers: AttendancePerson[] | null; classes?: unknown[] }
 interface CalendarRow {
   id: string;
   kind: "event" | "activity";
@@ -97,7 +99,9 @@ function statusLabel(person: AttendancePerson, present: string, absent: string, 
 
 function attendanceCounts(people: AttendancePerson[]) {
   const present = people.filter((person) => Boolean(person.today_attendance?.checkin_time)).length;
-  return { present, absent: Math.max(people.length - present, 0) };
+  const eligible = people.filter((person) => person.eligible_for_attendance !== false);
+  const eligiblePresent = eligible.filter((person) => Boolean(person.today_attendance?.checkin_time)).length;
+  return { present, absent: Math.max(eligible.length - eligiblePresent, 0) };
 }
 
 function eventTargetLabel(event: CalendarRow, t: ReturnType<typeof useT>, locale: "ar" | "en") {
@@ -122,11 +126,11 @@ function eventTimeLabel(event: CalendarRow, t: ReturnType<typeof useT>, locale: 
   if (event.allDay) return t("dashboard.allDay");
   const start = new Date(event.startAt);
   if (Number.isNaN(start.getTime())) return t("dashboard.timeUnavailable");
-  const startLabel = formatAst(start, { hour: "2-digit", minute: "2-digit" }, locale);
+  const startLabel = formatDeviceTime(start, { hour: "2-digit", minute: "2-digit" }, locale);
   if (!event.endAt) return startLabel;
   const end = new Date(event.endAt);
   if (Number.isNaN(end.getTime())) return startLabel;
-  return `${startLabel} – ${formatAst(end, { hour: "2-digit", minute: "2-digit" }, locale)}`;
+  return `${startLabel} – ${formatDeviceTime(end, { hour: "2-digit", minute: "2-digit" }, locale)}`;
 }
 
 function AttendanceSummaryCard({
@@ -157,7 +161,7 @@ function AttendanceSummaryCard({
       </div>
       <ResourceState resource={resource} retry={retry} retryLabel={retryLabel}>
         {(data) => {
-          const people = data[kind];
+          const people = data[kind] ?? [];
           const counts = attendanceCounts(people);
           return people.length === 0 ? (
             <p className="rounded-lg bg-white px-3 py-4 text-sm text-slate-500">{t("dashboard.noPeople")}</p>
@@ -181,8 +185,9 @@ function AttendanceSummaryCard({
 export function SchoolDashboard() {
   const t = useT();
   const { locale } = useLocale();
+  const deviceDay = useDeviceDay();
   const { data: session } = useSession();
-  const { can } = usePermissions();
+  const { can, status: permissionStatus } = usePermissions();
   const schoolName = (session?.user as { schoolName?: string } | undefined)?.schoolName ?? t("app.name");
   const displayName = session?.user?.name || schoolName;
   const [tasks, setTasks] = useState<Resource<TasksData>>(initialResource);
@@ -195,40 +200,42 @@ export function SchoolDashboard() {
   const [logsRetry, setLogsRetry] = useState(0);
   const canViewLogs = can("settings.manage");
   const canViewCalendar = can("schedule.view");
+  const canViewStudentAttendance = can("attendance.students");
+  const canViewStaffAttendance = can("attendance.staff");
 
   useEffect(() => {
+    if (permissionStatus !== "ready") return;
     const controller = new AbortController();
-    axios.get<TasksData>("/api/dashboard/tasks", { signal: controller.signal }).then((response) => {
+    axios.get<TasksData>("/api/dashboard/tasks", { signal: controller.signal, headers: deviceHeaders() }).then((response) => {
       if (!controller.signal.aborted) setTasks({ state: "ready", data: response.data, error: null });
     }).catch((error: unknown) => {
       if (!axios.isCancel(error) && !controller.signal.aborted) setTasks((previous) => ({ ...previous, state: "error", error: describeApiError(error, t("common.error")) }));
     });
     return () => controller.abort();
-  }, [tasksRetry, t]);
+  }, [tasksRetry, permissionStatus, deviceDay, t]);
 
   useEffect(() => {
+    if (permissionStatus !== "ready" || (!canViewStudentAttendance && !canViewStaffAttendance)) return;
     const controller = new AbortController();
-    axios.get<AttendanceData>("/api/attendance/page-data", { signal: controller.signal }).then((response) => {
+    axios.get<AttendanceData>("/api/attendance/page-data", { signal: controller.signal, headers: deviceHeaders() }).then((response) => {
       if (!controller.signal.aborted) setAttendance({ state: "ready", data: response.data, error: null });
     }).catch((error: unknown) => {
       if (!axios.isCancel(error) && !controller.signal.aborted) setAttendance((previous) => ({ ...previous, state: "error", error: describeApiError(error, t("common.error")) }));
     });
     return () => controller.abort();
-  }, [attendanceRetry, t]);
+  }, [attendanceRetry, canViewStaffAttendance, canViewStudentAttendance, permissionStatus, t]);
 
   useEffect(() => {
+    if (permissionStatus !== "ready" || !canViewCalendar) return;
     const controller = new AbortController();
-    const todayStart = astDayStart();
-    const riyadhDay = new Date(todayStart.getTime() + 3 * 60 * 60 * 1000).getUTCDay();
-    const from = new Date(todayStart.getTime() - riyadhDay * 24 * 60 * 60 * 1000);
-    const to = new Date(from.getTime() + 7 * 24 * 60 * 60 * 1000);
-    axios.get<CalendarRow[]>(`/api/calendar?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`, { signal: controller.signal }).then((response) => {
+    const { start: from, end: to } = localDayBounds(new Date(), deviceTimeZone());
+    axios.get<CalendarRow[]>(`/api/calendar?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`, { signal: controller.signal, headers: deviceHeaders() }).then((response) => {
       if (!controller.signal.aborted) setEvents({ state: "ready", data: response.data, error: null });
     }).catch((error: unknown) => {
       if (!axios.isCancel(error) && !controller.signal.aborted) setEvents((previous) => ({ ...previous, state: "error", error: describeApiError(error, t("common.error")) }));
     });
     return () => controller.abort();
-  }, [eventsRetry, t]);
+  }, [canViewCalendar, deviceDay, eventsRetry, permissionStatus, t]);
 
   useEffect(() => {
     if (!canViewLogs) return;
@@ -241,7 +248,7 @@ export function SchoolDashboard() {
     return () => controller.abort();
   }, [canViewLogs, logsRetry, t]);
 
-  const today = formatAst(new Date(), { year: "numeric", month: "long", day: "numeric" }, locale);
+  const today = formatDeviceTime(new Date(), { year: "numeric", month: "long", day: "numeric" }, locale);
   const retryLabel = t("common.retry");
   const retryTasks = () => { setTasks((previous) => ({ ...previous, state: previous.data ? "refreshing" : "loading", error: null })); setTasksRetry((value) => value + 1); };
   const retryAttendance = () => { setAttendance((previous) => ({ ...previous, state: previous.data ? "refreshing" : "loading", error: null })); setAttendanceRetry((value) => value + 1); };
@@ -263,11 +270,20 @@ export function SchoolDashboard() {
         <section aria-labelledby="dashboard-summary" className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6">
           <div className="mb-5 flex items-center justify-between gap-3"><h2 id="dashboard-summary" className="text-base font-semibold text-slate-900">{t("dashboard.summaryTitle")}</h2><span className="text-xs text-slate-400">{today}</span></div>
           <ResourceState resource={attendance} retry={retryAttendance} retryLabel={retryLabel}>{(data) => {
-            const studentPresent = data.students.filter((person) => Boolean(person.today_attendance?.checkin_time)).length;
-            const teacherPresent = data.teachers.filter((person) => Boolean(person.today_attendance?.checkin_time)).length;
-            const studentAbsent = Math.max(data.students.length - studentPresent, 0);
-            const teacherAbsent = Math.max(data.teachers.length - teacherPresent, 0);
-            return <div className="grid grid-cols-2 gap-y-5 sm:grid-cols-4 sm:gap-y-0"><SummaryMetric label={t("dashboard.activeStudents")} value={String(data.students.length)} detail={t("dashboard.peopleActive")} /><SummaryMetric label={t("dashboard.studentAttendance")} value={`${studentPresent} / ${studentAbsent}`} detail={t("dashboard.presentAbsent")} tone="pink" /><SummaryMetric label={t("dashboard.teacherAttendance")} value={`${teacherPresent} / ${teacherAbsent}`} detail={t("dashboard.presentAbsent")} tone="blue" /><SummaryMetric label={t("dashboard.staffCount")} value={String(data.teachers.length)} detail={t("dashboard.peopleActive")} /></div>;
+            const students = data.students ?? [];
+            const teachers = data.teachers ?? [];
+            const studentPresent = students.filter((person) => Boolean(person.today_attendance?.checkin_time)).length;
+            const teacherPresent = teachers.filter((person) => Boolean(person.today_attendance?.checkin_time)).length;
+            const studentEligible = students.filter((person) => person.eligible_for_attendance !== false);
+            const teacherEligible = teachers.filter((person) => person.eligible_for_attendance !== false);
+            const studentAbsent = Math.max(studentEligible.length - studentEligible.filter((person) => Boolean(person.today_attendance?.checkin_time)).length, 0);
+            const teacherAbsent = Math.max(teacherEligible.length - teacherEligible.filter((person) => Boolean(person.today_attendance?.checkin_time)).length, 0);
+            return <div className="grid grid-cols-2 gap-y-5 sm:grid-cols-4 sm:gap-y-0">
+              <PermissionGate permission="attendance.students"><SummaryMetric label={t("dashboard.activeStudents")} value={String(studentEligible.length)} detail={t("dashboard.peopleActive")} /></PermissionGate>
+              <PermissionGate permission="attendance.students"><SummaryMetric label={t("dashboard.studentAttendance")} value={`${studentPresent} / ${studentAbsent}`} detail={t("dashboard.presentAbsent")} tone="pink" /></PermissionGate>
+              <PermissionGate permission="attendance.staff"><SummaryMetric label={t("dashboard.teacherAttendance")} value={`${teacherPresent} / ${teacherAbsent}`} detail={t("dashboard.presentAbsent")} tone="blue" /></PermissionGate>
+              <PermissionGate permission="attendance.staff"><SummaryMetric label={t("dashboard.staffCount")} value={String(data.teachers?.length ?? 0)} detail={t("dashboard.peopleActive")} /></PermissionGate>
+            </div>;
           }}</ResourceState>
         </section>
 
@@ -278,14 +294,13 @@ export function SchoolDashboard() {
 
         <section aria-labelledby="dashboard-attendance" className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6">
           <div className="mb-5"><h2 id="dashboard-attendance" className="text-base font-semibold text-slate-900">{t("dashboard.attendanceTitle")}</h2><p className="mt-1 text-sm text-slate-500">{t("dashboard.attendanceHint")}</p></div>
-          <div className="grid gap-4 lg:grid-cols-2"><AttendanceSummaryCard kind="students" permission="attendance.students" resource={attendance} retry={retryAttendance} retryLabel={retryLabel} t={t} /><AttendanceSummaryCard kind="teachers" permission="attendance.staff" resource={attendance} retry={retryAttendance} retryLabel={retryLabel} t={t} /></div>
+          <div className="grid gap-4 lg:grid-cols-2"><PermissionGate permission="attendance.students"><AttendanceSummaryCard kind="students" permission="attendance.students" resource={attendance} retry={retryAttendance} retryLabel={retryLabel} t={t} /></PermissionGate><PermissionGate permission="attendance.staff"><AttendanceSummaryCard kind="teachers" permission="attendance.staff" resource={attendance} retry={retryAttendance} retryLabel={retryLabel} t={t} /></PermissionGate></div>
         </section>
 
         <section aria-labelledby="dashboard-events" className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 id="dashboard-events" className="text-base font-semibold text-slate-900">{t("dashboard.todayEventsTitle")}</h2><p className="mt-1 text-sm text-slate-500">{t("dashboard.todayEventsHint")}</p></div><ActionLink href="/calendar" label={t("dashboard.openCalendar")} permission="schedule.view" /></div>
           <ResourceState resource={events} retry={retryEvents} retryLabel={retryLabel}>{(data) => {
-            const dayStart = astDayStart();
-            const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+            const { start: dayStart, end: dayEnd } = localDayBounds(new Date(), deviceTimeZone());
             const todayEvents = data.filter((event) => {
               const start = new Date(event.startAt);
               const end = event.endAt ? new Date(event.endAt) : start;
@@ -300,7 +315,7 @@ export function SchoolDashboard() {
 
         <section aria-labelledby="dashboard-actions" className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6"><h2 id="dashboard-actions" className="mb-4 text-base font-semibold text-slate-900">{t("dashboard.quickActions")}</h2><div className="flex flex-wrap gap-2"><ActionLink href="/students/new" label={t("dashboard.addStudent")} permission="students.manage" /><ActionLink href="/attendance" label={t("dashboard.recordAttendance")} permission="attendance.students" /><ActionLink href="/calendar?create=1" label={t("dashboard.createEvent")} permission="schedule.manage" /><ActionLink href="/students" label={t("dashboard.sendReminder")} permission="finance.manage" /><ActionLink href="/students" label={t("dashboard.reviewEnrollments")} permission={ENROLLMENT_MANAGE_PERMISSION} /></div></section>
 
-        {canViewLogs && <section aria-labelledby="dashboard-recent" className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6"><div className="mb-4 flex items-center justify-between gap-3"><h2 id="dashboard-recent" className="text-base font-semibold text-slate-900">{t("dashboard.recentActivity")}</h2><Link href="/settings/logs" className="text-xs font-medium text-[#4f00c1] hover:underline">{t("dashboard.viewMore")}</Link></div><ResourceState resource={logs} retry={retryLogs} retryLabel={retryLabel}>{(data) => data.length === 0 ? <p className="rounded-xl bg-slate-50 px-4 py-4 text-sm text-slate-500">{t("dashboard.noRecentActivity")}</p> : <div className="space-y-2">{data.map((log) => <div key={log.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2 text-sm last:border-0 last:pb-0"><span className="text-slate-700">{log.recipientName}</span><span className="text-xs text-slate-400">{formatAst(new Date(log.sentAt), { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }, locale)}</span></div>)}</div>}</ResourceState></section>}
+        {canViewLogs && <section aria-labelledby="dashboard-recent" className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6"><div className="mb-4 flex items-center justify-between gap-3"><h2 id="dashboard-recent" className="text-base font-semibold text-slate-900">{t("dashboard.recentActivity")}</h2><Link href="/settings/logs" className="text-xs font-medium text-[#4f00c1] hover:underline">{t("dashboard.viewMore")}</Link></div><ResourceState resource={logs} retry={retryLogs} retryLabel={retryLabel}>{(data) => data.length === 0 ? <p className="rounded-xl bg-slate-50 px-4 py-4 text-sm text-slate-500">{t("dashboard.noRecentActivity")}</p> : <div className="space-y-2">{data.map((log) => <div key={log.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2 text-sm last:border-0 last:pb-0"><span className="text-slate-700">{log.recipientName}</span><span className="text-xs text-slate-400">{formatDeviceTime(new Date(log.sentAt), { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }, locale)}</span></div>)}</div>}</ResourceState></section>}
       </div>
     </div>
   );

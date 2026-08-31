@@ -14,7 +14,6 @@ export const STUDENT_FIELD_ALIASES: Record<string, string[]> = {
   enrollment_date: ['enrollment date', 'join date', 'joined', 'تاريخ الانضمام', 'تاريخ الإنضمام', 'تاريخ الالتحاق'],
   enrollment_end_date: ['end date', 'expiry', 'subscription end', 'enrollment end', 'تاريخ انتهاء الاشتراك', 'انتهاء الاشتراك', 'تاريخ الانتهاء'],
   payment_method: ['payment', 'payment method', 'pay method', 'طريقة الدفع', 'الدفع', 'وسيلة الدفع'],
-  attendance_type: ['attendance type', 'attendance', 'shift type', 'طبيعة الدوام', 'نوع الدوام'],
   payment_status: ['payment status', 'status', 'حالة الدفع', 'الحالة'],
   guardian_name: ['parent', 'guardian', 'parent name', 'guardian name', 'father', 'mother', 'ولي الأمر', 'اسم ولي الأمر', 'الوالد', 'الوالدة', 'الأب', 'الأم'],
   guardian_phone_1: ['phone', 'mobile', 'parent phone', 'guardian phone', 'phone 1', 'phone1', 'رقم الجوال', 'جوال ولي الامر', 'الجوال', 'رقم الجوال 1', 'جوال 1'],

@@ -135,6 +135,26 @@ describe("school dashboard", () => {
     expect(screen.queryByText(/expected/i)).toBeNull();
   });
 
+  it("counts a historical check-in after a later subscription/status change", async () => {
+    mocks.get.mockImplementation((url: string) => {
+      if (url === "/api/dashboard/tasks") return Promise.resolve({ data: { tasks: [] } });
+      if (url === "/api/attendance/page-data") return Promise.resolve({ data: {
+        students: [
+          { id: "historical", full_name: "Historical", class_name: null, eligible_for_attendance: false, today_attendance: { checkin_time: "2026-08-26T06:00:00Z", checkout_time: null } },
+          { id: "eligible", full_name: "Eligible", class_name: null, eligible_for_attendance: true, today_attendance: null },
+        ],
+        teachers: [],
+      } });
+      if (url.startsWith("/api/calendar?")) return Promise.resolve({ data: [] });
+      return Promise.resolve({ data: { logs: [] } });
+    });
+    render(<SchoolDashboard />);
+    await act(async () => { await Promise.resolve(); });
+    expect(screen.getByText("dashboard.activeStudents").parentElement?.textContent).toContain("1");
+    expect(screen.getByLabelText("dashboard.studentsAttendanceSummary").textContent).toContain("1");
+    expect(screen.getByLabelText("dashboard.studentsAttendanceSummary").textContent).toContain("dashboard.absentCount");
+  });
+
   it("gates student and staff attendance actions independently", async () => {
     mocks.allowedPermissions = new Set(["attendance.students"]);
     mocks.usePermissions.mockReturnValue({ can: (permission: string) => mocks.allowedPermissions.has(permission), status: "ready" });

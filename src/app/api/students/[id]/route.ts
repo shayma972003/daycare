@@ -7,7 +7,7 @@ import {
   assertGuardianOwned,
   crossTenantResponse,
 } from "@/lib/tenant-guard";
-import { parseAcademicStage, parseAttendanceType, parsePaymentStatus } from "@/lib/enum-labels";
+import { parseAcademicStage, parsePaymentStatus } from "@/lib/enum-labels";
 import { resolveStageId, foreignStageResponse } from "@/lib/academic-stage";
 import { protectIdNumber } from "@/lib/pii-crypto";
 import { studentDetailDto, studentDetailSelect } from "@/lib/roster-dto";
@@ -20,6 +20,7 @@ import {
   getRetentionPolicy,
 } from "@/lib/data-retention";
 import { z } from "zod";
+import { requestTimeZone } from "@/lib/device-date";
 
 const updateStudentSchema = z.object({
   name: z.string().min(1).optional(),
@@ -35,7 +36,9 @@ const updateStudentSchema = z.object({
   nationality: z.string().nullish(),
   gender: z.enum(["MALE", "FEMALE"]).nullish(),
   allergies: z.string().nullish(),
-  attendanceType: z.string().nullish(),
+  billingCycle: z.enum(["DAILY", "WEEKLY", "MONTHLY", "YEARLY", "CUSTOM"]).nullish(),
+  billingIntervalDays: z.number().int().positive().nullish(),
+  cycleFee: z.number().min(0).nullish(),
   paymentMethod: z.enum(["CASH", "TRANSFER", "CARD"]).nullish(),
   enrollmentDate: z.string().nullish(),
   enrollmentEndDate: z.string().nullish(),
@@ -74,6 +77,9 @@ export async function GET(
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
   const { id } = await params;
+  let timeZone: string;
+  try { timeZone = requestTimeZone(request); }
+  catch { return Response.json({ error: "Invalid time zone" }, { status: 422 }); }
 
   try {
     const student = await prisma.student.findFirst({
@@ -136,7 +142,7 @@ export async function GET(
             financial: session.can("finance.view") || session.can("finance.manage"),
             revealIdentity,
           },
-          { registrationFee: moneyNumber(registrationFee), registrationFeeIsDefault, siblings }
+          { registrationFee: moneyNumber(registrationFee), registrationFeeIsDefault, siblings }, timeZone
         ),
         { status: 200 }
       )
@@ -165,6 +171,9 @@ export async function PUT(
   const { id } = await params;
 
   let body: unknown;
+  let timeZone: string;
+  try { timeZone = requestTimeZone(request); }
+  catch { return Response.json({ error: "Invalid time zone" }, { status: 422 }); }
   try {
     body = await request.json();
   } catch {
@@ -243,8 +252,9 @@ export async function PUT(
   if ("nationality" in data) updateData.nationality = data.nationality ?? null;
   if ("gender" in data) updateData.gender = data.gender ?? null;
   if ("allergies" in data) updateData.allergies = data.allergies ?? null;
-  if ("attendanceType" in data)
-    updateData.attendanceType = parseAttendanceType(data.attendanceType) ?? "REGULAR";
+  if ("billingCycle" in data) updateData.billingCycle = data.billingCycle ?? "MONTHLY";
+  if ("billingIntervalDays" in data) updateData.billingIntervalDays = data.billingIntervalDays ?? null;
+  if ("cycleFee" in data) updateData.cycleFee = data.cycleFee ?? null;
   if ("paymentMethod" in data) updateData.paymentMethod = data.paymentMethod ?? null;
   if ("enrollmentDate" in data) {
     updateData.enrollment_date = data.enrollmentDate ? new Date(data.enrollmentDate) : null;
@@ -293,6 +303,9 @@ export async function PUT(
     if (data.isActive !== undefined) updateData.isActive = data.isActive;
   }
 
+  let guardianUpdate: { id: string; data: Record<string, string | null> } | null = null;
+  let guardianCreate: { schoolId: string; name: string; phone1: string | null; phone2: string | null; email: string | null; name_2?: string | null; phone_3?: string | null; phone_4?: string | null; email_2?: string | null } | null = null;
+
   // Guardian update logic
   if ("guardianId" in data && data.guardianId) {
     // Client is linking an existing guardian — prove it is one of ours first.
@@ -303,10 +316,22 @@ export async function PUT(
       if (denied) return denied;
       throw error;
     }
-  } else if (data.guardianName) {
+    const guardianData: Record<string, string | null> = {};
+    if (data.guardianName !== undefined) guardianData.name = data.guardianName ?? null;
+    if (data.guardianPhone1 !== undefined) guardianData.phone1 = data.guardianPhone1 ?? null;
+    if (data.guardianPhone2 !== undefined) guardianData.phone2 = data.guardianPhone2 ?? null;
+    if (data.guardianEmail !== undefined) guardianData.email = data.guardianEmail ?? null;
+    if (data.guardianName2 !== undefined) guardianData.name_2 = data.guardianName2 ?? null;
+    if (data.guardianPhone3 !== undefined) guardianData.phone_3 = data.guardianPhone3 ?? null;
+    if (data.guardianPhone4 !== undefined) guardianData.phone_4 = data.guardianPhone4 ?? null;
+    if (data.guardianEmail2 !== undefined) guardianData.email_2 = data.guardianEmail2 ?? null;
+    if (Object.keys(guardianData).length > 0) guardianUpdate = { id: data.guardianId, data: guardianData };
+  } else if (data.guardianName !== undefined || data.guardianPhone1 !== undefined || data.guardianPhone2 !== undefined || data.guardianEmail !== undefined || data.guardianName2 !== undefined || data.guardianPhone3 !== undefined || data.guardianPhone4 !== undefined || data.guardianEmail2 !== undefined || existing.guardianId) {
     // Find or create guardian
-    const phone1 = data.guardianPhone1 ?? undefined;
-    const email = data.guardianEmail ?? undefined;
+    // Preserve an explicit null so clearing an optional contact is a real
+    // partial update; an omitted field remains untouched.
+    const phone1 = "guardianPhone1" in data ? (data.guardianPhone1 ?? null) : undefined;
+    const email = "guardianEmail" in data ? (data.guardianEmail ?? null) : undefined;
 
     const foundGuardian = await prisma.guardian.findFirst({
       where: {
@@ -342,65 +367,76 @@ export async function PUT(
     const isOwnGuardian = foundGuardian?.id === existing.guardianId;
 
     if (foundGuardian && !isOwnGuardian) {
-      // Link only. Their name and contacts stay exactly as they were.
-      updateData.guardianId = foundGuardian.id;
+      // A matching phone/email is not proof of the family's guardian.
+      return Response.json({ error: "Guardian belongs to another family" }, { status: 409 });
     } else if (foundGuardian) {
       updateData.guardianId = foundGuardian.id;
-      await prisma.guardian.update({
-        where: { id: foundGuardian.id },
+      guardianUpdate = {
+        id: foundGuardian.id,
         data: {
-          name: data.guardianName,
-          ...(phone1 !== undefined && { phone1 }),
+          ...(data.guardianName !== undefined && { name: data.guardianName ?? null }),
+          ...(phone1 !== undefined && { phone1: phone1 ?? null }),
           ...(data.guardianPhone2 !== undefined && { phone2: data.guardianPhone2 ?? null }),
-          ...(email !== undefined && { email }),
+          ...(email !== undefined && { email: email ?? null }),
           ...extraGuardianFields,
         },
-      });
+      };
     } else if (existing.guardianId) {
       updateData.guardianId = existing.guardianId;
-      await prisma.guardian.update({
-        where: { id: existing.guardianId },
+      guardianUpdate = {
+        id: existing.guardianId,
         data: {
-          name: data.guardianName,
-          ...(phone1 !== undefined && { phone1 }),
+          ...(data.guardianName !== undefined && { name: data.guardianName ?? null }),
+          ...(phone1 !== undefined && { phone1: phone1 ?? null }),
           ...(data.guardianPhone2 !== undefined && { phone2: data.guardianPhone2 ?? null }),
-          ...(email !== undefined && { email }),
+          ...(email !== undefined && { email: email ?? null }),
           ...extraGuardianFields,
         },
-      });
+      };
     } else {
-      const created = await prisma.guardian.create({
-        data: {
-          schoolId,
-          name: data.guardianName,
-          phone1: phone1 ?? null,
-          phone2: data.guardianPhone2 ?? null,
-          email: email ?? null,
-          ...extraGuardianFields,
-        },
-      });
-      updateData.guardianId = created.id;
+      if (!data.guardianName?.trim()) {
+        return Response.json({ error: "Guardian name is required" }, { status: 422 });
+      }
+      guardianCreate = {
+        schoolId,
+        name: data.guardianName,
+        phone1: phone1 ?? null,
+        phone2: data.guardianPhone2 ?? null,
+        email: email ?? null,
+        ...extraGuardianFields,
+      };
     }
   }
 
-  const student = await prisma.student.update({
-    where: { id },
-    data: updateData,
-    select: studentDetailSelect,
-  });
-
-  if ("enrollmentDate" in data || "enrollmentEndDate" in data || data.registration_fee !== undefined) {
-    await generatePaymentCycles(student.id);
-  }
-
-  await logAction({
-    school_id: schoolId,
-    action: "تم تعديل بيانات الطالب",
-    entity_type: "student",
-    entity_id: student.id,
-    entity_name: student.name,
-    performed_by: session.user.name ?? "المدير",
-    request,
+  const student = await prisma.$transaction(async (tx) => {
+    if (guardianUpdate) {
+      await tx.guardian.update({ where: { id: guardianUpdate.id }, data: guardianUpdate.data });
+    }
+    if (guardianCreate) {
+      const created = await tx.guardian.create({ data: guardianCreate });
+      updateData.guardianId = created.id;
+    }
+    const updated = await tx.student.update({ where: { id }, data: updateData, select: studentDetailSelect });
+    if (
+      "enrollmentDate" in data ||
+      "enrollmentEndDate" in data ||
+      data.registration_fee !== undefined ||
+      "billingCycle" in data ||
+      "billingIntervalDays" in data ||
+      "cycleFee" in data
+    ) {
+      await generatePaymentCycles(updated.id, tx);
+    }
+    await tx.activityLog.create({ data: activityLogData({
+      school_id: schoolId,
+      action: "student profile updated",
+      entity_type: "student",
+      entity_id: updated.id,
+      entity_name: updated.name,
+      performed_by: session.user.name ?? "admin",
+      request,
+    }) });
+    return updated;
   });
 
   return withNoStore(
@@ -420,7 +456,7 @@ export async function PUT(
           registrationFee: moneyNumber(student.registration_fee),
           registrationFeeIsDefault: false,
           siblings: [],
-        }
+        }, timeZone
       ),
       { status: 200 }
     )

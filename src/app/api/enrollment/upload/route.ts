@@ -69,7 +69,6 @@ export async function POST(request: Request) {
       expires_at: true,
       submissions_count: true,
       max_submissions: true,
-      otp_verified: true,
     },
   });
 
@@ -80,9 +79,6 @@ export async function POST(request: Request) {
   if (!record) return invalid;
   if (record.status === "expired" || record.expires_at < new Date()) return invalid;
   if (record.submissions_count >= record.max_submissions) return invalid;
-  // The code proves the address belongs to whoever is filling this in. Without
-  // it the link alone would be enough to put files in the school's bucket.
-  if (!record.otp_verified) return invalid;
 
   const stored = await storeUpload(record.school_id, file, {
     allowed: DOCUMENT_TYPES,

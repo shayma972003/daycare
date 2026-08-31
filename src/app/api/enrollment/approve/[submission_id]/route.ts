@@ -5,7 +5,7 @@ import { protectIdNumber } from "@/lib/pii-crypto";
 import { activityLogData } from "@/lib/activity-logger";
 import { assertClassOwned, crossTenantResponse } from "@/lib/tenant-guard";
 import { resolveStageId, foreignStageResponse } from "@/lib/academic-stage";
-import { parseAcademicStage, parseAttendanceType } from "@/lib/enum-labels";
+import { parseAcademicStage } from "@/lib/enum-labels";
 import { ENROLLMENT_MANAGE_PERMISSION } from "@/lib/enrollment-access";
 import { lockEnrollmentSubmission } from "@/lib/enrollment-atomic";
 import { keyFromUrl } from "@/lib/r2";
@@ -30,7 +30,6 @@ const schema = z.object({
   date_of_birth: z.string().nullish(),
   health_condition: z.string().nullish(),
   allergies: z.string().nullish(),
-  attendance_type: z.string().nullish(),
   payment_method: z.string().nullish(),
   guardian_name: z.string().nullish(),
   guardian_phone_1: z.string().nullish(),
@@ -161,7 +160,6 @@ export async function POST(
           dateOfBirth: dobRaw ? new Date(dobRaw) : null,
           healthCondition: overrides.health_condition ?? submission.health_condition ?? null,
           allergies: overrides.allergies ?? submission.allergies ?? null,
-          attendanceType: parseAttendanceType(overrides.attendance_type ?? submission.attendance_type) ?? "REGULAR",
           paymentMethod: mapPaymentMethod(overrides.payment_method ?? submission.payment_method),
           paymentStatus: "PENDING",
           registrationDate: new Date(),

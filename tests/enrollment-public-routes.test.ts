@@ -175,7 +175,7 @@ describe("public enrollment handlers", () => {
     expect(mocks.rateLimit).toHaveBeenCalledOnce();
   });
 
-  it("rejects an upload until the token's OTP has been verified", async () => {
+  it("accepts an upload when the signed enrollment link is valid", async () => {
     mocks.findUnique.mockResolvedValue({
       id: "token-id",
       school_id: "school-1",
@@ -183,8 +183,8 @@ describe("public enrollment handlers", () => {
       expires_at: new Date(Date.now() + 60_000),
       submissions_count: 0,
       max_submissions: 3,
-      otp_verified: false,
     });
+    mocks.storeUpload.mockResolvedValue({ url: "/api/files/schools/school-1/evaluation.pdf" });
     const body = new FormData();
     body.set("token", "live-token");
     body.set("file", new File(["pdf"], "evaluation.pdf", { type: "application/pdf" }));
@@ -193,8 +193,8 @@ describe("public enrollment handlers", () => {
       new Request("http://localhost/api/enrollment/upload", { method: "POST", body })
     );
 
-    expect(response.status).toBe(403);
-    expect(mocks.storeUpload).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    expect(mocks.storeUpload).toHaveBeenCalledOnce();
     expect(mocks.rateLimit).toHaveBeenCalledOnce();
   });
 

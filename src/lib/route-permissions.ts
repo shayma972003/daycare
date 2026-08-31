@@ -83,6 +83,8 @@ export const ROUTE_PERMISSIONS: Record<string, RouteRule> = {
   "/api/students/bulk": { default: "students.manage" },
   "/api/students/bulk-status": { default: "students.manage" },
   "/api/students/bulk-extend": { default: "students.manage" },
+  "/api/students/class-options": { default: "students.manage" },
+  "/api/students/:id/renew": { default: "students.manage" },
   "/api/students/:id": {
     methods: {
       GET: "students.view",

@@ -65,8 +65,10 @@ describe("enrollment route boundary", () => {
       expect(code).toContain("token");
     }
 
-    expect(source("src/app/api/enrollment/submit/route.ts")).toContain("rec.otp_verified");
-    expect(source("src/app/api/enrollment/upload/route.ts")).toContain("record.otp_verified");
+    // The email link itself is the access proof for the registration form;
+    // OTP remains available only to the dedicated legacy handlers and login/2FA.
+    expect(source("src/app/api/enrollment/submit/route.ts")).not.toContain("rec.otp_verified");
+    expect(source("src/app/api/enrollment/upload/route.ts")).not.toContain("record.otp_verified");
   });
 });
 

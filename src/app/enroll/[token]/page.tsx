@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import axios from "axios";
 import { astDateInputValue } from "@/lib/datetime";
@@ -13,7 +13,6 @@ type TokenState =
   | { state: "limit_reached"; max: number }
   /// `sentTo` is the masked address the code went to. Named for what it means
   /// rather than for the channel, because it used to be a phone number.
-  | { state: "otp"; sentTo: string; school: SchoolInfo; otpVerified: boolean }
   | { state: "form"; school: SchoolInfo; submissionsCount: number; maxSubmissions: number }
   | { state: "done"; childName: string; school: SchoolInfo; submissionsCount: number; maxSubmissions: number };
 
@@ -31,45 +30,6 @@ interface GuardianPrefill {
   guardian_phone_3?: string;
   guardian_phone_4?: string;
   guardian_email_2?: string;
-}
-
-// ─── OTP Input ───────────────────────────────────────────────────────────────
-
-function OtpInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const inputs = useRef<(HTMLInputElement | null)[]>([]);
-
-  function handleKey(i: number, e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Backspace" && !value[i] && i > 0) {
-      inputs.current[i - 1]?.focus();
-    }
-  }
-
-  function handleChange(i: number, v: string) {
-    const digit = v.replace(/\D/g, "").slice(-1);
-    const arr = value.padEnd(6, " ").split("").map((c) => (c === " " ? "" : c));
-    arr[i] = digit;
-    const next = arr.join("");
-    onChange(next);
-    if (digit && i < 5) inputs.current[i + 1]?.focus();
-  }
-
-  return (
-    <div className="flex gap-3 justify-center" dir="ltr">
-      {Array.from({ length: 6 }).map((_, i) => (
-        <input
-          key={i}
-          ref={(el) => { inputs.current[i] = el; }}
-          type="text"
-          inputMode="numeric"
-          maxLength={1}
-          value={value[i] ?? ""}
-          onChange={(e) => handleChange(i, e.target.value)}
-          onKeyDown={(e) => handleKey(i, e)}
-          className="w-12 h-14 text-center text-xl font-bold border-2 border-gray-300 rounded-xl focus:border-[#22c55e] focus:outline-none bg-white shadow-sm"
-        />
-      ))}
-    </div>
-  );
 }
 
 // ─── School Header ────────────────────────────────────────────────────────────
@@ -147,15 +107,13 @@ const selectCls = `${inputCls} appearance-none`;
 
 function EnrollmentForm({
   token,
-  school: _school,
   initialGuardian,
   submissionsCount,
   maxSubmissions,
   onSuccess,
 }: {
   token: string;
-  school: SchoolInfo;
-  initialGuardian: GuardianPrefill; // eslint-disable-line @typescript-eslint/no-unused-vars
+  initialGuardian: GuardianPrefill;
   submissionsCount: number;
   maxSubmissions: number;
   onSuccess: (childName: string, newCount: number, guardian: GuardianPrefill) => void;
@@ -170,7 +128,6 @@ function EnrollmentForm({
     date_of_birth: "",
     health_condition: "",
     allergies: "",
-    attendance_type: "",
     /**
      * Defaults to today and stays editable.
      *
@@ -402,14 +359,6 @@ function EnrollmentForm({
             className={inputCls}
           />
         </Field>
-        <Field label="طبيعة الدوام">
-          <select className={selectCls} value={form.attendance_type} onChange={(e) => set("attendance_type", e.target.value)}>
-            <option value="">اختر</option>
-            <option value="دوام منتظم">دوام منتظم</option>
-            <option value="شفتات">شفتات</option>
-            <option value="غيره">غيره</option>
-          </select>
-        </Field>
         <Field label="طريقة الدفع">
           <select className={selectCls} value={form.payment_method} onChange={(e) => set("payment_method", e.target.value)}>
             <option value="">اختر</option>
@@ -447,15 +396,9 @@ export default function EnrollPage() {
   const { token } = useParams<{ token: string }>();
   const [page, setPage] = useState<TokenState>({ state: "loading" });
   const [guardianPrefill, setGuardianPrefill] = useState<GuardianPrefill>({});
-  const [otp, setOtp] = useState("");
-  const [otpError, setOtpError] = useState<string | null>(null);
-  const [verifying, setVerifying] = useState(false);
-  const [resendTimer, setResendTimer] = useState(60);
-  const [resending, setResending] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   /**
-   * Guardian prefill, carried across the OTP step in sessionStorage.
+   * Guardian prefill carried across a reload in sessionStorage.
    *
    * This has to be an effect and cannot be a lazy `useState` initialiser: the
    * page is server-rendered first, and `sessionStorage` does not exist there.
@@ -471,53 +414,22 @@ export default function EnrollPage() {
     } catch { /* ignore */ }
   }, [token]);
 
-  const startResendTimer = useCallback(() => {
-    setResendTimer(60);
-    if (timerRef.current) clearInterval(timerRef.current);
-    timerRef.current = setInterval(() => {
-      setResendTimer((t) => {
-        if (t <= 1) { if (timerRef.current) clearInterval(timerRef.current); return 0; }
-        return t - 1;
-      });
-    }, 1000);
-  }, []);
-
   useEffect(() => {
     async function checkToken() {
       try {
         const res = await axios.get<{
           valid: boolean;
-          otpVerified: boolean;
-          maskedPhone: string | null;
-          maskedEmail: string | null;
           submissionsCount: number;
           maxSubmissions: number;
           school: SchoolInfo;
         }>(`/api/enrollment/verify-token/${token}`);
 
-        if (res.data.otpVerified) {
-          const stored = typeof sessionStorage !== "undefined" ? sessionStorage.getItem("enrollment_verified") : null;
-          if (stored === token) {
-            setPage({
-              state: "form",
-              school: res.data.school,
-              submissionsCount: res.data.submissionsCount,
-              maxSubmissions: res.data.maxSubmissions,
-            });
-            return;
-          }
-        }
-
         setPage({
-          state: "otp",
-          // The address, falling back to the phone only for links issued before
-          // delivery moved to email. Both are null only if a row predates both,
-          // which no live link does.
-          sentTo: res.data.maskedEmail ?? res.data.maskedPhone ?? "بريدك المسجَّل",
+          state: "form",
           school: res.data.school,
-          otpVerified: res.data.otpVerified,
+          submissionsCount: res.data.submissionsCount,
+          maxSubmissions: res.data.maxSubmissions,
         });
-        startResendTimer();
       } catch (err) {
         if (axios.isAxiosError(err)) {
           if (err.response?.status === 410) setPage({ state: "expired" });
@@ -529,57 +441,7 @@ export default function EnrollPage() {
       }
     }
     if (token) checkToken();
-  }, [token, startResendTimer]);
-
-  useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
-
-  async function handleVerifyOtp() {
-    if (otp.replace(/\s/g, "").length < 6) {
-      setOtpError("أدخل الرمز المكون من 6 أرقام");
-      return;
-    }
-    setVerifying(true);
-    setOtpError(null);
-    try {
-      const res = await axios.post<{ success: boolean; school: SchoolInfo }>("/api/enrollment/verify-otp", {
-        token,
-        otp_code: otp.trim(),
-      });
-      sessionStorage.setItem("enrollment_verified", token);
-      setPage((prev) => {
-        const school = res.data.school;
-        const submissionsCount = prev.state === "otp" ? 0 : 0;
-        return { state: "form", school, submissionsCount, maxSubmissions: 4 };
-      });
-      // re-fetch to get correct counts
-      const tokenRes = await axios.get<{ submissionsCount: number; maxSubmissions: number; school: SchoolInfo }>(
-        `/api/enrollment/verify-token/${token}`
-      );
-      setPage({ state: "form", school: tokenRes.data.school, submissionsCount: tokenRes.data.submissionsCount, maxSubmissions: tokenRes.data.maxSubmissions });
-    } catch (err) {
-      if (axios.isAxiosError(err)) {
-        setOtpError(err.response?.data?.error ?? "رمز التحقق غير صحيح");
-      } else {
-        setOtpError("حدث خطأ. حاول مرة أخرى.");
-      }
-    } finally {
-      setVerifying(false);
-    }
-  }
-
-  async function handleResend() {
-    setResending(true);
-    try {
-      await axios.post("/api/enrollment/resend-otp", { token });
-      setOtp("");
-      setOtpError(null);
-      startResendTimer();
-    } catch {
-      /* silent */
-    } finally {
-      setResending(false);
-    }
-  }
+  }, [token]);
 
   function handleFormSuccess(childName: string, newCount: number, guardian: GuardianPrefill) {
     setGuardianPrefill(guardian);
@@ -633,8 +495,8 @@ export default function EnrollPage() {
     );
   }
 
-  const school = page.state === "otp" || page.state === "form" || page.state === "done" ? page.school : { name: "", logoUrl: null };
-  const step: 1 | 2 | 3 = page.state === "otp" ? 1 : page.state === "form" ? 2 : 3;
+  const school = page.state === "form" || page.state === "done" ? page.school : { name: "", logoUrl: null };
+  const step: 1 | 2 | 3 = page.state === "form" ? 2 : 3;
 
   return (
     <div dir="rtl" className="min-h-screen bg-gradient-to-b from-[#f0fdf4] to-[#f4f6fb]">
@@ -642,53 +504,9 @@ export default function EnrollPage() {
         <SchoolHeader school={school} />
         <ProgressBar step={step} />
 
-        {page.state === "otp" && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <h2 className="text-lg font-bold text-[#1a2340] text-center mb-2">أدخل رمز التحقق</h2>
-            <p className="text-sm text-gray-500 text-center mb-6">
-              تم إرسال رمز مكون من 6 أرقام إلى
-              <br />
-              <span dir="ltr" className="font-mono font-medium text-[#1a2340]">{page.sentTo}</span>
-            </p>
-
-            <div className="mb-6">
-              <OtpInput value={otp} onChange={setOtp} />
-            </div>
-
-            {otpError && (
-              <p className="text-sm text-red-600 text-center mb-4">{otpError}</p>
-            )}
-
-            <button
-              onClick={handleVerifyOtp}
-              disabled={verifying}
-              className="w-full py-4 bg-[#22c55e] text-white rounded-2xl font-bold text-base hover:bg-[#16a34a] transition-colors disabled:opacity-50 mb-4 min-h-[56px]"
-            >
-              {verifying ? "جاري التحقق..." : "تحقق"}
-            </button>
-
-            <div className="text-center">
-              {resendTimer > 0 ? (
-                <p className="text-sm text-gray-400">
-                  لم تستلم الرمز؟ إعادة الإرسال بعد <span className="font-mono font-medium">{resendTimer}ث</span>
-                </p>
-              ) : (
-                <button
-                  onClick={handleResend}
-                  disabled={resending}
-                  className="text-sm text-[#22c55e] font-medium hover:underline disabled:opacity-50"
-                >
-                  {resending ? "جاري الإرسال..." : "إعادة إرسال الرمز"}
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-
         {page.state === "form" && (
           <EnrollmentForm
             token={token}
-            school={page.school}
             initialGuardian={guardianPrefill}
             submissionsCount={page.submissionsCount}
             maxSubmissions={page.maxSubmissions}

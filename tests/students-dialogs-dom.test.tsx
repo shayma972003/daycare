@@ -7,13 +7,17 @@ import userEvent from "@testing-library/user-event";
 import { LocaleProvider } from "@/lib/i18n-provider";
 import StudentsPage from "@/app/(dashboard)/students/page";
 
+// These exercise several open/close/keyboard/pointer flows in jsdom. Slow
+// Windows/CI startup must not abort a user-event sequence into the next test.
+const DIALOG_FLOW_TIMEOUT = 30_000;
+
 const axiosMocks = vi.hoisted(() => ({
   get: vi.fn(),
   post: vi.fn(),
   put: vi.fn(),
 }));
 
-const routerMocks = vi.hoisted(() => ({ push: vi.fn() }));
+const routerMocks = vi.hoisted(() => ({ push: vi.fn(), query: "" }));
 
 vi.mock("axios", () => ({
   default: {
@@ -25,6 +29,7 @@ vi.mock("axios", () => ({
 
 vi.mock("next/navigation", () => ({
   useRouter: () => routerMocks,
+  useSearchParams: () => new URLSearchParams(routerMocks.query),
 }));
 
 vi.mock("@/components/layout/Topbar", () => ({
@@ -57,6 +62,8 @@ const students = [
     classId: null,
     guardian: null,
     isActive: true,
+    billingCycle: "MONTHLY",
+    enrollmentEndDate: "2026-08-30",
   },
 ];
 
@@ -154,6 +161,64 @@ function reviewButtonFor(name: string) {
 }
 
 describe("student page shared dialogs", () => {
+  it("does not fabricate a 00:00 timer before check-in", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-08-27T12:00:00Z"));
+    try {
+      await renderPage();
+      expect(screen.queryByText("00:00")).toBeNull();
+      expect(screen.getByRole("button", { name: "Check In" })).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("renews from the row automatically without a date input or unsaved billing fields", async () => {
+    const user = userEvent.setup();
+    axiosMocks.post.mockResolvedValue({ data: { student: {} } });
+    await renderPage();
+    await user.click(screen.getByRole("button", { name: "Renew subscription" }));
+    const dialog = screen.getByRole("dialog", { name: "Renew subscription" });
+    expect(dialog.querySelector('input[type="date"]')).toBeNull();
+    expect(within(dialog).getByText("Monthly")).toBeTruthy();
+    expect(within(dialog).getByRole("heading").parentElement?.className).toContain("flex-col");
+    await user.click(within(dialog).getByRole("button", { name: "Renew subscription" }));
+    expect(axiosMocks.post).toHaveBeenCalledWith("/api/students/student-1/renew", { mode: "automatic", reactivate: false }, { headers: { "X-Time-Zone": expect.any(String) } });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  }, DIALOG_FLOW_TIMEOUT);
+
+  it("shows end dates and a week warning, and sends the shareable subscription filter", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date("2026-08-27T12:00:00Z"));
+    routerMocks.query = "subscription=expiring";
+    try {
+      await renderPage();
+      expect((screen.getByRole("combobox", { name: "Filter subscriptions" }) as HTMLSelectElement).value).toBe("expiring");
+      expect(screen.getByRole("img", { name: "Ends within a week" })).toBeTruthy();
+      const end = screen.getByText("30/08/2026");
+      expect(end.closest("td")?.className).toContain("text-red-700");
+      expect(axiosMocks.get.mock.calls.some(([url]) => String(url).includes("subscription=expiring"))).toBe(true);
+      fireEvent.change(screen.getByRole("combobox", { name: "Filter subscriptions" }), { target: { value: "expired" } });
+      expect(routerMocks.push).toHaveBeenCalledWith("/students?subscription=expired");
+    } finally { routerMocks.query = ""; vi.useRealTimers(); }
+  }, DIALOG_FLOW_TIMEOUT);
+  it("sends reactivation only after explicit consent and resets it when closed", async () => {
+    const user = userEvent.setup();
+    axiosMocks.post.mockResolvedValue({ data: { updated: 1, results: [{ id: "student-1", status: "succeeded" }] } });
+    await renderPage();
+    let { dialog } = await openExtendDialog(user);
+    const consent = within(dialog).getByRole("checkbox");
+    expect((consent as HTMLInputElement).checked).toBe(false);
+    await user.click(consent);
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    ({ dialog } = await openExtendDialog(user));
+    expect((within(dialog).getByRole("checkbox") as HTMLInputElement).checked).toBe(false);
+    await user.click(within(dialog).getByRole("checkbox"));
+    fireEvent.change(dialog.querySelector('input[type="date"]')!, { target: { value: "2026-09-30" } });
+    await user.click(within(dialog).getByRole("button", { name: "Confirm" }));
+    expect(axiosMocks.post).toHaveBeenCalledWith("/api/students/bulk-extend", { ids: ["student-1"], enrollmentEndDate: "2026-09-30", mode: "manual", reactivate: true }, { headers: { "X-Time-Zone": expect.any(String) } });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  }, DIALOG_FLOW_TIMEOUT);
+
   it("preserves extend payload, blocks dismissal while pending, and restores focus", async () => {
     const user = userEvent.setup();
     const pending = deferred<{ data: { updated: number } }>();
@@ -178,7 +243,8 @@ describe("student page shared dialogs", () => {
     expect(axiosMocks.post).toHaveBeenCalledWith("/api/students/bulk-extend", {
       ids: ["student-1"],
       enrollmentEndDate: "2026-09-30",
-    });
+      mode: "manual",
+    }, { headers: { "X-Time-Zone": expect.any(String) } });
     await user.keyboard("{Escape}");
     await user.click(document.querySelector<HTMLElement>("[data-dialog-overlay]")!);
     expect(screen.getByRole("dialog")).toBe(dialog);
@@ -188,7 +254,7 @@ describe("student page shared dialogs", () => {
     expect(document.activeElement).toBe(
       screen.getByRole("option", { name: "Bulk Action" }).parentElement
     );
-  }, 10_000);
+  }, DIALOG_FLOW_TIMEOUT);
 
   it("supports safe enrollment cancellation and preserves the create-token payload", async () => {
     const user = userEvent.setup();
@@ -233,7 +299,7 @@ describe("student page shared dialogs", () => {
     await user.click(screen.getByRole("button", { name: "Close" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(document.activeElement).toBe(addStudent);
-  }, 10_000);
+  }, DIALOG_FLOW_TIMEOUT);
 
   it("isolates review records, defaults Enter to cancel, and preserves approve/reject calls", async () => {
     const user = userEvent.setup();
@@ -276,7 +342,6 @@ describe("student page shared dialogs", () => {
       period: "",
       health_condition: "",
       allergies: "",
-      attendance_type: "",
       payment_method: "",
       guardian_name: "",
       guardian_phone_1: "",
@@ -306,5 +371,5 @@ describe("student page shared dialogs", () => {
 
     await act(async () => rejection.resolve({ data: {} }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-  }, 10_000);
+  }, DIALOG_FLOW_TIMEOUT);
 });

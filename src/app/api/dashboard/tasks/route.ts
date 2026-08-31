@@ -1,6 +1,8 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { astDayStart, astDayEnd } from "@/lib/datetime";
+import { calendarToday, localDayBounds, requestTimeZone } from "@/lib/device-date";
+import { subscriptionFilterWhere } from "@/lib/student-lifecycle";
+import { withNoStore } from "@/lib/auth-response";
 import { grants } from "@/lib/permissions";
 import { PaymentStatus } from "@/lib/payment-status";
 
@@ -21,7 +23,7 @@ import { PaymentStatus } from "@/lib/payment-status";
  * `students.view`, so asking the database how many children are absent would be
  * work done to produce a line that gets filtered out before it reaches them.
  */
-export async function GET() {
+export async function GET(request: Request) {
   let session;
   try {
     session = await requireSession();
@@ -35,9 +37,11 @@ export async function GET() {
   const schoolId = session.user.schoolId;
   const held = session.permissions;
   const now = new Date();
-  const dayStart = astDayStart(now);
-  // Documented exclusive — paired with `lt`, never `lte`.
-  const dayEnd = astDayEnd(now);
+  let timeZone: string;
+  try { timeZone = requestTimeZone(request); }
+  catch { return Response.json({ error: "Invalid time zone" }, { status: 422 }); }
+  const today = calendarToday(now, timeZone);
+  const { start: dayStart, end: dayEnd } = localDayBounds(now, timeZone);
 
   const canStudents = grants(held, "students.view");
   const canFinance = grants(held, "finance.view");
@@ -48,23 +52,46 @@ export async function GET() {
   const [
     activeStudents,
     presentToday,
+    eligiblePresentToday,
     unpaidInvoices,
     pendingEnrolments,
     classesWithoutTeacher,
     careReportsToday,
     expiringSoon,
+    expiredSubscriptions,
     classCount,
     teacherCount,
     invitesSent,
     school,
   ] = await prisma.$transaction([
     canStudents
-      ? prisma.student.count({ where: { schoolId, isActive: true } })
+      ? prisma.student.count({ where: { schoolId, deletedAt: null, isActive: true, status: "ACTIVE", ...subscriptionFilterWhere("current", today) } })
       : prisma.student.count({ where: { id: "" } }),
 
     canStudents
       ? prisma.attendance.count({
-          where: { schoolId, checkinAt: { gte: dayStart, lt: dayEnd } },
+          where: {
+            schoolId,
+            checkinAt: { gte: dayStart, lt: dayEnd },
+          },
+        })
+      : prisma.attendance.count({ where: { id: "" } }),
+
+    canStudents
+      ? prisma.attendance.count({
+          where: {
+            schoolId,
+            checkinAt: { gte: dayStart, lt: dayEnd },
+            student: {
+              is: {
+                schoolId,
+                deletedAt: null,
+                isActive: true,
+                status: "ACTIVE",
+                ...subscriptionFilterWhere("current", today),
+              },
+            },
+          },
         })
       : prisma.attendance.count({ where: { id: "" } }),
 
@@ -75,6 +102,7 @@ export async function GET() {
           where: {
             schoolId,
             isActive: true,
+            ...subscriptionFilterWhere("current", today),
             paymentStatus: { in: [PaymentStatus.PENDING, PaymentStatus.LATE] },
           },
         })
@@ -102,14 +130,15 @@ export async function GET() {
       ? prisma.student.count({
           where: {
             schoolId,
-            isActive: true,
-            enrollmentEndDate: {
-              gte: dayStart,
-              // A month ahead: far enough to renew without rushing, near enough
-              // that the line is not permanently lit.
-              lt: new Date(dayStart.getTime() + 30 * 24 * 60 * 60 * 1000),
-            },
+            deletedAt: null,
+            ...subscriptionFilterWhere("expiring", today),
           },
+        })
+      : prisma.student.count({ where: { id: "" } }),
+
+    canStudents
+      ? prisma.student.count({
+          where: { schoolId, deletedAt: null, ...subscriptionFilterWhere("expired", today) },
         })
       : prisma.student.count({ where: { id: "" } }),
 
@@ -125,12 +154,13 @@ export async function GET() {
   ]);
 
   /**
-   * Absent = enrolled today and not checked in.
-   *
-   * Clamped at zero: a child can be checked in after their enrolment ends, which
-   * would otherwise render "-1 children absent".
+   * Absent = currently eligible today and not checked in. Historical check-ins
+   * remain in `presentToday` but do not change this operational denominator.
    */
-  const absent = Math.max(0, activeStudents - presentToday);
+  // `presentToday` is historical truth for the day. A child who checked in and
+  // was later suspended/expired remains counted. Absence is an operational
+  // metric, so only currently eligible children belong in its denominator.
+  const absent = Math.max(0, activeStudents - eligiblePresentToday);
 
   const tasks = [
     canStudents && { key: "absent", count: absent, href: "/attendance" },
@@ -138,11 +168,15 @@ export async function GET() {
     canStudents && { key: "pendingEnrolments", count: pendingEnrolments, href: "/students" },
     canClasses && { key: "classesWithoutTeacher", count: classesWithoutTeacher, href: "/classes" },
     canCare && { key: "careReports", count: careReportsToday, href: "/care" },
-    canStudents && { key: "expiringSoon", count: expiringSoon, href: "/students" },
+    canStudents && { key: "expiringSoon", count: expiringSoon, href: "/students?subscription=expiring" },
+    canStudents && { key: "expiredSubscriptions", count: expiredSubscriptions, href: "/students?subscription=expired" },
   ].filter(Boolean);
 
-  return Response.json({
+  return withNoStore(Response.json({
     tasks,
+    // Historical truth for today's check-ins; unlike `absent`, this does not
+    // apply the current roster eligibility filter.
+    presentToday,
     /**
      * Only the owner sees the checklist, and only until it is finished.
      *
@@ -160,5 +194,5 @@ export async function GET() {
           ],
         }
       : null,
-  });
+  }));
 }

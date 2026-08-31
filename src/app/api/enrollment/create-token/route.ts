@@ -8,10 +8,6 @@ import { env } from "@/lib/env";
 import { ENROLLMENT_MANAGE_PERMISSION } from "@/lib/enrollment-access";
 import {
   generateEnrollmentToken,
-  generateOtp,
-  hashOtp,
-  buildOtpMessage,
-  OTP_TTL_MS,
   TOKEN_TTL_MS,
 } from "@/lib/enrollment-otp";
 import { z } from "zod";
@@ -102,7 +98,6 @@ export async function POST(request: Request) {
   });
   if (!school) return Response.json({ error: "School not found" }, { status: 404 });
 
-  const otp = generateOtp();
   const now = new Date();
 
   const enrollmentToken = await prisma.enrollmentToken.create({
@@ -111,9 +106,6 @@ export async function POST(request: Request) {
       token: generateEnrollmentToken(),
       sent_to_phone: normalizedPhone,
       sent_to_email: email,
-      otp_code_hash: hashOtp(otp),
-      otp_expires_at: new Date(now.getTime() + OTP_TTL_MS),
-      otp_last_sent_at: now,
       expires_at: new Date(now.getTime() + TOKEN_TTL_MS),
     },
   });
@@ -122,7 +114,7 @@ export async function POST(request: Request) {
   const sent = await sendEmail(
     email,
     `نموذج تسجيل — ${school.name}`,
-    buildOtpMessage(school.name, otp, enrollUrl),
+    `مرحبًا،\n\nيمكنك تعبئة نموذج تسجيل الطفل لدى ${school.name} عبر الرابط المؤقت التالي:\n${enrollUrl}\n\nالرابط صالح لمدة 24 ساعة.`,
     school.name,
     {
       sender: {

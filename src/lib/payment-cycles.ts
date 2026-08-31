@@ -3,51 +3,29 @@ import { astDateOnly } from "@/lib/datetime";
 import type { PaymentCycleStatus } from "@/generated/prisma/enums";
 import { money } from "@/lib/money";
 import type { Prisma } from "@/generated/prisma/client";
+import { nthDueDate } from "@/lib/billing-cycles";
+import type { BillingCycle } from "@/generated/prisma/enums";
+import { resolveStudentCycleFee } from "@/lib/student-cycle-fee";
 
 /** Statuses that represent money already accounted for — never regenerated. */
 const SETTLED_STATUSES: PaymentCycleStatus[] = ["PAID", "CANCELLED"];
 
-/** Guards against a mistyped end date generating thousands of rows. */
-const MAX_CYCLES = 120;
-
-/**
- * Adds one calendar month without the rollover that `setMonth` produces.
- *
- * `new Date(2026, 0, 31).setMonth(1)` lands on 3 March, because 31 February
- * overflows. Repeated month by month that drifts the due day forward and skips
- * February entirely. Clamping to the last valid day keeps the 31st of January
- * billing on 28 February and then back on 31 March.
- */
-function addMonthClamped(date: Date, months: number): Date {
-  const year = date.getUTCFullYear();
-  const month = date.getUTCMonth();
-  const day = date.getUTCDate();
-
-  const lastDayOfTarget = new Date(Date.UTC(year, month + months + 1, 0)).getUTCDate();
-
-  return new Date(
-    Date.UTC(
-      year,
-      month + months,
-      Math.min(day, lastDayOfTarget),
-      date.getUTCHours(),
-      date.getUTCMinutes()
-    )
-  );
-}
+// A write batch size, NOT a limit on the number of subscription days/cycles.
+const WRITE_BATCH_SIZE = 500;
 
 /**
  * Rebuilds a student's payment schedule.
  *
- * This runs on every student edit, so it must be non-destructive. It previously
+ * Runs on billing edits or renewal, so it must be non-destructive. It previously
  * deleted *all* cycles — including ones already marked paid — and recreated them
  * as pending, which meant changing a phone number wiped the family's payment
  * history and re-billed them for months they had settled. Settled cycles are now
- * left untouched; only unpaid ones are recalculated.
+ * left untouched. Renewal only appends; billing edits only recalculate unpaid
+ * rows in the current period. Each transaction either completes or rolls back.
  */
 type PaymentCycleClient = typeof prisma | Prisma.TransactionClient;
 
-async function generatePaymentCyclesWithClient(studentId: string, client: PaymentCycleClient) {
+async function generatePaymentCyclesWithClient(studentId: string, client: PaymentCycleClient, renewalStart?: Date) {
   const student = await client.student.findUnique({
     where: { id: studentId },
     select: {
@@ -56,62 +34,67 @@ async function generatePaymentCyclesWithClient(studentId: string, client: Paymen
       enrollment_date: true,
       enrollmentEndDate: true,
       registration_fee: true,
+      billingCycle: true,
+      billingIntervalDays: true,
+      cycleFee: true,
     },
   });
-  if (!student?.enrollment_date || !student.enrollmentEndDate) return;
+  if (!student?.enrollment_date || !student.enrollmentEndDate) return 0;
 
   const settings = await client.settings.findUnique({
     where: { schoolId: student.schoolId },
-    select: { monthlyStudentFee: true },
+    select: { dailyStudentFee: true, monthlyStudentFee: true },
   });
 
-  const monthlyAmount =
-    money(student.registration_fee).greaterThan(0)
-      ? student.registration_fee
-      : (settings?.monthlyStudentFee ?? 0);
-  if (money(monthlyAmount).lessThanOrEqualTo(0)) return;
+  const cycle = (student.billingCycle ?? "MONTHLY") as BillingCycle;
+  const cycleAmount = resolveStudentCycleFee(cycle, student.cycleFee, settings);
+  // Annual/custom prices must be explicit; daily/monthly may inherit settings.
+  if (cycleAmount === null || money(cycleAmount).lessThanOrEqualTo(0)) return 0;
 
   const start = astDateOnly(student.enrollment_date);
   const end = astDateOnly(student.enrollmentEndDate);
-  if (end < start) return;
-
-  const schedule: { due_date: Date; cycle_number: number }[] = [];
-  for (let i = 0; i < MAX_CYCLES; i++) {
-    const dueDate = addMonthClamped(start, i);
-    if (dueDate > end) break;
-    schedule.push({ due_date: dueDate, cycle_number: i + 1 });
-  }
+  if (end < start) return 0;
 
   const existing = await client.paymentCycle.findMany({
     where: { student_id: studentId },
-    select: { id: true, cycle_number: true, status: true },
+    select: { id: true, cycle_number: true, status: true, due_date: true },
   });
-
-  const settled = new Set(
-    existing.filter((c) => SETTLED_STATUSES.includes(c.status)).map((c) => c.cycle_number)
-  );
-  const removable = existing
-    .filter((c) => !SETTLED_STATUSES.includes(c.status))
-    .map((c) => c.id);
-
-  const toCreate = schedule
-    .filter((c) => !settled.has(c.cycle_number))
-    .map((c) => ({
+  // Renewal only appends. Editing the current period must also keep historical
+  // debts and settled rows; cycle_number is not an identity across billing types.
+  const preserved = existing.filter((c) => renewalStart || SETTLED_STATUSES.includes(c.status) || c.due_date < start);
+  const preservedIds = new Set(preserved.map((c) => c.id));
+  const preservedDates = new Set(preserved.map((c) => astDateOnly(c.due_date).getTime()));
+  const removable = existing.filter((c) => !preservedIds.has(c.id)).map((c) => c.id);
+  let number = existing.reduce((max, c) => Math.max(max, c.cycle_number), 0);
+  for (let offset = 0; offset < removable.length; offset += WRITE_BATCH_SIZE) {
+    await client.paymentCycle.deleteMany({ where: { id: { in: removable.slice(offset, offset + WRITE_BATCH_SIZE) } } });
+  }
+  let batch: Prisma.PaymentCycleCreateManyInput[] = [];
+  let created = 0;
+  for (let i = 0; ; i++) {
+    const dueDate = nthDueDate(start, cycle, i, student.billingIntervalDays);
+    if (!Number.isFinite(dueDate.getTime())) throw new Error("Invalid payment schedule date");
+    if (dueDate > end) break;
+    if (renewalStart && dueDate < renewalStart) continue;
+    if (preservedDates.has(dueDate.getTime())) continue;
+    batch.push({
       school_id: student.schoolId,
       student_id: studentId,
-      due_date: c.due_date,
-      amount: monthlyAmount,
-      cycle_number: c.cycle_number,
+      due_date: dueDate,
+      amount: cycleAmount,
+      cycle_number: ++number,
       status: "PENDING" as const,
-    }));
-
-  // One transaction: a crash between the delete and the create used to leave the
-  // student with no schedule at all.
-  await client.paymentCycle.deleteMany({ where: { id: { in: removable } } });
-  if (toCreate.length > 0) await client.paymentCycle.createMany({ data: toCreate });
+    });
+    if (batch.length === WRITE_BATCH_SIZE) {
+      created += (await client.paymentCycle.createMany({ data: batch })).count;
+      batch = [];
+    }
+  }
+  if (batch.length) created += (await client.paymentCycle.createMany({ data: batch })).count;
+  return created;
 }
 
-export async function generatePaymentCycles(studentId: string, tx?: Prisma.TransactionClient) {
-  if (tx) return generatePaymentCyclesWithClient(studentId, tx);
-  return prisma.$transaction((transaction) => generatePaymentCyclesWithClient(studentId, transaction));
+export async function generatePaymentCycles(studentId: string, tx?: Prisma.TransactionClient, renewalStart?: Date) {
+  if (tx) return generatePaymentCyclesWithClient(studentId, tx, renewalStart);
+  return prisma.$transaction((transaction) => generatePaymentCyclesWithClient(studentId, transaction), { timeout: 30_000 });
 }

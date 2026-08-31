@@ -2,6 +2,8 @@
 
 import type { AttendancePerson } from "@/lib/attendance-data";
 import { useT } from "@/lib/i18n-provider";
+import { useLocale } from "@/lib/i18n-provider";
+import { formatDeviceTime } from "@/lib/device-date";
 
 interface AttendanceCardProps {
   person: AttendancePerson;
@@ -12,8 +14,14 @@ interface AttendanceCardProps {
 
 export function AttendanceCard({ person, onCheckin, onCheckout, loading }: AttendanceCardProps) {
   const t = useT();
-  const isCheckedIn = !!person.today_attendance?.checkin_time;
-  const isCheckedOut = !!person.today_attendance?.checkout_time;
+  const { locale } = useLocale();
+  const displayedAttendance = person.open_attendance ?? person.today_attendance;
+  const isCheckedIn = !!displayedAttendance?.checkin_time;
+  const isCheckedOut = !!displayedAttendance?.checkout_time;
+  const openFromPreviousDay = Boolean(
+    person.open_attendance &&
+      person.today_attendance?.checkin_time !== person.open_attendance.checkin_time
+  );
 
   return (
     <div className="bg-white rounded-xl p-4 shadow-card flex flex-col items-center gap-3 text-center">
@@ -37,22 +45,32 @@ export function AttendanceCard({ person, onCheckin, onCheckout, loading }: Atten
         <div className="text-xs text-gray-500">
           <span>{t("attendance.checkInLabel")} </span>
           <span className="font-medium text-teal">
-            {new Date(person.today_attendance!.checkin_time!).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}
+            {formatDeviceTime(new Date(displayedAttendance!.checkin_time!), openFromPreviousDay
+              ? { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }
+              : { hour: "2-digit", minute: "2-digit" }, locale)}
           </span>
           {isCheckedOut && (
             <>
               <span className="mx-1">|</span>
               <span>{t("attendance.checkOutLabel")} </span>
               <span className="font-medium text-coral">
-                {new Date(person.today_attendance!.checkout_time!).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}
+                {formatDeviceTime(new Date(displayedAttendance!.checkout_time!), { hour: "2-digit", minute: "2-digit" }, locale)}
               </span>
             </>
+          )}
+          {!isCheckedOut && (
+            <span className="ms-2 text-amber-600">{t("attendance.notCheckedOut")}</span>
           )}
         </div>
       )}
 
       <div className="flex flex-col gap-2 w-full">
-        {!isCheckedIn && (
+        {person.has_overlapping_open_attendance && (
+          <div role="alert" className="w-full rounded-lg bg-red-50 px-2 py-2 text-xs text-red-700">
+            {t("attendance.overlappingOpenSessions")}
+          </div>
+        )}
+        {!isCheckedIn && person.eligible_for_attendance !== false && !person.has_overlapping_open_attendance && (
           <button
             onClick={onCheckin}
             disabled={loading}
@@ -61,7 +79,7 @@ export function AttendanceCard({ person, onCheckin, onCheckout, loading }: Atten
             {t("auth.login")}
           </button>
         )}
-        {isCheckedIn && !isCheckedOut && (
+        {isCheckedIn && !isCheckedOut && !person.has_overlapping_open_attendance && (
           <button
             onClick={onCheckout}
             disabled={loading}
@@ -71,7 +89,12 @@ export function AttendanceCard({ person, onCheckin, onCheckout, loading }: Atten
           </button>
         )}
         {isCheckedOut && (
-          <div className="w-full py-2 rounded-lg bg-gray-100 text-gray-400 text-xs text-center">{t("attendance.dayEnded")}</div>
+          <div className="w-full py-2 rounded-lg bg-gray-100 text-gray-400 text-xs text-center">{t("attendanceStatus.CHECKED_OUT")}</div>
+        )}
+        {!isCheckedIn && person.eligible_for_attendance === false && (
+          <div className="w-full py-2 rounded-lg bg-gray-100 text-gray-500 text-xs text-center">
+            {t("attendance.notEligible")}
+          </div>
         )}
       </div>
     </div>

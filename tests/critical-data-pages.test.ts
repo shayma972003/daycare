@@ -49,6 +49,18 @@ describe("critical data page request contracts", () => {
     expect(dashboardComponent).toContain("/api/notifications?source=activity");
     expect(dashboardComponent.match(/return \(\) => controller\.abort\(\);/g)).toHaveLength(4);
     expect(dashboardComponent).not.toContain("catch(() => {})");
+    expect(dashboardComponent).toContain('headers: deviceHeaders()');
+    expect(dashboardComponent).toContain('permissionStatus !== "ready" || !canViewCalendar');
+  });
+
+  it("requests only attendance sections granted by the session", () => {
+    const pageDataRoute = source("src/app/api/attendance/page-data/route.ts");
+    const dataLoader = source("src/lib/attendance-data.ts");
+    expect(pageDataRoute).toContain('session.can("attendance.students")');
+    expect(pageDataRoute).toContain('session.can("attendance.staff")');
+    expect(dataLoader).toContain("visibility.students");
+    expect(dataLoader).toContain("visibility.teachers");
+    expect(pageDataRoute).toContain("withNoStore");
   });
 
   it("uses item-level results where available and conservative count-only outcomes otherwise", () => {

@@ -626,7 +626,7 @@
     "contactNumber": "رقم التواصل",
     "address": "العنوان",
     "phoneNumber": "رقم الجوال",
-    "hoursHint": "تُستخدم هذه الأوقات لحساب ساعات التأخير تلقائياً",
+    "hoursHint": "تُستخدم هذه الأوقات للجداول وحساب التأخير فقط، ولا تسجل حضوراً أو خروجاً تلقائياً.",
     "teachersLabel": "المعلمون",
     "studentsLabel": "الطلاب",
     "checkinTime": "وقت الدخول",
@@ -1326,6 +1326,9 @@
     "ofQuota": "من {total}"
   },
   "attendance": {
+    "noTeachers": "لا توجد معلمات",
+    "noRecord": "لا يوجد سجل",
+    "notCheckedOut": "لم يُسجّل خروج",
     "loadFailed": "تعذر تحميل الحضور",
     "updateFailed": "تعذر تحديث الحضور",
     "overCapacity": " — تجاوز السعة",
@@ -1336,11 +1339,14 @@
     "checkInFailed": "حدث خطأ أثناء تسجيل الحضور",
     "checkOutFailed": "حدث خطأ أثناء تسجيل الانصراف",
     "nobodyToShow": "لا يوجد أحد لعرضه",
+    "notEligible": "لا يمكن تسجيل حضور جديد",
     "checkInLabel": "دخول:",
     "checkOutLabel": "خروج:",
     "dayEnded": "انتهى الدوام",
     "previousWeek": "الأسبوع السابق",
     "thisWeek": "هذا الأسبوع",
+    "nextWeek": "الأسبوع التالي",
+    "overlappingOpenSessions": "توجد أكثر من جلسة حضور مفتوحة وتحتاج إلى مراجعة",
     "daysRatio": "{attended}/{expected} أيام",
     "weekFrom": "من {date}"
   },

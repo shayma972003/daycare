@@ -1,49 +1,44 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
-import { prisma } from "@/lib/prisma";
+import { calendarToday, requestTimeZone } from "@/lib/device-date";
+import { AttendanceOperationError, checkInTeacher } from "@/lib/attendance-operations";
 import { z } from "zod";
 
-const schema = z.object({ teacher_id: z.string() });
+const schema = z.object({ teacher_id: z.string().min(1) });
 
 export async function POST(request: Request) {
   let session;
-  try { session = await requireSession(); } catch (error) {
-    // 403 when the caller is known but lacks the permission; 401 otherwise.
-    return (
-      sessionErrorResponse(error) ??
-      Response.json({ error: "Unauthorized" }, { status: 401 })
-    );
+  try { session = await requireSession(); }
+  catch (error) {
+    return sessionErrorResponse(error) ?? Response.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const schoolId = (session.user as { schoolId: string }).schoolId;
+  if (!session.can("attendance.staff")) {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
+  const schoolId = session.user.schoolId;
 
   let body: unknown;
-  try { body = await request.json(); } catch {
-    return Response.json({ error: "Invalid JSON" }, { status: 400 });
-  }
-
+  try { body = await request.json(); }
+  catch { return Response.json({ error: "Invalid JSON" }, { status: 400 }); }
   const parsed = schema.safeParse(body);
   if (!parsed.success) return Response.json({ error: parsed.error.flatten() }, { status: 400 });
 
-  const { teacher_id } = parsed.data;
+  const now = new Date();
+  let date: Date;
+  try { date = calendarToday(now, requestTimeZone(request)); }
+  catch { return Response.json({ error: "Invalid time zone" }, { status: 422 }); }
 
-  const teacher = await prisma.teacher.findFirst({ where: { id: teacher_id, schoolId, deletedAt: null } });
-  if (!teacher) return Response.json({ error: "المعلم غير موجود" }, { status: 404 });
-
-  const nowUtc = new Date();
-  const offsetMs = 3 * 60 * 60 * 1000;
-  const todayAst = new Date(nowUtc.getTime() + offsetMs);
-  todayAst.setUTCHours(0, 0, 0, 0);
-  const tomorrowAst = new Date(todayAst.getTime() + 24 * 60 * 60 * 1000);
-
-  const existing = await prisma.teacherAttendance.findFirst({
-    where: { teacherId: teacher_id, schoolId, date: { gte: todayAst, lt: tomorrowAst } },
-  });
-
-  if (existing && !existing.checkoutAt)
-    return Response.json({ error: "المعلم مسجل دخوله بالفعل" }, { status: 409 });
-
-  const att = await prisma.teacherAttendance.create({
-    data: { teacherId: teacher_id, schoolId, checkinAt: nowUtc, date: todayAst },
-  });
-
-  return Response.json({ attendance_id: att.id, checkin_time: att.checkinAt }, { status: 201 });
+  try {
+    const attendance = await checkInTeacher({
+      teacherId: parsed.data.teacher_id,
+      schoolId,
+      date,
+      now,
+    });
+    return Response.json({ attendance_id: attendance.id, checkin_time: attendance.checkinAt }, { status: 201 });
+  } catch (error) {
+    if (error instanceof AttendanceOperationError) {
+      return Response.json({ error: "Teacher could not be checked in", code: error.code }, { status: error.status });
+    }
+    throw error;
+  }
 }

@@ -1,113 +1,66 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
-import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { bulkSummary, type BulkItemResult } from "@/lib/bulk-result";
+import { calendarToday, requestTimeZone } from "@/lib/device-date";
+import {
+  AttendanceOperationError,
+  checkInTeacher,
+  checkoutTeacher,
+} from "@/lib/attendance-operations";
 
 const schema = z.object({
-  teacherIds: z.array(z.string()).min(1),
+  teacherIds: z.array(z.string().min(1)).min(1).max(200),
   action: z.enum(["checkin", "checkout"]),
 });
 
+function bulkCode(error: unknown, action: "checkin" | "checkout") {
+  if (!(error instanceof AttendanceOperationError)) {
+    return action === "checkin" ? "CHECKIN_FAILED" : "CHECKOUT_FAILED";
+  }
+  return error.code;
+}
 export async function POST(request: Request) {
   let session;
-  try {
-    session = await requireSession();
-  } catch (error) {
-    // 403 when the caller is known but lacks the permission; 401 otherwise.
-    return (
-      sessionErrorResponse(error) ??
-      Response.json({ error: "Unauthorized" }, { status: 401 })
-    );
+  try { session = await requireSession(); }
+  catch (error) {
+    return sessionErrorResponse(error) ?? Response.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const schoolId = (session.user as { schoolId: string }).schoolId;
+  if (!session.can("attendance.staff")) {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
+  const schoolId = session.user.schoolId;
 
   let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return Response.json({ error: "Invalid JSON" }, { status: 400 });
-  }
-
+  try { body = await request.json(); }
+  catch { return Response.json({ error: "Invalid JSON" }, { status: 400 }); }
   const parsed = schema.safeParse(body);
   if (!parsed.success) return Response.json({ error: parsed.error.flatten() }, { status: 400 });
 
-  const { teacherIds, action } = parsed.data;
-
-  const nowUtc = new Date();
-  const offsetMs = 3 * 60 * 60 * 1000;
-  const todayAst = new Date(nowUtc.getTime() + offsetMs);
-  todayAst.setUTCHours(0, 0, 0, 0);
-  const tomorrowAst = new Date(todayAst.getTime() + 24 * 60 * 60 * 1000);
+  const now = new Date();
+  let date: Date;
+  try { date = calendarToday(now, requestTimeZone(request)); }
+  catch { return Response.json({ error: "Invalid time zone" }, { status: 422 }); }
 
   const results: BulkItemResult[] = [];
-
-  if (action === "checkin") {
-    for (const teacherId of teacherIds) {
-      const teacher = await prisma.teacher.findFirst({ where: { id: teacherId, schoolId, deletedAt: null } });
-      if (!teacher) {
-        results.push({ id: teacherId, status: "failed", code: "NOT_FOUND" });
-        continue;
+  for (const teacherId of parsed.data.teacherIds) {
+    try {
+      if (parsed.data.action === "checkin") {
+        await checkInTeacher({ teacherId, schoolId, date, now });
+      } else {
+        await checkoutTeacher({ teacherId, schoolId, now });
       }
-
-      const existing = await prisma.teacherAttendance.findFirst({
-        where: { teacherId, schoolId, date: { gte: todayAst, lt: tomorrowAst } },
-      });
-
-      if (existing && !existing.checkoutAt) {
-        results.push({ id: teacherId, status: "skipped", code: "ALREADY_CHECKED_IN" });
-        continue;
-      }
-
-      await prisma.teacherAttendance.create({
-        data: { teacherId, schoolId, checkinAt: nowUtc, date: todayAst },
-      });
       results.push({ id: teacherId, status: "succeeded" });
-    }
-  } else {
-    const school = await prisma.school.findUnique({ where: { id: schoolId } });
-    const [inH, inM] = (school?.teacherCheckinTime ?? "08:00").split(":").map(Number);
-    const [outH, outM] = (school?.teacherCheckoutTime ?? "17:00").split(":").map(Number);
-    const requiredHours = (outH * 60 + outM - (inH * 60 + inM)) / 60;
-
-    for (const teacherId of teacherIds) {
-      const teacher = await prisma.teacher.findFirst({ where: { id: teacherId, schoolId, deletedAt: null } });
-      if (!teacher) {
-        results.push({ id: teacherId, status: "failed", code: "NOT_FOUND" });
-        continue;
-      }
-
-      const existing = await prisma.teacherAttendance.findFirst({
-        where: { teacherId, schoolId, date: { gte: todayAst, lt: tomorrowAst }, checkoutAt: null, checkinAt: { not: null } },
-      });
-
-      if (!existing) {
-        results.push({ id: teacherId, status: "skipped", code: "NOT_CHECKED_IN" });
-        continue;
-      }
-
-      const actualHours = (nowUtc.getTime() - new Date(existing.checkinAt!).getTime()) / 3600000;
-      const compensated = requiredHours <= 0 || actualHours >= requiredHours;
-      let lateHours = 0;
-      let lateMinutes = 0;
-      if (!compensated) {
-        lateHours = requiredHours - actualHours;
-        lateMinutes = Math.round(lateHours * 60);
-      }
-
-      await prisma.teacherAttendance.update({
-        where: { id: existing.id },
-        data: { checkoutAt: nowUtc, lateMinutes, requiredHours, compensated },
-      });
-
-      await prisma.teacher.update({
-        where: { id: teacherId },
-        data: { attendanceHours: { increment: actualHours }, lateHours: { increment: lateHours } },
-      });
-
-      results.push({ id: teacherId, status: "succeeded" });
+    } catch (error) {
+      const code = bulkCode(error, parsed.data.action);
+      const skipped = error instanceof AttendanceOperationError &&
+        ["ALREADY_CHECKED_IN", "ALREADY_CHECKED_OUT", "NO_ACTIVE_ATTENDANCE"].includes(error.code);
+      results.push({ id: teacherId, status: skipped ? "skipped" : "failed", code });
     }
   }
 
   const summary = bulkSummary(results);
-  return Response.json({ processed: summary.succeeded, ...summary }, { status: summary.failed > 0 ? 207 : 200 });
+  return Response.json(
+    { processed: summary.succeeded, ...summary },
+    { status: summary.failed > 0 ? 207 : 200 }
+  );
 }

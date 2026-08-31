@@ -626,7 +626,7 @@
     "contactNumber": "Contact number",
     "address": "Address",
     "phoneNumber": "Mobile number",
-    "hoursHint": "These times are what lateness is calculated from",
+    "hoursHint": "These times are used for schedules and lateness calculations only. They never record attendance or checkout automatically.",
     "teachersLabel": "Staff",
     "studentsLabel": "Children",
     "checkinTime": "Check-in time",
@@ -1326,6 +1326,9 @@
     "ofQuota": "of {total}"
   },
   "attendance": {
+    "noTeachers": "No teachers",
+    "noRecord": "No record",
+    "notCheckedOut": "Not checked out",
     "loadFailed": "Could not load attendance",
     "updateFailed": "Could not update attendance",
     "overCapacity": " — over capacity",
@@ -1336,11 +1339,14 @@
     "checkInFailed": "Something went wrong recording the check-in",
     "checkOutFailed": "Something went wrong recording the check-out",
     "nobodyToShow": "Nobody to show",
+    "notEligible": "Not eligible for a new check-in",
     "checkInLabel": "In:",
     "checkOutLabel": "Out:",
     "dayEnded": "Day ended",
     "previousWeek": "Previous week",
     "thisWeek": "This week",
+    "nextWeek": "Next week",
+    "overlappingOpenSessions": "Multiple attendance sessions are open and need review",
     "daysRatio": "{attended}/{expected} days",
     "weekFrom": "From {date}"
   },

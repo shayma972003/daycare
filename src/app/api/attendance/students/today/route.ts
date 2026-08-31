@@ -1,7 +1,9 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { withNoStore } from "@/lib/auth-response";
+import { calendarToday, requestTimeZone } from "@/lib/device-date";
 
-export async function GET() {
+export async function GET(request: Request) {
   let session;
   try {
     session = await requireSession();
@@ -13,22 +15,31 @@ export async function GET() {
     );
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
+  if (!session.can("attendance.students")) {
+    return withNoStore(Response.json({ error: "Forbidden" }, { status: 403 }));
+  }
 
-  // "Today" in AST (UTC+3)
-  const nowUtc = new Date();
-  const offsetMs = 3 * 60 * 60 * 1000;
-  const todayAst = new Date(nowUtc.getTime() + offsetMs);
-  todayAst.setUTCHours(0, 0, 0, 0);
+  let todayAst: Date;
+  try { todayAst = calendarToday(new Date(), requestTimeZone(request)); }
+  catch { return withNoStore(Response.json({ error: "Invalid time zone" }, { status: 422 })); }
   const tomorrowAst = new Date(todayAst.getTime() + 24 * 60 * 60 * 1000);
 
   const attendances = await prisma.attendance.findMany({
     where: {
       schoolId,
-      date: { gte: todayAst, lt: tomorrowAst },
+      OR: [
+        { date: { gte: todayAst, lt: tomorrowAst } },
+        { checkinAt: { not: null }, checkoutAt: null },
+      ],
+      student: {
+        deletedAt: null,
+        anonymizedAt: null,
+      },
     },
     select: {
       id: true,
       studentId: true,
+      date: true,
       checkinAt: true,
       checkoutAt: true,
       lateMinutes: true,
@@ -36,5 +47,14 @@ export async function GET() {
     },
   });
 
-  return Response.json(attendances, { status: 200 });
+  const chosen = new Map<string, (typeof attendances)[number]>();
+  for (const attendance of attendances) {
+    const current = chosen.get(attendance.studentId);
+    const isOpen = Boolean(attendance.checkinAt && !attendance.checkoutAt);
+    const currentIsOpen = Boolean(current?.checkinAt && !current.checkoutAt);
+    if (!current || (isOpen && !currentIsOpen) || attendance.date > current.date) {
+      chosen.set(attendance.studentId, attendance);
+    }
+  }
+  return withNoStore(Response.json([...chosen.values()], { status: 200 }));
 }

@@ -136,7 +136,9 @@ export const ROUTE_PERMISSIONS: Record<string, RouteRule> = {
   "/api/classes/:id/students": { methods: { GET: "classes.view", DELETE: "classes.assign" } },
 
   // ── Attendance ──────────────────────────────────────────────────────────
-  "/api/attendance/page-data": { default: "attendance.students" },
+  // The handler returns only the sections the session can read. Keeping the
+  // route session-gated here allows staff-only users to receive their section.
+  "/api/attendance/page-data": { default: null },
   "/api/attendance/students/checkin": { default: "attendance.students" },
   "/api/attendance/students/checkout": { default: "attendance.students" },
   "/api/attendance/students/today": { default: "attendance.students" },
@@ -146,6 +148,7 @@ export const ROUTE_PERMISSIONS: Record<string, RouteRule> = {
   "/api/attendance/teachers/checkin": { default: "attendance.staff" },
   "/api/attendance/teachers/checkout": { default: "attendance.staff" },
   "/api/attendance/teachers/today": { default: "attendance.staff" },
+  "/api/attendance/teachers/week": { default: "attendance.staff" },
   "/api/attendance/teachers/bulk-action": { default: "attendance.staff" },
   // ── Activities and schedule ─────────────────────────────────────────────
   "/api/activities": {

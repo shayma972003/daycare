@@ -1,9 +1,10 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { astDateOnly, astParts } from "@/lib/datetime";
+import { calendarToday, requestTimeZone } from "@/lib/device-date";
+import { withNoStore } from "@/lib/auth-response";
 import {
   expectedDays,
-  attendanceRatio,
   capacityState,
 } from "@/lib/attendance-schedule";
 
@@ -29,19 +30,25 @@ export async function GET(request: Request) {
     );
   }
   const schoolId = session.user.schoolId;
+  if (!session.can("attendance.students")) return Response.json({ error: "Forbidden" }, { status: 403 });
   const url = new URL(request.url);
 
   const classId = url.searchParams.get("classId");
   const startParam = url.searchParams.get("start");
+  const search = url.searchParams.get("search")?.trim();
 
-  const anchor = startParam ? new Date(startParam) : new Date();
+  let timeZone: string;
+  try { timeZone = requestTimeZone(request); }
+  catch { return withNoStore(Response.json({ error: "Invalid time zone" }, { status: 422 })); }
+  const anchor = startParam ? new Date(`${startParam}T12:00:00.000Z`) : new Date();
   if (Number.isNaN(anchor.getTime())) {
     return Response.json({ error: "التاريخ غير صحيح" }, { status: 422 });
   }
 
   // Week starts on Sunday — the Saudi working week runs Sunday to Thursday, and
   // a Monday-first grid puts the weekend in the middle.
-  const anchorDay = astDateOnly(anchor);
+  const anchorDay = startParam ? new Date(`${startParam}T00:00:00.000Z`) : calendarToday(anchor, timeZone);
+  const today = calendarToday(new Date(), timeZone);
   const weekStart = new Date(anchorDay);
   weekStart.setUTCDate(weekStart.getUTCDate() - weekStart.getUTCDay());
 
@@ -58,12 +65,22 @@ export async function GET(request: Request) {
     prisma.student.findMany({
       where: {
         schoolId,
-        deletedAt: null,
-        isActive: true,
-        ...(classId ? { classId } : {}),
+        ...(search ? { name: { contains: search, mode: "insensitive" as const } } : {}),
+        OR: [
+          // Actual records survive expiry, departure, trash and a class move.
+          { attendances: { some: { schoolId, date: { gte: weekStart, lt: weekEnd }, ...(classId ? { classId } : {}) } } },
+          // The current roster supplies empty cells, never controls history.
+          { deletedAt: null, anonymizedAt: null, isActive: true, status: "ACTIVE",
+            ...(classId ? { classId } : {}),
+            AND: [
+              { OR: [{ enrollment_date: null }, { enrollment_date: { lt: weekEnd } }] },
+              { OR: [{ enrollmentEndDate: null }, { enrollmentEndDate: { gte: weekStart } }] },
+            ],
+          },
+        ],
       },
       orderBy: { name: "asc" },
-      select: { id: true, name: true, avatarUrl: true, attendanceDays: true },
+      select: { id: true, name: true, avatarUrl: true, attendanceDays: true, enrollment_date: true, enrollmentEndDate: true, isActive: true, status: true, deletedAt: true, anonymizedAt: true, classId: true },
     }),
     prisma.attendance.findMany({
       where: {
@@ -105,11 +122,16 @@ export async function GET(request: Request) {
     const expected = expectedDays(student.attendanceDays);
     const cells = days.map((day) => {
       const record = byCell.get(key(student.id, day));
+      const enrolledOnDay = student.isActive && student.status === "ACTIVE" && !student.deletedAt && !student.anonymizedAt &&
+        (!classId || student.classId === classId) &&
+        (!student.enrollment_date || astDateOnly(student.enrollment_date) <= day) &&
+        (!student.enrollmentEndDate || astDateOnly(student.enrollmentEndDate) >= day);
       return {
         date: day.toISOString().slice(0, 10),
         weekday: day.getUTCDay(),
         // Not enrolled on this weekday — rendered greyed rather than absent.
-        expected: expected.includes(day.getUTCDay()),
+        expected: Boolean(record) || (enrolledOnDay && expected.includes(day.getUTCDay())),
+        editable: !student.deletedAt && !student.anonymizedAt && day <= today,
         // NO_RECORD is the absence of a row, never a stored value.
         status: record?.status ?? "NO_RECORD",
         statusNote: record?.statusNote ?? null,
@@ -134,7 +156,7 @@ export async function GET(request: Request) {
       cells,
       // "3/5 أيام" — the denominator counts days this child was *expected*, not
       // days the nursery was open.
-      ratio: attendanceRatio(student.attendanceDays, present, weekStart, days[6]),
+      ratio: { attended: present.length, expected: cells.filter((cell) => cell.expected).length },
     };
   });
 
@@ -153,7 +175,7 @@ export async function GET(request: Request) {
     };
   });
 
-  return Response.json({
+  return withNoStore(Response.json({
     weekStart: weekStart.toISOString().slice(0, 10),
     days: days.map((day) => ({
       date: day.toISOString().slice(0, 10),
@@ -169,5 +191,5 @@ export async function GET(request: Request) {
           capacityState: capacityState(cls._count.students, cls.capacity),
         }
       : null,
-  });
+  }));
 }

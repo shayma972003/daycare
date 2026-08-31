@@ -21,13 +21,19 @@ import {
 } from "@/lib/attendance-schedule";
 import type { AttendanceStatus } from "@/generated/prisma/enums";
 import { useT } from "@/lib/i18n-provider";
+import { useLocale } from "@/lib/i18n-provider";
+import { deviceHeaders } from "@/lib/device-date";
+import { formatDeviceTime } from "@/lib/device-date";
 
 interface Cell {
   date: string;
   weekday: number;
   expected: boolean;
+  editable?: boolean;
   status: AttendanceStatus;
   statusNote: string | null;
+  checkinAt: string | null;
+  checkoutAt: string | null;
 }
 
 interface Row {
@@ -51,23 +57,26 @@ interface WeekResponse {
 }
 
 /** Only the states a teacher sets by hand — checkout has its own action. */
-const SETTABLE: AttendanceStatus[] = ["PRESENT", "ABSENT", "LEAVE", "NO_RECORD"];
+const SETTABLE: AttendanceStatus[] = ["ABSENT", "LEAVE", "NO_RECORD"];
 
-export function WeeklyAttendanceGrid({ classId }: { classId?: string }) {
+export function WeeklyAttendanceGrid({ classId, search = "" }: { classId?: string; search?: string }) {
   const t = useT();
+  const { locale } = useLocale();
   const [data, setData] = useState<WeekResponse | null>(null);
   const [weekStart, setWeekStart] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [savingCell, setSavingCell] = useState<string | null>(null);
+  const [retry, setRetry] = useState(0);
 
   const load = useCallback(
     async (start?: string | null) => {
       const params = new URLSearchParams();
       if (classId) params.set("classId", classId);
+      if (search.trim()) params.set("search", search.trim());
       if (start) params.set("start", start);
       try {
         const response = await axios.get<WeekResponse>(
-          `/api/attendance/week?${params.toString()}`
+          `/api/attendance/week?${params.toString()}`, { headers: deviceHeaders() }
         );
         setData(response.data);
         setError(null);
@@ -75,26 +84,28 @@ export function WeeklyAttendanceGrid({ classId }: { classId?: string }) {
         setError(describeApiError(err, t("attendance.loadFailed")));
       }
     },
-    [classId, t]
+    [classId, search, t]
   );
 
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
     const params = new URLSearchParams();
     if (classId) params.set("classId", classId);
+    if (search.trim()) params.set("search", search.trim());
     if (weekStart) params.set("start", weekStart);
     axios
-      .get<WeekResponse>(`/api/attendance/week?${params.toString()}`)
+      .get<WeekResponse>(`/api/attendance/week?${params.toString()}`, { headers: deviceHeaders(), signal: controller.signal })
       .then((response) => {
-        if (!cancelled) setData(response.data);
+        setData(response.data);
+        setError(null);
       })
       .catch((err) => {
-        if (!cancelled) setError(describeApiError(err, t("attendance.loadFailed")));
+        if (!axios.isCancel(err)) setError(describeApiError(err, t("attendance.loadFailed")));
       });
     return () => {
-      cancelled = true;
+      controller.abort();
     };
-  }, [classId, weekStart, t]);
+  }, [classId, retry, search, weekStart, t]);
 
   async function setStatus(row: Row, cell: Cell, status: AttendanceStatus) {
     const cellKey = `${row.studentId}|${cell.date}`;
@@ -105,7 +116,7 @@ export function WeeklyAttendanceGrid({ classId }: { classId?: string }) {
         studentIds: [row.studentId],
         status,
         date: cell.date,
-      });
+      }, { headers: deviceHeaders() });
       await load(data?.weekStart);
     } catch (err) {
       setError(describeApiError(err, t("attendance.updateFailed")));
@@ -123,9 +134,12 @@ export function WeeklyAttendanceGrid({ classId }: { classId?: string }) {
 
   if (error && !data) {
     return (
-      <p role="alert" className="text-sm text-red-600 py-4">
-        {error}
-      </p>
+      <div role="alert" className="space-y-2 py-4 text-sm text-red-600">
+        <p>{error}</p>
+        <button type="button" onClick={() => setRetry((value) => value + 1)} className="underline">
+          {t("common.retry")}
+        </button>
+      </div>
     );
   }
 
@@ -203,7 +217,7 @@ export function WeeklyAttendanceGrid({ classId }: { classId?: string }) {
                 </td>
                 {row.cells.map((cell) => {
                   const cellKey = `${row.studentId}|${cell.date}`;
-                  if (!cell.expected) {
+                  if (!cell.expected && cell.status === "NO_RECORD") {
                     // Not enrolled on this weekday. Rendered as nothing at all
                     // rather than as "absent" — the child has missed nothing.
                     return (
@@ -215,31 +229,41 @@ export function WeeklyAttendanceGrid({ classId }: { classId?: string }) {
                       </td>
                     );
                   }
+                  const physicalAttendance =
+                    cell.status === "PRESENT" || cell.status === "CHECKED_OUT";
                   return (
-                    <td key={cell.date} className="px-2 py-2 border-b border-gray-50 text-center">
-                      <select
-                        value={cell.status}
-                        disabled={savingCell === cellKey}
-                        onChange={(e) =>
-                          setStatus(row, cell, e.target.value as AttendanceStatus)
-                        }
-                        className={`text-xs bg-transparent border border-gray-200 rounded-lg px-1.5 py-1 ${
-                          ATTENDANCE_STATUS_COLORS[cell.status]
-                        } disabled:opacity-50`}
-                      >
-                        {/* CHECKED_OUT appears only when it is already the value:
-                            it is produced by the checkout action, not chosen. */}
-                        {cell.status === "CHECKED_OUT" && (
-                          <option value="CHECKED_OUT">
-                            {t("attendanceStatus.CHECKED_OUT")}
-                          </option>
-                        )}
-                        {SETTABLE.map((status) => (
-                          <option key={status} value={status}>
-                            {t(`attendanceStatus.${status}`)}
-                          </option>
-                        ))}
-                      </select>
+                    <td
+                      key={cell.date}
+                      data-future-attendance={cell.editable === false ? "true" : undefined}
+                      className={`px-2 py-2 border-b border-gray-50 text-center ${cell.editable === false ? "bg-gray-50/70" : ""}`}
+                    >
+                      {physicalAttendance ? (
+                        <span
+                          data-physical-attendance
+                          className={`inline-flex rounded-lg border border-gray-200 px-1.5 py-1 text-xs ${ATTENDANCE_STATUS_COLORS[cell.status]}`}
+                        >
+                          {t(`attendanceStatus.${cell.status}`)}
+                        </span>
+                      ) : (
+                        <select
+                          aria-label={`${row.name} ${cell.date}`}
+                          value={cell.status}
+                          disabled={savingCell === cellKey || cell.editable === false}
+                          onChange={(e) =>
+                            setStatus(row, cell, e.target.value as AttendanceStatus)
+                          }
+                          className={`rounded-lg border border-gray-200 bg-transparent px-1.5 py-1 text-xs ${
+                            ATTENDANCE_STATUS_COLORS[cell.status]
+                          } disabled:cursor-not-allowed disabled:opacity-50`}
+                        >
+                          {SETTABLE.map((status) => (
+                            <option key={status} value={status}>
+                              {t(`attendanceStatus.${status}`)}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                      {cell.checkinAt && <div className="mt-1 whitespace-nowrap text-[10px] text-gray-500">{formatDeviceTime(new Date(cell.checkinAt), { hour: "2-digit", minute: "2-digit" }, locale)}{cell.checkoutAt ? ` – ${formatDeviceTime(new Date(cell.checkoutAt), { hour: "2-digit", minute: "2-digit" }, locale)}` : ` · ${t("attendance.notCheckedOut")}`}</div>}
                     </td>
                   );
                 })}

@@ -6,6 +6,7 @@ import { findInvoiceThisMonth, duplicateInvoiceResponse } from "@/lib/invoice-du
 import { astDateInputValue } from "@/lib/datetime";
 import { money, moneyString } from "@/lib/money";
 import { claimInvoice, completeInvoiceClaim, failInvoiceClaim, idempotencyConflictResponse, invoiceRequestHash, missingIdempotencyKeyResponse, readIdempotencyKey } from "@/lib/invoice-idempotency";
+import { resolveStudentCycleFee } from "@/lib/student-cycle-fee";
 
 export async function POST(
   request: Request,
@@ -53,7 +54,11 @@ export async function POST(
     prisma.settings.findUnique({ where: { schoolId } }),
     prisma.school.findUnique({ where: { id: schoolId }, select: { vatRegistered: true } }),
   ]);
-  const monthlyStudentFee = settings?.monthlyStudentFee ?? 0;
+  const subscriptionFee = resolveStudentCycleFee(student.billingCycle, student.cycleFee, settings);
+  if (subscriptionFee === null) {
+    await failInvoiceClaim(claim.id, claim.leaseExpiresAt);
+    return Response.json({ error: "Subscription fee is not configured", code: "CYCLE_FEE_REQUIRED" }, { status: 422 });
+  }
 
   const issueDate = astDateInputValue();
 
@@ -68,7 +73,7 @@ export async function POST(
    * rather than added on top, which would silently raise everybody's bill.
    */
   const vatAmount = school?.vatRegistered
-    ? money(monthlyStudentFee).mul(VAT_RATE).div(1 + VAT_RATE).toDecimalPlaces(2)
+    ? money(subscriptionFee).mul(VAT_RATE).div(1 + VAT_RATE).toDecimalPlaces(2)
     : money(0);
 
   const invoiceData = {
@@ -77,7 +82,7 @@ export async function POST(
     phone: student.guardian?.phone1 ?? student.guardian?.phone2 ?? "",
     class: student.class?.name ?? "",
     period: student.period,
-    monthlyFee: moneyString(monthlyStudentFee),
+    monthlyFee: moneyString(subscriptionFee),
     vatAmount: moneyString(vatAmount),
     issueDate,
   };
@@ -87,7 +92,7 @@ export async function POST(
       schoolId,
       type: "STUDENT",
       studentId: id,
-      amount: monthlyStudentFee,
+      amount: subscriptionFee,
       vat_amount: vatAmount,
       data: invoiceData,
     });

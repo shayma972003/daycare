@@ -38,16 +38,20 @@ export async function POST(request: Request) {
 
   const now = new Date();
   let date: Date;
-  try { date = calendarToday(now, requestTimeZone(request)); }
+  let timeZone: string;
+  try {
+    timeZone = requestTimeZone(request);
+    date = calendarToday(now, timeZone);
+  }
   catch { return Response.json({ error: "Invalid time zone" }, { status: 422 }); }
 
   const results: BulkItemResult[] = [];
   for (const teacherId of parsed.data.teacherIds) {
     try {
       if (parsed.data.action === "checkin") {
-        await checkInTeacher({ teacherId, schoolId, date, now });
+        await checkInTeacher({ teacherId, schoolId, date, now, timeZone });
       } else {
-        await checkoutTeacher({ teacherId, schoolId, now });
+        await checkoutTeacher({ teacherId, schoolId, now, timeZone });
       }
       results.push({ id: teacherId, status: "succeeded" });
     } catch (error) {

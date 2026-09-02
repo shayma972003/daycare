@@ -22,7 +22,7 @@ beforeEach(() => {
   vi.setSystemTime(new Date("2026-08-27T09:00:00Z"));
   student = fixture(); cycles = [];
   mocks.audit.mockResolvedValue({}); mocks.lock.mockResolvedValue([{ id: "s" }]);
-  mocks.settings.mockResolvedValue({ monthlyStudentFee: 100 });
+  mocks.settings.mockResolvedValue({ dailyStudentFee: 10, weeklyStudentFee: 50, monthlyStudentFee: 100, yearlyStudentFee: 1000 });
   mocks.session.mockResolvedValue({ user: { schoolId: "school", name: "manager" }, can: () => true });
   const tx = {
     $queryRaw: mocks.lock,
@@ -64,29 +64,46 @@ describe("student renewal transaction", () => {
     mocks.settings.mockResolvedValue({ dailyStudentFee: "35.50", monthlyStudentFee: 500 });
     const response = await renew(request({ mode: "automatic" }), { params: Promise.resolve({ id: "s" }) });
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ student: { enrollmentDate: "2026-08-27T00:00:00.000Z", enrollmentEndDate: "2026-08-27T00:00:00.000Z", billingCycle: "DAILY", paymentStatus: "PENDING", cycleFee: null } });
+    expect(await response.json()).toMatchObject({ student: { enrollmentDate: "2026-08-27T00:00:00.000Z", enrollmentEndDate: "2026-08-27T00:00:00.000Z", billingCycle: "DAILY", paymentStatus: "PENDING", cycleFee: "35.5" } });
     expect(cycles).toHaveLength(1);
     expect(String(cycles[0].amount)).toBe("35.5");
     expect(mocks.settings.mock.calls.every(([arg]) => arg.where.schoolId === "school")).toBe(true);
-    expect(student.cycleFee).toBeNull(); // Keep inheritance, not a frozen override.
+    expect(String(student.cycleFee)).toBe("35.5");
   });
-  it("uses an explicit free student price instead of the school's nonzero daily price", async () => {
-    student.cycleFee = 0;
-    mocks.settings.mockResolvedValue({ dailyStudentFee: 50, monthlyStudentFee: 500 });
+  it("snapshots a configured free price and still creates its dated payment cycle", async () => {
+    student.cycleFee = 50;
+    mocks.settings.mockResolvedValue({ dailyStudentFee: 0, monthlyStudentFee: 500 });
     await renewStudentSubscription({ mode: "automatic" }, context());
-    expect(cycles).toHaveLength(0);
+    expect(cycles).toHaveLength(1);
+    expect(String(cycles[0].amount)).toBe("0");
   });
-  it.each(["DAILY", "MONTHLY", "YEARLY"])("automatically renews the saved %s period, with exactly one due and no duplicate on retry", async (cycle) => {
+  it.each(["DAILY", "WEEKLY", "MONTHLY", "YEARLY"])("automatically renews the saved %s period, with exactly one due and no duplicate on retry", async (cycle) => {
     student.billingCycle = cycle;
     const body = { mode: "automatic" as const };
     await Promise.all([renewStudentSubscription(body, context()), renewStudentSubscription(body, context())]);
     expect(cycles).toHaveLength(1);
     expect(student.enrollment_date).toEqual(new Date("2026-08-27"));
     expect(student.paymentStatus).toBe("PENDING");
+    const firstSnapshot = {
+      enrollmentDate: student.enrollment_date,
+      enrollmentEndDate: student.enrollmentEndDate,
+      cycleFee: String(student.cycleFee),
+      cycles: cycles.map((item) => ({ ...item })),
+    };
+    // A payment and a settings change may happen between the successful
+    // request and a network retry. Neither belongs to a new subscription.
     student.paymentStatus = "PAID";
+    cycles[0].status = "PAID";
+    mocks.settings.mockClear();
+    mocks.settings.mockResolvedValue({ dailyStudentFee: 999, weeklyStudentFee: 999, monthlyStudentFee: 999, yearlyStudentFee: 999 });
     await renewStudentSubscription(body, context());
     expect(student.paymentStatus).toBe("PAID");
+    expect(student.enrollment_date).toEqual(firstSnapshot.enrollmentDate);
+    expect(student.enrollmentEndDate).toEqual(firstSnapshot.enrollmentEndDate);
+    expect(String(student.cycleFee)).toBe(firstSnapshot.cycleFee);
+    expect(cycles).toEqual(firstSnapshot.cycles.map((item) => ({ ...item, status: "PAID" })));
     expect(cycles).toHaveLength(1);
+    expect(mocks.settings).not.toHaveBeenCalled();
   });
   it("computes today on the server from the device zone, ignoring a supplied automatic end date", async () => {
     vi.setSystemTime(new Date("2026-08-27T22:00:00Z"));
@@ -134,6 +151,27 @@ describe("student renewal transaction", () => {
     await Promise.all([renewStudentSubscription(input, context()), renewStudentSubscription(input, context())]);
     expect(cycles).toHaveLength(2);
   });
+  it("keeps a manual renewal snapshot unchanged when the same end date is retried after fees change", async () => {
+    await renewStudentSubscription(input, context());
+    const snapshot = {
+      enrollmentDate: student.enrollment_date,
+      enrollmentEndDate: student.enrollmentEndDate,
+      cycleFee: String(student.cycleFee),
+      paymentStatus: student.paymentStatus,
+      cycles: cycles.map((cycle) => ({ ...cycle })),
+    };
+    mocks.settings.mockClear();
+    mocks.settings.mockResolvedValue({ dailyStudentFee: 777, weeklyStudentFee: 777, monthlyStudentFee: 777, yearlyStudentFee: 777 });
+
+    await renewStudentSubscription(input, context());
+
+    expect(student.enrollment_date).toEqual(snapshot.enrollmentDate);
+    expect(student.enrollmentEndDate).toEqual(snapshot.enrollmentEndDate);
+    expect(String(student.cycleFee)).toBe(snapshot.cycleFee);
+    expect(student.paymentStatus).toBe(snapshot.paymentStatus);
+    expect(cycles).toEqual(snapshot.cycles);
+    expect(mocks.settings).not.toHaveBeenCalled();
+  });
   it("rolls back reactivation, dates and payments when the audit fails", async () => {
     student.isActive = false;
     const original = { ...student };
@@ -152,12 +190,15 @@ describe("student renewal transaction", () => {
     student.enrollmentEndDate = new Date("2026-09-30");
     await expect(renewStudentSubscription(input, context())).rejects.toMatchObject({ code: "RENEWAL_CANNOT_SHORTEN" });
   });
-  it("rejects unpriced daily subscriptions, but allows explicit free subscriptions", async () => {
+  it("rejects an unconfigured price, but accepts a configured zero as free", async () => {
     student.cycleFee = null;
+    mocks.settings.mockResolvedValue({ dailyStudentFee: null, weeklyStudentFee: null, monthlyStudentFee: 500, yearlyStudentFee: null });
     await expect(renewStudentSubscription(input, context())).rejects.toMatchObject({ code: "CYCLE_FEE_REQUIRED" });
-    await renewStudentSubscription({ ...input, cycleFee: 0 }, context());
+    mocks.settings.mockResolvedValue({ dailyStudentFee: 0, weeklyStudentFee: null, monthlyStudentFee: 500, yearlyStudentFee: null });
+    await renewStudentSubscription(input, context());
     expect(student.enrollmentEndDate).toEqual(new Date(input.enrollmentEndDate));
-    expect(cycles).toHaveLength(0);
+    expect(cycles).toHaveLength(2);
+    expect(cycles.every((cycle) => String(cycle.amount) === "0")).toBe(true);
   });
 });
 

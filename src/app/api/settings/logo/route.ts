@@ -4,6 +4,8 @@ import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
 import { storeUpload, isFailure, LOGO_TYPES, LOGO_LABEL } from "@/lib/file-upload";
+import { STORED_FILE_OWNER } from "@/lib/stored-file-ownership";
+import { withNoStore } from "@/lib/auth-response";
 
 const MAX_BYTES = 2 * 1024 * 1024; // 2 MB
 
@@ -17,6 +19,9 @@ export async function PUT(request: Request) {
       sessionErrorResponse(error) ??
       Response.json({ error: "Unauthorized" }, { status: 401 })
     );
+  }
+  if (!session.can("settings.manage")) {
+    return withNoStore(Response.json({ error: "Forbidden", code: "FORBIDDEN" }, { status: 403 }));
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
 
@@ -45,6 +50,7 @@ export async function PUT(request: Request) {
     humanLabel: LOGO_LABEL,
     category: "school",
     ownerId: schoolId,
+    ownerType: STORED_FILE_OWNER.SCHOOL,
     previousUrl: school?.logoUrl,
   });
   if (isFailure(stored)) {
@@ -62,5 +68,5 @@ export async function PUT(request: Request) {
     request,
   });
 
-  return Response.json({ logoUrl }, { status: 200 });
+  return withNoStore(Response.json({ logoUrl }, { status: 200 }));
 }

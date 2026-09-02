@@ -21,6 +21,7 @@ interface SchoolDetail {
     last_login_at: string | null;
     createdAt: string;
     contactNumber: string | null;
+    phoneNumber: string | null;
     legalName: string | null;
     commercialRegistration: string | null;
     nationalUnifiedNumber: string | null;
@@ -79,6 +80,7 @@ export default function SchoolDetailPage() {
   const [editRenewal, setEditRenewal] = useState("");
   const [editStatus, setEditStatus] = useState("");
   const [editContactNumber, setEditContactNumber] = useState("");
+  const [editPhoneNumber, setEditPhoneNumber] = useState("");
   const [editLegalName, setEditLegalName] = useState("");
   const [editCommercialRegistration, setEditCommercialRegistration] = useState("");
   const [editNationalUnifiedNumber, setEditNationalUnifiedNumber] = useState("");
@@ -155,6 +157,7 @@ export default function SchoolDetailPage() {
       setEditRenewal(s.renewal_date ? s.renewal_date.substring(0, 10) : "");
       setEditStatus(s.subscription_status);
       setEditContactNumber(s.contactNumber ?? "");
+      setEditPhoneNumber(s.phoneNumber ?? "");
       setEditLegalName(s.legalName ?? "");
       setEditCommercialRegistration(s.commercialRegistration ?? "");
       setEditNationalUnifiedNumber(s.nationalUnifiedNumber ?? "");
@@ -184,6 +187,7 @@ export default function SchoolDetailPage() {
       renewal_date: editRenewal || null,
       subscription_status: editStatus,
       contactNumber: editContactNumber || null,
+      phoneNumber: editPhoneNumber || null,
       legalName: editLegalName || null,
       commercialRegistration: editCommercialRegistration || null,
       nationalUnifiedNumber: editNationalUnifiedNumber || null,
@@ -314,7 +318,8 @@ export default function SchoolDetailPage() {
               <>
                 <Field label="اسم المدرسة"><input value={editName} onChange={(e) => setEditName(e.target.value)} className="input-admin" /></Field>
                 <Field label="البريد الإلكتروني"><input value={editEmail} onChange={(e) => setEditEmail(e.target.value)} className="input-admin" /></Field>
-                <Field label="رقم الجوال"><input value={editContactNumber} onChange={(e) => setEditContactNumber(e.target.value)} dir="ltr" className="input-admin" /></Field>
+                <Field label="رقم التواصل الإداري"><input aria-label="رقم التواصل الإداري" value={editContactNumber} onChange={(e) => setEditContactNumber(e.target.value)} dir="ltr" className="input-admin" /></Field>
+                <Field label="رقم هاتف الحضانة"><input aria-label="رقم هاتف الحضانة" value={editPhoneNumber} onChange={(e) => setEditPhoneNumber(e.target.value)} dir="ltr" className="input-admin" /></Field>
                 <Field label="الخطة">
                   <select value={editPlanId} onChange={(e) => setEditPlanId(e.target.value)} className="input-admin">
                     <option value="">بدون خطة</option>
@@ -404,7 +409,8 @@ export default function SchoolDetailPage() {
               <>
                 <InfoRow label="الاسم" value={school.name} />
                 <InfoRow label="البريد" value={school.email ?? "—"} />
-                <InfoRow label="رقم الجوال" value={school.contactNumber ?? "—"} />
+                <InfoRow label="رقم التواصل الإداري" value={school.contactNumber ?? "—"} />
+                <InfoRow label="رقم هاتف الحضانة" value={school.phoneNumber ?? "—"} />
                 <InfoRow label="الخطة" value={school.plan?.name ?? "—"} />
                 <InfoRow label="الحالة" value={STATUS_LABELS[school.subscription_status] ?? school.subscription_status} />
                 <InfoRow label="التجديد" value={school.renewal_date ? new Date(school.renewal_date).toLocaleDateString("ar-SA") : "—"} />

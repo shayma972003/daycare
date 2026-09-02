@@ -14,6 +14,11 @@ export interface StoredFileAccessRecord {
 }
 
 async function explicitOwnerExists(file: StoredFileAccessRecord): Promise<boolean> {
+  if (file.ownerType === STORED_FILE_OWNER.SCHOOL) {
+    return (await prisma.school.count({
+      where: { id: file.ownerId },
+    })) === 1 && file.ownerId === file.schoolId;
+  }
   if (file.ownerType === STORED_FILE_OWNER.STUDENT) {
     return (await prisma.student.count({
       where: { id: file.ownerId, schoolId: file.schoolId },
@@ -106,6 +111,8 @@ export async function mayReadStoredFile(
         guardianOwnsStudent(freshClaims.sub, file.schoolId, file.ownerId)
       );
     }
+
+    if (file.ownerType === STORED_FILE_OWNER.SCHOOL) return true;
 
     const permission = requiredStaffPermission(file.ownerType);
     return permission !== null && grants(freshClaims.permissions ?? [], permission);

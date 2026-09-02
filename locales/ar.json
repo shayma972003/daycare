@@ -573,7 +573,9 @@
       "title": "إعدادات الرسوم",
       "hourlyLateFee": "رسوم التأخير بالساعة",
       "dailyStudentFee": "الرسوم الطلابية اليومية",
-      "monthlyStudentFee": "الرسوم الطلابية الشهرية"
+      "weeklyStudentFee": "الرسوم الطلابية الأسبوعية",
+      "monthlyStudentFee": "الرسوم الطلابية الشهرية",
+      "yearlyStudentFee": "الرسوم الطلابية السنوية"
     },
     "messageTemplate": {
       "title": "قالب الرسالة التلقائية",
@@ -614,6 +616,11 @@
     "noChanges": "لا توجد تغييرات للحفظ",
     "shiftStartTime": "بداية الدوام",
     "shiftEndTime": "نهاية الدوام",
+    "incompleteSchedule": "حددي وقتي الدخول والخروج للفترة معًا، أو اتركيهما فارغين معًا.",
+    "invalidScheduleRange": "يجب أن يكون وقت الخروج بعد وقت الدخول للفترة نفسها.",
+    "morningPeriod": "الفترة الصباحية",
+    "eveningPeriod": "الفترة المسائية",
+    "schoolIdentityReadOnly": "تُدار بيانات التواصل والبيانات النظامية من مشرف المنصة.",
     "securityPrivacy": "الأمان والخصوصية",
     "trash": "سلة المحذوفات",
     "loadFailed": "فشل تحميل الإعدادات",

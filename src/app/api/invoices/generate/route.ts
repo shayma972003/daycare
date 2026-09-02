@@ -24,6 +24,7 @@ import { access } from "fs/promises";
 import { join } from "path";
 import { money, moneyAdd, moneyMaxZero, moneyMultiply, moneyNumber, moneySubtract } from "@/lib/money";
 import { claimInvoice, completeInvoiceClaim, failInvoiceClaim, idempotencyConflictResponse, invoiceRequestHash, missingIdempotencyKeyResponse, readIdempotencyKey } from "@/lib/invoice-idempotency";
+import { resolveStudentCycleFee } from "@/lib/student-cycle-fee";
 
 Font.register({
   family: "Arabic",
@@ -488,7 +489,6 @@ export async function POST(request: Request) {
   const today = new Date();
   const { year: astYear, month: astMonth } = astParts(today);
   const lastDayOfMonth = new Date(Date.UTC(astYear, astMonth + 1, 0));
-  const monthlyFee = school.settings?.monthlyStudentFee ?? 0;
 
   let pdfDoc: unknown;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -508,8 +508,14 @@ export async function POST(request: Request) {
       return Response.json({ error: "Student not found" }, { status: 404 });
     }
 
+    const subscriptionFee = resolveStudentCycleFee(student.billingCycle, student.cycleFee, school.settings);
+    if (subscriptionFee === null) {
+      await failInvoiceClaim(claim.id, claim.leaseExpiresAt);
+      return Response.json({ error: "Subscription fee is not configured", code: "CYCLE_FEE_REQUIRED" }, { status: 422 });
+    }
+
     const lateHoursFee = moneyMultiply(school.settings?.hourlyLateFee, student.lateHours ?? 0);
-    amount = moneyNumber(moneyAdd(monthlyFee, lateHoursFee));
+    amount = moneyNumber(moneyAdd(subscriptionFee, lateHoursFee));
 
     // Fees are quoted VAT-inclusive, so the tax is extracted from the total
     // rather than added on top — adding it would raise every guardian's bill.
@@ -527,7 +533,7 @@ export async function POST(request: Request) {
       guardianEmail: student.guardian?.email,
       paymentStatus: student.paymentStatus,
       paymentMethod: student.paymentMethod,
-      monthlyFee,
+      monthlyFee: moneyNumber(subscriptionFee),
       lateHours: student.lateHours,
       lateHoursFee,
       amount,
@@ -591,10 +597,10 @@ export async function POST(request: Request) {
               createElement(Text, { style: { ...styles.tableCell, ...styles.col4 } }, "الإجمالي"),
             ),
             createElement(View, { style: styles.tableRow },
-              createElement(Text, { style: { ...styles.tableBodyCell, ...styles.col1 } }, "الرسوم الشهرية"),
+              createElement(Text, { style: { ...styles.tableBodyCell, ...styles.col1 } }, "رسوم الاشتراك"),
               createElement(Text, { style: { ...styles.tableBodyCell, ...styles.col2 } }, "1"),
-              createElement(Text, { style: { ...styles.tableBodyCell, ...styles.col3 } }, `${monthlyFee} ر.س`),
-              createElement(Text, { style: { ...styles.tableBodyCell, ...styles.col4 } }, `${monthlyFee} ر.س`),
+              createElement(Text, { style: { ...styles.tableBodyCell, ...styles.col3 } }, `${subscriptionFee} ر.س`),
+              createElement(Text, { style: { ...styles.tableBodyCell, ...styles.col4 } }, `${subscriptionFee} ر.س`),
             ),
             ...([
               lateHoursFee.greaterThan(0) ? createElement(View, { style: styles.tableRow },

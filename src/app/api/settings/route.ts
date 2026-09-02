@@ -3,30 +3,29 @@ import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
 import { withNoStore } from "@/lib/auth-response";
 import { z } from "zod";
+import { SCHOOL_SCHEDULE_FIELDS, validateSchoolSchedule, type SchoolSchedule } from "@/lib/school-schedule";
 
-const optionalText = (max: number) => z.string().max(max).nullable().optional();
-const optionalTime = z
-  .string()
-  .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
-  .nullable()
-  .optional();
+const optionalTime = z.preprocess(
+  (value) => value === "" ? null : value,
+  z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable().optional()
+);
+const optionalFee = z.number().min(0).max(1_000_000).nullable().optional();
 
 const updateSettingsSchema = z.object({
     hourlyLateFee: z.number().min(0).max(1_000_000).optional(),
     dailyStudentFee: z.number().min(0).max(1_000_000).optional(),
+    weeklyStudentFee: optionalFee,
     monthlyStudentFee: z.number().min(0).max(1_000_000).optional(),
+    yearlyStudentFee: optionalFee,
     reminderTemplate: z.string().max(10_000).optional(),
-    schoolName: z.string().trim().min(1).max(160).optional(),
-    email: z.string().email().max(320).nullable().optional(),
-    teacherCheckinTime: optionalTime,
-    teacherCheckoutTime: optionalTime,
-    studentCheckinTime: optionalTime,
-    studentCheckoutTime: optionalTime,
-    commercialRegistration: optionalText(80),
-    vatNumber: optionalText(80),
-    contactNumber: optionalText(40),
-    address: optionalText(500),
-    phoneNumber: optionalText(40),
+    teacherMorningCheckinTime: optionalTime,
+    teacherMorningCheckoutTime: optionalTime,
+    teacherEveningCheckinTime: optionalTime,
+    teacherEveningCheckoutTime: optionalTime,
+    studentMorningCheckinTime: optionalTime,
+    studentMorningCheckoutTime: optionalTime,
+    studentEveningCheckinTime: optionalTime,
+    studentEveningCheckoutTime: optionalTime,
 }).strict();
 
 function sessionFailure(error: unknown) {
@@ -52,17 +51,23 @@ export async function GET() {
       schoolId,
       hourlyLateFee: 0,
       dailyStudentFee: 0,
+      weeklyStudentFee: null,
       monthlyStudentFee: 0,
+      yearlyStudentFee: null,
       reminderTemplate:
         "مرحباً، <guardian_name>، نود إعلامكم بأن الرسوم المستحقة على <child_name> بمبلغ <amount_due> ريال تستحق بتاريخ <due_date>. مع تحيات <school_name>",
     },
     schoolName: school?.name ?? "",
     logoUrl: school?.logoUrl ?? null,
     plan: school?.plan ?? "basic",
-    teacherCheckinTime: school?.teacherCheckinTime ?? "",
-    teacherCheckoutTime: school?.teacherCheckoutTime ?? "",
-    studentCheckinTime: school?.studentCheckinTime ?? "",
-    studentCheckoutTime: school?.studentCheckoutTime ?? "",
+    teacherMorningCheckinTime: school?.teacherMorningCheckinTime ?? "",
+    teacherMorningCheckoutTime: school?.teacherMorningCheckoutTime ?? "",
+    teacherEveningCheckinTime: school?.teacherEveningCheckinTime ?? "",
+    teacherEveningCheckoutTime: school?.teacherEveningCheckoutTime ?? "",
+    studentMorningCheckinTime: school?.studentMorningCheckinTime ?? "",
+    studentMorningCheckoutTime: school?.studentMorningCheckoutTime ?? "",
+    studentEveningCheckinTime: school?.studentEveningCheckinTime ?? "",
+    studentEveningCheckoutTime: school?.studentEveningCheckoutTime ?? "",
   };
 
   if (!session.can("settings.manage")) {
@@ -113,40 +118,36 @@ export async function PUT(request: Request) {
   const {
     hourlyLateFee,
     dailyStudentFee,
+    weeklyStudentFee,
     monthlyStudentFee,
+    yearlyStudentFee,
     reminderTemplate,
-    schoolName,
-    email,
-    teacherCheckinTime,
-    teacherCheckoutTime,
-    studentCheckinTime,
-    studentCheckoutTime,
-    commercialRegistration,
-    vatNumber,
-    contactNumber,
-    address,
-    phoneNumber,
+    ...scheduleUpdates
   } = parsed.data;
 
   const settingsData: Record<string, unknown> = {};
   if (hourlyLateFee !== undefined) settingsData.hourlyLateFee = hourlyLateFee;
   if (dailyStudentFee !== undefined) settingsData.dailyStudentFee = dailyStudentFee;
+  if (weeklyStudentFee !== undefined) settingsData.weeklyStudentFee = weeklyStudentFee;
   if (monthlyStudentFee !== undefined) settingsData.monthlyStudentFee = monthlyStudentFee;
+  if (yearlyStudentFee !== undefined) settingsData.yearlyStudentFee = yearlyStudentFee;
   if (reminderTemplate !== undefined) settingsData.reminderTemplate = reminderTemplate;
 
-  const schoolData: Record<string, unknown> = {};
-  if (schoolName !== undefined) schoolData.name = schoolName;
-  // School.email is the public contact/Reply-To address, not a User credential.
-  if (email !== undefined) schoolData.email = email;
-  if (teacherCheckinTime !== undefined) schoolData.teacherCheckinTime = teacherCheckinTime;
-  if (teacherCheckoutTime !== undefined) schoolData.teacherCheckoutTime = teacherCheckoutTime;
-  if (studentCheckinTime !== undefined) schoolData.studentCheckinTime = studentCheckinTime;
-  if (studentCheckoutTime !== undefined) schoolData.studentCheckoutTime = studentCheckoutTime;
-  if (commercialRegistration !== undefined) schoolData.commercialRegistration = commercialRegistration;
-  if (vatNumber !== undefined) schoolData.vatNumber = vatNumber;
-  if (contactNumber !== undefined) schoolData.contactNumber = contactNumber;
-  if (address !== undefined) schoolData.address = address;
-  if (phoneNumber !== undefined) schoolData.phoneNumber = phoneNumber;
+  const schoolData: Partial<SchoolSchedule> = {};
+  for (const field of SCHOOL_SCHEDULE_FIELDS) {
+    const value = scheduleUpdates[field];
+    if (value !== undefined) schoolData[field] = value;
+  }
+
+  if (Object.keys(schoolData).length > 0) {
+    const current = await prisma.school.findUnique({
+      where: { id: schoolId },
+      select: Object.fromEntries(SCHOOL_SCHEDULE_FIELDS.map((field) => [field, true])),
+    }) as SchoolSchedule | null;
+    if (!current) return Response.json({ error: "School not found" }, { status: 404 });
+    const issue = validateSchoolSchedule({ ...current, ...schoolData });
+    if (issue) return Response.json({ error: issue, code: issue }, { status: 422 });
+  }
 
   if (Object.keys(settingsData).length === 0 && Object.keys(schoolData).length === 0) {
     return Response.json({ error: "No settings changes supplied" }, { status: 422 });

@@ -4,6 +4,7 @@ export interface MessageContext {
   student?: {
     name?: string | null;
     registration_fee?: number | null;
+    cycleFee?: number | null;
     enrollmentEndDate?: Date | string | null;
   };
   guardian?: {
@@ -12,8 +13,8 @@ export interface MessageContext {
   };
   school?: {
     name?: string | null;
-    studentCheckinTime?: string | null;
-    studentCheckoutTime?: string | null;
+    checkinTime?: string | null;
+    checkoutTime?: string | null;
   };
   activity?: {
     name?: string | null;
@@ -51,11 +52,11 @@ export function buildMessageVars(ctx: MessageContext): Record<string, string> {
     child_name: ctx.student?.name ?? "",
     guardian_name: ctx.guardian?.name ?? "",
     guardian_2_name: ctx.guardian?.name_2 ?? "",
-    checkin_time: ctx.school?.studentCheckinTime ?? "",
-    checkout_time: ctx.school?.studentCheckoutTime ?? "",
+    checkin_time: ctx.school?.checkinTime ?? "",
+    checkout_time: ctx.school?.checkoutTime ?? "",
     subscription_fee:
-      ctx.student?.registration_fee != null
-        ? `${ctx.student.registration_fee} ر.س`
+      ctx.student?.cycleFee != null
+        ? `${ctx.student.cycleFee} ر.س`
         : "",
     activity_fee:
       ctx.activity?.activityFee != null
@@ -70,8 +71,8 @@ export function buildMessageVars(ctx: MessageContext): Record<string, string> {
     activity_name: ctx.activity?.name ?? "",
     // Legacy alias kept for backward compat with old templates
     amount_due:
-      ctx.student?.registration_fee != null
-        ? `${ctx.student.registration_fee} ر.س`
+      ctx.student?.cycleFee != null
+        ? `${ctx.student.cycleFee} ر.س`
         : "",
   };
 }

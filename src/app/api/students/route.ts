@@ -20,6 +20,7 @@ import { studentDetailDto, studentDetailSelect, studentListDto } from "@/lib/ros
 import { withNoStore } from "@/lib/auth-response";
 import { moneyNumber } from "@/lib/money";
 import { logSafeError } from "@/lib/safe-logger";
+import { requireStudentCycleFee, StudentCycleFeeError, studentFeeSettingsSelect } from "@/lib/student-cycle-fee";
 import { z } from "zod";
 
 const createStudentSchema = z.object({
@@ -36,9 +37,7 @@ const createStudentSchema = z.object({
   nationality: z.string().optional(),
   gender: z.enum(["MALE", "FEMALE"]).optional(),
   allergies: z.string().optional(),
-  billingCycle: z.enum(["DAILY", "WEEKLY", "MONTHLY", "YEARLY", "CUSTOM"]).optional(),
-  billingIntervalDays: z.number().int().positive().optional().nullable(),
-  cycleFee: z.number().min(0).optional().nullable(),
+  billingCycle: z.enum(["DAILY", "WEEKLY", "MONTHLY", "YEARLY"]).optional(),
   paymentMethod: z.enum(["CASH", "TRANSFER", "CARD"]).optional(),
   enrollmentDate: z.string().optional(),
   enrollmentEndDate: z.string().optional(),
@@ -189,8 +188,6 @@ export async function POST(request: Request) {
     gender,
     allergies,
     billingCycle,
-    billingIntervalDays,
-    cycleFee,
     paymentMethod,
     enrollmentDate,
     enrollmentEndDate,
@@ -239,7 +236,11 @@ export async function POST(request: Request) {
     throw error;
   }
 
+  try {
   const student = await prisma.$transaction(async (tx) => {
+    const effectiveBillingCycle = billingCycle ?? "MONTHLY";
+    const settings = await tx.settings.findUnique({ where: { schoolId }, select: studentFeeSettingsSelect });
+    const effectiveCycleFee = requireStudentCycleFee(effectiveBillingCycle, settings);
     let resolvedGuardianId = guardianId;
     if (!resolvedGuardianId && guardianName) {
       // Contact values are not proof of identity. Sharing an existing family
@@ -275,9 +276,9 @@ export async function POST(request: Request) {
       ...(nationality !== undefined && { nationality }),
       ...(gender !== undefined && { gender }),
       ...(allergies !== undefined && { allergies }),
-      ...(billingCycle !== undefined && { billingCycle }),
-      ...(billingIntervalDays !== undefined && { billingIntervalDays: billingIntervalDays ?? null }),
-      ...(cycleFee !== undefined && { cycleFee: cycleFee ?? null }),
+      billingCycle: effectiveBillingCycle,
+      billingIntervalDays: null,
+      cycleFee: effectiveCycleFee,
       ...(paymentMethod !== undefined && { paymentMethod }),
       ...(enrollmentDate !== undefined && {
         enrollment_date: new Date(enrollmentDate),
@@ -335,4 +336,10 @@ export async function POST(request: Request) {
       { status: 201 }
     )
   );
+  } catch (error) {
+    if (error instanceof StudentCycleFeeError) {
+      return withNoStore(Response.json({ error: "Subscription fee is not configured", code: error.code }, { status: 422 }));
+    }
+    throw error;
+  }
 }

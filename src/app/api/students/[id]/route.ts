@@ -12,7 +12,7 @@ import { resolveStageId, foreignStageResponse } from "@/lib/academic-stage";
 import { protectIdNumber } from "@/lib/pii-crypto";
 import { studentDetailDto, studentDetailSelect } from "@/lib/roster-dto";
 import { withNoStore } from "@/lib/auth-response";
-import { money, moneyNumber } from "@/lib/money";
+import { moneyNumber } from "@/lib/money";
 import { logSafeError } from "@/lib/safe-logger";
 import {
   STUDENT_STATUSES,
@@ -21,6 +21,7 @@ import {
 } from "@/lib/data-retention";
 import { z } from "zod";
 import { requestTimeZone } from "@/lib/device-date";
+import { requireStudentCycleFee, StudentCycleFeeError, studentFeeSettingsSelect } from "@/lib/student-cycle-fee";
 
 const updateStudentSchema = z.object({
   name: z.string().min(1).optional(),
@@ -38,7 +39,6 @@ const updateStudentSchema = z.object({
   allergies: z.string().nullish(),
   billingCycle: z.enum(["DAILY", "WEEKLY", "MONTHLY", "YEARLY", "CUSTOM"]).nullish(),
   billingIntervalDays: z.number().int().positive().nullish(),
-  cycleFee: z.number().min(0).nullish(),
   paymentMethod: z.enum(["CASH", "TRANSFER", "CARD"]).nullish(),
   enrollmentDate: z.string().nullish(),
   enrollmentEndDate: z.string().nullish(),
@@ -105,13 +105,7 @@ export async function GET(
         })
       : [];
 
-    const rawRegistrationFee = student.registration_fee;
-    const registrationFeeIsDefault = !money(rawRegistrationFee).greaterThan(0);
-    let registrationFee = rawRegistrationFee;
-    if (registrationFeeIsDefault) {
-      const settings = await prisma.settings.findUnique({ where: { schoolId }, select: { monthlyStudentFee: true } });
-      registrationFee = settings?.monthlyStudentFee ?? money(0);
-    }
+    const registrationFee = student.registration_fee;
 
     const revealIdentity =
       new URL(request.url).searchParams.get("revealIdentity") === "true" &&
@@ -142,7 +136,7 @@ export async function GET(
             financial: session.can("finance.view") || session.can("finance.manage"),
             revealIdentity,
           },
-          { registrationFee: moneyNumber(registrationFee), registrationFeeIsDefault, siblings }, timeZone
+          { registrationFee: moneyNumber(registrationFee), registrationFeeIsDefault: false, siblings }, timeZone
         ),
         { status: 200 }
       )
@@ -254,7 +248,6 @@ export async function PUT(
   if ("allergies" in data) updateData.allergies = data.allergies ?? null;
   if ("billingCycle" in data) updateData.billingCycle = data.billingCycle ?? "MONTHLY";
   if ("billingIntervalDays" in data) updateData.billingIntervalDays = data.billingIntervalDays ?? null;
-  if ("cycleFee" in data) updateData.cycleFee = data.cycleFee ?? null;
   if ("paymentMethod" in data) updateData.paymentMethod = data.paymentMethod ?? null;
   if ("enrollmentDate" in data) {
     updateData.enrollment_date = data.enrollmentDate ? new Date(data.enrollmentDate) : null;
@@ -408,7 +401,20 @@ export async function PUT(
     }
   }
 
+  try {
   const student = await prisma.$transaction(async (tx) => {
+    const nextCycle = "billingCycle" in data ? data.billingCycle ?? "MONTHLY" : existing.billingCycle;
+    const billingCycleChanged = "billingCycle" in data && nextCycle !== existing.billingCycle;
+    if (billingCycleChanged) {
+      if (nextCycle === "CUSTOM") {
+        if (existing.billingCycle !== "CUSTOM") throw new StudentCycleFeeError();
+        updateData.cycleFee = existing.cycleFee;
+      } else {
+        const settings = await tx.settings.findUnique({ where: { schoolId }, select: studentFeeSettingsSelect });
+        updateData.cycleFee = requireStudentCycleFee(nextCycle, settings);
+        updateData.billingIntervalDays = null;
+      }
+    }
     if (guardianUpdate) {
       await tx.guardian.update({ where: { id: guardianUpdate.id }, data: guardianUpdate.data });
     }
@@ -421,9 +427,8 @@ export async function PUT(
       "enrollmentDate" in data ||
       "enrollmentEndDate" in data ||
       data.registration_fee !== undefined ||
-      "billingCycle" in data ||
-      "billingIntervalDays" in data ||
-      "cycleFee" in data
+      billingCycleChanged ||
+      "billingIntervalDays" in data
     ) {
       await generatePaymentCycles(updated.id, tx);
     }
@@ -461,6 +466,12 @@ export async function PUT(
       { status: 200 }
     )
   );
+  } catch (error) {
+    if (error instanceof StudentCycleFeeError) {
+      return withNoStore(Response.json({ error: "Subscription fee is not configured", code: error.code }, { status: 422 }));
+    }
+    throw error;
+  }
 }
 
 export async function DELETE(

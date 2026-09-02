@@ -2,8 +2,9 @@ import "server-only";
 
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
-import { astTimeOnDay } from "@/lib/datetime";
+import { zonedTimeOnDate } from "@/lib/device-date";
 import { moneyMultiply, moneyNumber } from "@/lib/money";
+import { scheduleFor } from "@/lib/school-schedule";
 
 export type AttendanceOperationCode =
   | "NOT_FOUND"
@@ -131,6 +132,7 @@ export async function checkInTeacher(input: {
   schoolId: string;
   date: Date;
   now: Date;
+  timeZone: string;
 }) {
   return prisma.$transaction(async (tx) => {
     await lockAttendanceSubject(tx, "teacher", input.teacherId, input.schoolId);
@@ -143,8 +145,15 @@ export async function checkInTeacher(input: {
         anonymizedAt: null,
         isActive: true,
         status: "ACTIVE",
+        // `input.date` is the device-local calendar day resolved by every
+        // individual, bulk, and compatibility route before reaching this
+        // shared operation. The contract remains valid through its end day.
+        OR: [
+          { enrollmentEndDate: null },
+          { enrollmentEndDate: { gte: input.date } },
+        ],
       },
-      select: { id: true, name: true },
+      select: { id: true, name: true, period: true },
     });
     if (!teacher) throw new AttendanceOperationError("NOT_ELIGIBLE", 409);
 
@@ -167,6 +176,21 @@ export async function checkInTeacher(input: {
     });
     if (existing) throw conflict("ALREADY_CHECKED_IN");
 
+    const school = await tx.school.findUnique({
+      where: { id: input.schoolId },
+      select: {
+        teacherMorningCheckinTime: true,
+        teacherMorningCheckoutTime: true,
+        teacherEveningCheckinTime: true,
+        teacherEveningCheckoutTime: true,
+      },
+    });
+    const scheduled = scheduleFor(school, "teacher", teacher.period);
+    const scheduledCheckin = zonedTimeOnDate(input.date, scheduled.checkin, input.timeZone);
+    const lateMinutes = scheduledCheckin && input.now > scheduledCheckin
+      ? Math.floor((input.now.getTime() - scheduledCheckin.getTime()) / 60_000)
+      : 0;
+
     let attendance;
     try {
       attendance = await tx.teacherAttendance.create({
@@ -174,12 +198,19 @@ export async function checkInTeacher(input: {
           teacherId: input.teacherId,
           schoolId: input.schoolId,
           checkinAt: input.now,
+          lateMinutes,
           date: input.date,
         },
       });
     } catch (error) {
       if (isUniqueConflict(error)) throw conflict("ALREADY_CHECKED_IN");
       throw error;
+    }
+    if (lateMinutes > 0) {
+      await tx.teacher.update({
+        where: { id: input.teacherId, schoolId: input.schoolId },
+        data: { lateHours: { increment: lateMinutes / 60 } },
+      });
     }
     return { ...attendance, personName: teacher.name };
   });
@@ -189,6 +220,7 @@ export async function checkoutStudent(input: {
   studentId: string;
   schoolId: string;
   now: Date;
+  timeZone: string;
 }) {
   return prisma.$transaction(async (tx) => {
     await lockAttendanceSubject(tx, "student", input.studentId, input.schoolId);
@@ -199,7 +231,7 @@ export async function checkoutStudent(input: {
         deletedAt: null,
         anonymizedAt: null,
       },
-      select: { id: true, name: true, attendanceType: true },
+      select: { id: true, name: true, period: true },
     });
     if (!student) throw conflict("NOT_FOUND");
 
@@ -210,7 +242,7 @@ export async function checkoutStudent(input: {
         checkinAt: { not: null },
         checkoutAt: null,
       },
-      select: { id: true, checkinAt: true },
+      select: { id: true, date: true, checkinAt: true },
       orderBy: { checkinAt: "desc" },
       take: 2,
     });
@@ -227,13 +259,17 @@ export async function checkoutStudent(input: {
     const school = await tx.school.findUnique({
       where: { id: input.schoolId },
       select: {
-        studentCheckoutTime: true,
+        studentMorningCheckinTime: true,
+        studentMorningCheckoutTime: true,
+        studentEveningCheckinTime: true,
+        studentEveningCheckoutTime: true,
         settings: { select: { hourlyLateFee: true } },
       },
     });
-    const cutoff = astTimeOnDay(school?.studentCheckoutTime ?? "17:00", input.now);
+    const scheduled = scheduleFor(school, "student", student.period);
+    const cutoff = zonedTimeOnDate(existing.date, scheduled.checkout, input.timeZone);
     const lateMinutes =
-      student.attendanceType === "REGULAR" && cutoff && input.now > cutoff
+      cutoff && input.now > cutoff
         ? Math.floor((input.now.getTime() - cutoff.getTime()) / 60_000)
         : 0;
     const lateHours = lateMinutes / 60;
@@ -259,6 +295,7 @@ export async function checkoutTeacher(input: {
   teacherId: string;
   schoolId: string;
   now: Date;
+  timeZone: string;
 }) {
   return prisma.$transaction(async (tx) => {
     await lockAttendanceSubject(tx, "teacher", input.teacherId, input.schoolId);
@@ -269,7 +306,7 @@ export async function checkoutTeacher(input: {
         deletedAt: null,
         anonymizedAt: null,
       },
-      select: { id: true, name: true },
+      select: { id: true, name: true, period: true },
     });
     if (!teacher) throw conflict("NOT_FOUND");
 
@@ -280,7 +317,7 @@ export async function checkoutTeacher(input: {
         checkinAt: { not: null },
         checkoutAt: null,
       },
-      select: { id: true, checkinAt: true },
+      select: { id: true, date: true, checkinAt: true, lateMinutes: true },
       orderBy: { checkinAt: "desc" },
       take: 2,
     });
@@ -290,27 +327,33 @@ export async function checkoutTeacher(input: {
 
     const school = await tx.school.findUnique({
       where: { id: input.schoolId },
-      select: { teacherCheckinTime: true, teacherCheckoutTime: true },
+      select: {
+        teacherMorningCheckinTime: true,
+        teacherMorningCheckoutTime: true,
+        teacherEveningCheckinTime: true,
+        teacherEveningCheckoutTime: true,
+      },
     });
-    const [inH, inM] = (school?.teacherCheckinTime ?? "08:00").split(":").map(Number);
-    const [outH, outM] = (school?.teacherCheckoutTime ?? "17:00").split(":").map(Number);
-    const requiredHours = (outH * 60 + outM - (inH * 60 + inM)) / 60;
+    const scheduled = scheduleFor(school, "teacher", teacher.period);
+    const scheduledCheckin = zonedTimeOnDate(existing.date, scheduled.checkin, input.timeZone);
+    const scheduledCheckout = zonedTimeOnDate(existing.date, scheduled.checkout, input.timeZone);
+    const requiredHours = scheduledCheckin && scheduledCheckout
+      ? (scheduledCheckout.getTime() - scheduledCheckin.getTime()) / 3_600_000
+      : null;
     const totalHours = (input.now.getTime() - existing.checkinAt.getTime()) / 3_600_000;
     if (totalHours < 0) throw conflict("INVALID_ATTENDANCE_TIME");
-    const compensated = requiredHours <= 0 || totalHours >= requiredHours;
-    const lateHours = compensated ? 0 : requiredHours - totalHours;
-    const lateMinutes = Math.round(lateHours * 60);
+    const compensated = requiredHours === null || totalHours >= requiredHours;
+    const lateHours = existing.lateMinutes / 60;
 
     const closed = await tx.teacherAttendance.updateMany({
       where: { id: existing.id, schoolId: input.schoolId, checkoutAt: null },
-      data: { checkoutAt: input.now, lateMinutes, requiredHours, compensated },
+      data: { checkoutAt: input.now, requiredHours, compensated },
     });
     if (closed.count !== 1) throw conflict("ALREADY_CHECKED_OUT");
     await tx.teacher.update({
       where: { id: input.teacherId, schoolId: input.schoolId },
       data: {
         attendanceHours: { increment: totalHours },
-        lateHours: { increment: lateHours },
       },
     });
     return { attendanceId: existing.id, checkoutAt: input.now, totalHours, lateHours, personName: teacher.name };

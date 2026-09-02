@@ -735,6 +735,7 @@ model AcademicStageOption {
 /// wasted byte but a surviving photograph of a child whose record was erased.
 enum StoredFileOwnerType {
   LEGACY
+  SCHOOL
   STUDENT
   TEACHER
   ENROLLMENT_TOKEN
@@ -889,7 +890,19 @@ model School {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // School hours for attendance calculations (HH:mm format)
+  // Device-local attendance schedules (HH:mm). Recording remains manual.
+  teacherMorningCheckinTime  String?
+  teacherMorningCheckoutTime String?
+  teacherEveningCheckinTime  String?
+  teacherEveningCheckoutTime String?
+  studentMorningCheckinTime  String?
+  studentMorningCheckoutTime String?
+  studentEveningCheckinTime  String?
+  studentEveningCheckoutTime String?
+
+  // Legacy schedule compatibility. Retained for the previous application
+  // version and rollback window; new code reads/writes the period fields above.
+  // Remove only in a later reviewed release after the old version is retired.
   teacherCheckinTime  String?
   teacherCheckoutTime String?
   studentCheckinTime  String?
@@ -1360,7 +1373,9 @@ model Settings {
   school            School   @relation(fields: [schoolId], references: [id])
   hourlyLateFee     Decimal  @default(0) @db.Decimal(18, 2)
   dailyStudentFee   Decimal  @default(0) @db.Decimal(18, 2)
+  weeklyStudentFee  Decimal? @db.Decimal(18, 2)
   monthlyStudentFee Decimal  @default(0) @db.Decimal(18, 2)
+  yearlyStudentFee  Decimal? @db.Decimal(18, 2)
   reminderTemplate  String   @default("مرحباً، <guardian_name>، نود إعلامكم بأن الرسوم المستحقة على <child_name> بمبلغ <amount_due> ريال تستحق بتاريخ <due_date>. مع تحيات <school_name>")
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -1644,8 +1659,9 @@ model Student {
   billingCycle      BillingCycle   @default(MONTHLY)
   /// Interval in days, read only when `billingCycle` is CUSTOM.
   billingIntervalDays Int?
-  /// Per-cycle fee. Null falls back to `Settings.monthlyStudentFee`, preserving
-  /// how the product behaves today for anyone who never sets it.
+  /// Immutable per-cycle price snapshot for the current subscription period.
+  /// Null is retained only for legacy/unpriced records and is rejected at the
+  /// next supported subscription creation, type change, or renewal boundary.
   cycleFee          Decimal?      @db.Decimal(18, 2)
 
   enrollmentEndDate DateTime?

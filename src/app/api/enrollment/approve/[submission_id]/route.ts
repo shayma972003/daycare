@@ -2,6 +2,7 @@ import { z } from "zod";
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { protectIdNumber } from "@/lib/pii-crypto";
+import { requireStudentCycleFee, studentFeeSettingsSelect } from "@/lib/student-cycle-fee";
 import { activityLogData } from "@/lib/activity-logger";
 import { assertClassOwned, crossTenantResponse } from "@/lib/tenant-guard";
 import { resolveStageId, foreignStageResponse } from "@/lib/academic-stage";
@@ -145,6 +146,8 @@ export async function POST(
 
       const dobRaw = overrides.date_of_birth ?? submission.date_of_birth?.toString() ?? null;
       const submissionIdNumber = revealEnrollmentSubmissionIdNumber(submission);
+      const settings = await tx.settings.findUnique({ where: { schoolId }, select: studentFeeSettingsSelect });
+      const cycleFee = requireStudentCycleFee("MONTHLY", settings);
       const created = await tx.student.create({
         data: {
           schoolId,
@@ -162,6 +165,8 @@ export async function POST(
           allergies: overrides.allergies ?? submission.allergies ?? null,
           paymentMethod: mapPaymentMethod(overrides.payment_method ?? submission.payment_method),
           paymentStatus: "PENDING",
+          billingCycle: "MONTHLY",
+          cycleFee,
           registrationDate: new Date(),
           enrollment_date: submission.enrollment_date ?? new Date(),
           evaluationFileUrl: submission.evaluation_file_url,

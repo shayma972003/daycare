@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   storedFileFindFirst: vi.fn(),
+  schoolCount: vi.fn(),
   studentCount: vi.fn(),
   teacherCount: vi.fn(),
   tokenCount: vi.fn(),
@@ -18,6 +19,7 @@ vi.mock("@/lib/env", () => ({ storageEnabled: true }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     storedFile: { findFirst: mocks.storedFileFindFirst },
+    school: { count: mocks.schoolCount },
     student: { count: mocks.studentCount },
     teacher: { count: mocks.teacherCount },
     enrollmentToken: { count: mocks.tokenCount },
@@ -57,6 +59,7 @@ beforeEach(() => {
   for (const mock of Object.values(mocks)) mock.mockReset();
   mocks.verifyFileToken.mockReturnValue(false);
   mocks.studentCount.mockResolvedValue(1);
+  mocks.schoolCount.mockResolvedValue(1);
   mocks.verifyAccessToken.mockResolvedValue({
     sub: "account-1",
     kind: "staff",
@@ -71,6 +74,27 @@ beforeEach(() => {
 });
 
 describe("StoredFile read authorization", () => {
+  it("authorizes a school logo only for its tenant or an exact signed public grant", async () => {
+    const logo = {
+      key: "schools/school-1/school/logo.png",
+      schoolId: "school-1",
+      ownerType: "SCHOOL" as const,
+      ownerId: "school-1",
+    };
+    mocks.requireSession.mockResolvedValue({ user: { schoolId: "school-1" }, can: () => false });
+    await expect(mayReadStoredFile(new Request(`http://localhost/api/files/${logo.key}`), logo)).resolves.toBe(true);
+
+    mocks.requireSession.mockRejectedValue(new Error("public"));
+    mocks.verifyFileToken.mockImplementation((key: string, token: string | null) => key === logo.key && token === "signed-logo");
+    await expect(mayReadStoredFile(new Request(`http://localhost/api/files/${logo.key}?t=signed-logo`), logo)).resolves.toBe(true);
+    await expect(mayReadStoredFile(new Request(`http://localhost/api/files/${logo.key}`), logo)).resolves.toBe(false);
+
+    await expect(mayReadStoredFile(new Request(`http://localhost/api/files/${logo.key}?t=signed-logo`), {
+      ...logo,
+      ownerId: "school-2",
+    })).resolves.toBe(false);
+  });
+
   it("rejects an unregistered key without signing an R2 URL", async () => {
     mocks.storedFileFindFirst.mockResolvedValue(null);
 

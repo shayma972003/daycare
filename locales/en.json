@@ -573,7 +573,9 @@
       "title": "Fee Settings",
       "hourlyLateFee": "Hourly Late Fee",
       "dailyStudentFee": "Daily Student Fee",
-      "monthlyStudentFee": "Monthly Student Fee"
+      "weeklyStudentFee": "Weekly Student Fee",
+      "monthlyStudentFee": "Monthly Student Fee",
+      "yearlyStudentFee": "Yearly Student Fee"
     },
     "messageTemplate": {
       "title": "Automatic Message Template",
@@ -614,6 +616,11 @@
     "noChanges": "There are no changes to save",
     "shiftStartTime": "Workday start",
     "shiftEndTime": "Workday end",
+    "incompleteSchedule": "Set both check-in and check-out for a period, or leave both empty.",
+    "invalidScheduleRange": "Check-out must be later than check-in for the same period.",
+    "morningPeriod": "Morning period",
+    "eveningPeriod": "Evening period",
+    "schoolIdentityReadOnly": "Contact and legal details are managed by the platform administrator.",
     "securityPrivacy": "Security and privacy",
     "trash": "Trash",
     "loadFailed": "Could not load the settings",

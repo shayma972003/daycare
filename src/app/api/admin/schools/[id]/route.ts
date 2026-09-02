@@ -57,6 +57,7 @@ export async function GET(
       last_login_at: school.last_login_at,
       createdAt: school.createdAt,
       contactNumber: school.contactNumber,
+      phoneNumber: school.phoneNumber,
       legalName: school.legalName,
       commercialRegistration: school.commercialRegistration,
       nationalUnifiedNumber: school.nationalUnifiedNumber,
@@ -101,6 +102,7 @@ const updateSchema = z.object({
   subscription_status: z.string().optional(),
 
   contactNumber: z.string().nullish(),
+  phoneNumber: z.string().nullish(),
   legalName: z.string().nullish(),
   commercialRegistration: z.string().nullish(),
   nationalUnifiedNumber: z.string().nullish(),
@@ -144,6 +146,7 @@ export async function PUT(
       ...(data.renewal_date !== undefined && { renewal_date: data.renewal_date ? new Date(data.renewal_date) : null }),
       ...(data.subscription_status && { subscription_status: data.subscription_status }),
       ...(data.contactNumber !== undefined && { contactNumber: data.contactNumber }),
+      ...(data.phoneNumber !== undefined && { phoneNumber: data.phoneNumber }),
       ...(data.legalName !== undefined && { legalName: data.legalName }),
       ...(data.commercialRegistration !== undefined && { commercialRegistration: data.commercialRegistration }),
       ...(data.nationalUnifiedNumber !== undefined && { nationalUnifiedNumber: data.nationalUnifiedNumber }),

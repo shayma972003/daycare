@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   guardianFindFirst: vi.fn(),
   guardianUpdateMany: vi.fn(),
   guardianCreate: vi.fn(),
+  settingsFindUnique: vi.fn(),
   protectStudentId: vi.fn(),
 }));
 
@@ -103,11 +104,13 @@ beforeEach(() => {
         updateMany: mocks.guardianUpdateMany,
         create: mocks.guardianCreate,
       },
+      settings: { findUnique: mocks.settingsFindUnique },
       activityLog: { create: mocks.activityCreate },
       storedFile: { updateMany: vi.fn() },
     })
   );
   mocks.queryRaw.mockResolvedValue([{ id: "submission-1" }]);
+  mocks.settingsFindUnique.mockResolvedValue({ monthlyStudentFee: 500 });
   mocks.activityCreate.mockResolvedValue({});
   mocks.markForDeletion.mockResolvedValue("pending");
   mocks.completeDeletion.mockResolvedValue({ status: "deleted" });

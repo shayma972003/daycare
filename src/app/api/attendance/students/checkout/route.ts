@@ -21,7 +21,8 @@ export async function POST(request: Request) {
   catch { return Response.json({ error: "Invalid JSON" }, { status: 400 }); }
   const parsed = schema.safeParse(body);
   if (!parsed.success) return Response.json({ error: parsed.error.flatten() }, { status: 400 });
-  try { requestTimeZone(request); }
+  let timeZone: string;
+  try { timeZone = requestTimeZone(request); }
   catch { return Response.json({ error: "Invalid time zone" }, { status: 422 }); }
 
   try {
@@ -29,6 +30,7 @@ export async function POST(request: Request) {
       studentId: parsed.data.student_id,
       schoolId,
       now: new Date(),
+      timeZone,
     });
     return Response.json({
       checkout_time: result.checkoutAt,

@@ -1,11 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { astDateOnly } from "@/lib/datetime";
 import type { PaymentCycleStatus } from "@/generated/prisma/enums";
-import { money } from "@/lib/money";
 import type { Prisma } from "@/generated/prisma/client";
 import { nthDueDate } from "@/lib/billing-cycles";
 import type { BillingCycle } from "@/generated/prisma/enums";
-import { resolveStudentCycleFee } from "@/lib/student-cycle-fee";
+import { resolveStudentCycleFee, studentFeeSettingsSelect } from "@/lib/student-cycle-fee";
 
 /** Statuses that represent money already accounted for — never regenerated. */
 const SETTLED_STATUSES: PaymentCycleStatus[] = ["PAID", "CANCELLED"];
@@ -43,13 +42,14 @@ async function generatePaymentCyclesWithClient(studentId: string, client: Paymen
 
   const settings = await client.settings.findUnique({
     where: { schoolId: student.schoolId },
-    select: { dailyStudentFee: true, monthlyStudentFee: true },
+    select: studentFeeSettingsSelect,
   });
 
   const cycle = (student.billingCycle ?? "MONTHLY") as BillingCycle;
   const cycleAmount = resolveStudentCycleFee(cycle, student.cycleFee, settings);
-  // Annual/custom prices must be explicit; daily/monthly may inherit settings.
-  if (cycleAmount === null || money(cycleAmount).lessThanOrEqualTo(0)) return 0;
+  // A configured zero is a valid free subscription. Only a missing price skips
+  // generation; current subscriptions normally carry their immutable snapshot.
+  if (cycleAmount === null) return 0;
 
   const start = astDateOnly(student.enrollment_date);
   const end = astDateOnly(student.enrollmentEndDate);

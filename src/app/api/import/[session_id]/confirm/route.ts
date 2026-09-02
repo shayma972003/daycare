@@ -4,6 +4,7 @@ import { parseAcademicStage, parsePaymentStatus } from '@/lib/enum-labels';
 import { normalizePhone } from '@/lib/phone-normalizer';
 import { logAction } from '@/lib/activity-logger';
 import { protectIdNumber } from '@/lib/pii-crypto';
+import { requireStudentCycleFee, studentFeeSettingsSelect } from '@/lib/student-cycle-fee';
 import {
   clearedImportRowPayload,
   lockImportRow,
@@ -62,6 +63,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ session
     include: { rows: { orderBy: { row_number: 'asc' }, select: { id: true, status: true } } },
   });
   if (!importSession) return Response.json({ error: 'Not found' }, { status: 404 });
+
+  const studentSettings = importSession.type === 'students'
+    ? await prisma.settings.findUnique({ where: { schoolId }, select: studentFeeSettingsSelect })
+    : null;
 
   let importedCount = 0;
   let failedCount = 0;
@@ -129,6 +134,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ session
               paymentMethod: (PAY_MAP[String(data.payment_method ?? '').trim()] ?? 'CASH') as 'CASH' | 'TRANSFER' | 'CARD',
               paymentStatus: parsePaymentStatus(data.payment_status ? String(data.payment_status) : null) ?? 'PENDING',
               registration_fee: 0,
+              billingCycle: 'MONTHLY',
+              cycleFee: requireStudentCycleFee('MONTHLY', studentSettings),
             },
           });
         } else {

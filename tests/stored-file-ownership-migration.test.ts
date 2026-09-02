@@ -10,6 +10,10 @@ const migration = readFileSync(
   "utf8"
 );
 const schema = readFileSync(join(process.cwd(), "prisma/schema.prisma"), "utf8");
+const logoMigration = readFileSync(
+  join(process.cwd(), "prisma/migrations/20260902121000_school_logo_ownership_backfill/migration.sql"),
+  "utf8"
+);
 
 describe("StoredFile ownership migration", () => {
   it("adds explicit lifecycle ownership and retryable deletion metadata", () => {
@@ -34,5 +38,14 @@ describe("StoredFile ownership migration", () => {
     expect(migration).toContain("intentionally remain LEGACY");
     expect(migration).not.toMatch(/DELETE\s+FROM\s+"StoredFile"/i);
     expect(migration).not.toMatch(/ownerId\"\s*=\s*'enrollment'[\s\S]*ENROLLMENT_TOKEN/i);
+  });
+
+  it("backfills only an exact school logo reference and leaves ambiguous legacy files", () => {
+    expect(schema).toContain("SCHOOL");
+    expect(logoMigration).toContain("school.\"logoUrl\" = '/api/files/' || file.\"key\"");
+    expect(logoMigration).toContain("file.\"schoolId\" = school.\"id\"");
+    expect(logoMigration).toContain("file.\"category\" = 'school'");
+    expect(logoMigration).not.toMatch(/DELETE\s+FROM/i);
+    expect(logoMigration).not.toMatch(/ownerType"\s*=\s*'SCHOOL'[\s\S]*ownerType"\s*<>\s*'LEGACY'/i);
   });
 });

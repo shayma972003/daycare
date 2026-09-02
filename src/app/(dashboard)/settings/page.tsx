@@ -14,6 +14,7 @@ import { formatAst } from "@/lib/datetime";
 import { describeApiError } from "@/lib/api-error";
 import { usePermissions } from "@/lib/use-permissions";
 import { PermissionGate } from "@/components/auth/PermissionGate";
+import { SchoolLogo } from "@/components/layout/SchoolLogo";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -21,7 +22,9 @@ interface SettingsData {
   settings: {
     hourlyLateFee: number;
     dailyStudentFee: number;
+    weeklyStudentFee: number | null;
     monthlyStudentFee: number;
+    yearlyStudentFee: number | null;
     reminderTemplate: string;
   };
   schoolName: string;
@@ -29,10 +32,14 @@ interface SettingsData {
   plan: string;
   schoolEmail: string;
   loginEmail: string;
-  teacherCheckinTime: string;
-  teacherCheckoutTime: string;
-  studentCheckinTime: string;
-  studentCheckoutTime: string;
+  teacherMorningCheckinTime: string;
+  teacherMorningCheckoutTime: string;
+  teacherEveningCheckinTime: string;
+  teacherEveningCheckoutTime: string;
+  studentMorningCheckinTime: string;
+  studentMorningCheckoutTime: string;
+  studentEveningCheckinTime: string;
+  studentEveningCheckoutTime: string;
   commercialRegistration: string;
   vatNumber: string;
   contactNumber: string;
@@ -77,8 +84,20 @@ function SettingsSection({
   title: string;
   children: React.ReactNode;
 }) {
+  const order: Record<string, number> = {
+    "school-info": 10,
+    "school-hours": 20,
+    fees: 30,
+    "academic-stages": 40,
+    password: 50,
+    security: 51,
+    subscription: 60,
+    "message-template": 70,
+    "notification-log": 80,
+    trash: 90,
+  };
   return (
-    <section id={id} className="bg-white rounded-xl shadow-md p-6 space-y-4">
+    <section id={id} style={{ order: order[id] ?? 100 }} className="bg-white rounded-xl shadow-md p-6 space-y-4">
       <h2 className="text-base font-bold text-[#111111] border-b border-gray-100 pb-3">
         {title}
       </h2>
@@ -104,6 +123,33 @@ function FormField({
   );
 }
 
+function PeriodScheduleFields({
+  title, checkinLabel, checkoutLabel, checkin, checkout, onCheckin, onCheckout, disabled,
+}: {
+  title: string;
+  checkinLabel: string;
+  checkoutLabel: string;
+  checkin: string;
+  checkout: string;
+  onCheckin: (value: string) => void;
+  onCheckout: (value: string) => void;
+  disabled: boolean;
+}) {
+  return (
+    <fieldset className="rounded-xl border border-gray-100 p-4">
+      <legend className="px-2 text-sm font-semibold text-gray-700">{title}</legend>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <FormField label={checkinLabel}>
+          <input type="time" value={checkin} onChange={(event) => onCheckin(event.target.value)} disabled={disabled} dir="ltr" className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#4f00c1]" />
+        </FormField>
+        <FormField label={checkoutLabel}>
+          <input type="time" value={checkout} onChange={(event) => onCheckout(event.target.value)} disabled={disabled} dir="ltr" className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#4f00c1]" />
+        </FormField>
+      </div>
+    </fieldset>
+  );
+}
+
 // ── Main Page ────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
@@ -120,7 +166,7 @@ export default function SettingsPage() {
   const [settingsData, setSettingsData] = useState<SettingsData | null>(null);
   const [loadingSettings, setLoadingSettings] = useState(true);
   const [settingsError, setSettingsError] = useState("");
-  type SaveSection = "school" | "hours" | "fees" | "notifications";
+  type SaveSection = "hours" | "fees" | "notifications";
   const [savingSection, setSavingSection] = useState<SaveSection | null>(null);
   const [sectionFeedback, setSectionFeedback] = useState<
     Partial<Record<SaveSection, { ok: boolean; text: string }>>
@@ -130,26 +176,23 @@ export default function SettingsPage() {
   const [logoUploading, setLogoUploading] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
-  const [schoolName, setSchoolName] = useState("");
-  const [email, setEmail] = useState("");
   const [loginEmail, setLoginEmail] = useState("");
   const [hourlyLateFee, setHourlyLateFee] = useState(0);
   const [dailyStudentFee, setDailyStudentFee] = useState(0);
+  const [weeklyStudentFee, setWeeklyStudentFee] = useState<number | "">("");
   const [monthlyStudentFee, setMonthlyStudentFee] = useState(0);
+  const [yearlyStudentFee, setYearlyStudentFee] = useState<number | "">("");
   const [reminderTemplate, setReminderTemplate] = useState("");
 
   // School hours state
-  const [teacherCheckinTime, setTeacherCheckinTime] = useState("");
-  const [teacherCheckoutTime, setTeacherCheckoutTime] = useState("");
-  const [studentCheckinTime, setStudentCheckinTime] = useState("");
-  const [studentCheckoutTime, setStudentCheckoutTime] = useState("");
-
-  // Legal info state
-  const [commercialRegistration, setCommercialRegistration] = useState("");
-  const [vatNumber, setVatNumber] = useState("");
-  const [contactNumber, setContactNumber] = useState("");
-  const [address, setAddress] = useState("");
-  const [phoneNumber, setPhoneNumber] = useState("");
+  const [teacherMorningCheckinTime, setTeacherMorningCheckinTime] = useState("");
+  const [teacherMorningCheckoutTime, setTeacherMorningCheckoutTime] = useState("");
+  const [teacherEveningCheckinTime, setTeacherEveningCheckinTime] = useState("");
+  const [teacherEveningCheckoutTime, setTeacherEveningCheckoutTime] = useState("");
+  const [studentMorningCheckinTime, setStudentMorningCheckinTime] = useState("");
+  const [studentMorningCheckoutTime, setStudentMorningCheckoutTime] = useState("");
+  const [studentEveningCheckinTime, setStudentEveningCheckinTime] = useState("");
+  const [studentEveningCheckoutTime, setStudentEveningCheckoutTime] = useState("");
 
   // 2FA / security state
   const [twoFaEnabled, setTwoFaEnabled] = useState(false);
@@ -185,6 +228,7 @@ export default function SettingsPage() {
   const [passwordError, setPasswordError] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
 
   // Notification logs state
   const [logs, setLogs] = useState<NotificationLog[]>([]);
@@ -220,23 +264,22 @@ export default function SettingsPage() {
       .then((res) => {
         const d = res.data;
         setSettingsData(d);
-        setSchoolName(d.schoolName);
         setLogoUrl(d.logoUrl ?? null);
-        setEmail(d.schoolEmail ?? "");
         setLoginEmail(d.loginEmail ?? "");
         setHourlyLateFee(d.settings.hourlyLateFee);
         setDailyStudentFee(d.settings.dailyStudentFee);
+        setWeeklyStudentFee(d.settings.weeklyStudentFee ?? "");
         setMonthlyStudentFee(d.settings.monthlyStudentFee);
+        setYearlyStudentFee(d.settings.yearlyStudentFee ?? "");
         setReminderTemplate(d.settings.reminderTemplate);
-        setTeacherCheckinTime(d.teacherCheckinTime ?? "");
-        setTeacherCheckoutTime(d.teacherCheckoutTime ?? "");
-        setStudentCheckinTime(d.studentCheckinTime ?? "");
-        setStudentCheckoutTime(d.studentCheckoutTime ?? "");
-        setCommercialRegistration(d.commercialRegistration ?? "");
-        setVatNumber(d.vatNumber ?? "");
-        setContactNumber(d.contactNumber ?? "");
-        setAddress(d.address ?? "");
-        setPhoneNumber(d.phoneNumber ?? "");
+        setTeacherMorningCheckinTime(d.teacherMorningCheckinTime ?? "");
+        setTeacherMorningCheckoutTime(d.teacherMorningCheckoutTime ?? "");
+        setTeacherEveningCheckinTime(d.teacherEveningCheckinTime ?? "");
+        setTeacherEveningCheckoutTime(d.teacherEveningCheckoutTime ?? "");
+        setStudentMorningCheckinTime(d.studentMorningCheckinTime ?? "");
+        setStudentMorningCheckoutTime(d.studentMorningCheckoutTime ?? "");
+        setStudentEveningCheckinTime(d.studentEveningCheckinTime ?? "");
+        setStudentEveningCheckoutTime(d.studentEveningCheckoutTime ?? "");
         setTwoFaEnabled(d.twoFaEnabled ?? false);
         setSettingsError("");
       })
@@ -312,23 +355,21 @@ export default function SettingsPage() {
   function sectionPayload(section: SaveSection): Record<string, unknown> {
     if (!settingsData) return {};
     const payload: Record<string, unknown> = {};
-    if (section === "school") {
-      changed(payload, "schoolName", schoolName.trim(), settingsData.schoolName);
-      changed(payload, "email", nullable(email), nullable(settingsData.schoolEmail ?? ""));
-      changed(payload, "commercialRegistration", nullable(commercialRegistration), nullable(settingsData.commercialRegistration ?? ""));
-      changed(payload, "vatNumber", nullable(vatNumber), nullable(settingsData.vatNumber ?? ""));
-      changed(payload, "contactNumber", nullable(contactNumber), nullable(settingsData.contactNumber ?? ""));
-      changed(payload, "address", nullable(address), nullable(settingsData.address ?? ""));
-      changed(payload, "phoneNumber", nullable(phoneNumber), nullable(settingsData.phoneNumber ?? ""));
-    } else if (section === "hours") {
-      changed(payload, "teacherCheckinTime", nullable(teacherCheckinTime), nullable(settingsData.teacherCheckinTime ?? ""));
-      changed(payload, "teacherCheckoutTime", nullable(teacherCheckoutTime), nullable(settingsData.teacherCheckoutTime ?? ""));
-      changed(payload, "studentCheckinTime", nullable(studentCheckinTime), nullable(settingsData.studentCheckinTime ?? ""));
-      changed(payload, "studentCheckoutTime", nullable(studentCheckoutTime), nullable(settingsData.studentCheckoutTime ?? ""));
+    if (section === "hours") {
+      changed(payload, "teacherMorningCheckinTime", nullable(teacherMorningCheckinTime), nullable(settingsData.teacherMorningCheckinTime ?? ""));
+      changed(payload, "teacherMorningCheckoutTime", nullable(teacherMorningCheckoutTime), nullable(settingsData.teacherMorningCheckoutTime ?? ""));
+      changed(payload, "teacherEveningCheckinTime", nullable(teacherEveningCheckinTime), nullable(settingsData.teacherEveningCheckinTime ?? ""));
+      changed(payload, "teacherEveningCheckoutTime", nullable(teacherEveningCheckoutTime), nullable(settingsData.teacherEveningCheckoutTime ?? ""));
+      changed(payload, "studentMorningCheckinTime", nullable(studentMorningCheckinTime), nullable(settingsData.studentMorningCheckinTime ?? ""));
+      changed(payload, "studentMorningCheckoutTime", nullable(studentMorningCheckoutTime), nullable(settingsData.studentMorningCheckoutTime ?? ""));
+      changed(payload, "studentEveningCheckinTime", nullable(studentEveningCheckinTime), nullable(settingsData.studentEveningCheckinTime ?? ""));
+      changed(payload, "studentEveningCheckoutTime", nullable(studentEveningCheckoutTime), nullable(settingsData.studentEveningCheckoutTime ?? ""));
     } else if (section === "fees") {
       changed(payload, "hourlyLateFee", hourlyLateFee, Number(settingsData.settings.hourlyLateFee));
       changed(payload, "dailyStudentFee", dailyStudentFee, Number(settingsData.settings.dailyStudentFee));
+      changed(payload, "weeklyStudentFee", weeklyStudentFee === "" ? null : weeklyStudentFee, settingsData.settings.weeklyStudentFee);
       changed(payload, "monthlyStudentFee", monthlyStudentFee, Number(settingsData.settings.monthlyStudentFee));
+      changed(payload, "yearlyStudentFee", yearlyStudentFee === "" ? null : yearlyStudentFee, settingsData.settings.yearlyStudentFee);
     } else {
       changed(payload, "reminderTemplate", reminderTemplate, settingsData.settings.reminderTemplate);
     }
@@ -338,31 +379,23 @@ export default function SettingsPage() {
   function commitSection(section: SaveSection) {
     setSettingsData((current) => {
       if (!current) return current;
-      if (section === "school") {
-        return {
-          ...current,
-          schoolName: schoolName.trim(),
-          schoolEmail: email.trim(),
-          commercialRegistration,
-          vatNumber,
-          contactNumber,
-          address,
-          phoneNumber,
-        };
-      }
       if (section === "hours") {
         return {
           ...current,
-          teacherCheckinTime,
-          teacherCheckoutTime,
-          studentCheckinTime,
-          studentCheckoutTime,
+          teacherMorningCheckinTime,
+          teacherMorningCheckoutTime,
+          teacherEveningCheckinTime,
+          teacherEveningCheckoutTime,
+          studentMorningCheckinTime,
+          studentMorningCheckoutTime,
+          studentEveningCheckinTime,
+          studentEveningCheckoutTime,
         };
       }
       if (section === "fees") {
         return {
           ...current,
-          settings: { ...current.settings, hourlyLateFee, dailyStudentFee, monthlyStudentFee },
+          settings: { ...current.settings, hourlyLateFee, dailyStudentFee, weeklyStudentFee: weeklyStudentFee === "" ? null : weeklyStudentFee, monthlyStudentFee, yearlyStudentFee: yearlyStudentFee === "" ? null : yearlyStudentFee },
         };
       }
       return { ...current, settings: { ...current.settings, reminderTemplate } };
@@ -389,9 +422,15 @@ export default function SettingsPage() {
         [section]: { ok: true, text: t("common.success") },
       }));
     } catch (error) {
+      const code = axios.isAxiosError(error) ? error.response?.data?.code : null;
+      const message = code === "INCOMPLETE_SCHEDULE"
+        ? t("settings.incompleteSchedule")
+        : code === "INVALID_SCHEDULE_RANGE"
+          ? t("settings.invalidScheduleRange")
+          : describeApiError(error, t("settings.saveFailed"));
       setSectionFeedback((current) => ({
         ...current,
-        [section]: { ok: false, text: describeApiError(error, t("settings.saveFailed")) },
+        [section]: { ok: false, text: message },
       }));
     } finally {
       setSavingSection(null);
@@ -449,6 +488,7 @@ export default function SettingsPage() {
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
+      setShowPasswordForm(false);
     } catch (err: unknown) {
       if (
         axios.isAxiosError(err) &&
@@ -576,6 +616,15 @@ export default function SettingsPage() {
     setTrashTab(tab);
   }
 
+  function closePasswordForm() {
+    if (savingPassword) return;
+    setShowPasswordForm(false);
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
+    setPasswordError("");
+  }
+
   const trashTypeSingular: Record<"students" | "teachers" | "classes", string> = {
     students: "student",
     teachers: "teacher",
@@ -655,6 +704,7 @@ export default function SettingsPage() {
   async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    const previousLogoUrl = logoUrl;
     setLogoUploading(true);
     // Immediate local preview
     const reader = new FileReader();
@@ -668,6 +718,7 @@ export default function SettingsPage() {
       setLogoUrl(res.data.logoUrl);
       router.refresh();
     } catch {
+      setLogoUrl(previousLogoUrl);
       alert(t("settings.logoUploadFailed"));
     } finally {
       setLogoUploading(false);
@@ -683,8 +734,8 @@ export default function SettingsPage() {
       { id: "hours", title: t("settings.schoolHours"), sections: ["school-hours"] },
       { id: "fees", title: t("settings.fees.title"), sections: ["fees", "subscription"] },
       { id: "stages", title: t("settings.stages.title"), sections: ["academic-stages"] },
-      { id: "notifications", title: t("settings.notificationsSection"), sections: ["message-template", "notification-log"] },
       { id: "security", title: t("settings.accountSecurity"), sections: ["password", "security"] },
+      { id: "notifications", title: t("settings.notificationsSection"), sections: ["message-template", "notification-log"] },
       { id: "data", title: t("settings.dataSection"), sections: ["trash"] },
     ],
     [t]
@@ -958,6 +1009,7 @@ export default function SettingsPage() {
           </div>
         ) : (
           <>
+            <div className="flex flex-col gap-6">
             {/* ── School Info (merged with Legal Info) ──────────────── */}
             {showSection("school-info") && (
               <SettingsSection id="school-info" title={t("settings.schoolInfo")}>
@@ -966,8 +1018,7 @@ export default function SettingsPage() {
                   <div className="flex items-center gap-4">
                     <div className="w-16 h-16 bg-gray-100 border border-gray-200 rounded-xl overflow-hidden flex items-center justify-center shrink-0">
                       {logoUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={logoUrl} alt={t("settings.logoTitle")} className="w-full h-full object-contain" />
+                        <SchoolLogo src={logoUrl} name={settingsData?.schoolName ?? t("settings.logoTitle")} className="h-full w-full" />
                       ) : (
                         <span className="text-2xl">🏫</span>
                       )}
@@ -990,75 +1041,28 @@ export default function SettingsPage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <FormField label={t("settings.schoolName")}>
-                    <input
-                      type="text"
-                      value={schoolName}
-                      onChange={(e) => setSchoolName(e.target.value)}
-                      disabled={!canManageSettings}
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
-                    />
+                    <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-2.5 text-sm text-gray-700">{settingsData?.schoolName || "—"}</div>
                   </FormField>
                   <FormField label={t("settings.email")}>
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      disabled={!canManageSettings}
-                      dir="ltr"
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
-                    />
+                    <div dir="ltr" className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-2.5 text-sm text-gray-700">{settingsData?.schoolEmail || "—"}</div>
                   </FormField>
                   <FormField label={t("settings.commercialReg")}>
-                    <input
-                      type="text"
-                      value={commercialRegistration}
-                      onChange={(e) => setCommercialRegistration(e.target.value)}
-                      disabled={!canManageSettings}
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
-                    />
+                    <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-2.5 text-sm text-gray-700">{settingsData?.commercialRegistration || "—"}</div>
                   </FormField>
                   <FormField label={t("settings.vatNumber")}>
-                    <input
-                      type="text"
-                      value={vatNumber}
-                      onChange={(e) => setVatNumber(e.target.value)}
-                      disabled={!canManageSettings}
-                      dir="ltr"
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
-                    />
+                    <div dir="ltr" className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-2.5 text-sm text-gray-700">{settingsData?.vatNumber || "—"}</div>
                   </FormField>
                   <FormField label={t("settings.contactNumber")}>
-                    <input
-                      type="text"
-                      value={contactNumber}
-                      onChange={(e) => setContactNumber(e.target.value)}
-                      disabled={!canManageSettings}
-                      dir="ltr"
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
-                    />
+                    <div dir="ltr" className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-2.5 text-sm text-gray-700">{settingsData?.contactNumber || "—"}</div>
                   </FormField>
                   <FormField label={t("settings.address")}>
-                    <input
-                      type="text"
-                      value={address}
-                      onChange={(e) => setAddress(e.target.value)}
-                      disabled={!canManageSettings}
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
-                    />
+                    <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-2.5 text-sm text-gray-700">{settingsData?.address || "—"}</div>
                   </FormField>
                   <FormField label={t("settings.phoneNumber")}>
-                    <input
-                      type="text"
-                      value={phoneNumber}
-                      onChange={(e) => setPhoneNumber(e.target.value)}
-                      disabled={!canManageSettings}
-                      dir="ltr"
-                      placeholder="5XXXXXXXX"
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
-                    />
+                    <div dir="ltr" className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-2.5 text-sm text-gray-700">{settingsData?.phoneNumber || "—"}</div>
                   </FormField>
                 </div>
-                {sectionSaveAction("school")}
+                <p className="text-xs text-gray-500">{t("settings.schoolIdentityReadOnly")}</p>
               </SettingsSection>
             )}
 
@@ -1068,53 +1072,17 @@ export default function SettingsPage() {
                 <div className="space-y-4">
                   <p className="text-xs text-gray-500">{t("settings.hoursHint")}</p>
                   <div>
-                    <h3 className="text-sm font-semibold text-[#111111] mb-3">{t("settings.teachersLabel")}</h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <FormField label={t("settings.shiftStartTime")}>
-                        <input
-                          type="time"
-                          value={teacherCheckinTime}
-                          onChange={(e) => setTeacherCheckinTime(e.target.value)}
-                          disabled={!canManageSettings}
-                          dir="ltr"
-                          className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
-                        />
-                      </FormField>
-                      <FormField label={t("settings.shiftEndTime")}>
-                        <input
-                          type="time"
-                          value={teacherCheckoutTime}
-                          onChange={(e) => setTeacherCheckoutTime(e.target.value)}
-                          disabled={!canManageSettings}
-                          dir="ltr"
-                          className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
-                        />
-                      </FormField>
+                    <h3 className="text-sm font-semibold text-[#111111] mb-3">{t("settings.studentsLabel")}</h3>
+                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                      <PeriodScheduleFields title={t("settings.morningPeriod")} checkinLabel={t("settings.shiftStartTime")} checkoutLabel={t("settings.shiftEndTime")} checkin={studentMorningCheckinTime} checkout={studentMorningCheckoutTime} onCheckin={setStudentMorningCheckinTime} onCheckout={setStudentMorningCheckoutTime} disabled={!canManageSettings} />
+                      <PeriodScheduleFields title={t("settings.eveningPeriod")} checkinLabel={t("settings.shiftStartTime")} checkoutLabel={t("settings.shiftEndTime")} checkin={studentEveningCheckinTime} checkout={studentEveningCheckoutTime} onCheckin={setStudentEveningCheckinTime} onCheckout={setStudentEveningCheckoutTime} disabled={!canManageSettings} />
                     </div>
                   </div>
                   <div>
-                    <h3 className="text-sm font-semibold text-[#111111] mb-3">{t("settings.studentsLabel")}</h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <FormField label={t("settings.shiftStartTime")}>
-                        <input
-                          type="time"
-                          value={studentCheckinTime}
-                          onChange={(e) => setStudentCheckinTime(e.target.value)}
-                          disabled={!canManageSettings}
-                          dir="ltr"
-                          className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
-                        />
-                      </FormField>
-                      <FormField label={t("settings.shiftEndTime")}>
-                        <input
-                          type="time"
-                          value={studentCheckoutTime}
-                          onChange={(e) => setStudentCheckoutTime(e.target.value)}
-                          disabled={!canManageSettings}
-                          dir="ltr"
-                          className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
-                        />
-                      </FormField>
+                    <h3 className="text-sm font-semibold text-[#111111] mb-3">{t("settings.teachersLabel")}</h3>
+                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                      <PeriodScheduleFields title={t("settings.morningPeriod")} checkinLabel={t("settings.shiftStartTime")} checkoutLabel={t("settings.shiftEndTime")} checkin={teacherMorningCheckinTime} checkout={teacherMorningCheckoutTime} onCheckin={setTeacherMorningCheckinTime} onCheckout={setTeacherMorningCheckoutTime} disabled={!canManageSettings} />
+                      <PeriodScheduleFields title={t("settings.eveningPeriod")} checkinLabel={t("settings.shiftStartTime")} checkoutLabel={t("settings.shiftEndTime")} checkin={teacherEveningCheckinTime} checkout={teacherEveningCheckoutTime} onCheckin={setTeacherEveningCheckinTime} onCheckout={setTeacherEveningCheckoutTime} disabled={!canManageSettings} />
                     </div>
                   </div>
                   {sectionSaveAction("hours")}
@@ -1128,11 +1096,29 @@ export default function SettingsPage() {
                 id="password"
                 title={t("settings.changePassword")}
               >
+                {!showPasswordForm ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPasswordSuccess(false);
+                      setPasswordError("");
+                      setCurrentPassword("");
+                      setNewPassword("");
+                      setConfirmPassword("");
+                      setShowPasswordForm(true);
+                    }}
+                    className="rounded-xl bg-[#111111] px-6 py-2.5 text-sm font-bold text-white hover:bg-[#253055]"
+                  >
+                    {t("settings.changePassword")}
+                  </button>
+                ) : (
+                <form autoComplete="off" onSubmit={(event) => { event.preventDefault(); void handleChangePassword(); }} className="space-y-4">
                 <FormField label={t("settings.currentPassword")}>
                   <input
                     type="password"
                     value={currentPassword}
                     onChange={(e) => setCurrentPassword(e.target.value)}
+                    autoComplete="current-password"
                     dir="ltr"
                     className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                     placeholder="••••••••"
@@ -1143,6 +1129,7 @@ export default function SettingsPage() {
                     type="password"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
+                    autoComplete="new-password"
                     dir="ltr"
                     className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                     placeholder="••••••••"
@@ -1154,6 +1141,7 @@ export default function SettingsPage() {
                     type="password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
+                    autoComplete="new-password"
                     dir="ltr"
                     className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                     placeholder="••••••••"
@@ -1163,19 +1151,23 @@ export default function SettingsPage() {
                 {passwordError && (
                   <p className="text-red-600 text-sm">{passwordError}</p>
                 )}
-                {passwordSuccess && (
-                  <p className="text-success-text text-sm">
-                    {t("settings.passwordChanged")}
-                  </p>
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="submit"
+                    disabled={savingPassword}
+                    className="px-6 py-2.5 bg-[#111111] hover:bg-[#253055] text-white rounded-xl font-bold text-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {savingPassword ? t("common.loading") : t("settings.changePassword")}
+                  </button>
+                  <button type="button" onClick={closePasswordForm} disabled={savingPassword} className="rounded-xl border border-gray-200 px-6 py-2.5 text-sm font-medium text-gray-700 disabled:opacity-60">
+                    {t("common.cancel")}
+                  </button>
+                </div>
+                </form>
                 )}
-
-                <button
-                  onClick={handleChangePassword}
-                  disabled={savingPassword}
-                  className="px-6 py-2.5 bg-[#111111] hover:bg-[#253055] text-white rounded-xl font-bold text-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  {savingPassword ? t("common.loading") : t("settings.changePassword")}
-                </button>
+                {passwordSuccess && !showPasswordForm && (
+                  <p className="text-success-text text-sm">{t("settings.passwordChanged")}</p>
+                )}
               </SettingsSection>
             )}
 
@@ -1359,7 +1351,7 @@ export default function SettingsPage() {
             {/* ── Fee Settings ──────────────────────────────────────── */}
             {showSection("fees") && (
               <SettingsSection id="fees" title={t("settings.fees.title")}>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
                   <FormField label={t("settings.fees.hourlyLateFee")}>
                     <div className="relative">
                       <input
@@ -1372,7 +1364,7 @@ export default function SettingsPage() {
                         disabled={!canManageSettings}
                         className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                       />
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
+                      <span className="absolute start-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
                         {t("common.sar")}
                       </span>
                     </div>
@@ -1389,9 +1381,22 @@ export default function SettingsPage() {
                         disabled={!canManageSettings}
                         className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                       />
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
+                      <span className="absolute start-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
                         {t("common.sar")}
                       </span>
+                    </div>
+                  </FormField>
+                  <FormField label={t("settings.fees.weeklyStudentFee")}>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min={0}
+                        value={weeklyStudentFee}
+                        onChange={(e) => setWeeklyStudentFee(e.target.value === "" ? "" : Number(e.target.value))}
+                        disabled={!canManageSettings}
+                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
+                      />
+                      <span className="absolute start-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">{t("common.sar")}</span>
                     </div>
                   </FormField>
                   <FormField label={t("settings.fees.monthlyStudentFee")}>
@@ -1406,9 +1411,22 @@ export default function SettingsPage() {
                         disabled={!canManageSettings}
                         className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                       />
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
+                      <span className="absolute start-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
                         {t("common.sar")}
                       </span>
+                    </div>
+                  </FormField>
+                  <FormField label={t("settings.fees.yearlyStudentFee")}>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min={0}
+                        value={yearlyStudentFee}
+                        onChange={(e) => setYearlyStudentFee(e.target.value === "" ? "" : Number(e.target.value))}
+                        disabled={!canManageSettings}
+                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
+                      />
+                      <span className="absolute start-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">{t("common.sar")}</span>
                     </div>
                   </FormField>
                 </div>
@@ -1551,6 +1569,7 @@ export default function SettingsPage() {
                 )}
               </SettingsSection>
             )}
+            </div>
           </>
         )}
       </div>

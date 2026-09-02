@@ -40,9 +40,7 @@ type StudentFormData = {
   guardianPhone4: string;
   guardianEmail2: string;
   registrationFee: string;
-  billingCycle: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY" | "CUSTOM";
-  billingIntervalDays?: number | null;
-  cycleFee?: string;
+  billingCycle: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
   paymentMethod: "CASH" | "TRANSFER" | "CARD";
   paymentStatus: string;
   enrollmentDate: string;
@@ -59,6 +57,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 const inputCls = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111111]";
+const readonlyCls = "w-full border border-gray-100 bg-gray-50 rounded-lg px-3 py-2 text-sm text-gray-600";
 
 export default function NewStudentPage() {
   // Locale-aware translation — see src/lib/i18n.tsx.
@@ -74,6 +73,7 @@ export default function NewStudentPage() {
   const [classesRetry, setClassesRetry] = useState(0);
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const [settingsRetry, setSettingsRetry] = useState(0);
+  const [studentFees, setStudentFees] = useState<Record<"DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY", number | null> | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [guardianId, setGuardianId] = useState<string | null>(null);
@@ -105,6 +105,7 @@ export default function NewStudentPage() {
   });
 
   const period = watch("period");
+  const billingCycle = watch("billingCycle");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -120,24 +121,26 @@ export default function NewStudentPage() {
     return () => controller.abort();
   }, [period, classesRetry, t]);
 
-  const [registrationFeeIsDefault, setRegistrationFeeIsDefault] = useState(true);
-
   useEffect(() => {
     const controller = new AbortController();
     setSettingsError(null);
     axios
-      .get<{ settings: { monthlyStudentFee: number } }>("/api/settings", { signal: controller.signal })
+      .get<{ settings: { dailyStudentFee: number; weeklyStudentFee: number | null; monthlyStudentFee: number; yearlyStudentFee: number | null } }>("/api/settings", { signal: controller.signal })
       .then((r) => {
         if (!controller.signal.aborted) {
-          setValue("registrationFee", String(r.data.settings.monthlyStudentFee ?? 0));
-          setRegistrationFeeIsDefault(true);
+          setStudentFees({
+            DAILY: r.data.settings.dailyStudentFee,
+            WEEKLY: r.data.settings.weeklyStudentFee,
+            MONTHLY: r.data.settings.monthlyStudentFee,
+            YEARLY: r.data.settings.yearlyStudentFee,
+          });
         }
       })
       .catch((error) => {
         if (!controller.signal.aborted && !axios.isCancel(error)) setSettingsError(describeApiError(error, t("common.error")));
       });
     return () => controller.abort();
-  }, [settingsRetry, setValue, t]);
+  }, [settingsRetry, t]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -225,8 +228,6 @@ export default function NewStudentPage() {
         gender: data.gender,
         allergies: data.allergies || undefined,
         billingCycle: data.billingCycle,
-        ...(data.billingIntervalDays ? { billingIntervalDays: Number(data.billingIntervalDays) } : {}),
-        ...(data.cycleFee ? { cycleFee: Number(data.cycleFee) } : {}),
         ...(canManageFinance
           ? {
               paymentMethod: data.paymentMethod,
@@ -253,9 +254,7 @@ export default function NewStudentPage() {
         // field out states "not overridden" and lets the server resolve it.
         ...(canManageFinance
           ? {
-              registration_fee: registrationFeeIsDefault
-                ? undefined
-                : parseFloat(data.registrationFee) || 0,
+              registration_fee: parseFloat(data.registrationFee) || 0,
             }
           : {}),
       });
@@ -459,8 +458,12 @@ export default function NewStudentPage() {
               </Field>
               <Field label={t("students.profile.billingCycle")}>
                 <select {...register("billingCycle")} className={inputCls}>
-                  {BILLING_CYCLES.filter((cycle) => ["DAILY", "MONTHLY", "YEARLY"].includes(cycle)).map((cycle) => <option key={cycle} value={cycle}>{t(BILLING_CYCLE_LABEL_KEYS[cycle])}</option>)}
+                  {BILLING_CYCLES.filter((cycle) => ["DAILY", "WEEKLY", "MONTHLY", "YEARLY"].includes(cycle)).map((cycle) => <option key={cycle} value={cycle}>{t(BILLING_CYCLE_LABEL_KEYS[cycle])}</option>)}
                 </select>
+              </Field>
+              <Field label={t("students.profile.cycleFee")}>
+                <input value={studentFees?.[billingCycle] ?? ""} readOnly aria-readonly="true" dir="ltr" className={readonlyCls} />
+                <p className="mt-1 text-xs text-gray-500">{t("students.cycleFeeSettingsHint")}</p>
               </Field>
               <Field label={t("studentProfile.paymentStatusLabel")}>
                 {/* Options generated from the enum. Hand-written lists here were
@@ -486,9 +489,6 @@ export default function NewStudentPage() {
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-xs font-medium text-gray-500">{t("studentProfile.registrationFee")}</label>
-                  <span className="text-xs text-gray-400">
-                    {registrationFeeIsDefault ? t("fields.fromSettings") : t("fields.custom")}
-                  </span>
                 </div>
                 <div className="relative">
                   <input
@@ -497,13 +497,9 @@ export default function NewStudentPage() {
                     min="0"
                     step="0.01"
                     dir="ltr"
-                    className={`${inputCls} pl-14`}
-                    onChange={(e) => {
-                      register("registrationFee").onChange(e);
-                      setRegistrationFeeIsDefault(false);
-                    }}
+                    className={`${inputCls} ps-14`}
                   />
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">{t("common.sar")}</span>
+                  <span className="absolute start-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">{t("common.sar")}</span>
                 </div>
               </div>
             </div>

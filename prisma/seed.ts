@@ -43,6 +43,16 @@ async function main() {
         name: "روضة النور",
         email: SCHOOL_EMAIL,
         plan: "premium",
+        studentMorningCheckinTime: "07:30",
+        studentMorningCheckoutTime: "16:00",
+        studentEveningCheckinTime: "07:30",
+        studentEveningCheckoutTime: "16:00",
+        teacherMorningCheckinTime: "07:00",
+        teacherMorningCheckoutTime: "16:30",
+        teacherEveningCheckinTime: "07:00",
+        teacherEveningCheckoutTime: "16:30",
+        // Keep a fresh development database readable by the previous release
+        // throughout the period-field rollout window.
         studentCheckinTime: "07:30",
         studentCheckoutTime: "16:00",
         teacherCheckinTime: "07:00",

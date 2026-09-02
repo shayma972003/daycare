@@ -17,11 +17,12 @@ export async function POST(
   }
   const schoolId = session.user.schoolId;
   const { id } = await params;
-  try { requestTimeZone(request); }
+  let timeZone: string;
+  try { timeZone = requestTimeZone(request); }
   catch { return Response.json({ error: "Invalid time zone" }, { status: 422 }); }
 
   try {
-    const result = await checkoutTeacher({ teacherId: id, schoolId, now: new Date() });
+    const result = await checkoutTeacher({ teacherId: id, schoolId, now: new Date(), timeZone });
     await logAction({
       school_id: schoolId,
       action: "تسجيل خروج المعلم: " + result.personName,

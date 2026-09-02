@@ -39,6 +39,63 @@ export function storedDate(value: Date | string): Date {
   return new Date(`${(value instanceof Date ? value.toISOString() : value).slice(0, 10)}T00:00:00.000Z`);
 }
 
+/** Resolves an HH:mm wall-clock value on a stored calendar date in an IANA zone. */
+export function zonedTimeOnDate(
+  date: Date | string,
+  time: string | null | undefined,
+  timeZone: string
+): Date | null {
+  if (!validTimeZone(timeZone)) return null;
+  const match = /^(?:[01]\d|2[0-3]):[0-5]\d$/.exec(time ?? "");
+  if (!match) return null;
+
+  const calendarDate = storedDate(date);
+  const [hour, minute] = (time ?? "").split(":").map(Number);
+  const targetWall = Date.UTC(
+    calendarDate.getUTCFullYear(),
+    calendarDate.getUTCMonth(),
+    calendarDate.getUTCDate(),
+    hour,
+    minute
+  );
+  const formatter = new Intl.DateTimeFormat("en-GB", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  });
+  let instant = targetWall;
+  for (let iteration = 0; iteration < 4; iteration++) {
+    const parts = formatter.formatToParts(new Date(instant));
+    const part = (type: string) => Number(parts.find((entry) => entry.type === type)!.value);
+    const wall = Date.UTC(
+      part("year"),
+      part("month") - 1,
+      part("day"),
+      part("hour"),
+      part("minute"),
+      part("second")
+    );
+    const delta = targetWall - wall;
+    instant += delta;
+    if (delta === 0) break;
+  }
+
+  const resolved = new Date(instant);
+  const resolvedParts = formatter.formatToParts(resolved);
+  const resolvedPart = (type: string) => Number(resolvedParts.find((entry) => entry.type === type)!.value);
+  return resolvedPart("year") === calendarDate.getUTCFullYear() &&
+    resolvedPart("month") === calendarDate.getUTCMonth() + 1 &&
+    resolvedPart("day") === calendarDate.getUTCDate() &&
+    resolvedPart("hour") === hour && resolvedPart("minute") === minute
+    ? resolved
+    : null;
+}
+
 export function dateLabel(value: Date | string, locale: string): string {
   const parts = new Intl.DateTimeFormat(locale === "ar" ? "ar" : "en-GB", {
     timeZone: "UTC", calendar: "gregory", numberingSystem: "latn",

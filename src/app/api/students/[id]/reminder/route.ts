@@ -5,6 +5,7 @@ import { buildMessageVars } from "@/lib/message-variables";
 import { logAction } from "@/lib/activity-logger";
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { moneyNumber } from "@/lib/money";
+import { scheduleFor } from "@/lib/school-schedule";
 
 export async function POST(
   request: Request,
@@ -58,7 +59,8 @@ export async function POST(
   const vars = buildMessageVars({
     student: {
       name: student.name,
-      registration_fee: moneyNumber(student.registration_fee ?? settings?.monthlyStudentFee),
+      registration_fee: moneyNumber(student.registration_fee),
+      cycleFee: student.cycleFee == null ? null : moneyNumber(student.cycleFee),
       enrollmentEndDate: student.enrollmentEndDate,
     },
     guardian: {
@@ -67,8 +69,10 @@ export async function POST(
     },
     school: {
       name: school?.name,
-      studentCheckinTime: school?.studentCheckinTime,
-      studentCheckoutTime: school?.studentCheckoutTime,
+      ...(() => {
+        const schedule = school ? scheduleFor(school, "student", student.period ?? "MORNING") : null;
+        return { checkinTime: schedule?.checkin, checkoutTime: schedule?.checkout };
+      })(),
     },
   });
 

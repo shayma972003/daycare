@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   guardianCreate: vi.fn(),
   studentCreate: vi.fn(),
   teacherCreate: vi.fn(),
+  settingsFindUnique: vi.fn(),
   transaction: vi.fn(),
   logAction: vi.fn(),
 }));
@@ -28,6 +29,7 @@ vi.mock('@/lib/prisma', () => ({
     $transaction: mocks.transaction,
     importSession: { updateMany: mocks.sessionUpdateMany, findFirst: mocks.sessionFindFirst },
     importRow: { updateMany: mocks.rowUpdateMany },
+    settings: { findUnique: mocks.settingsFindUnique },
   },
 }));
 vi.mock('@/lib/activity-logger', () => ({ logAction: mocks.logAction }));
@@ -61,6 +63,7 @@ beforeEach(() => {
   mocks.guardianCreate.mockResolvedValue({ id: 'guardian-1' });
   mocks.studentCreate.mockResolvedValue({ id: 'student-1' });
   mocks.teacherCreate.mockResolvedValue({ id: 'teacher-1' });
+  mocks.settingsFindUnique.mockResolvedValue({ monthlyStudentFee: 500 });
   mocks.logAction.mockResolvedValue(undefined);
   mocks.transaction.mockImplementation((callback: (tx: unknown) => unknown) => callback({
     $queryRaw: mocks.queryRaw,
@@ -68,6 +71,7 @@ beforeEach(() => {
     guardian: { findFirst: mocks.guardianFindFirst, create: mocks.guardianCreate },
     student: { create: mocks.studentCreate },
     teacher: { create: mocks.teacherCreate },
+    settings: { findUnique: mocks.settingsFindUnique },
   }));
 });
 

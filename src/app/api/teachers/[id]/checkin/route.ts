@@ -19,11 +19,15 @@ export async function POST(
   const { id } = await params;
   const now = new Date();
   let date: Date;
-  try { date = calendarToday(now, requestTimeZone(request)); }
+  let timeZone: string;
+  try {
+    timeZone = requestTimeZone(request);
+    date = calendarToday(now, timeZone);
+  }
   catch { return Response.json({ error: "Invalid time zone" }, { status: 422 }); }
 
   try {
-    const { personName, ...attendance } = await checkInTeacher({ teacherId: id, schoolId, date, now });
+    const { personName, ...attendance } = await checkInTeacher({ teacherId: id, schoolId, date, now, timeZone });
     await logAction({
       school_id: schoolId,
       action: "تسجيل وصول المعلم: " + personName,

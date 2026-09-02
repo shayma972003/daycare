@@ -70,7 +70,7 @@ suite("attendance operations on isolated PostgreSQL", () => {
 
     const checkoutAt = new Date("2026-08-28T10:00:00.000Z");
     const closes = await Promise.allSettled(Array.from({ length: 4 }, () =>
-      operations.checkoutStudent({ studentId, schoolId, now: checkoutAt })
+      operations.checkoutStudent({ studentId, schoolId, now: checkoutAt, timeZone: "UTC" })
     ));
     expect(closes.filter((result) => result.status === "fulfilled")).toHaveLength(1);
     const student = await prisma.student.findUniqueOrThrow({ where: { id: studentId } });
@@ -84,7 +84,7 @@ suite("attendance operations on isolated PostgreSQL", () => {
     const date = new Date("2026-08-28T00:00:00.000Z");
     const checkinAt = new Date("2026-08-28T08:00:00.000Z");
     const attempts = await Promise.allSettled(Array.from({ length: 4 }, () =>
-      operations.checkInTeacher({ teacherId, schoolId, date, now: checkinAt })
+      operations.checkInTeacher({ teacherId, schoolId, date, now: checkinAt, timeZone: "UTC" })
     ));
     expect(
       attempts.filter((result) => result.status === "fulfilled"),
@@ -98,6 +98,7 @@ suite("attendance operations on isolated PostgreSQL", () => {
       teacherId,
       schoolId: otherSchool.id,
       now: new Date("2026-08-28T10:00:00.000Z"),
+      timeZone: "UTC",
     })).rejects.toMatchObject({ code: "NOT_FOUND" });
 
     const closes = await Promise.allSettled(Array.from({ length: 4 }, () =>
@@ -105,6 +106,7 @@ suite("attendance operations on isolated PostgreSQL", () => {
         teacherId,
         schoolId,
         now: new Date("2026-08-28T10:00:00.000Z"),
+        timeZone: "UTC",
       })
     ));
     expect(closes.filter((result) => result.status === "fulfilled")).toHaveLength(1);

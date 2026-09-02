@@ -7,6 +7,7 @@ import { astDayStart } from "@/lib/datetime";
 import { z } from "zod";
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { moneyNumber } from "@/lib/money";
+import { scheduleFor } from "@/lib/school-schedule";
 
 /**
  * Payment and renewal reminders, as two separate lists (task 2.38).
@@ -166,13 +167,15 @@ export async function POST(request: Request) {
       select: {
         name: true,
         email: true,
-        studentCheckinTime: true,
-        studentCheckoutTime: true,
+        studentMorningCheckinTime: true,
+        studentMorningCheckoutTime: true,
+        studentEveningCheckinTime: true,
+        studentEveningCheckoutTime: true,
       },
     }),
     prisma.settings.findUnique({
       where: { schoolId },
-      select: { reminderTemplate: true, monthlyStudentFee: true },
+      select: { reminderTemplate: true },
     }),
     prisma.student.findMany({
       where: { id: { in: parsed.data.studentIds }, schoolId, deletedAt: null },
@@ -180,7 +183,9 @@ export async function POST(request: Request) {
         id: true,
         name: true,
         registration_fee: true,
+        cycleFee: true,
         enrollmentEndDate: true,
+        period: true,
         guardian: {
           select: { name: true, name_2: true, email: true },
         },
@@ -209,17 +214,19 @@ export async function POST(request: Request) {
 
   for (const student of students) {
     const email = student.guardian?.email ?? null;
+    const schedule = school ? scheduleFor(school, "student", student.period ?? "MORNING") : null;
     const vars = buildMessageVars({
       student: {
         name: student.name,
-        registration_fee: moneyNumber(student.registration_fee ?? settings?.monthlyStudentFee),
+        registration_fee: moneyNumber(student.registration_fee),
+        cycleFee: student.cycleFee == null ? null : moneyNumber(student.cycleFee),
         enrollmentEndDate: student.enrollmentEndDate,
       },
       guardian: { name: student.guardian?.name, name_2: student.guardian?.name_2 },
       school: {
         name: school?.name,
-        studentCheckinTime: school?.studentCheckinTime,
-        studentCheckoutTime: school?.studentCheckoutTime,
+        checkinTime: schedule?.checkin,
+        checkoutTime: schedule?.checkout,
       },
     });
 

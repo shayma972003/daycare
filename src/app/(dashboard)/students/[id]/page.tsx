@@ -111,6 +111,8 @@ type FormData = {
   paymentStatus: string;
 };
 
+type StudentFeeSettings = Record<"DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY", number | null>;
+
 const inputCls = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111111]";
 const readonlyCls = "w-full border border-gray-100 bg-gray-50 rounded-lg px-3 py-2 text-sm text-gray-500";
 
@@ -128,6 +130,7 @@ export default function StudentProfilePage({
   const router = useRouter();
   const { can } = usePermissions();
   const canViewFinance = can("finance.view") || can("finance.manage");
+  const [studentFees, setStudentFees] = useState<StudentFeeSettings | null>(null);
   const canManageGuardians = can("students.guardians") || can("students.manage");
   const [classes, setClasses] = useState<Class[]>([]);
   const [classesLoading, setClassesLoading] = useState(false);
@@ -205,12 +208,19 @@ export default function StudentProfilePage({
     Promise.all([
       axios.get<StudentData>(`/api/students/${id}?revealIdentity=true`, { signal: controller.signal, headers: deviceHeaders() }),
       axios.get<Invoice[]>(`/api/invoices?studentId=${id}`, { signal: controller.signal }),
+      axios.get<{ settings: { dailyStudentFee: number; weeklyStudentFee: number | null; monthlyStudentFee: number; yearlyStudentFee: number | null } }>("/api/settings", { signal: controller.signal }),
     ])
-      .then(([studentRes, invRes]) => {
+      .then(([studentRes, invRes, settingsRes]) => {
         if (controller.signal.aborted) return;
         const s = studentRes.data;
         setStudent(s);
         setInvoices(invRes.data);
+        setStudentFees({
+          DAILY: settingsRes.data.settings.dailyStudentFee,
+          WEEKLY: settingsRes.data.settings.weeklyStudentFee,
+          MONTHLY: settingsRes.data.settings.monthlyStudentFee,
+          YEARLY: settingsRes.data.settings.yearlyStudentFee,
+        });
         if (s.guardianId) {
           setGuardianId(s.guardianId);
           setGuardianLinked(true);
@@ -261,6 +271,12 @@ export default function StudentProfilePage({
   }, [id, loadRetry, reset, t]);
 
   const periodVal = watch("period");
+  const selectedBillingCycle = watch("billingCycle");
+  const displayedCycleFee = selectedBillingCycle === "CUSTOM"
+    ? student?.cycleFee ?? null
+    : dirtyFields.billingCycle
+      ? studentFees?.[selectedBillingCycle] ?? null
+      : student?.cycleFee ?? studentFees?.[selectedBillingCycle] ?? null;
 
   useEffect(() => {
     if (loading) return;
@@ -397,7 +413,6 @@ export default function StudentProfilePage({
         allergies: data.allergies || null,
         ...(data.billingCycle && { billingCycle: data.billingCycle }),
         ...(data.billingIntervalDays !== undefined && { billingIntervalDays: data.billingIntervalDays }),
-        ...(data.cycleFee !== undefined && { cycleFee: data.cycleFee === "" ? null : Number(data.cycleFee) }),
         ...(canViewFinance
           ? {
               paymentMethod: data.paymentMethod,
@@ -444,7 +459,7 @@ export default function StudentProfilePage({
       // Submitted fields are no longer dirty. A later Save must not resend the
       // previous subscription or undo dates returned by renewal.
       for (const key of Object.keys(dirtyFields) as (keyof FormData)[]) {
-        if (["billingCycle", "billingIntervalDays", "cycleFee", "enrollmentDate", "enrollmentEndDate", "paymentStatus"].includes(key)) continue;
+        if (["billingCycle", "billingIntervalDays", "enrollmentDate", "enrollmentEndDate", "paymentStatus"].includes(key)) continue;
         if (!Object.hasOwn(payload, key === "registrationFee" ? "registration_fee" : key)) continue;
         if (getValues(key) === submittedValues[key]) resetField(key, { defaultValue: submittedValues[key] });
       }
@@ -1025,12 +1040,12 @@ export default function StudentProfilePage({
                   <div>
                     <label htmlFor="student-billing-cycle" className="block text-xs font-medium text-gray-500 mb-1">{t("students.profile.billingCycle")}</label>
                     <select id="student-billing-cycle" {...register("billingCycle")} className={inputCls}>
-                      {BILLING_CYCLES.filter((cycle) => ["DAILY", "MONTHLY", "YEARLY"].includes(cycle)).map((cycle) => <option key={cycle} value={cycle}>{t(BILLING_CYCLE_LABEL_KEYS[cycle])}</option>)}
+                      {BILLING_CYCLES.filter((cycle) => cycle !== "CUSTOM" || student?.billingCycle === "CUSTOM").map((cycle) => <option key={cycle} value={cycle}>{t(BILLING_CYCLE_LABEL_KEYS[cycle])}</option>)}
                     </select>
                   </div>
                   {canViewFinance && <div>
                     <label htmlFor="student-cycle-fee" className="block text-xs font-medium text-gray-500 mb-1">{t("students.profile.cycleFee")}</label>
-                    <input id="student-cycle-fee" {...register("cycleFee")} type="number" min="0" step="0.01" dir="ltr" className={inputCls} />
+                    <input id="student-cycle-fee" value={displayedCycleFee ?? ""} readOnly aria-readonly="true" dir="ltr" className={readonlyCls} />
                     <p className="mt-1 text-xs text-gray-500">{t("students.cycleFeeSettingsHint")}</p>
                   </div>}
                   <div>
@@ -1110,7 +1125,7 @@ export default function StudentProfilePage({
                     <button
                       type="button"
                       onClick={() => {
-                        if (dirtyFields.billingCycle || dirtyFields.billingIntervalDays || dirtyFields.cycleFee) {
+                        if (dirtyFields.billingCycle || dirtyFields.billingIntervalDays) {
                           setRenewalError(t("students.renewalSaveTermsFirst")); return;
                         }
                         setRenewalError(null); setShowRenewal(true);

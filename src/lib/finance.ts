@@ -1,8 +1,10 @@
 import { prisma } from "@/lib/prisma";
-import { astParts } from "@/lib/datetime";
+import { astDateOnly, astParts } from "@/lib/datetime";
 import type { PaymentStatus } from "@/generated/prisma/enums";
+import type { BillingCycle } from "@/generated/prisma/enums";
 import { calculateRecurringMoney } from "@/lib/finance-calculator";
 import { money, moneyAdd, moneyMultiply, moneyNumber, moneySubtract, type MoneyInput } from "@/lib/money";
+import { nthDueDate } from "@/lib/billing-cycles";
 
 export type ReportPeriodType = "monthly" | "semi_annual" | "annual";
 
@@ -157,11 +159,12 @@ export interface FinancialSummary {
   };
 }
 
-/** Per-student billable amount used for "owed"/"collection" money figures (Settings.monthlyStudentFee + registration_fee). */
-async function getStudentBillableByStatus(schoolId: string, monthlyStudentFee: MoneyInput) {
+/** Per-student billable amount uses the student's saved subscription snapshot;
+ * changing school settings must not reprice an active contract. */
+async function getStudentBillableByStatus(schoolId: string) {
   const students = await prisma.student.findMany({
     where: { schoolId, isActive: true },
-    select: { paymentStatus: true, registration_fee: true },
+    select: { paymentStatus: true, registration_fee: true, cycleFee: true },
   });
   // Every status gets a bucket. The old version knew only three and skipped the
   // rest, so SUSPENDED students — the ones who owe the most — were silently
@@ -175,11 +178,32 @@ async function getStudentBillableByStatus(schoolId: string, monthlyStudentFee: M
   };
 
   for (const s of students) {
-    buckets[s.paymentStatus].amount = moneyAdd(buckets[s.paymentStatus].amount, monthlyStudentFee, s.registration_fee);
+    buckets[s.paymentStatus].amount = moneyAdd(buckets[s.paymentStatus].amount, s.cycleFee, s.registration_fee);
     buckets[s.paymentStatus].count += 1;
   }
 
   return buckets;
+}
+
+function subscriptionAmountInRange(student: {
+  enrollment_date: Date;
+  enrollmentEndDate: Date | null;
+  billingCycle: BillingCycle;
+  billingIntervalDays: number | null;
+  cycleFee: MoneyInput;
+}, range: PeriodRange) {
+  if (student.cycleFee == null) return money(0);
+  const contractStart = astDateOnly(student.enrollment_date);
+  const contractEnd = astDateOnly(student.enrollmentEndDate ?? range.to);
+  let total = money(0);
+  // Ten thousand daily cycles cover over 27 years and keep corrupted ranges
+  // from creating an unbounded report loop.
+  for (let index = 0; index < 10_000; index++) {
+    const due = nthDueDate(contractStart, student.billingCycle, index, student.billingIntervalDays);
+    if (due > contractEnd || due > range.to) break;
+    if (due >= range.from) total = moneyAdd(total, student.cycleFee);
+  }
+  return total;
 }
 
 /** Sum of active-teacher monthly salaries prorated across each teacher's contract, up to `before`. */
@@ -227,9 +251,8 @@ export async function getFinancialSummary(schoolId: string, type: ReportPeriodTy
   const range = getPeriodRange(type);
   const prevRange = getPreviousPeriodRange(type, range);
 
-  const [school, settings, subscribedStudents, activeTeachers, activitiesInPeriod, expenses, paidRegFeesResult, lateFeesResult] = await Promise.all([
+  const [school, subscribedStudents, activeTeachers, activitiesInPeriod, expenses, paidRegFeesResult, lateFeesResult] = await Promise.all([
     prisma.school.findUnique({ where: { id: schoolId }, select: { vatRegistered: true } }),
-    prisma.settings.findUnique({ where: { schoolId } }),
     prisma.student.findMany({
       // `enrollmentEndDate: { not: null }` is deliberately gone. Open-ended
       // enrolment is the normal case for a daycare, and requiring an end date
@@ -237,7 +260,7 @@ export async function getFinancialSummary(schoolId: string, type: ReportPeriodTy
       // simply under-reported with no indication why. They are billed to the
       // end of the reporting period instead.
       where: { schoolId, isActive: true, deletedAt: null, enrollment_date: { not: null } },
-      select: { name: true, registration_fee: true, enrollment_date: true, enrollmentEndDate: true },
+      select: { name: true, registration_fee: true, enrollment_date: true, enrollmentEndDate: true, billingCycle: true, billingIntervalDays: true, cycleFee: true },
     }),
     prisma.teacher.findMany({
       where: { schoolId, isActive: true },
@@ -258,8 +281,6 @@ export async function getFinancialSummary(schoolId: string, type: ReportPeriodTy
     }),
   ]);
 
-  const monthlyStudentFee = settings?.monthlyStudentFee ?? 0;
-
   // Subscription revenue: for each active student under contract, count only the months of
   // their enrollment period that overlap the reporting period — not the full contract duration.
   const monthlyFeeItems = subscribedStudents
@@ -268,17 +289,7 @@ export async function getFinancialSummary(schoolId: string, type: ReportPeriodTy
       // Using it as the monthly rate charged it every single month *and* again
       // as a registration fee — the same money twice. The monthly rate is the
       // school's configured fee.
-      const amount =
-        money(monthlyStudentFee).greaterThan(0)
-          ? calculateRecurringMoney(
-              monthlyStudentFee,
-              st.enrollment_date!,
-              // Open-ended enrolment bills through the end of the period.
-              st.enrollmentEndDate ?? range.to,
-              range.from,
-              range.to
-            )
-          : money(0);
+      const amount = subscriptionAmountInRange({ ...st, enrollment_date: st.enrollment_date! }, range);
       return { name: st.name, amount };
     })
     .filter((item) => item.amount.greaterThan(0));
@@ -317,7 +328,7 @@ export async function getFinancialSummary(schoolId: string, type: ReportPeriodTy
 
   const netIncome = moneySubtract(revenueTotal, expensesTotal);
 
-  const billableByStatus = await getStudentBillableByStatus(schoolId, monthlyStudentFee);
+  const billableByStatus = await getStudentBillableByStatus(schoolId);
   const amountDue = moneyAdd(
     billableByStatus.LATE.amount,
     billableByStatus.PENDING.amount,
@@ -346,21 +357,17 @@ export async function getFinancialSummary(schoolId: string, type: ReportPeriodTy
   ]);
 
   const prevActivitiesTotal = prevActivities.reduce((s, a) => moneyAdd(s, moneyMultiply(a.activityFee, a.childrenCount)), money(0));
-  const prevMonthlyFeesRevenue =
-    money(monthlyStudentFee).greaterThan(0)
-      ? subscribedStudents.reduce(
-          (s, st) =>
-            moneyAdd(s,
-            calculateRecurringMoney(
-              monthlyStudentFee,
-              st.enrollment_date!,
-              st.enrollmentEndDate ?? prevRange.to,
-              prevRange.from,
-              prevRange.to
-            )),
-          money(0)
+  const prevMonthlyFeesRevenue = subscribedStudents.reduce(
+    (sum, student) =>
+      moneyAdd(
+        sum,
+        subscriptionAmountInRange(
+          { ...student, enrollment_date: student.enrollment_date! },
+          prevRange
         )
-      : money(0);
+      ),
+    money(0)
+  );
   const prevSalariesExpense = activeTeachers.reduce((s, t) => {
     const effectiveEnd = t.enrollmentEndDate ?? prevRange.to;
     return moneyAdd(s, calculateRecurringMoney(t.monthlySalary, t.joinDate, effectiveEnd, prevRange.from, prevRange.to));

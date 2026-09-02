@@ -24,7 +24,11 @@ export async function POST(request: Request) {
 
   const now = new Date();
   let date: Date;
-  try { date = calendarToday(now, requestTimeZone(request)); }
+  let timeZone: string;
+  try {
+    timeZone = requestTimeZone(request);
+    date = calendarToday(now, timeZone);
+  }
   catch { return Response.json({ error: "Invalid time zone" }, { status: 422 }); }
 
   try {
@@ -33,6 +37,7 @@ export async function POST(request: Request) {
       schoolId,
       date,
       now,
+      timeZone,
     });
     return Response.json({ attendance_id: attendance.id, checkin_time: attendance.checkinAt }, { status: 201 });
   } catch (error) {

@@ -6,6 +6,7 @@ import { logAction } from "@/lib/activity-logger";
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { z } from "zod";
 import { moneyNumber } from "@/lib/money";
+import { scheduleFor } from "@/lib/school-schedule";
 
 const sendSchema = z
   .object({ notifyGuardians: z.boolean().optional(), notifyStaff: z.boolean().optional() })
@@ -67,7 +68,7 @@ export async function POST(
               // The room's lead teacher, so staff hear about an activity they
               // are expected to run. Until now the message went to guardians
               // only and the teacher found out when the children arrived.
-              teacher: { select: { id: true, name: true, email: true } },
+              teacher: { select: { id: true, name: true, email: true, period: true } },
             },
           },
         },
@@ -105,7 +106,7 @@ export async function POST(
             where: { isActive: true, deletedAt: null },
             include: { guardian: true },
           },
-          teacher: { select: { id: true, name: true, email: true } },
+          teacher: { select: { id: true, name: true, email: true, period: true } },
         },
       })
     : activity.activityInvites.map((invite) => invite.class);
@@ -114,11 +115,13 @@ export async function POST(
     for (const student of room.students) {
       const guardianName = student.guardian?.name ?? student.name;
       const email = student.guardian?.email ?? null;
+      const schedule = school ? scheduleFor(school, "student", student.period ?? "MORNING") : null;
 
       const vars = buildMessageVars({
         student: {
           name: student.name,
           registration_fee: moneyNumber(student.registration_fee),
+          cycleFee: student.cycleFee == null ? null : moneyNumber(student.cycleFee),
           enrollmentEndDate: student.enrollmentEndDate,
         },
         guardian: {
@@ -127,8 +130,8 @@ export async function POST(
         },
         school: {
           name: school?.name,
-          studentCheckinTime: school?.studentCheckinTime,
-          studentCheckoutTime: school?.studentCheckoutTime,
+          checkinTime: schedule?.checkin,
+          checkoutTime: schedule?.checkout,
         },
         activity: {
           name: activity.name,
@@ -170,11 +173,12 @@ export async function POST(
       if (!teacher || seen.has(teacher.id)) continue;
       seen.add(teacher.id);
 
+      const schedule = school ? scheduleFor(school, "teacher", teacher.period ?? "MORNING") : null;
       const vars = buildMessageVars({
         school: {
           name: school?.name,
-          studentCheckinTime: school?.studentCheckinTime,
-          studentCheckoutTime: school?.studentCheckoutTime,
+          checkinTime: schedule?.checkin,
+          checkoutTime: schedule?.checkout,
         },
         activity: {
           name: activity.name,

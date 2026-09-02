@@ -27,7 +27,13 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date("2026-08-27T09:00:00Z"));
   vi.clearAllMocks(); saved = fixture();
   vi.spyOn(window, "alert").mockImplementation(() => {});
-  api.get.mockImplementation(async (url: string) => ({ data: url.startsWith("/api/students/student-1") ? { ...saved } : [] }));
+  api.get.mockImplementation(async (url: string) => {
+    if (url.startsWith("/api/students/student-1")) return { data: { ...saved } };
+    if (url === "/api/settings") {
+      return { data: { settings: { dailyStudentFee: 25, weeklyStudentFee: 150, monthlyStudentFee: 500, yearlyStudentFee: 1200 } } };
+    }
+    return { data: [] };
+  });
   api.put.mockImplementation(async (_url: string, data: Partial<typeof saved>) => {
     saved = { ...saved, ...data }; return { data: { ...saved } };
   });

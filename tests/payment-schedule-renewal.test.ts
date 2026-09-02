@@ -26,7 +26,10 @@ describe("untruncated schedules and non-destructive renewal", () => {
     await generatePaymentCycles("s", tx);
     expect(written()).toHaveLength(1);
     expect(String(written()[0].amount)).toBe("42.5");
-    expect(mocks.settings).toHaveBeenCalledWith({ where: { schoolId: "school" }, select: { dailyStudentFee: true, monthlyStudentFee: true } });
+    expect(mocks.settings).toHaveBeenCalledWith({
+      where: { schoolId: "school" },
+      select: { dailyStudentFee: true, weeklyStudentFee: true, monthlyStudentFee: true, yearlyStudentFee: true },
+    });
   });
   it("generates every daily cycle across three years in batches, including leap day", async () => {
     await generatePaymentCycles("s", tx);
@@ -60,8 +63,16 @@ describe("untruncated schedules and non-destructive renewal", () => {
     expect(mocks.create).not.toHaveBeenCalled();
     expect(mocks.remove).not.toHaveBeenCalled();
   });
-  it("does not invent fees for a free or unpriced subscription", async () => {
+  it("creates explicit zero-value cycles for a configured free subscription", async () => {
     mocks.findStudent.mockResolvedValue({ ...daily, cycleFee: 0 });
+    await generatePaymentCycles("s", tx);
+    expect(written()).toHaveLength(1096);
+    expect(written().every((cycle) => String(cycle.amount) === "0")).toBe(true);
+    expect(mocks.remove).not.toHaveBeenCalled();
+  });
+  it("does not invent a price when neither a snapshot nor a setting exists", async () => {
+    mocks.findStudent.mockResolvedValue({ ...daily, cycleFee: null });
+    mocks.settings.mockResolvedValue(null);
     await generatePaymentCycles("s", tx);
     expect(mocks.create).not.toHaveBeenCalled();
     expect(mocks.remove).not.toHaveBeenCalled();

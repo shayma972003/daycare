@@ -202,7 +202,6 @@ describe("email call-site classification", () => {
     ];
     const schoolNotifications = [
       "src/app/api/reminders/route.ts",
-      "src/app/api/activities/[id]/send/route.ts",
       "src/app/api/students/[id]/reminder/route.ts",
     ];
     const platformOnly = [
@@ -223,6 +222,14 @@ describe("email call-site classification", () => {
       const source = readFileSync(resolve(process.cwd(), path), "utf8");
       expect(source, path).toMatch(/sendNotification\([\s\S]*school\?\.email/);
     }
+    const activitySend = readFileSync(
+      resolve(process.cwd(), "src/app/api/activities/[id]/send/route.ts"),
+      "utf8"
+    );
+    expect(activitySend).not.toContain("sendEmail");
+    expect(activitySend).not.toContain("sendNotification");
+    expect(activitySend).toContain("activityMessage.create");
+    expect(activitySend).toContain("enqueuePush");
     for (const path of platformOnly) {
       const source = readFileSync(resolve(process.cwd(), path), "utf8");
       expect(source, path).not.toContain('kind: "school"');

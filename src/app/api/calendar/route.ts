@@ -2,7 +2,7 @@ import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
 import { assertTeacherOwned, assertClassOwned, crossTenantResponse } from "@/lib/tenant-guard";
-import { astDayStart } from "@/lib/datetime";
+import { addDateDays, dateKeyInTimeZone, requestTimeZone, validTimeZone } from "@/lib/device-date";
 import { z } from "zod";
 
 /**
@@ -27,6 +27,9 @@ export async function GET(request: Request) {
     );
   }
   const schoolId = session.user.schoolId;
+  if (!session.can("schedule.view")) {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
   const url = new URL(request.url);
 
   const fromParam = url.searchParams.get("from");
@@ -34,9 +37,24 @@ export async function GET(request: Request) {
   const classId = url.searchParams.get("classId");
   const teacherId = url.searchParams.get("teacherId");
   const type = url.searchParams.get("type");
+  const allowedTypes = ["LESSON", "ACTIVITY", "ANNOUNCEMENT", "UNIT"] as const;
+  if (type && !allowedTypes.includes(type as (typeof allowedTypes)[number])) {
+    return Response.json({ error: "Invalid event type" }, { status: 422 });
+  }
+  let timeZone: string;
+  try {
+    timeZone = requestTimeZone(request);
+  } catch {
+    return Response.json({ error: "Invalid time zone" }, { status: 422 });
+  }
 
-  const from = fromParam ? new Date(fromParam) : astDayStart();
+  const from = fromParam ? new Date(fromParam) : new Date();
   const to = toParam ? new Date(toParam) : new Date(from.getTime() + 31 * 86400000);
+  const fromDate = url.searchParams.get("fromDate") ?? dateKeyInTimeZone(from, timeZone);
+  const toDate = url.searchParams.get("toDate") ?? dateKeyInTimeZone(to, timeZone);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fromDate) || !/^\d{4}-\d{2}-\d{2}$/.test(toDate) || toDate <= fromDate) {
+    return Response.json({ error: "Invalid calendar date range" }, { status: 422 });
+  }
 
   if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || to <= from) {
     return Response.json({ error: "المدى الزمني غير صحيح" }, { status: 422 });
@@ -48,6 +66,8 @@ export async function GET(request: Request) {
     );
   }
 
+  const queryFrom = new Date(from.getTime() - 86400000);
+  const queryTo = new Date(to.getTime() + 86400000);
   const events = await prisma.calendarEvent.findMany({
     where: {
       schoolId,
@@ -64,7 +84,7 @@ export async function GET(request: Request) {
        *
        * An entry with no end is a single instant and only matches by start.
        */
-      startAt: { lt: to },
+      startAt: { lt: queryTo },
       ...(teacherId ? { teacherId } : {}),
       ...(type && ["LESSON", "ACTIVITY", "ANNOUNCEMENT", "UNIT"].includes(type)
         ? { type: type as "LESSON" | "ACTIVITY" | "ANNOUNCEMENT" | "UNIT" }
@@ -79,7 +99,7 @@ export async function GET(request: Request) {
        * filter would hide the announcements that concern everybody.
        */
       AND: [
-        { OR: [{ endAt: { gte: from } }, { endAt: null, startAt: { gte: from } }] },
+        { OR: [{ endAt: { gte: queryFrom } }, { endAt: null, startAt: { gte: queryFrom } }] },
         ...(classId
           ? [{ OR: [{ classes: { some: { classId } } }, { classes: { none: {} } }] }]
           : []),
@@ -105,15 +125,18 @@ export async function GET(request: Request) {
    * Returned with `kind: "activity"` so the client can tell the two apart and
    * open the right editor for each.
    */
-  const activities = await prisma.activity.findMany({
+  const activities = type && type !== "ACTIVITY" ? [] : await prisma.activity.findMany({
     where: {
       schoolId,
       isActive: true,
       // Overlap, not containment: a two-week activity is happening during a week
       // that starts after it began, and belongs on that week.
-      startDate: { lt: to },
-      endDate: { gte: from },
+      startDate: { lt: queryTo },
+      endDate: { gte: queryFrom },
       ...(teacherId ? { teacherId } : {}),
+      ...(classId
+        ? { OR: [{ activityInvites: { some: { classId } } }, { activityInvites: { none: {} } }] }
+        : {}),
     },
     orderBy: { startDate: "asc" },
     include: {
@@ -140,22 +163,22 @@ export async function GET(request: Request) {
   const classNamesFor = (classIds: string[]) =>
     classIds.map((classId) => classNameById.get(classId)).filter((name): name is string => Boolean(name));
 
-  const activityRows = activities
-    .filter((activity) => {
-      if (!classId) return true;
-      // Same rule as events: no rooms attached means school-wide.
-      const invited = activity.activityInvites.map((invite) => invite.classId);
-      return invited.length === 0 || invited.includes(classId);
-    })
-    .map((activity) => ({
+  const activityRows = activities.map((activity) => ({
       id: activity.id,
       kind: "activity" as const,
       type: "ACTIVITY" as const,
       title: activity.name,
       description: activity.message,
-      startAt: activity.startDate.toISOString(),
-      endAt: activity.endDate.toISOString(),
-      allDay: true,
+      source: "activity" as const,
+      sourceId: activity.id,
+      timing: activity.allDay === false ? "timed" as const : activity.allDay === true ? "allDay" as const : "legacyDate" as const,
+      startAt: activity.allDay === false
+        ? activity.startDate.toISOString()
+        : `${activity.startDate.toISOString().slice(0, 10)}T00:00:00.000Z`,
+      endAt: activity.allDay === false
+        ? activity.endDate.toISOString()
+        : `${addDateDays(activity.endDate.toISOString().slice(0, 10), 1)}T00:00:00.000Z`,
+      allDay: activity.allDay !== false,
       teacherId: activity.teacherId,
       location: null,
       classIds: activity.activityInvites.map((invite) => invite.classId),
@@ -177,10 +200,12 @@ export async function GET(request: Request) {
         childrenCount: activity.childrenCount,
         startDate: activity.startDate.toISOString(),
         endDate: activity.endDate.toISOString(),
+        allDay: activity.allDay,
         fee: activity.activityFee,
         imageUrl: activity.imageUrl,
         message: activity.message,
         active: activity.isActive,
+        updatedAt: activity.updatedAt.toISOString(),
       },
       classNames: classNamesFor(activity.activityInvites.map((invite) => invite.classId)),
       target: activity.activityInvites.length > 0
@@ -192,13 +217,31 @@ export async function GET(request: Request) {
         : activity.childrenCount > 0
           ? { kind: "students" as const, classNames: [], count: activity.childrenCount }
           : { kind: "all" as const, classNames: [], count: null },
-    }));
+  }));
 
-  return Response.json(
-    events
+  const eventRows = events
       .map((event) => ({
         ...event,
+        startAt: event.startAt.toISOString(),
+        endAt: event.endAt?.toISOString() ?? null,
         kind: "event" as const,
+        source: "event" as const,
+        sourceId: event.id,
+        timing: event.allDay ? "allDay" as const : "timed" as const,
+        ...(event.allDay
+          ? (() => {
+              const legacy = event.startAt.getUTCHours() !== 0 || event.startAt.getUTCMinutes() !== 0;
+              const startKey = legacy
+                ? dateKeyInTimeZone(event.startAt, "Asia/Riyadh")
+                : event.startAt.toISOString().slice(0, 10);
+              let endKey = event.endAt?.toISOString().slice(0, 10) ?? addDateDays(startKey, 1);
+              if (endKey <= startKey) endKey = addDateDays(startKey, 1);
+              return {
+                startAt: `${startKey}T00:00:00.000Z`,
+                endAt: `${endKey}T00:00:00.000Z`,
+              };
+            })()
+          : {}),
         classIds: event.classes.map((link) => link.classId),
         classNames: classNamesFor(event.classes.map((link) => link.classId)),
         target: event.classes.length > 0
@@ -211,7 +254,18 @@ export async function GET(request: Request) {
         classes: undefined,
       }))
       .concat(activityRows as never[])
-  );
+      .filter((row) => {
+        if (row.timing === "timed") {
+          const start = new Date(row.startAt);
+          const end = row.endAt ? new Date(row.endAt) : new Date(start.getTime() + 1);
+          return start < to && end > from;
+        }
+        return row.startAt.slice(0, 10) < toDate && (row.endAt?.slice(0, 10) ?? addDateDays(row.startAt.slice(0, 10), 1)) > fromDate;
+      });
+
+  return Response.json(eventRows, {
+    headers: { "Cache-Control": "private, no-store" },
+  });
 }
 
 const createSchema = z.object({
@@ -226,7 +280,8 @@ const createSchema = z.object({
   lessonId: z.string().nullish(),
   location: z.string().max(200).nullish(),
   classIds: z.array(z.string()).max(60).optional(),
-});
+  timeZone: z.string().max(100).optional(),
+}).strict();
 
 export async function POST(request: Request) {
   let session;
@@ -239,6 +294,9 @@ export async function POST(request: Request) {
     );
   }
   const schoolId = session.user.schoolId;
+  if (!session.can("schedule.manage")) {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   let body: unknown;
   try {
@@ -250,6 +308,10 @@ export async function POST(request: Request) {
   const parsed = createSchema.safeParse(body);
   if (!parsed.success) {
     return Response.json({ error: parsed.error.flatten() }, { status: 422 });
+  }
+
+  if (!parsed.data.allDay && parsed.data.timeZone && !validTimeZone(parsed.data.timeZone)) {
+    return Response.json({ error: "Invalid time zone" }, { status: 422 });
   }
 
   const startAt = new Date(parsed.data.startAt);
@@ -271,6 +333,9 @@ export async function POST(request: Request) {
         { status: 422 }
       );
     }
+  }
+  if (parsed.data.type !== "ANNOUNCEMENT" && !endAt) {
+    return Response.json({ error: "End date is required" }, { status: 422 });
   }
 
   // Every client-supplied id proven to belong to this school before it is

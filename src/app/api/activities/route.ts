@@ -5,11 +5,14 @@ import { parseClassGroup } from "@/lib/enum-labels";
 import { resolveStageId, foreignStageResponse } from "@/lib/academic-stage";
 import { z } from "zod";
 import { assertTeacherOwned, assertClassOwned, crossTenantResponse } from "@/lib/tenant-guard";
+import { parseActivityTiming } from "@/lib/activity-timing";
 
 const createActivitySchema = z.object({
   name: z.string().min(1),
   startDate: z.string().min(1),
   endDate: z.string().min(1),
+  allDay: z.boolean().optional(),
+  timeZone: z.string().max(100).optional(),
   teacherId: z.string().optional(),
   /** DEPRECATED — still accepted so older clients keep working. */
   group: z.string().optional(),
@@ -22,7 +25,7 @@ const createActivitySchema = z.object({
   imageUrl: z.string().nullish(),
   message: z.string().optional(),
   classIds: z.array(z.string()).optional(),
-});
+}).strict();
 
 export async function GET(request: Request) {
   let session;
@@ -36,6 +39,7 @@ export async function GET(request: Request) {
     );
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
+  if (!session.can("schedule.view")) return Response.json({ error: "Forbidden" }, { status: 403 });
 
   const { searchParams } = new URL(request.url);
   const dateFilter = searchParams.get("dateFilter");
@@ -66,7 +70,7 @@ export async function GET(request: Request) {
    */
   return Response.json(
     activities.map((activity) => ({ ...activity, fee: activity.activityFee })),
-    { status: 200 }
+    { status: 200, headers: { "Cache-Control": "private, no-store" } }
   );
 }
 
@@ -82,6 +86,7 @@ export async function POST(request: Request) {
     );
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
+  if (!session.can("schedule.manage")) return Response.json({ error: "Forbidden" }, { status: 403 });
 
   let body: unknown;
   try {
@@ -101,6 +106,8 @@ export async function POST(request: Request) {
     name,
     startDate,
     endDate,
+    allDay,
+    timeZone,
     teacherId,
     group,
     stageId,
@@ -112,6 +119,11 @@ export async function POST(request: Request) {
     message,
     classIds,
   } = parsed.data;
+
+  const timing = parseActivityTiming({ startDate, endDate, allDay, timeZone });
+  if (!timing) {
+    return Response.json({ error: "تاريخ أو وقت النشاط غير صحيح" }, { status: 422 });
+  }
 
   /**
    * Every id from the client is proven to belong to this school first.
@@ -149,8 +161,9 @@ export async function POST(request: Request) {
     data: {
       schoolId,
       name,
-      startDate: new Date(startDate),
-      endDate: new Date(endDate),
+      startDate: timing.startDate,
+      endDate: timing.endDate,
+      ...(timing.allDay !== undefined && { allDay: timing.allDay }),
       ...(ownedTeacherId !== undefined && { teacherId: ownedTeacherId }),
       ...(group !== undefined && { group: parseClassGroup(group) ?? "KG1" }),
       ...(ownedStageId !== null && { stageId: ownedStageId }),

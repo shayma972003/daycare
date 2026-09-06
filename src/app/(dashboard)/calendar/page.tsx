@@ -9,25 +9,31 @@
  * rather than positioning blocks.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import { Topbar } from "@/components/layout/Topbar";
 import { describeApiError } from "@/lib/api-error";
-import { formatAst, astParts } from "@/lib/datetime";
+import {
+  dateKeyInTimeZone,
+  deviceHeaders,
+  deviceTimeZone,
+  zonedTimeOnDate,
+} from "@/lib/device-date";
 import { WEEKDAY_LABEL_KEYS } from "@/lib/attendance-schedule";
 import {
   rangeFor,
   shiftAnchor,
-  isSameAstDay,
-  isSameAstMonth,
+  isSameCalendarDay,
+  isSameCalendarMonth,
   CALENDAR_VIEW_LABEL_KEYS,
   EVENT_TYPE_LABEL_KEYS,
   EVENT_TYPE_STYLES,
   DAY_START_HOUR,
   DAY_END_HOUR,
   hourLabel,
-  hoursOccupied,
-  coversDay,
+  calendarSpanOnDay,
+  calendarStartHour,
+  type CalendarTiming,
   type CalendarView,
 } from "@/lib/calendar";
 import { CalendarEventModal } from "@/components/calendar/CalendarEventModal";
@@ -41,6 +47,9 @@ interface EventRow {
   id: string;
   /** "activity" rows come from the Activity table and open a different editor. */
   kind?: "event" | "activity";
+  source: "event" | "activity";
+  sourceId: string;
+  timing: CalendarTiming;
   /** Present on activity rows — the record the activity editor reads. */
   activity?: ActivityRecord;
   type: CalendarEventType;
@@ -53,6 +62,7 @@ interface EventRow {
   location: string | null;
   classIds: string[];
   unit: { id: string; name: string } | null;
+  classNames?: string[];
 }
 
 interface Option {
@@ -75,7 +85,8 @@ export default function CalendarPage() {
   // The header range is built by Intl, which needs the language told to it —
   // otherwise the month and weekday names follow the host and stay Arabic.
   const { locale } = useLocale();
-  const { can, canAny } = usePermissions();
+  const { can } = usePermissions();
+  const [timeZone] = useState(() => deviceTimeZone());
   const [view, setView] = useState<CalendarView>("week");
   const [anchor, setAnchor] = useState(() => new Date());
   const [events, setEvents] = useState<EventRow[]>([]);
@@ -83,16 +94,19 @@ export default function CalendarPage() {
   const [teachers, setTeachers] = useState<Option[]>([]);
   const [classFilter, setClassFilter] = useState("");
   const [teacherFilter, setTeacherFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
   const [shifts, setShifts] = useState<ShiftRow[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<EventRow | null>(null);
   const [creating, setCreating] = useState<Date | null>(null);
   /* Activities are edited in their own form — they carry a fee, a stage and
      guardian invitations that the event form has no fields for. */
   const [activity, setActivity] = useState<ActivityRecord | null>(null);
+  const calendarRequestId = useRef(0);
+  const calendarRequestController = useRef<AbortController | null>(null);
 
   function openRow(row: EventRow) {
-    if (!canAny(["schedule.manage", "schedule.delete"])) return;
     if (row.kind !== "activity" || !row.activity) {
       setEditing(row);
       return;
@@ -102,50 +116,89 @@ export default function CalendarPage() {
     setActivity(row.activity);
   }
 
-  const range = useMemo(() => rangeFor(view, anchor), [view, anchor]);
+  const range = useMemo(() => rangeFor(view, anchor, timeZone), [view, anchor, timeZone]);
 
-  const load = useCallback(async () => {
+  const requestCalendar = useCallback(async (signal?: AbortSignal) => {
     const params = new URLSearchParams({
       from: range.from.toISOString(),
       to: range.to.toISOString(),
+      fromDate: dateKeyInTimeZone(range.from, timeZone),
+      toDate: dateKeyInTimeZone(range.to, timeZone),
     });
     if (classFilter) params.set("classId", classFilter);
     if (teacherFilter) params.set("teacherId", teacherFilter);
+    if (typeFilter) params.set("type", typeFilter);
 
-    try {
-      const response = await axios.get<EventRow[]>(`/api/calendar?${params.toString()}`);
-      setEvents(response.data);
-      setError(null);
-    } catch (err) {
-      setError(describeApiError(err, t("calendar.loadFailed")));
-    }
-  }, [range.from, range.to, classFilter, teacherFilter, t]);
+    const response = await axios.get<EventRow[]>(`/api/calendar?${params.toString()}`, {
+      signal,
+      headers: deviceHeaders(),
+    });
+    return response.data;
+  }, [range.from, range.to, classFilter, teacherFilter, typeFilter, timeZone]);
+
+  const beginCalendarRequest = useCallback(() => {
+    calendarRequestController.current?.abort();
+    const controller = new AbortController();
+    const id = ++calendarRequestId.current;
+    calendarRequestController.current = controller;
+    return { id, controller, promise: requestCalendar(controller.signal) };
+  }, [requestCalendar]);
+
+  const isCurrentCalendarRequest = useCallback(
+    (request: { id: number; controller: AbortController }) =>
+      request.id === calendarRequestId.current &&
+      request.controller === calendarRequestController.current &&
+      !request.controller.signal.aborted,
+    []
+  );
+
+  const cancelCurrentCalendarRequest = useCallback(() => {
+    calendarRequestController.current?.abort();
+    calendarRequestController.current = null;
+    // Some transports resolve even after AbortSignal is raised. Invalidating
+    // the sequence makes both their success and failure branches inert.
+    calendarRequestId.current += 1;
+  }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    const params = new URLSearchParams({
-      from: range.from.toISOString(),
-      to: range.to.toISOString(),
-    });
-    if (classFilter) params.set("classId", classFilter);
-    if (teacherFilter) params.set("teacherId", teacherFilter);
-
-    axios
-      .get<EventRow[]>(`/api/calendar?${params.toString()}`)
-      .then((response) => {
-        if (!cancelled) setEvents(response.data);
+    const pending = beginCalendarRequest();
+    void pending.promise
+      .then((rows) => {
+        if (!isCurrentCalendarRequest(pending)) return;
+        setEvents(rows);
+        setError(null);
       })
       .catch((err) => {
-        if (!cancelled) setError(describeApiError(err, t("calendar.loadFailed")));
+        if (isCurrentCalendarRequest(pending)) {
+          setError(describeApiError(err, t("calendar.loadFailed")));
+        }
+      })
+      .finally(() => {
+        if (isCurrentCalendarRequest(pending)) setLoading(false);
       });
+    return cancelCurrentCalendarRequest;
+  }, [beginCalendarRequest, cancelCurrentCalendarRequest, isCurrentCalendarRequest, t]);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [range.from, range.to, classFilter, teacherFilter, t]);
+  const retryCalendar = useCallback(async () => {
+    setLoading(true);
+    const pending = beginCalendarRequest();
+    try {
+      const rows = await pending.promise;
+      if (!isCurrentCalendarRequest(pending)) return;
+      setEvents(rows);
+      setError(null);
+    } catch (err) {
+      if (isCurrentCalendarRequest(pending)) {
+        setError(describeApiError(err, t("calendar.loadFailed")));
+      }
+    } finally {
+      if (isCurrentCalendarRequest(pending)) setLoading(false);
+    }
+  }, [beginCalendarRequest, isCurrentCalendarRequest, t]);
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
     /**
      * `allSettled`, not `all`.
      *
@@ -160,8 +213,8 @@ export default function CalendarPage() {
      * Each list now stands or falls on its own.
      */
     Promise.allSettled([
-      axios.get<Option[]>("/api/classes"),
-      axios.get<Option[]>("/api/teachers"),
+      axios.get<Option[]>("/api/classes", { signal: controller.signal }),
+      axios.get<Option[]>("/api/teachers", { signal: controller.signal }),
     ]).then(([classesRes, teachersRes]) => {
       if (cancelled) return;
       if (classesRes.status === "fulfilled") setClasses(classesRes.value.data);
@@ -169,6 +222,7 @@ export default function CalendarPage() {
     });
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, []);
 
@@ -189,13 +243,17 @@ export default function CalendarPage() {
     // so the state is simply left alone rather than reset from an effect.
     if (!teacherFilter) return;
     let cancelled = false;
+    const controller = new AbortController();
     const params = new URLSearchParams({
       from: range.from.toISOString(),
       to: range.to.toISOString(),
       teacherId: teacherFilter,
     });
     axios
-      .get<{ shifts: ShiftRow[] }>(`/api/shifts?${params.toString()}`)
+      .get<{ shifts: ShiftRow[] }>(`/api/shifts?${params.toString()}`, {
+        signal: controller.signal,
+        headers: deviceHeaders(),
+      })
       .then((response) => {
         if (!cancelled) setShifts(response.data.shifts ?? []);
       })
@@ -205,6 +263,7 @@ export default function CalendarPage() {
       });
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [teacherFilter, range.from, range.to]);
 
@@ -214,12 +273,11 @@ export default function CalendarPage() {
       // previously selected teacher must not keep showing after she is
       // deselected, and this is true the render it happens rather than one
       // render later once a fetch has come back.
-      if (!teacherFilter) return null;
-      const parts = astParts(day);
-      const key = `${parts.year}-${String(parts.month + 1).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`;
-      return shifts.find((shift) => shift.date.slice(0, 10) === key) ?? null;
+      if (!teacherFilter) return [];
+      const key = dateKeyInTimeZone(day, timeZone);
+      return shifts.filter((shift) => shift.date.slice(0, 10) === key);
     },
-    [shifts, teacherFilter]
+    [shifts, teacherFilter, timeZone]
   );
 
   const hours = useMemo(
@@ -236,40 +294,41 @@ export default function CalendarPage() {
    * week containing the 12th showed an empty calendar for something that was
    * running all week.
    *
-   * Compared by AST calendar day rather than by instant: an event ending at
-   * 09:00 on the 19th still belongs on the 19th, and one starting at 23:00 does
-   * not belong on the 20th.
+   * Compared in the device calendar zone rather than by UTC day, so midnight
+   * boundaries stay aligned with the dates the user selected.
    */
   function eventsOn(day: Date) {
-    return events.filter((event) =>
-      coversDay(new Date(event.startAt), event.endAt ? new Date(event.endAt) : null, day)
-    );
+    return events.filter((event) => calendarSpanOnDay(event, day, timeZone));
   }
 
   /** True on the days after the first — those render as a band, not at an hour. */
-  function isContinuation(event: EventRow, day: Date) {
-    return !isSameAstDay(new Date(event.startAt), day);
-  }
 
+  const formatDate = (value: Date, options: Intl.DateTimeFormatOptions) =>
+    new Intl.DateTimeFormat(locale === "ar" ? "ar-SA-u-ca-gregory-nu-latn" : "en-GB", {
+      timeZone,
+      ...options,
+    }).format(value);
   const periodLabel =
     view === "month"
-      ? formatAst(anchor, { year: "numeric", month: "long" }, locale)
+      ? formatDate(anchor, { year: "numeric", month: "long" })
       : view === "day"
-        ? formatAst(anchor, { weekday: "long", year: "numeric", month: "long", day: "numeric" }, locale)
-        : `${formatAst(range.days[0], { month: "short", day: "numeric" }, locale)} — ${formatAst(
+        ? formatDate(anchor, { weekday: "long", year: "numeric", month: "long", day: "numeric" })
+        : `${formatDate(range.days[0], { month: "short", day: "numeric" })} — ${formatDate(
             range.days[6],
-            { month: "short", day: "numeric" },
-            locale
+            { month: "short", day: "numeric" }
           )}`;
 
   return (
-    <div dir="rtl" className="min-h-screen bg-brand-bg">
+    <div className="min-h-screen bg-brand-bg">
       <Topbar title={t("calendar.title")} />
 
       <div className="p-6 space-y-4">
         {error && (
           <div role="alert" className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">
-            {error}
+            <span>{error}</span>
+            <button type="button" onClick={() => void retryCalendar()} className="ms-3 underline">
+              {t("common.retry")}
+            </button>
           </div>
         )}
 
@@ -278,7 +337,11 @@ export default function CalendarPage() {
             {(["day", "week", "month"] as CalendarView[]).map((option) => (
               <button
                 key={option}
-                onClick={() => setView(option)}
+                onClick={() => {
+                  if (option === view) return;
+                  setLoading(true);
+                  setView(option);
+                }}
                 className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
                   view === option ? "bg-white shadow text-[#111111]" : "text-gray-500"
                 }`}
@@ -290,13 +353,19 @@ export default function CalendarPage() {
 
           <div className="flex items-center gap-1">
             <button
-              onClick={() => setAnchor((current) => shiftAnchor(view, current, -1))}
+              onClick={() => {
+                setLoading(true);
+                setAnchor((current) => shiftAnchor(view, current, -1, timeZone));
+              }}
               className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm hover:bg-gray-50"
             >
               {t("common.previous")}
             </button>
             <button
-              onClick={() => setAnchor((current) => shiftAnchor(view, current, 1))}
+              onClick={() => {
+                setLoading(true);
+                setAnchor((current) => shiftAnchor(view, current, 1, timeZone));
+              }}
               className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm hover:bg-gray-50"
             >
               {t("common.next")}
@@ -305,10 +374,13 @@ export default function CalendarPage() {
 
           <span className="text-sm font-medium text-[#111111]">{periodLabel}</span>
 
-          <div className="flex items-center gap-2 mr-auto">
+          <div className="flex items-center gap-2 ms-auto">
             <select
               value={classFilter}
-              onChange={(e) => setClassFilter(e.target.value)}
+              onChange={(e) => {
+                setLoading(true);
+                setClassFilter(e.target.value);
+              }}
               className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
             >
               <option value="">{t("common.allClasses")}</option>
@@ -317,8 +389,25 @@ export default function CalendarPage() {
               ))}
             </select>
             <select
+              value={typeFilter}
+              onChange={(e) => {
+                setLoading(true);
+                setTypeFilter(e.target.value);
+              }}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
+              aria-label={t("finance.type")}
+            >
+              <option value="">{t("calendar.allTypes")}</option>
+              {(Object.keys(EVENT_TYPE_LABEL_KEYS) as CalendarEventType[]).map((type) => (
+                <option key={type} value={type}>{t(EVENT_TYPE_LABEL_KEYS[type])}</option>
+              ))}
+            </select>
+            <select
               value={teacherFilter}
-              onChange={(e) => setTeacherFilter(e.target.value)}
+              onChange={(e) => {
+                setLoading(true);
+                setTeacherFilter(e.target.value);
+              }}
               className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
             >
               <option value="">{t("common.allTeachers")}</option>
@@ -338,16 +427,20 @@ export default function CalendarPage() {
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm p-4 overflow-x-auto">
-          {view === "month" ? (
-            <MonthGrid days={range.days} anchor={anchor} eventsOn={eventsOn} onSelect={openRow} />
+          {loading && events.length === 0 ? (
+            <div role="status" className="py-16 text-center text-sm text-gray-500">{t("common.loading")}</div>
+          ) : !error && events.length === 0 ? (
+            <div className="py-16 text-center text-sm text-gray-500">{t("calendar.empty")}</div>
+          ) : view === "month" ? (
+            <MonthGrid days={range.days} anchor={anchor} eventsOn={eventsOn} onSelect={openRow} timeZone={timeZone} />
           ) : (
             <HourGrid
               days={range.days}
               hours={hours}
               eventsOn={eventsOn}
-              isContinuation={isContinuation}
               shiftOn={shiftOn}
               locale={locale}
+              timeZone={timeZone}
               onSelect={openRow}
               onCreate={can("schedule.manage") ? setCreating : undefined}
             />
@@ -355,7 +448,6 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      <PermissionGate anyOf={["schedule.manage", "schedule.delete"]}>
       {(creating || editing || activity) && (
         <CalendarEventModal
           event={editing}
@@ -372,34 +464,33 @@ export default function CalendarPage() {
             setCreating(null);
             setEditing(null);
             setActivity(null);
-            load();
+            void retryCalendar();
           }}
         />
       )}
-      </PermissionGate>
 
     </div>
   );
 }
 
 /** Day and week share this — one column is just a week with seven fewer. */
-function HourGrid({
+export function HourGrid({
   days,
   hours,
   eventsOn,
-  isContinuation,
   shiftOn,
   locale,
+  timeZone,
   onSelect,
   onCreate,
 }: {
   days: Date[];
   hours: number[];
   eventsOn: (day: Date) => EventRow[];
-  isContinuation: (event: EventRow, day: Date) => boolean;
-  shiftOn: (day: Date) => ShiftRow | null;
+  shiftOn: (day: Date) => ShiftRow[];
   /** The hour column is written in words, so it needs the reader's language. */
   locale: "ar" | "en";
+  timeZone: string;
   onSelect: (event: EventRow) => void;
   onCreate?: (day: Date) => void;
 }) {
@@ -414,26 +505,43 @@ function HourGrid({
         {days.map((day) => (
           <div key={day.toISOString()} className="text-center py-2">
             <div className="text-xs text-gray-500">
-              {t(WEEKDAY_LABEL_KEYS[new Date(Date.UTC(astParts(day).year, astParts(day).month, astParts(day).day)).getUTCDay()])}
+              {t(WEEKDAY_LABEL_KEYS[new Date(`${dateKeyInTimeZone(day, timeZone)}T00:00:00.000Z`).getUTCDay()])}
             </div>
             <div
               className={`text-sm font-medium ${
-                isSameAstDay(day, new Date()) ? "text-[#2F96A6]" : "text-[#111111]"
+                isSameCalendarDay(day, new Date(), timeZone) ? "text-[#2F96A6]" : "text-[#111111]"
               }`}
             >
-              {astParts(day).day}
+              {Number(dateKeyInTimeZone(day, timeZone).slice(8, 10))}
             </div>
             {/* The rota, when a teacher is selected. Read-only on purpose —
                 a shift is changed where it is planned, not in passing. */}
-            {shiftOn(day) && (
-              <div
-                className="mt-1 mx-1 rounded-md bg-[#F3EEFF] text-[#4c1d95] text-[10px] py-0.5"
-                dir="ltr"
-                title={t("shifts.title")}
-              >
-                {shiftOn(day)!.startTime}–{shiftOn(day)!.endTime}
+            {shiftOn(day).map((shift) => (
+              <div key={shift.id} className="mt-1 mx-1 rounded-md bg-[#F3EEFF] text-[#4c1d95] text-[10px] py-0.5" dir="ltr" title={t("shifts.title") }>
+                {shift.startTime}–{shift.endTime}
               </div>
-            )}
+            ))}
+          </div>
+        ))}
+      </div>
+
+      <div
+        className="grid border-b border-gray-100 bg-gray-50/50"
+        style={{ gridTemplateColumns: `4rem repeat(${days.length}, minmax(0, 1fr))` }}
+      >
+        <div className="px-2 py-2 text-[11px] text-gray-500">{t("calendar.allDay")}</div>
+        {days.map((day) => (
+          <div key={`all-day-${day.toISOString()}`} className="flex min-h-10 flex-wrap content-start gap-1 border-s border-gray-100 p-1">
+            {eventsOn(day).filter((event) => event.timing !== "timed").map((event) => (
+              <button
+                key={`${event.source}:${event.sourceId}`}
+                type="button"
+                onClick={() => onSelect(event)}
+                className={`inline-flex w-fit max-w-full whitespace-normal break-words rounded-md border-s-2 px-1.5 py-1 text-start text-[11px] leading-tight ${EVENT_TYPE_STYLES[event.type]}`}
+              >
+                {event.title}
+              </button>
+            ))}
           </div>
         ))}
       </div>
@@ -451,56 +559,46 @@ function HourGrid({
             const slotEvents = eventsOn(day).filter((event) => {
               // Days after the first have no start hour of their own, so they
               // sit in the first row like an all-day band.
-              if (event.allDay || isContinuation(event, day)) return hour === DAY_START_HOUR;
+              if (event.timing !== "timed") return false;
 
-              /**
-               * Every hour the event occupies, not only the one it starts in.
-               *
-               * A lesson from 17:00 to 19:00 was a single cell at 17:00, so two
-               * rooms booked 17:00–19:00 and 18:00–19:00 looked like they never
-               * met. The row an event sits in is what "does this clash" is read
-               * from, and one row cannot answer it.
-               */
-              const startParts = astParts(new Date(event.startAt));
-              const end = event.endAt ? new Date(event.endAt) : null;
-              // Null hour/minute means "finishes on a later day" — see hoursOccupied.
-              const sameDayEnd = end && isSameAstDay(end, day) ? astParts(end) : null;
-              return hoursOccupied(
-                startParts.hour,
-                startParts.minute,
-                end ? (sameDayEnd ? sameDayEnd.hour : null) : startParts.hour,
-                end ? (sameDayEnd ? sameDayEnd.minute : null) : startParts.minute
-              ).includes(hour);
+              // A timed entry is drawn once at its start hour (or at midnight
+              // with a continuation mark on later covered days).
+              const placement = calendarStartHour(event, day, timeZone);
+              return placement?.hour === hour;
             });
+            const slotDate = zonedTimeOnDate(
+              dateKeyInTimeZone(day, timeZone),
+              `${String(hour).padStart(2, "0")}:00`,
+              timeZone
+            ) ?? day;
             return (
-              <button
-                key={`${day.toISOString()}-${hour}`}
-                onClick={() => slotEvents.length === 0 && onCreate?.(day)}
-                className="min-h-[44px] border-r border-gray-50 p-1 text-right align-top hover:bg-gray-50/60 transition-colors"
-              >
-                {slotEvents.map((event) => (
-                  <span
-                    key={event.id}
-                    role="button"
-                    tabIndex={0}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onSelect(event);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.stopPropagation();
-                        onSelect(event);
-                      }
-                    }}
-                    className={`block text-[11px] leading-tight rounded-md border-r-2 px-1.5 py-1 mb-1 truncate cursor-pointer ${
-                      EVENT_TYPE_STYLES[event.type]
-                    }`}
-                  >
-                    {event.title}
-                  </span>
-                ))}
-              </button>
+              <div key={`${day.toISOString()}-${hour}`} className="min-h-[44px] border-s border-gray-50 p-1 align-top">
+                {slotEvents.length === 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => onCreate?.(slotDate)}
+                    aria-label={`${t("calendar.newEvent")} ${hourLabel(hour, locale)}`}
+                    className="min-h-[36px] w-full rounded hover:bg-gray-50/60"
+                  />
+                ) : (
+                  <div className="flex flex-wrap items-start gap-1">
+                    {slotEvents.map((event) => {
+                      const placement = calendarStartHour(event, day, timeZone);
+                      return (
+                        <button
+                          key={`${event.source}:${event.sourceId}`}
+                          type="button"
+                          onClick={() => onSelect(event)}
+                          className={`inline-flex w-fit max-w-full whitespace-normal break-words rounded-md border-s-2 px-1.5 py-1 text-start text-[11px] leading-tight ${EVENT_TYPE_STYLES[event.type]}`}
+                        >
+                          {placement?.continuation && <span aria-hidden="true">↪&nbsp;</span>}
+                          {event.title}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             );
           })}
         </div>
@@ -509,18 +607,21 @@ function HourGrid({
   );
 }
 
-function MonthGrid({
+export function MonthGrid({
   days,
   anchor,
   eventsOn,
   onSelect,
+  timeZone,
 }: {
   days: Date[];
   anchor: Date;
   eventsOn: (day: Date) => EventRow[];
   onSelect: (event: EventRow) => void;
+  timeZone: string;
 }) {
   const t = useT();
+  const [expandedDay, setExpandedDay] = useState<string | null>(null);
   return (
     <div className="min-w-[640px]">
       <div className="grid grid-cols-7 border-b border-gray-100">
@@ -535,30 +636,31 @@ function MonthGrid({
           const dayEvents = eventsOn(day);
           // Days padded in from the neighbouring months are dimmed rather than
           // hidden, so the grid stays rectangular and the week rows line up.
-          const outside = !isSameAstMonth(day, anchor);
+          const dayKey = dateKeyInTimeZone(day, timeZone);
+          const outside = !isSameCalendarMonth(day, anchor, timeZone);
           return (
             <div
               key={day.toISOString()}
-              className={`min-h-[92px] border-b border-l border-gray-50 p-1.5 ${
+              className={`min-h-[92px] border-b border-s border-gray-50 p-1.5 ${
                 outside ? "bg-gray-50/40" : ""
               }`}
             >
               <div
                 className={`text-xs mb-1 ${
-                  isSameAstDay(day, new Date())
+                  isSameCalendarDay(day, new Date(), timeZone)
                     ? "text-[#2F96A6] font-bold"
                     : outside
                       ? "text-gray-300"
                       : "text-gray-600"
                 }`}
               >
-                {astParts(day).day}
+                {Number(dayKey.slice(8, 10))}
               </div>
-              {dayEvents.slice(0, 3).map((event) => (
+              {dayEvents.slice(0, expandedDay === dayKey ? dayEvents.length : 3).map((event) => (
                 <button
-                  key={event.id}
+                  key={`${event.source}:${event.sourceId}`}
                   onClick={() => onSelect(event)}
-                  className={`block w-full text-right text-[11px] leading-tight rounded-md border-r-2 px-1.5 py-0.5 mb-1 truncate ${
+                  className={`mb-1 block w-full whitespace-normal break-words rounded-md border-s-2 px-1.5 py-0.5 text-start text-[11px] leading-tight ${
                     EVENT_TYPE_STYLES[event.type]
                   }`}
                   title={`${t(EVENT_TYPE_LABEL_KEYS[event.type])}: ${event.title}`}
@@ -566,10 +668,10 @@ function MonthGrid({
                   {event.title}
                 </button>
               ))}
-              {dayEvents.length > 3 && (
-                <span className="text-[10px] text-gray-400">
+              {dayEvents.length > 3 && expandedDay !== dayKey && (
+                <button type="button" onClick={() => setExpandedDay(dayKey)} className="text-[10px] text-gray-500 underline">
                   {t("calendar.moreEvents", { n: String(dayEvents.length - 3) })}
-                </span>
+                </button>
               )}
             </div>
           );

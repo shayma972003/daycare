@@ -977,6 +977,8 @@ model School {
   stored_files            StoredFile[]
   academic_stages         AcademicStageOption[]
   school_admin_invitations SchoolAdminInvitation[]
+  activity_messages         ActivityMessage[]
+  activity_message_recipients ActivityMessageRecipient[]
 }
 
 model PaymentCycle {
@@ -1181,6 +1183,7 @@ model User {
   resetTokens PasswordResetToken[]
   schoolAdminInvitations SchoolAdminInvitation[]
   devices DeviceToken[]
+  activityMessageRecipients ActivityMessageRecipient[]
 
   @@unique([id, schoolId])
   @@index([schoolId])
@@ -1243,6 +1246,7 @@ model GuardianAccount {
 
   devices DeviceToken[]
   resetTokens PasswordResetToken[]
+  activityMessageRecipients ActivityMessageRecipient[]
 
   @@unique([guardianId, schoolId])
   @@unique([id, schoolId])
@@ -1756,6 +1760,9 @@ model Activity {
   childrenCount Int      @default(0)
   startDate     DateTime
   endDate       DateTime
+  /// Null marks a legacy date-only activity. New rows explicitly choose an
+  /// all-day calendar span or device-local timed instants.
+  allDay        Boolean?
   activityFee   Decimal  @default(0) @db.Decimal(18, 2)
   imageUrl      String?
   message       String?
@@ -1764,9 +1771,61 @@ model Activity {
   updatedAt     DateTime @updatedAt
 
   activityInvites ActivityInvite[]
+  messages        ActivityMessage[]
 
+  @@unique([id, schoolId])
   @@index([schoolId])
   @@index([stageId])
+}
+
+/// A durable in-app activity message. Push is only a signal that this row is
+/// available; it is never the source of the message body.
+model ActivityMessage {
+  id             String   @id @default(cuid())
+  schoolId       String
+  activityId     String
+  body           String
+  idempotencyKey String
+  requestHash    String
+  targetRevision DateTime
+  guardianRecipientCount Int      @default(0)
+  staffRecipientCount    Int      @default(0)
+  pushQueuedCount        Int      @default(0)
+  pushFailureCount       Int      @default(0)
+  pushProcessedAt        DateTime?
+  createdById    String?
+  createdAt      DateTime @default(now())
+
+  school     School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  activity   Activity @relation(fields: [activityId, schoolId], references: [id, schoolId], onDelete: Cascade)
+  recipients ActivityMessageRecipient[]
+
+  @@unique([id, schoolId])
+  @@unique([schoolId, activityId, idempotencyKey])
+  @@index([activityId, createdAt])
+  @@index([schoolId, createdAt])
+}
+
+model ActivityMessageRecipient {
+  id                String   @id @default(cuid())
+  schoolId          String
+  messageId         String
+  userId            String?
+  guardianAccountId String?
+  readAt             DateTime?
+  createdAt          DateTime @default(now())
+
+  school          School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  message         ActivityMessage  @relation(fields: [messageId, schoolId], references: [id, schoolId], onDelete: Cascade)
+  user            User?            @relation(fields: [userId, schoolId], references: [id, schoolId], onDelete: Cascade)
+  guardianAccount GuardianAccount? @relation(fields: [guardianAccountId, schoolId], references: [id, schoolId], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@unique([messageId, guardianAccountId])
+  @@index([schoolId, userId, createdAt])
+  // PostgreSQL limits identifiers to 63 bytes and truncates Prisma's default
+  // name for this index. Map the schema to the persisted name to avoid drift.
+  @@index([schoolId, guardianAccountId, createdAt], map: "ActivityMessageRecipient_schoolId_guardianAccountId_createdAt_i")
 }
 
 model ActivityInvite {

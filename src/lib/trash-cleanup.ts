@@ -1,5 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { logSafeError } from "@/lib/safe-logger";
+import {
+  lockActivitiesForClassTargetChange,
+  lockActivitiesForTeacherTargetChange,
+  touchActivityTargetRevisions,
+} from "@/lib/activity-lock";
 
 const RETENTION_DAYS = 30;
 
@@ -67,28 +72,36 @@ export async function cleanupExpiredTrash(): Promise<TrashCleanupResult> {
 
   const expiredTeachers = await prisma.teacher.findMany({
     where: { deletedAt: { lt: cutoff } },
-    select: { id: true },
+    select: { id: true, schoolId: true },
     take: BATCH_SIZE,
   });
 
   for (const teacher of expiredTeachers) {
     try {
-      await prisma.$transaction([
-        prisma.teacherAttendance.deleteMany({ where: { teacherId: teacher.id } }),
-        prisma.class.updateMany({
+      await prisma.$transaction(async (tx) => {
+        const activityIds = await lockActivitiesForTeacherTargetChange(tx, {
+          teacherId: teacher.id,
+          schoolId: teacher.schoolId,
+        });
+        await tx.teacherAttendance.deleteMany({ where: { teacherId: teacher.id } });
+        await tx.class.updateMany({
           where: { teacherId: teacher.id },
           data: { teacherId: null },
-        }),
-        prisma.activity.updateMany({
+        });
+        await tx.activity.updateMany({
           where: { teacherId: teacher.id },
           data: { teacherId: null },
-        }),
-        prisma.invoice.updateMany({
+        });
+        await touchActivityTargetRevisions(tx, {
+          activityIds,
+          schoolId: teacher.schoolId,
+        });
+        await tx.invoice.updateMany({
           where: { teacherId: teacher.id },
           data: { teacherId: null },
-        }),
-        prisma.teacher.delete({ where: { id: teacher.id } }),
-      ]);
+        });
+        await tx.teacher.delete({ where: { id: teacher.id } });
+      });
       result.teachers++;
     } catch (error) {
       result.failures++;
@@ -98,24 +111,32 @@ export async function cleanupExpiredTrash(): Promise<TrashCleanupResult> {
 
   const expiredClasses = await prisma.class.findMany({
     where: { deletedAt: { lt: cutoff } },
-    select: { id: true },
+    select: { id: true, schoolId: true },
     take: BATCH_SIZE,
   });
 
   for (const cls of expiredClasses) {
     try {
-      await prisma.$transaction([
-        prisma.activityInvite.deleteMany({ where: { classId: cls.id } }),
-        prisma.attendance.updateMany({
+      await prisma.$transaction(async (tx) => {
+        const activityIds = await lockActivitiesForClassTargetChange(tx, {
+          classId: cls.id,
+          schoolId: cls.schoolId,
+        });
+        await tx.activityInvite.deleteMany({ where: { classId: cls.id } });
+        await touchActivityTargetRevisions(tx, {
+          activityIds,
+          schoolId: cls.schoolId,
+        });
+        await tx.attendance.updateMany({
           where: { classId: cls.id },
           data: { classId: null },
-        }),
-        prisma.student.updateMany({
+        });
+        await tx.student.updateMany({
           where: { classId: cls.id },
           data: { classId: null },
-        }),
-        prisma.class.delete({ where: { id: cls.id } }),
-      ]);
+        });
+        await tx.class.delete({ where: { id: cls.id } });
+      });
       result.classes++;
     } catch (error) {
       result.failures++;

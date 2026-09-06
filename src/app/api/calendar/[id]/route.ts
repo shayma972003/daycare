@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
 import { assertTeacherOwned, assertClassOwned, crossTenantResponse } from "@/lib/tenant-guard";
 import { z } from "zod";
+import { validTimeZone } from "@/lib/device-date";
 
 const updateSchema = z.object({
   /**
@@ -23,7 +24,8 @@ const updateSchema = z.object({
   teacherId: z.string().nullish(),
   location: z.string().max(200).nullish(),
   classIds: z.array(z.string()).max(60).optional(),
-});
+  timeZone: z.string().max(100).optional(),
+}).strict();
 
 export async function PUT(
   request: Request,
@@ -39,6 +41,9 @@ export async function PUT(
     );
   }
   const schoolId = session.user.schoolId;
+  if (!session.can("schedule.manage")) {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
   const { id } = await params;
 
   let body: unknown;
@@ -51,6 +56,9 @@ export async function PUT(
   const parsed = updateSchema.safeParse(body);
   if (!parsed.success) {
     return Response.json({ error: parsed.error.flatten() }, { status: 422 });
+  }
+  if (parsed.data.allDay === false && parsed.data.timeZone && !validTimeZone(parsed.data.timeZone)) {
+    return Response.json({ error: "Invalid time zone" }, { status: 422 });
   }
 
   const existing = await prisma.calendarEvent.findFirst({
@@ -90,6 +98,16 @@ export async function PUT(
       }
       data.endAt = endAt;
     }
+  }
+  const effectiveType = parsed.data.type ?? existing.type;
+  const effectiveEnd = "endAt" in parsed.data
+    ? parsed.data.endAt ? new Date(parsed.data.endAt) : null
+    : existing.endAt;
+  if (effectiveType !== "ANNOUNCEMENT" && !effectiveEnd) {
+    return Response.json({ error: "End date is required" }, { status: 422 });
+  }
+  if (effectiveEnd && effectiveEnd <= startAt) {
+    return Response.json({ error: "End date must be after start date" }, { status: 422 });
   }
 
   let classIds: string[] | null = null;
@@ -160,6 +178,9 @@ export async function DELETE(
     );
   }
   const schoolId = session.user.schoolId;
+  if (!session.can("schedule.delete")) {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
   const { id } = await params;
 
   const existing = await prisma.calendarEvent.findFirst({

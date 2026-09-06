@@ -29,6 +29,18 @@ export function deviceDateInputValue(at: Date = new Date(), timeZone: string = d
   return calendarToday(at, timeZone).toISOString().slice(0, 10);
 }
 
+/** Calendar date containing an instant in an IANA zone. */
+export function dateKeyInTimeZone(at: Date, timeZone: string): string {
+  return calendarToday(at, timeZone).toISOString().slice(0, 10);
+}
+
+/** Adds calendar days without assuming that every local day is 24 hours long. */
+export function addDateDays(date: string, days: number): string {
+  const parsed = storedDate(date);
+  parsed.setUTCDate(parsed.getUTCDate() + days);
+  return parsed.toISOString().slice(0, 10);
+}
+
 /** Sunday-start week containing the device-local calendar day. */
 export function deviceWeekStart(at: Date = new Date(), timeZone: string = deviceTimeZone()): Date {
   const today = calendarToday(at, timeZone);
@@ -94,6 +106,29 @@ export function zonedTimeOnDate(
     resolvedPart("hour") === hour && resolvedPart("minute") === minute
     ? resolved
     : null;
+}
+
+/** Value for a datetime-local input in the user's own time zone. */
+export function zonedDateTimeInputValue(at: Date | string, timeZone: string): string {
+  const date = typeof at === "string" ? new Date(at) : at;
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  const part = (type: string) => parts.find((entry) => entry.type === type)!.value;
+  return `${part("year")}-${part("month")}-${part("day")}T${part("hour")}:${part("minute")}`;
+}
+
+/** Resolves a datetime-local wall clock through the named IANA zone. */
+export function zonedDateTimeInputToDate(value: string, timeZone: string): Date | null {
+  const match = /^(\d{4}-\d{2}-\d{2})T([0-2]\d:[0-5]\d)$/.exec(value);
+  if (!match) return null;
+  return zonedTimeOnDate(match[1], match[2], timeZone);
 }
 
 export function dateLabel(value: Date | string, locale: string): string {

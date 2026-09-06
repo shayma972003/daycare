@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import axios from "axios";
 import {
@@ -13,12 +13,17 @@ import {
   closeDialogOnOpenChange,
 } from "@/components/ui/Dialog";
 
-import { VariableReference } from "@/components/ui/VariableReference";
 import { describeApiError } from "@/lib/api-error";
 import type { Activity } from "./ActivityGrid";
 import { useT } from "@/lib/i18n-provider";
 import { useAcademicStages, useStageName } from "@/lib/use-academic-stages";
 import { PermissionGate } from "@/components/auth/PermissionGate";
+import {
+  dateKeyInTimeZone,
+  deviceTimeZone,
+  zonedDateTimeInputValue,
+} from "@/lib/device-date";
+import { buildActivityRequestPayload } from "@/lib/activity-timing";
 
 /**
  * An emptied number box is zero, not `NaN`.
@@ -48,7 +53,19 @@ interface ActivityDetails {
   teacherId: string | null;
   stageId?: string | null;
   activityInvites?: { classId: string }[];
+  allDay?: boolean | null;
+  message?: string | null;
+  updatedAt: string;
 }
+
+interface SavedSendSnapshot {
+  message: string;
+  teacherId: string;
+  classIds: string[];
+  activityVersion: string;
+}
+
+type ActivityDetailsStatus = "idle" | "loading" | "ready" | "error";
 
 interface ActivityFormValues {
   name: string;
@@ -58,6 +75,9 @@ interface ActivityFormValues {
   period: "MORNING" | "EVENING";
   startDate: string;
   endDate: string;
+  startTime: string;
+  endTime: string;
+  allDay: boolean;
   fee: number;
   message: string;
   classIds: string[];
@@ -80,6 +100,7 @@ interface ActivityFormModalProps {
    * can no longer see or reach.
    */
   embedded?: boolean;
+  defaultDate?: Date;
 }
 
 export function ActivityFormModal({
@@ -88,6 +109,7 @@ export function ActivityFormModal({
   activity,
   onSaved,
   embedded,
+  defaultDate,
   onDismissBlockedChange,
 }: ActivityFormModalProps) {
   // Locale-aware translation — see src/lib/i18n.tsx.
@@ -106,40 +128,20 @@ export function ActivityFormModal({
   const [classesFailed, setClassesFailed] = useState(false);
   const [sending, setSending] = useState(false);
   const [sentNotice, setSentNotice] = useState(false);
-  const [loadingDetails, setLoadingDetails] = useState(false);
-  // Opt-in, not automatic. Every edit used to fire the notification endpoint, so
-  // fixing a typo in the title re-emailed every guardian in every invited class.
+  const [detailsStatus, setDetailsStatus] = useState<ActivityDetailsStatus>("idle");
+  const detailsRequestId = useRef(0);
+  const detailsRequestController = useRef<AbortController | null>(null);
+  const activeActivityId = useRef<string | null>(null);
+  // Opt-in, not automatic. Saving and sending an in-app message are separate
+  // actions, so fixing a title never sends the activity message again.
   const [notifyGuardians, setNotifyGuardians] = useState(false);
   /* Staff were never told. The message went to guardians only, so the teacher
      expected to run the activity found out when the children turned up. */
   const [notifyStaff, setNotifyStaff] = useState(false);
-  const messageRef = useRef<HTMLTextAreaElement | null>(null);
+  const sendKey = useRef<string | null>(null);
+  const [confirmSchoolWide, setConfirmSchoolWide] = useState(false);
+  const [savedSendSnapshot, setSavedSendSnapshot] = useState<SavedSendSnapshot | null>(null);
 
-  /**
-   * Inserts at the caret, not at the end.
-   *
-   * Appending would put the token after the full stop of whatever was already
-   * typed, so the writer has to cut and paste it back into place — which is the
-   * work this button exists to remove.
-   */
-  function insertVariable(token: string) {
-    const field = messageRef.current;
-    const current = getValues("message") ?? "";
-    if (!field) {
-      setValue("message", `${current}${token}`, { shouldDirty: true });
-      return;
-    }
-    const start = field.selectionStart ?? current.length;
-    const end = field.selectionEnd ?? start;
-    const next = `${current.slice(0, start)}${token}${current.slice(end)}`;
-    setValue("message", next, { shouldDirty: true });
-    // After React has written the new value, or the caret lands on stale text.
-    requestAnimationFrame(() => {
-      field.focus();
-      const caret = start + token.length;
-      field.setSelectionRange(caret, caret);
-    });
-  }
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -165,6 +167,9 @@ export function ActivityFormModal({
       period: "MORNING",
       startDate: "",
       endDate: "",
+      startTime: "09:00",
+      endTime: "10:00",
+      allDay: true,
       fee: 0,
       message: "",
       classIds: [],
@@ -172,30 +177,86 @@ export function ActivityFormModal({
   });
 
   const selectedClassIds = watch("classIds") ?? [];
+  const allDay = watch("allDay");
+  const loadingDetails = detailsStatus === "loading";
+
+  const loadActivityDetails = useCallback((activityId: string) => {
+    detailsRequestController.current?.abort();
+    const controller = new AbortController();
+    const requestId = ++detailsRequestId.current;
+    detailsRequestController.current = controller;
+    activeActivityId.current = activityId;
+    setDetailsStatus("loading");
+    setError(null);
+
+    void axios
+      .get<ActivityDetails>(`/api/activities/${activityId}`, { signal: controller.signal })
+      .then((r) => {
+        if (
+          controller.signal.aborted ||
+          requestId !== detailsRequestId.current ||
+          controller !== detailsRequestController.current ||
+          activityId !== activeActivityId.current
+        ) return;
+        const classIds = (r.data.activityInvites ?? []).map((invite) => invite.classId);
+        setValue("teacherId", r.data.teacherId ?? "");
+        setValue("classIds", classIds);
+        setValue("message", r.data.message ?? "");
+        setSavedSendSnapshot({
+          message: r.data.message ?? "",
+          teacherId: r.data.teacherId ?? "",
+          classIds: [...classIds].sort(),
+          activityVersion: r.data.updatedAt,
+        });
+        setDetailsStatus("ready");
+      })
+      .catch(() => {
+        if (
+          controller.signal.aborted ||
+          requestId !== detailsRequestId.current ||
+          controller !== detailsRequestController.current ||
+          activityId !== activeActivityId.current
+        ) return;
+        setError(t("activities.loadFailed"));
+        setDetailsStatus("error");
+      });
+  }, [setValue, t]);
 
   useEffect(() => {
     if (!open) return;
+    const controller = new AbortController();
 
     setLoadingTeachers(true);
     axios
-      .get<Teacher[]>("/api/teachers")
-      .then((r) => setTeachers(r.data))
-      .catch(() => setTeachers([]))
-      .finally(() => setLoadingTeachers(false));
+      .get<Teacher[]>("/api/teachers", { signal: controller.signal })
+      .then((r) => {
+        if (!controller.signal.aborted) setTeachers(r.data);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setTeachers([]);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoadingTeachers(false);
+      });
 
     setLoadingClasses(true);
     setClassesFailed(false);
     axios
-      .get<ClassItem[]>("/api/classes")
+      .get<ClassItem[]>("/api/classes", { signal: controller.signal })
       .then((r) => {
+        if (controller.signal.aborted) return;
         setClasses(r.data);
         setClassesFailed(false);
       })
       .catch(() => {
+        if (controller.signal.aborted) return;
         setClasses([]);
         setClassesFailed(true);
       })
-      .finally(() => setLoadingClasses(false));
+      .finally(() => {
+        if (!controller.signal.aborted) setLoadingClasses(false);
+      });
+    return () => controller.abort();
   }, [open]);
 
   /**
@@ -213,9 +274,15 @@ export function ActivityFormModal({
        guardian because A had been sent. */
     setNotifyGuardians(false);
     setNotifyStaff(false);
+    setConfirmSchoolWide(false);
+    sendKey.current = null;
     setSentNotice(false);
+    setSavedSendSnapshot(null);
+    setDetailsStatus("idle");
 
     if (open && activity) {
+      const timeZone = deviceTimeZone();
+      const dateOnly = activity.allDay !== false;
       reset({
         name: activity.name ?? "",
         teacherId: "",
@@ -223,8 +290,19 @@ export function ActivityFormModal({
         // The list carries the stage nested; the form needs only its id.
         stageId: activity.stage?.id ?? "",
         period: activity.period ?? "MORNING",
-        startDate: activity.startDate ? activity.startDate.slice(0, 10) : "",
-        endDate: activity.endDate ? activity.endDate.slice(0, 10) : "",
+        startDate: activity.startDate
+          ? dateOnly ? activity.startDate.slice(0, 10) : dateKeyInTimeZone(new Date(activity.startDate), timeZone)
+          : "",
+        endDate: activity.endDate
+          ? dateOnly ? activity.endDate.slice(0, 10) : dateKeyInTimeZone(new Date(activity.endDate), timeZone)
+          : "",
+        startTime: activity.startDate && !dateOnly
+          ? zonedDateTimeInputValue(activity.startDate, timeZone).slice(11)
+          : "09:00",
+        endTime: activity.endDate && !dateOnly
+          ? zonedDateTimeInputValue(activity.endDate, timeZone).slice(11)
+          : "10:00",
+        allDay: dateOnly,
         fee: activity.fee ?? 0,
         message: activity.message ?? "",
         classIds: [],
@@ -232,36 +310,29 @@ export function ActivityFormModal({
       setImageUrl(activity.imageUrl ?? null);
       setImagePreview(activity.imageUrl ?? null);
 
-      let cancelled = false;
-      setLoadingDetails(true);
-      axios
-        .get<ActivityDetails>(`/api/activities/${activity.id}`)
-        .then((r) => {
-          if (cancelled) return;
-          setValue("teacherId", r.data.teacherId ?? "");
-          setValue(
-            "classIds",
-            (r.data.activityInvites ?? []).map((invite) => invite.classId)
-          );
-        })
-        .catch(() => {
-          if (!cancelled) setError(t("activities.loadFailed"));
-        })
-        .finally(() => {
-          if (!cancelled) setLoadingDetails(false);
-        });
+      loadActivityDetails(activity.id);
       return () => {
-        cancelled = true;
+        detailsRequestController.current?.abort();
+        detailsRequestController.current = null;
+        activeActivityId.current = null;
+        detailsRequestId.current += 1;
       };
     } else if (open && !activity) {
+      const timeZone = deviceTimeZone();
+      const seed = defaultDate ?? new Date();
+      const seedInput = zonedDateTimeInputValue(seed, timeZone);
+      const endInput = zonedDateTimeInputValue(new Date(seed.getTime() + 60 * 60 * 1000), timeZone);
       reset({
         name: "",
         teacherId: "",
         childrenCount: 0,
         stageId: "",
         period: "MORNING",
-        startDate: "",
-        endDate: "",
+        startDate: defaultDate ? seedInput.slice(0, 10) : "",
+        endDate: defaultDate ? endInput.slice(0, 10) : "",
+        startTime: seedInput.slice(11),
+        endTime: endInput.slice(11),
+        allDay: !defaultDate,
         fee: 0,
         message: "",
         classIds: [],
@@ -269,7 +340,7 @@ export function ActivityFormModal({
       setImageUrl(null);
       setImagePreview(null);
     }
-  }, [open, activity, reset, setValue, t]);
+  }, [open, activity, defaultDate, loadActivityDetails, reset]);
 
   const toggleClass = (id: string) => {
     const current = selectedClassIds.includes(id)
@@ -302,10 +373,20 @@ export function ActivityFormModal({
   }
 
   const onSubmit = async (data: ActivityFormValues) => {
+    if (isEdit && detailsStatus !== "ready") {
+      setError(t("activities.loadFailed"));
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
-      const payload = { ...data, imageUrl };
+      const timeZone = deviceTimeZone();
+      const payload = buildActivityRequestPayload(data, imageUrl, timeZone);
+      if (!payload) {
+        setError(t("activities.invalidTiming"));
+        setSaving(false);
+        return;
+      }
 
       /**
        * The id to notify about, whichever branch we took.
@@ -315,31 +396,18 @@ export function ActivityFormModal({
        * to find out was that no guardian mentioned it. The create branch now
        * honours the same two checkboxes the edit branch does.
        */
-      let targetId: string | null = null;
       if (isEdit && activity) {
         await axios.put(`/api/activities/${activity.id}`, payload);
-        targetId = activity.id;
       } else {
-        const created = await axios.post<{ id: string }>("/api/activities", payload);
-        targetId = created.data?.id ?? null;
+        await axios.post("/api/activities", payload);
       }
 
       // Only when asked. Every edit used to fire this, so fixing a typo in the
       // title re-messaged every guardian in every invited class.
-      if (targetId && (notifyGuardians || notifyStaff)) {
-        await axios.post(`/api/activities/${targetId}/send`, {
-          notifyGuardians,
-          notifyStaff,
-        });
-      }
       onSaved();
       onClose();
     } catch (err) {
-      const message =
-        axios.isAxiosError(err) && err.response?.data?.error
-          ? err.response.data.error
-          : t("common.error");
-      setError(message);
+      setError(describeApiError(err, t("common.error")));
     } finally {
       setSaving(false);
     }
@@ -356,8 +424,30 @@ export function ActivityFormModal({
    */
   const handleSendNow = async () => {
     if (!activity) return;
+    if (!savedSendSnapshot || loadingDetails) {
+      setError(t("activities.loadFailed"));
+      return;
+    }
     if (!notifyGuardians && !notifyStaff) {
       setError(t("activities.pickAudience"));
+      return;
+    }
+    const message = getValues("message") ?? "";
+    if (!message.trim()) {
+      setError(t("activities.messageRequired"));
+      return;
+    }
+    const currentClassIds = [...(getValues("classIds") ?? [])].sort();
+    if (
+      message !== savedSendSnapshot.message ||
+      (getValues("teacherId") ?? "") !== savedSendSnapshot.teacherId ||
+      currentClassIds.join("\u0000") !== savedSendSnapshot.classIds.join("\u0000")
+    ) {
+      setError(t("activities.saveChangesBeforeSending"));
+      return;
+    }
+    if (savedSendSnapshot.classIds.length === 0 && !confirmSchoolWide) {
+      setError(t("activities.confirmSchoolWide"));
       return;
     }
     setSending(true);
@@ -366,11 +456,16 @@ export function ActivityFormModal({
       await axios.post(`/api/activities/${activity.id}/send`, {
         notifyGuardians,
         notifyStaff,
+        message,
+        confirmSchoolWide,
+        activityVersion: savedSendSnapshot.activityVersion,
+        idempotencyKey: sendKey.current ??= crypto.randomUUID(),
       });
       setError(null);
       setSentNotice(true);
+      sendKey.current = null;
     } catch (err) {
-      setError(describeApiError(err, t("home.activityForm.sendFailed")));
+      setError(describeApiError(err, t("activities.sendFailedStored")));
     } finally {
       setSending(false);
     }
@@ -396,6 +491,13 @@ export function ActivityFormModal({
   };
 
   const dismissBlocked = saving || uploadingImage || sending || deleting;
+  const imagePreviewElement = imagePreview ? (
+    <img
+      src={imagePreview}
+      alt={t("common.preview")}
+      className="h-40 w-full object-cover"
+    />
+  ) : null;
 
   useEffect(() => {
     onDismissBlockedChange?.(dismissBlocked);
@@ -416,8 +518,17 @@ export function ActivityFormModal({
                   details fetch failing, which re-enables Save with a blank
                   teacher and no invited classes and lets a save wipe both. */}
               {error && (
-                <div role="alert" className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
-                  {error}
+                <div role="alert" className="flex items-center justify-between gap-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+                  <span>{error}</span>
+                  {isEdit && detailsStatus === "error" && activity && (
+                    <button
+                      type="button"
+                      onClick={() => loadActivityDetails(activity.id)}
+                      className="shrink-0 underline"
+                    >
+                      {t("common.retry")}
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -504,7 +615,13 @@ export function ActivityFormModal({
                 </select>
               </div>
   
-              {/* Start + End dates row */}
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input type="checkbox" {...register("allDay")} className="accent-[#F64651]" />
+                {t("calendar.allDay")}
+              </label>
+
+              {/* Calendar dates stay date-only; wall-clock times are resolved
+                  with the browser's IANA zone immediately before saving. */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -529,6 +646,32 @@ export function ActivityFormModal({
                   />
                 </div>
               </div>
+              {!allDay && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      {t("activities.startTime")}
+                    </label>
+                    <input
+                      type="time"
+                      {...register("startTime", { required: !allDay })}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                      dir="ltr"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      {t("activities.endTime")}
+                    </label>
+                    <input
+                      type="time"
+                      {...register("endTime", { required: !allDay })}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                      dir="ltr"
+                    />
+                  </div>
+                </div>
+              )}
   
               {/* Fee */}
               <div>
@@ -554,44 +697,47 @@ export function ActivityFormModal({
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   {t("home.activityForm.image")}
                 </label>
-                <div
-                  className="border-2 border-dashed border-gray-200 rounded-xl overflow-hidden cursor-pointer hover:border-[#F64651] transition-colors"
-                  onClick={() => fileInputRef.current?.click()}
+                <PermissionGate
+                  permission="schedule.manage"
+                  fallback={imagePreviewElement ? (
+                    <div className="overflow-hidden rounded-xl">{imagePreviewElement}</div>
+                  ) : null}
                 >
-                  {imagePreview ? (
-                    <img
-                      src={imagePreview}
-                      alt={t("common.preview")}
-                      className="w-full h-40 object-cover"
-                    />
-                  ) : (
-                    <div className="h-32 flex flex-col items-center justify-center gap-2 text-gray-400">
-                      <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center text-xl">
-                        🖼
-                      </div>
-                      <span className="text-xs">{t("classes.uploadHint")}</span>
-                    </div>
-                  )}
-                </div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".jpg,.jpeg,.png"
-                  className="hidden"
-                  onChange={handleImageChange}
-                />
-                {uploadingImage && (
-                  <p className="text-xs text-gray-400 mt-1">{t("studentProfile.uploading")}</p>
-                )}
-                {imagePreview && (
-                  <button
-                    type="button"
-                    onClick={() => { setImageUrl(null); setImagePreview(null); }}
-                    className="text-xs text-red-500 hover:underline mt-1"
+                  <div
+                    className="border-2 border-dashed border-gray-200 rounded-xl overflow-hidden cursor-pointer hover:border-[#F64651] transition-colors"
+                    onClick={() => fileInputRef.current?.click()}
                   >
-                    {t("common.deleteImage")}
-                  </button>
-                )}
+                    {imagePreview ? (
+                      imagePreviewElement
+                    ) : (
+                      <div className="h-32 flex flex-col items-center justify-center gap-2 text-gray-400">
+                        <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center text-xl">
+                          🖼
+                        </div>
+                        <span className="text-xs">{t("classes.uploadHint")}</span>
+                      </div>
+                    )}
+                  </div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".jpg,.jpeg,.png"
+                    className="hidden"
+                    onChange={handleImageChange}
+                  />
+                  {uploadingImage && (
+                    <p className="text-xs text-gray-400 mt-1">{t("studentProfile.uploading")}</p>
+                  )}
+                  {imagePreview && (
+                    <button
+                      type="button"
+                      onClick={() => { setImageUrl(null); setImagePreview(null); }}
+                      className="text-xs text-red-500 hover:underline mt-1"
+                    >
+                      {t("common.deleteImage")}
+                    </button>
+                  )}
+                </PermissionGate>
               </div>
   
               {/* Message */}
@@ -601,14 +747,9 @@ export function ActivityFormModal({
                 </label>
                 <textarea
                   {...register("message")}
-                  ref={(element) => {
-                    register("message").ref(element);
-                    messageRef.current = element;
-                  }}
                   rows={3}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651] resize-none"
                 />
-                <VariableReference mode="full" onInsert={insertVariable} />
               </div>
   
               {/* Classes checklist */}
@@ -684,22 +825,42 @@ export function ActivityFormModal({
                   </span>
                 </label>
               )}
+
+              {(notifyGuardians || notifyStaff) && (
+                <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700">
+                  <p className="font-medium">{t("activities.audiencePreview")}</p>
+                  <p className="mt-1 text-xs text-gray-500">
+                    {!savedSendSnapshot
+                      ? t("common.loading")
+                      : savedSendSnapshot.classIds.length > 0
+                      ? t("activities.selectedClassesAudience", { n: String(savedSendSnapshot?.classIds.length ?? 0) })
+                      : t("activities.allClassesAudience")}
+                  </p>
+                  {savedSendSnapshot?.classIds.length === 0 && (
+                    <label className="mt-2 flex items-start gap-2">
+                      <input
+                        type="checkbox"
+                        checked={confirmSchoolWide}
+                        onChange={(event) => setConfirmSchoolWide(event.target.checked)}
+                        className="mt-0.5 accent-[#F64651]"
+                      />
+                      <span>{t("activities.confirmAllClasses")}</span>
+                    </label>
+                  )}
+                </div>
+              )}
   
               {/* Action buttons */}
               <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
                 <PermissionGate permission="schedule.manage">
                 <button
                   type="submit"
-                  disabled={saving || uploadingImage || loadingDetails}
+                  disabled={saving || uploadingImage || (isEdit && detailsStatus !== "ready")}
                   className="flex-1 bg-[#F64651] text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-[#D93A44] transition-colors disabled:opacity-60"
                 >
                   {/* Blocked while the teacher and class list are still loading —
                       submitting early would save the blanks this fix removed. */}
-                  {saving || loadingDetails
-                    ? t("common.loading")
-                    : notifyGuardians || notifyStaff
-                      ? t("home.activityForm.saveAndSend")
-                      : t("common.save")}
+                  {saving || loadingDetails ? t("common.loading") : t("common.save")}
                 </button>
                 </PermissionGate>
   
@@ -712,7 +873,7 @@ export function ActivityFormModal({
                   <button
                     type="button"
                     onClick={handleSendNow}
-                    disabled={sending || saving}
+                    disabled={sending || saving || loadingDetails}
                     title={t("activities.sendNowHint")}
                     className="px-4 py-2.5 border border-[#2F96A6] text-[#2F96A6] rounded-lg text-sm font-semibold hover:bg-[#E0F7FA] transition-colors disabled:opacity-60"
                   >

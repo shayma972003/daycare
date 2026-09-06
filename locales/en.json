@@ -793,7 +793,9 @@
     "typeUNIT": "Unit",
     "eventTitle": "Title",
     "typeEVENT_ACTIVITY": "Programme",
-    "cannotConvert": "This cannot be converted — delete it and create the other kind."
+    "cannotConvert": "This cannot be converted — delete it and create the other kind.",
+    "allTypes": "All types",
+    "empty": "No entries in this period"
   },
   "units": {
     "title": "Teaching units",
@@ -1372,15 +1374,27 @@
   },
   "activities": {
     "loadFailed": "Could not load the full activity details",
-    "notifyGuardians": "Notify guardians of the change",
-    "notifyHint": "Left off, the change is saved without sending any message.",
+    "notifyGuardians": "Send an in-app message to guardians",
+    "notifyHint": "Saving never sends. Use the separate send action when the message is ready.",
     "modalLabel": "Add or edit an activity",
-    "notifyStaff": "Notify the teachers",
-    "notifyStaffHint": "Sent to the lead teacher of each selected class — once, even if she leads several.",
-    "sendNow": "Send the notification now",
-    "sendNowHint": "Sends immediately without saving any edit — for the activity as it stands.",
-    "sent": "Notification sent",
-    "pickAudience": "Choose guardians or teachers first"
+    "notifyStaff": "Send an in-app message to teachers",
+    "notifyStaffHint": "Includes the responsible teacher and selected-class teachers, once per account.",
+    "sendNow": "Send in-app message",
+    "sendNowHint": "Sends the saved plain-text message. Unsaved edits must be saved first.",
+    "sent": "In-app message stored; push was queued where available",
+    "pickAudience": "Choose guardians or teachers first",
+    "startTime": "Start time",
+    "endTime": "End time",
+    "invalidTiming": "Check the activity dates and times",
+    "messageRequired": "Write and save a message before sending",
+    "saveMessageFirst": "Save the edited message before sending it",
+    "saveChangesBeforeSending": "Save the activity changes before sending",
+    "sendFailedStored": "The activity is saved, but its in-app message could not be sent. Try sending it again.",
+    "confirmSchoolWide": "Confirm that this message is for all classes",
+    "audiencePreview": "Message audience",
+    "selectedClassesAudience": "Accounts linked to {n} selected classes",
+    "allClassesAudience": "No classes are selected: this means all classes",
+    "confirmAllClasses": "I confirm sending to all classes"
   },
   "notifications": {
     "adminMessages": "Messages from admin",

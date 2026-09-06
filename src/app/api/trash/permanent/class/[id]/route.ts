@@ -1,6 +1,10 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
+import {
+  lockActivitiesForClassTargetChange,
+  touchActivityTargetRevisions,
+} from "@/lib/activity-lock";
 
 export async function DELETE(
   request: Request,
@@ -26,12 +30,14 @@ export async function DELETE(
     return Response.json({ error: "Not found" }, { status: 404 });
   }
 
-  await prisma.$transaction([
-    prisma.activityInvite.deleteMany({ where: { classId: id } }),
-    prisma.attendance.updateMany({ where: { classId: id }, data: { classId: null } }),
-    prisma.student.updateMany({ where: { classId: id }, data: { classId: null } }),
-    prisma.class.delete({ where: { id } }),
-  ]);
+  await prisma.$transaction(async (tx) => {
+    const activityIds = await lockActivitiesForClassTargetChange(tx, { classId: id, schoolId });
+    await tx.activityInvite.deleteMany({ where: { classId: id } });
+    await touchActivityTargetRevisions(tx, { activityIds, schoolId });
+    await tx.attendance.updateMany({ where: { classId: id }, data: { classId: null } });
+    await tx.student.updateMany({ where: { classId: id }, data: { classId: null } });
+    await tx.class.delete({ where: { id } });
+  });
 
   await logAction({
     school_id: schoolId,

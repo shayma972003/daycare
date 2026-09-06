@@ -11,7 +11,12 @@
 import { useState } from "react";
 import axios from "axios";
 import { describeApiError } from "@/lib/api-error";
-import { astInputValue, astInputToDate } from "@/lib/datetime";
+import {
+  addDateDays,
+  deviceTimeZone,
+  zonedDateTimeInputToDate,
+  zonedDateTimeInputValue,
+} from "@/lib/device-date";
 import { EVENT_TYPE_LABEL_KEYS } from "@/lib/calendar";
 import type { CalendarEventType } from "@/generated/prisma/enums";
 import { useT } from "@/lib/i18n-provider";
@@ -47,12 +52,7 @@ interface Option {
   name: string;
 }
 
-/**
- * `datetime-local` wants a wall clock — and the product's wall clock is Riyadh,
- * not the browser's. See `astInputValue`.
- */
-const toInput = astInputValue;
-
+/** `datetime-local` carries a wall clock resolved in the user's device zone. */
 const inputCls =
   "w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2F96A6]";
 
@@ -96,6 +96,7 @@ function CalendarEventModalContent({
 }: CalendarEventModalProps) {
   const t = useT();
   const isEdit = Boolean(event) || Boolean(activity);
+  const timeZone = deviceTimeZone();
 
   const [type, setType] = useState<CalendarEventType>(event?.type ?? "LESSON");
   /**
@@ -107,8 +108,18 @@ function CalendarEventModalContent({
   const [programme, setProgramme] = useState(Boolean(activity));
   const [title, setTitle] = useState(event?.title ?? "");
   const [description, setDescription] = useState(event?.description ?? "");
-  const [startAt, setStartAt] = useState(toInput(event?.startAt ?? defaultDate));
-  const [endAt, setEndAt] = useState(event?.endAt ? toInput(event.endAt) : "");
+  const [startAt, setStartAt] = useState(
+    event?.allDay
+      ? event.startAt.slice(0, 10)
+      : zonedDateTimeInputValue(event?.startAt ?? defaultDate, timeZone)
+  );
+  const [endAt, setEndAt] = useState(
+    event?.allDay
+      ? addDateDays(event.endAt?.slice(0, 10) ?? event.startAt.slice(0, 10), -1)
+      : event?.endAt
+        ? zonedDateTimeInputValue(event.endAt, timeZone)
+        : zonedDateTimeInputValue(new Date(defaultDate.getTime() + 60 * 60 * 1000), timeZone)
+  );
   const [allDay, setAllDay] = useState(event?.allDay ?? false);
   const [teacherId, setTeacherId] = useState(event?.teacherId ?? "");
   const [location, setLocation] = useState(event?.location ?? "");
@@ -130,15 +141,27 @@ function CalendarEventModalContent({
     setSaving(true);
     setError(null);
     try {
+      const resolvedStart = allDay
+        ? new Date(`${startAt}T00:00:00.000Z`)
+        : zonedDateTimeInputToDate(startAt, timeZone);
+      const resolvedEnd = isAnnouncement
+        ? null
+        : allDay
+          ? new Date(`${addDateDays(endAt || startAt, 1)}T00:00:00.000Z`)
+          : zonedDateTimeInputToDate(endAt, timeZone);
+      if (!resolvedStart || (!isAnnouncement && (!resolvedEnd || resolvedEnd <= resolvedStart))) {
+        setError(t("activities.invalidTiming"));
+        setSaving(false);
+        return;
+      }
       const payload = {
         type,
         title: title.trim(),
         description: description.trim() || null,
-        startAt: astInputToDate(startAt).toISOString(),
-        // Cleared for an announcement and for an all-day entry: both are
-        // statements about a day, not a span of hours.
-        endAt: isAnnouncement || allDay || !endAt ? null : astInputToDate(endAt).toISOString(),
+        startAt: resolvedStart.toISOString(),
+        endAt: resolvedEnd?.toISOString() ?? null,
         allDay,
+        timeZone,
         teacherId: teacherId || null,
         location: location.trim() || null,
         classIds: isAnnouncement ? [] : classIds,
@@ -166,6 +189,17 @@ function CalendarEventModalContent({
     } catch (err) {
       setError(describeApiError(err, t("calendar.deleteFailed")));
       setDeleting(false);
+    }
+  }
+
+  function changeAllDay(next: boolean) {
+    setAllDay(next);
+    if (next) {
+      setStartAt(startAt.slice(0, 10));
+      setEndAt((endAt || startAt).slice(0, 10));
+    } else {
+      setStartAt(`${startAt.slice(0, 10)}T09:00`);
+      setEndAt(`${(endAt || startAt).slice(0, 10)}T10:00`);
     }
   }
 
@@ -265,6 +299,7 @@ function CalendarEventModalContent({
               embedded
               open={programme}
               activity={activity ?? null}
+              defaultDate={defaultDate}
               onClose={onClose}
               onSaved={onSaved}
               onDismissBlockedChange={setEmbeddedDismissBlocked}
@@ -284,7 +319,7 @@ function CalendarEventModalContent({
                 {isAnnouncement ? t("finance.date") : t("common.from")}
               </label>
               <input
-                type="datetime-local"
+                type={allDay ? "date" : "datetime-local"}
                 value={startAt}
                 onChange={(e) => setStartAt(e.target.value)}
                 className={inputCls}
@@ -298,17 +333,17 @@ function CalendarEventModalContent({
                   <input
                     type="checkbox"
                     checked={allDay}
-                    onChange={(e) => setAllDay(e.target.checked)}
+                    onChange={(e) => changeAllDay(e.target.checked)}
                     className="accent-[#2F96A6]"
                   />
                   {t("calendar.allDay")}
                 </label>
   
-                {!allDay && (
+                {(
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1.5">{t("common.to")}</label>
                     <input
-                      type="datetime-local"
+                      type={allDay ? "date" : "datetime-local"}
                       value={endAt}
                       onChange={(e) => setEndAt(e.target.value)}
                       className={inputCls}

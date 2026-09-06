@@ -14,10 +14,12 @@ export interface Activity {
   childrenCount?: number;
   startDate?: string | null;
   endDate?: string | null;
+  allDay?: boolean | null;
   fee?: number;
   imageUrl?: string | null;
   message?: string | null;
   active?: boolean;
+  updatedAt?: string;
 }
 
 interface ActivityGridProps {

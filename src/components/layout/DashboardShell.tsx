@@ -12,6 +12,8 @@ import {
 } from "react";
 import { usePathname } from "next/navigation";
 import { MobileSidebar, Sidebar } from "@/components/layout/Sidebar";
+import { SubscriptionAccessBanner } from "@/components/layout/SubscriptionAccessBanner";
+import type { SchoolSubscriptionAccess } from "@/lib/school-subscription";
 
 interface DashboardNavigationContextValue {
   mobileOpen: boolean;
@@ -32,10 +34,12 @@ export function DashboardShell({
   children,
   schoolName,
   schoolLogo,
+  subscriptionAccess,
 }: {
   children: ReactNode;
   schoolName?: string | null;
   schoolLogo?: string | null;
+  subscriptionAccess: SchoolSubscriptionAccess;
 }) {
   const pathname = usePathname();
   const [openedOnPath, setOpenedOnPath] = useState<string | null>(null);
@@ -63,6 +67,7 @@ export function DashboardShell({
           id="dashboard-main"
           className="min-h-screen min-w-0 overflow-x-clip bg-brand-bg xl:ms-[220px]"
         >
+          <SubscriptionAccessBanner access={subscriptionAccess} />
           {children}
         </main>
       </div>

@@ -26,7 +26,10 @@ export async function GET(request: Request) {
     const activeSchools = schools.filter(
       (s) => s.createdAt <= monthEnd && s.subscription_status === "active" && s.subscription_plan
     );
-    mrr.push({ month: label, revenue: activeSchools.reduce((sum, s) => sum + moneyNumber(s.subscription_plan?.price), 0) });
+    mrr.push({ month: label, revenue: activeSchools.reduce((sum, s) => {
+      const price = moneyNumber(s.subscription_plan?.price);
+      return sum + (s.subscription_plan?.billing_interval === "YEARLY" ? price / 12 : price);
+    }, 0) });
   }
 
   return Response.json({

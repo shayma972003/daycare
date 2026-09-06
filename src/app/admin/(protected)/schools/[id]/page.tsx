@@ -44,7 +44,7 @@ interface SchoolDetail {
   messages: { id: string; subject: string; sent_at: string | null; is_automated: boolean; delivered_at: string | null; read_at: string | null }[];
 }
 
-interface Plan { id: string; name: string; price: number }
+interface Plan { id: string; name: string; price: number; billing_interval: "MONTHLY" | "YEARLY" }
 
 interface AdminInvoice {
   id: string;
@@ -269,7 +269,7 @@ export default function SchoolDetailPage() {
   const isSuspended = school.subscription_status === "suspended";
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="mx-auto w-full max-w-[1500px] space-y-6 p-4 sm:p-6 lg:p-8">
       {actionError && (
         <div
           role="alert"
@@ -313,7 +313,7 @@ export default function SchoolDetailPage() {
 
         {/* General Info Tab */}
         <Tabs.Content value="info">
-          <div className="bg-[#1e1e2e] rounded-2xl border border-white/5 p-6 space-y-4 max-w-lg">
+          <div className="grid w-full max-w-6xl grid-cols-1 gap-4 rounded-2xl border border-white/5 bg-[#1e1e2e] p-5 md:grid-cols-2 md:p-6">
             {editing ? (
               <>
                 <Field label="اسم المدرسة"><input value={editName} onChange={(e) => setEditName(e.target.value)} className="input-admin" /></Field>
@@ -323,7 +323,7 @@ export default function SchoolDetailPage() {
                 <Field label="الخطة">
                   <select value={editPlanId} onChange={(e) => setEditPlanId(e.target.value)} className="input-admin">
                     <option value="">بدون خطة</option>
-                    {plans.map((p) => <option key={p.id} value={p.id}>{p.name} — {p.price} ر.س</option>)}
+                    {plans.map((p) => <option key={p.id} value={p.id}>{p.billing_interval === "MONTHLY" ? "شهري" : "سنوي"} — {p.price} ر.س</option>)}
                   </select>
                 </Field>
                 <Field label="تاريخ التجديد"><input type="date" value={editRenewal} onChange={(e) => setEditRenewal(e.target.value)} className="input-admin" /></Field>
@@ -333,7 +333,7 @@ export default function SchoolDetailPage() {
                   </select>
                 </Field>
 
-                <h3 className="text-white font-bold text-sm pt-4 border-t border-white/5">الهوية التجارية</h3>
+                <h3 className="text-white font-bold text-sm pt-4 border-t border-white/5 md:col-span-2">الهوية التجارية</h3>
                 <Field label="الاسم القانوني"><input value={editLegalName} onChange={(e) => setEditLegalName(e.target.value)} className="input-admin" /></Field>
                 <Field label="رقم السجل التجاري"><input value={editCommercialRegistration} onChange={(e) => setEditCommercialRegistration(e.target.value)} dir="ltr" className="input-admin" /></Field>
                 <Field label="الرقم الوطني الموحد"><input value={editNationalUnifiedNumber} onChange={(e) => setEditNationalUnifiedNumber(e.target.value)} dir="ltr" className="input-admin" /></Field>
@@ -345,7 +345,7 @@ export default function SchoolDetailPage() {
                 </Field>
                 <Field label="الأنشطة"><input value={editBusinessActivities} onChange={(e) => setEditBusinessActivities(e.target.value)} className="input-admin" /></Field>
 
-                <h3 className="text-white font-bold text-sm pt-4 border-t border-white/5">معلومات المدرسة</h3>
+                <h3 className="text-white font-bold text-sm pt-4 border-t border-white/5 md:col-span-2">معلومات المدرسة</h3>
                 <Field label="نوع المدرسة">
                   <select value={editSchoolType} onChange={(e) => setEditSchoolType(e.target.value)} className="input-admin">
                     <option value="">— اختر —</option>
@@ -374,7 +374,7 @@ export default function SchoolDetailPage() {
                 <Field label="الفرع"><input value={editBranch} onChange={(e) => setEditBranch(e.target.value)} className="input-admin" /></Field>
                 <Field label="العنوان"><input value={editAddress} onChange={(e) => setEditAddress(e.target.value)} className="input-admin" /></Field>
 
-                <h3 className="text-white font-bold text-sm pt-4 border-t border-white/5">الضريبة والزكاة</h3>
+                <h3 className="text-white font-bold text-sm pt-4 border-t border-white/5 md:col-span-2">الضريبة والزكاة</h3>
                 <Field label="مسجلة في ضريبة القيمة المضافة (VAT)؟">
                   <div className="flex gap-2">
                     {(["yes", "no"] as const).map((v) => (
@@ -400,7 +400,7 @@ export default function SchoolDetailPage() {
                 <Field label="السنة المالية"><input value={editFinancialYear} onChange={(e) => setEditFinancialYear(e.target.value)} className="input-admin" /></Field>
                 <Field label="الفترة الضريبية"><input value={editTaxPeriod} onChange={(e) => setEditTaxPeriod(e.target.value)} className="input-admin" /></Field>
 
-                <div className="flex gap-3 pt-2">
+                <div className="flex gap-3 pt-2 md:col-span-2">
                   <button onClick={onSave} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-xl">حفظ</button>
                   <button onClick={() => setEditing(false)} className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white text-sm rounded-xl">إلغاء</button>
                 </div>
@@ -418,21 +418,21 @@ export default function SchoolDetailPage() {
                 <InfoRow label="تاريخ التسجيل" value={new Date(school.createdAt).toLocaleDateString("ar-SA")} />
                 {school.suspension_reason && <InfoRow label="سبب الإيقاف" value={school.suspension_reason} />}
 
-                <h3 className="text-white font-bold text-sm pt-4 border-t border-white/5">الهوية التجارية</h3>
+                <h3 className="text-white font-bold text-sm pt-4 border-t border-white/5 md:col-span-2">الهوية التجارية</h3>
                 <InfoRow label="الاسم القانوني" value={school.legalName ?? "—"} />
                 <InfoRow label="رقم السجل التجاري" value={school.commercialRegistration ?? "—"} />
                 <InfoRow label="الرقم الوطني الموحد" value={school.nationalUnifiedNumber ?? "—"} />
                 <InfoRow label="نوع الكيان" value={school.entityType ?? "—"} />
                 <InfoRow label="الأنشطة" value={school.businessActivities ?? "—"} />
 
-                <h3 className="text-white font-bold text-sm pt-4 border-t border-white/5">معلومات المدرسة</h3>
+                <h3 className="text-white font-bold text-sm pt-4 border-t border-white/5 md:col-span-2">معلومات المدرسة</h3>
                 <InfoRow label="نوع المدرسة" value={school.schoolType ?? "—"} />
                 <InfoRow label="المراحل التعليمية" value={school.educationStages?.length ? school.educationStages.join("، ") : "—"} />
                 <InfoRow label="رقم الترخيص" value={school.licenseNumber ?? "—"} />
                 <InfoRow label="الفرع" value={school.branch ?? "—"} />
                 <InfoRow label="العنوان" value={school.address ?? "—"} />
 
-                <h3 className="text-white font-bold text-sm pt-4 border-t border-white/5">الضريبة والزكاة</h3>
+                <h3 className="text-white font-bold text-sm pt-4 border-t border-white/5 md:col-span-2">الضريبة والزكاة</h3>
                 <InfoRow label="مسجلة في VAT؟" value={school.vatRegistered === true ? "نعم" : school.vatRegistered === false ? "لا" : "—"} />
                 <InfoRow label="رقم VAT" value={school.vatNumber ?? "—"} />
                 <InfoRow label="الرقم الموحد (ZATCA)" value={school.zatcaUnifiedNumber ?? "—"} />
@@ -446,7 +446,7 @@ export default function SchoolDetailPage() {
 
         {/* Stats Tab */}
         <Tabs.Content value="stats">
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {[
               { label: "الطلاب", value: stats.students },
               { label: "المعلمون", value: stats.teachers },
@@ -637,16 +637,16 @@ export default function SchoolDetailPage() {
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between text-sm">
+    <div className="flex min-w-0 justify-between gap-4 rounded-xl bg-white/[0.02] px-4 py-3 text-sm">
       <span className="text-gray-400">{label}</span>
-      <span className="text-white">{value}</span>
+      <span className="break-words text-left text-white">{value}</span>
     </div>
   );
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div>
+    <div className="min-w-0 [&_.input-admin]:w-full">
       <label className="block text-gray-400 text-xs mb-1">{label}</label>
       {children}
     </div>

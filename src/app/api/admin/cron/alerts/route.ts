@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { isAuthorizedCron, cronUnauthorized } from "@/lib/cron-auth";
 import { formatDate } from "@/lib/utils";
+import { schoolSubscriptionAccess } from "@/lib/school-subscription";
 
 export async function GET(request: Request) {
   if (!isAuthorizedCron(request)) return cronUnauthorized();
@@ -25,7 +26,7 @@ export async function GET(request: Request) {
   for (const rule of rules) {
     for (const school of schools) {
       let shouldSend = false;
-      const messageBody = rule.message_template
+      let messageBody = rule.message_template
         .replace(/<school_name>/g, school.name)
         .replace(/<plan_name>/g, school.subscription_plan?.name ?? "")
         // Through `formatDate`, not `toLocaleDateString`: this runs on Vercel,
@@ -48,6 +49,12 @@ export async function GET(request: Request) {
         shouldSend = !!(school.renewal_date && school.renewal_date <= oneDayAhead && school.renewal_date >= now);
       } else if (rule.trigger_type === "expired") {
         shouldSend = !!(school.renewal_date && school.renewal_date < now && school.subscription_status !== "suspended");
+        if (shouldSend) {
+          const access = schoolSubscriptionAccess(school, now);
+          messageBody += access.mode === "grace"
+            ? `\n\nبقي ${access.graceDaysRemaining} يوم قبل انتقال الحساب إلى وضع القراءة فقط. يمكنك التجديد من صفحة اشتراك النظام.`
+            : "\n\nالحساب الآن في وضع القراءة فقط حتى يتم تجديد الاشتراك.";
+        }
       } else if (rule.trigger_type === "plan_limit") {
         shouldSend = !!(school.subscription_plan && school._count.students > school.subscription_plan.max_students);
       }

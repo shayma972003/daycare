@@ -2,9 +2,9 @@ import { getServerSession } from "next-auth";
 import { headers } from "next/headers";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { astDayStart } from "@/lib/datetime";
 import { grants, ALL_PERMISSIONS } from "@/lib/permissions";
 import { requirementFor, isUngated } from "@/lib/route-permissions";
+import { schoolSubscriptionAccess, type SchoolSubscriptionAccess } from "@/lib/school-subscription";
 
 export type AuthSession = {
   user: {
@@ -20,6 +20,7 @@ export type AuthSession = {
   permissions: string[];
   /** Staff record this login belongs to, when it has one. */
   teacherId: string | null;
+  subscription: SchoolSubscriptionAccess;
   can: (permission: string) => boolean;
 };
 
@@ -42,6 +43,33 @@ export class ForbiddenError extends Error {
   constructor(public readonly permission: string) {
     super("Forbidden");
     this.name = "ForbiddenError";
+  }
+}
+
+export class SubscriptionLockedError extends Error {
+  constructor() {
+    super("اشتراك الحضانة يحتاج إلى تجديد. التصفح متاح مؤقتًا دون تعديل البيانات.");
+    this.name = "SubscriptionLockedError";
+  }
+}
+
+const LOCKED_WRITE_ALLOWLIST = [
+  "/api/subscription",
+  "/api/notifications/admin-messages",
+];
+
+async function enforceSubscriptionWriteAccess(access: SchoolSubscriptionAccess): Promise<void> {
+  if (access.mode !== "locked") return;
+  try {
+    const headerList = await headers();
+    const pathname = headerList.get("x-pathname");
+    const method = headerList.get("x-method") ?? "GET";
+    if (!pathname || method === "GET" || method === "HEAD" || method === "OPTIONS") return;
+    if (LOCKED_WRITE_ALLOWLIST.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))) return;
+    throw new SubscriptionLockedError();
+  } catch (error) {
+    if (error instanceof SubscriptionLockedError) throw error;
+    // Server component/build scope has no request headers and performs no API mutation.
   }
 }
 
@@ -142,22 +170,13 @@ export async function requireSession(): Promise<AuthSession> {
     throw new UnauthorizedError("تغيّرت صلاحيات الحساب");
   }
 
-  const status = user.school?.subscription_status;
-  if (status === "suspended" || status === "cancelled") {
-    throw new UnauthorizedError("اشتراك الحضانة موقوف");
-  }
-  if (status === "expired") {
-    throw new UnauthorizedError("اشتراك الحضانة منتهٍ");
-  }
-  // The nightly job flips the status flag and may not have run, so the date is
-  // checked directly — the same rule sign-in applies.
-  if (user.school?.renewal_date && user.school.renewal_date < astDayStart()) {
-    throw new UnauthorizedError("اشتراك الحضانة منتهٍ");
-  }
+  if (!user.school) throw new UnauthorizedError("الحضانة لم تعد موجودة");
+  const subscription = schoolSubscriptionAccess(user.school);
 
   const permissions = await resolvePermissions(user.schoolId, user);
 
   await enforceRoutePermission(permissions);
+  await enforceSubscriptionWriteAccess(subscription);
 
   return {
     user: {
@@ -171,6 +190,7 @@ export async function requireSession(): Promise<AuthSession> {
     },
     permissions,
     teacherId: user.teacherId,
+    subscription,
     can: (permission: string) => grants(permissions, permission),
   };
 }
@@ -219,6 +239,12 @@ async function enforceRoutePermission(permissions: string[]): Promise<void> {
  * the `instanceof` chain.
  */
 export function sessionErrorResponse(error: unknown): Response | null {
+  if (error instanceof SubscriptionLockedError) {
+    return Response.json(
+      { error: error.message, code: "SUBSCRIPTION_READ_ONLY" },
+      { status: 423 }
+    );
+  }
   if (error instanceof ForbiddenError) {
     return Response.json(
       {

@@ -50,6 +50,7 @@ const PUBLIC_API_PREFIXES = [
 
 function isPublicApi(pathname: string, method: string): boolean {
   return (
+    pathname === "/api/payments/moyasar/callback" ||
     PUBLIC_API_PREFIXES.some(
       (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
     ) || isPublicEnrollmentRoute(pathname, method)

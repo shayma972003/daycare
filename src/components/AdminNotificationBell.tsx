@@ -4,14 +4,16 @@ import { useEffect, useRef, useState } from "react";
 import axios from "axios";
 import { useSession } from "next-auth/react";
 import { useT } from "@/lib/i18n-provider";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/Dialog";
 
 interface AdminMsg {
   recipientId: string;
   messageId: string;
   subject: string;
-  preview: string;
+  body: string;
   sent_at: string | null;
   read_at: string | null;
+  system: boolean;
 }
 
 interface NotifData {
@@ -52,6 +54,7 @@ export default function AdminNotificationBell() {
   const { status, update } = useSession();
   const [data, setData] = useState<NotifData>({ unreadCount: 0, messages: [] });
   const [open, setOpen] = useState(false);
+  const [selected, setSelected] = useState<AdminMsg | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const requestController = useRef<AbortController | null>(null);
 
@@ -116,6 +119,12 @@ export default function AdminNotificationBell() {
     }));
   }
 
+  async function openMessage(message: AdminMsg) {
+    setSelected(message);
+    setOpen(false);
+    if (!message.read_at && !message.system) await markRead(message.recipientId);
+  }
+
   async function markAllRead() {
     await axios.patch("/api/notifications/admin-messages", {});
     setData((prev) => ({
@@ -155,35 +164,49 @@ export default function AdminNotificationBell() {
             {data.messages.length === 0 && (
               <div className="px-4 py-6 text-center text-gray-400 text-sm">{t("notifications.noMessages")}</div>
             )}
-            {data.messages.slice(0, 5).map((m) => (
-              <div
+            {data.messages.map((m) => (
+              <button
+                type="button"
                 key={m.recipientId}
-                className={`px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors ${!m.read_at ? "bg-indigo-50/40" : ""}`}
-                onClick={() => { if (!m.read_at) markRead(m.recipientId); }}
+                className={`block w-full px-4 py-3 text-start hover:bg-gray-50 transition-colors ${!m.read_at ? "bg-indigo-50/40" : ""}`}
+                onClick={() => void openMessage(m)}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
                     <div className={`text-sm font-medium truncate ${!m.read_at ? "text-indigo-900" : "text-gray-800"}`}>
                       {m.subject}
                     </div>
-                    <div className="text-xs text-gray-500 mt-0.5 line-clamp-2">{m.preview}</div>
+                    <div className="text-xs text-gray-500 mt-0.5 line-clamp-2">{m.body}</div>
                   </div>
                   <div className="flex flex-col items-end gap-1 shrink-0">
                     <span className="text-xs text-gray-400">{timeAgo(m.sent_at, t)}</span>
                     {!m.read_at && <span className="w-2 h-2 bg-indigo-500 rounded-full" />}
                   </div>
                 </div>
-              </div>
+              </button>
             ))}
           </div>
 
-          {data.messages.length > 5 && (
-            <div className="px-4 py-2.5 border-t border-gray-100 text-center">
-              <span className="text-xs text-gray-400">{t("notifications.showingMessages", { n: String(data.messages.length) })}</span>
-            </div>
-          )}
         </div>
       )}
+      <Dialog open={Boolean(selected)} onOpenChange={(next) => { if (!next) setSelected(null); }}>
+        <DialogContent dir="rtl" className="p-0 sm:max-w-xl">
+          <DialogHeader className="border-b border-gray-100 px-5 py-4">
+            <div>
+              <DialogTitle>{selected?.subject}</DialogTitle>
+              <DialogDescription className="mt-1">{timeAgo(selected?.sent_at ?? null, t)}</DialogDescription>
+            </div>
+          </DialogHeader>
+          <div className="whitespace-pre-wrap break-words px-5 py-5 text-sm leading-7 text-gray-700">
+            {selected?.body}
+          </div>
+          <div className="border-t border-gray-100 px-5 py-3 text-end">
+            <button type="button" onClick={() => setSelected(null)} className="rounded-xl bg-gray-900 px-5 py-2 text-sm text-white">
+              {t("common.close")}
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

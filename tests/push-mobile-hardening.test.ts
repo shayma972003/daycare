@@ -28,13 +28,14 @@ describe("6F push and mobile hardening contracts", () => {
     expect(guard).toContain("current.roleRef?.permissions");
   });
 
-  it("revokes sessions and devices when staff or the school is disabled", () => {
+  it("revokes staff sessions while subscription suspension preserves read-only access", () => {
     const staff = source("src/app/api/staff-accounts/[id]/route.ts");
     const school = source("src/app/api/admin/schools/[id]/suspend/route.ts");
     expect(staff).toContain("tx.deviceToken.deleteMany");
     expect(staff).toContain("tx.refreshToken.updateMany");
-    expect(school).toContain("tx.deviceToken.deleteMany");
-    expect(school).toContain("tx.refreshToken.updateMany");
+    expect(school).not.toContain("tx.deviceToken.deleteMany");
+    expect(school).not.toContain("tx.refreshToken.updateMany");
+    expect(school).toContain('subscription_status: "suspended"');
   });
 
   it("keeps mobile refresh rate limiting and token replay detection", () => {

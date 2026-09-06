@@ -14,6 +14,7 @@
     "care": "Care Reports",
     "calendar": "Calendar",
     "attendance": "Attendance",
+    "subscription": "System subscription",
     "groupFinance": "Finance",
     "groupAdmin": "Administration"
   },
@@ -1404,6 +1405,22 @@
     "days": "{n}d",
     "markAllRead": "Mark all as read",
     "showingMessages": "Showing {n} messages"
+  },
+  "schoolSubscription": {
+    "title": "System subscription",
+    "subtitle": "Choose a plan and renew securely through Moyasar",
+    "monthly": "Monthly",
+    "yearly": "Yearly",
+    "perMonth": "for one month",
+    "perYear": "for one year",
+    "renew": "Pay and renew",
+    "processing": "Preparing checkout…",
+    "notConfigured": "Moyasar is not configured yet. Add the test secret key to server settings before testing payments.",
+    "currentEnds": "The current subscription ends on {date}",
+    "paymentSuccess": "You returned from Moyasar. Payment is being verified and the subscription will update automatically.",
+    "paymentCancelled": "Payment was cancelled and the subscription was not changed.",
+    "history": "Recent payments",
+    "noPayments": "No payments yet"
   },
   "alerts": {
     "subscriptionEnding": "Children's subscriptions ending",

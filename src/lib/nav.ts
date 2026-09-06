@@ -50,7 +50,10 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     key: "nav.groupFinance",
-    items: [{ href: "/statistics", key: "nav.statistics", permission: "finance.view" }],
+    items: [
+      { href: "/statistics", key: "nav.statistics", permission: "finance.view" },
+      { href: "/subscription", key: "nav.subscription", permission: null },
+    ],
   },
   {
     key: "nav.groupAdmin",

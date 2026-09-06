@@ -3,10 +3,12 @@ import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
 import { withNoStore } from "@/lib/auth-response";
 import { z } from "zod";
+import { replaceVariables } from "@/lib/utils";
+import { moneyNumber } from "@/lib/money";
 
 const patchSchema = z.object({ recipientId: z.string().min(1).optional() }).strict();
 
-export async function GET() {
+export async function GET(request: Request) {
   let session;
   try {
     session = await requireSession();
@@ -19,6 +21,22 @@ export async function GET() {
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
 
+  const school = await prisma.school.findUnique({
+    where: { id: schoolId },
+    select: {
+      name: true,
+      renewal_date: true,
+      subscription_plan: { select: { name: true, price: true, billing_interval: true } },
+    },
+  });
+  const locale = request.headers.get("accept-language")?.toLowerCase().startsWith("en") ? "en-GB" : "ar-SA-u-ca-gregory-nu-latn";
+  const variables = {
+    school_name: school?.name ?? session.user.schoolName,
+    plan_name: school?.subscription_plan?.billing_interval === "YEARLY" ? "سنوي" : school?.subscription_plan?.billing_interval === "MONTHLY" ? "شهري" : school?.subscription_plan?.name ?? "",
+    renewal_date: school?.renewal_date ? new Intl.DateTimeFormat(locale, { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" }).format(school.renewal_date) : "",
+    amount_due: school?.subscription_plan ? `${moneyNumber(school.subscription_plan.price)} ر.س` : "",
+  };
+
   const recipients = await prisma.adminMessageRecipient.findMany({
     where: { school_id: schoolId },
     include: { message: { select: { id: true, subject: true, body: true, sent_at: true } } },
@@ -30,16 +48,34 @@ export async function GET() {
     where: { school_id: schoolId, read_at: null, delivered_at: { not: null } },
   });
 
-  return withNoStore(Response.json({
-    unreadCount,
-    messages: recipients.map((r) => ({
+  const messages = recipients.map((r) => ({
       recipientId: r.id,
       messageId: r.message.id,
-      subject: r.message.subject,
-      preview: r.message.body.substring(0, 100),
+      subject: replaceVariables(r.message.subject, variables),
+      body: replaceVariables(r.message.body, variables),
       sent_at: r.message.sent_at,
       read_at: r.read_at,
-    })),
+      system: false,
+    }));
+
+  if (session.subscription.mode !== "active") {
+    const body = session.subscription.mode === "grace"
+      ? `انتهى الاشتراك. بقي ${session.subscription.graceDaysRemaining} يوم قبل انتقال الحساب إلى وضع القراءة فقط. يمكنك التجديد الآن دون فقد أي بيانات.`
+      : "الاشتراك غير نشط. يمكنك تصفح بيانات الحضانة، لكن تعديل البيانات متوقف حتى تجديد الاشتراك.";
+    messages.unshift({
+      recipientId: `subscription:${session.subscription.mode}`,
+      messageId: `subscription:${session.subscription.renewalDate ?? "none"}`,
+      subject: session.subscription.mode === "grace" ? "تنبيه مهلة تجديد الاشتراك" : "الحساب في وضع القراءة فقط",
+      body,
+      sent_at: new Date(),
+      read_at: null,
+      system: true,
+    });
+  }
+
+  return withNoStore(Response.json({
+    unreadCount: unreadCount + (session.subscription.mode === "active" ? 0 : 1),
+    messages,
   }));
 }
 

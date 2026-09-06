@@ -137,6 +137,13 @@ export async function PUT(
   if (!parsed.success) return Response.json({ error: "Invalid data" }, { status: 400 });
 
   const data = parsed.data;
+  if (data.plan_id) {
+    const selectablePlan = await prisma.subscriptionPlan.findFirst({
+      where: { id: data.plan_id, is_active: true, billing_interval: { in: ["MONTHLY", "YEARLY"] } },
+      select: { id: true },
+    });
+    if (!selectablePlan) return Response.json({ error: "الخطة غير متاحة" }, { status: 409 });
+  }
   const school = await prisma.school.update({
     where: { id },
     data: {

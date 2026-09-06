@@ -107,6 +107,18 @@ enum InvoiceType {
   TEACHER
 }
 
+enum SchoolBillingInterval {
+  MONTHLY
+  YEARLY
+}
+
+enum SchoolSubscriptionPaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  CANCELLED
+}
+
 enum InvoiceGenerationStatus {
   PENDING
   COMPLETED
@@ -818,10 +830,39 @@ model SubscriptionPlan {
   /// one sentinel across all three rather than three conventions.
   max_storage_mb         Int      @default(0)
   is_active              Boolean  @default(true)
+  /// Canonical platform plans. Null is retained for historical plans only.
+  billing_interval       SchoolBillingInterval? @unique
   created_at             DateTime @default(now())
   updated_at             DateTime @updatedAt
 
-  schools School[]
+  schools  School[]
+  payments SchoolSubscriptionPayment[]
+}
+
+model SchoolSubscriptionPayment {
+  id                  String                          @id @default(cuid())
+  school_id           String
+  plan_id             String
+  billing_interval    SchoolBillingInterval
+  amount              Decimal                         @db.Decimal(18, 2)
+  currency            String                          @default("SAR")
+  status              SchoolSubscriptionPaymentStatus @default(PENDING)
+  provider            String                          @default("moyasar")
+  provider_invoice_id String?                         @unique
+  checkout_url        String?
+  paid_at             DateTime?
+  period_start        DateTime?
+  period_end          DateTime?
+  failure_reason      String?
+  created_by_id       String?
+  created_at          DateTime                        @default(now())
+  updated_at          DateTime                        @updatedAt
+
+  school School           @relation(fields: [school_id], references: [id])
+  plan   SubscriptionPlan @relation(fields: [plan_id], references: [id])
+
+  @@index([school_id, created_at])
+  @@index([status, created_at])
 }
 
 model AdminMessage {
@@ -979,6 +1020,7 @@ model School {
   school_admin_invitations SchoolAdminInvitation[]
   activity_messages         ActivityMessage[]
   activity_message_recipients ActivityMessageRecipient[]
+  subscription_payments       SchoolSubscriptionPayment[]
 }
 
 model PaymentCycle {

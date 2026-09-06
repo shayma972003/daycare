@@ -4,6 +4,7 @@ import { sendEmail } from "@/lib/notifications";
 import { z } from "zod";
 import { mintInvite } from "@/lib/invitations";
 import { env } from "@/lib/env";
+import { ROLE_TEMPLATES } from "@/lib/permissions";
 
 export type SchoolAdminInvitationStatus =
   | "active"
@@ -135,6 +136,14 @@ export async function POST(request: Request) {
 
   const invitation = mintInvite();
 
+  if (planId) {
+    const selectablePlan = await prisma.subscriptionPlan.findFirst({
+      where: { id: planId, is_active: true, billing_interval: { in: ["MONTHLY", "YEARLY"] } },
+      select: { id: true },
+    });
+    if (!selectablePlan) return Response.json({ error: "الخطة غير متاحة" }, { status: 409 });
+  }
+
   let school: { id: string; name: string; userId: string };
   try {
     school = await prisma.$transaction(async (tx) => {
@@ -154,13 +163,29 @@ export async function POST(request: Request) {
         select: { id: true, name: true },
       });
 
+      await tx.role.createMany({
+        data: ROLE_TEMPLATES.map((role) => ({
+          schoolId: createdSchool.id,
+          key: role.key,
+          nameAr: role.nameAr,
+          permissions: role.permissions,
+          isSystem: true,
+        })),
+      });
+      const managerRole = await tx.role.findUnique({
+        where: { schoolId_key: { schoolId: createdSchool.id, key: "manager" } },
+        select: { id: true },
+      });
+      if (!managerRole) throw new Error("Manager role was not created");
+
       const createdUser = await tx.user.create({
         data: {
           name: schoolName,
           email,
           password: null,
           acceptedAt: null,
-          role: "admin",
+          role: "manager",
+          roleId: managerRole.id,
           schoolId: createdSchool.id,
         },
         select: { id: true },

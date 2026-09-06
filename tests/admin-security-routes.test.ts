@@ -14,6 +14,8 @@ const mocks = vi.hoisted(() => {
   const schoolAdminInvitationCreate = vi.fn();
   const schoolAdminInvitationUpdateMany = vi.fn();
   const adminActivityCreate = vi.fn();
+  const roleCreateMany = vi.fn();
+  const roleFindUnique = vi.fn();
   const superAdminUpdateMany = vi.fn();
   const transaction = vi.fn();
   const bcryptCompare = vi.fn();
@@ -36,6 +38,7 @@ const mocks = vi.hoisted(() => {
       updateMany: schoolAdminInvitationUpdateMany,
     },
     adminActivityLog: { create: adminActivityCreate },
+    role: { createMany: roleCreateMany, findUnique: roleFindUnique },
     superAdmin: { updateMany: superAdminUpdateMany },
   };
 
@@ -50,6 +53,8 @@ const mocks = vi.hoisted(() => {
     schoolAdminInvitationCreate,
     schoolAdminInvitationUpdateMany,
     adminActivityCreate,
+    roleCreateMany,
+    roleFindUnique,
     superAdminUpdateMany,
     transaction,
     bcryptCompare,
@@ -175,6 +180,8 @@ beforeEach(() => {
   mocks.schoolAdminInvitationCreate.mockResolvedValue({ id: "invite-1" });
   mocks.schoolAdminInvitationUpdateMany.mockResolvedValue({ count: 1 });
   mocks.adminActivityCreate.mockResolvedValue({ id: "log-1" });
+  mocks.roleCreateMany.mockResolvedValue({ count: 6 });
+  mocks.roleFindUnique.mockResolvedValue({ id: "manager-role-1" });
   mocks.superAdminUpdateMany.mockResolvedValue({ count: 1 });
   mocks.transaction.mockImplementation(
     async (operation: (tx: typeof mocks.tx) => Promise<unknown>) => operation(mocks.tx)
@@ -469,6 +476,8 @@ describe("admin school creation", () => {
         password: null,
         acceptedAt: null,
         schoolId: "school-1",
+        role: "manager",
+        roleId: "manager-role-1",
       }),
       select: { id: true },
     });

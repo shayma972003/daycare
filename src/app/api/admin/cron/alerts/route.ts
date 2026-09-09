@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { isAuthorizedCron, cronUnauthorized } from "@/lib/cron-auth";
 import { formatDate } from "@/lib/utils";
 import { schoolSubscriptionAccess } from "@/lib/school-subscription";
+import { isPlanLimitExceeded } from "@/lib/plan-limits";
 
 export async function GET(request: Request) {
   if (!isAuthorizedCron(request)) return cronUnauthorized();
@@ -21,6 +22,39 @@ export async function GET(request: Request) {
     }),
   ]);
 
+  // Subscription state must not depend on whether an "expired" message rule is
+  // enabled. Access already derives from the date; this persists the same state
+  // once per school so the Super Admin lists and automated audiences agree.
+  const newlyExpired = schools.filter(
+    (school) =>
+      ["active", "trial"].includes(school.subscription_status) &&
+      schoolSubscriptionAccess(school, now).mode !== "active"
+  );
+  if (newlyExpired.length > 0) {
+    for (const school of newlyExpired) {
+      await prisma.$transaction(async (tx) => {
+        const changed = await tx.school.updateMany({
+          where: {
+            id: school.id,
+            subscription_status: { in: ["active", "trial"] },
+          },
+          data: { subscription_status: "expired" },
+        });
+        if (changed.count === 1) {
+          await tx.adminActivityLog.create({
+            data: {
+              school_id: school.id,
+              action: "subscription_expired_automatically",
+              performed_by: "system",
+              metadata: { renewalDate: schoolSubscriptionAccess(school, now).renewalDate },
+            },
+          });
+        }
+      });
+    }
+    for (const school of newlyExpired) school.subscription_status = "expired";
+  }
+
   const results: string[] = [];
 
   for (const rule of rules) {
@@ -28,7 +62,10 @@ export async function GET(request: Request) {
       let shouldSend = false;
       let messageBody = rule.message_template
         .replace(/<school_name>/g, school.name)
-        .replace(/<plan_name>/g, school.subscription_plan?.name ?? "")
+        .replace(
+          /<plan_name>/g,
+          school.subscription_plan?.name ?? (school.plan_id ? "" : "التجريبية")
+        )
         // Through `formatDate`, not `toLocaleDateString`: this runs on Vercel,
         // whose host clock is UTC, so an unqualified format names the previous
         // day for every renewal after 21:00 Riyadh — in a message telling a
@@ -56,7 +93,10 @@ export async function GET(request: Request) {
             : "\n\nالحساب الآن في وضع القراءة فقط حتى يتم تجديد الاشتراك.";
         }
       } else if (rule.trigger_type === "plan_limit") {
-        shouldSend = !!(school.subscription_plan && school._count.students > school.subscription_plan.max_students);
+        shouldSend = !!(
+          school.subscription_plan &&
+          isPlanLimitExceeded(school._count.students, school.subscription_plan.max_students)
+        );
       }
 
       if (!shouldSend) continue;
@@ -70,11 +110,6 @@ export async function GET(request: Request) {
         },
       });
       if (recentRecipient) continue;
-
-      // Mark expired
-      if (rule.trigger_type === "expired") {
-        await prisma.school.update({ where: { id: school.id }, data: { subscription_status: "expired" } });
-      }
 
       const message = await prisma.adminMessage.create({
         data: {

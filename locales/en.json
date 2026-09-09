@@ -1715,6 +1715,16 @@
     "createdSentBody": "A secure link was emailed so the administrator can choose a password.",
     "createdDisabledBody": "The account and invitation were saved without contacting an email provider. Enable delivery later, then use Resend invitation.",
     "createdFailedBody": "The account is saved and awaiting activation. Use Resend invitation to try again.",
+    "emailFailureReasons": {
+      "not_configured": "Email configuration is incomplete in Vercel. Check delivery, the sender address, and provider key, then resend the invitation.",
+      "authentication_failed": "The email provider rejected authentication. Check the Resend API key, redeploy, then resend the invitation.",
+      "provider_rejected": "The email provider rejected the message. The most common cause is an unverified FROM_EMAIL address or domain in Resend.",
+      "rate_limited": "The email provider temporarily limited sending. Wait briefly, then resend the invitation.",
+      "provider_unavailable": "The email provider is temporarily unavailable. The account and invitation are saved; resend later.",
+      "tls_failed": "The secure connection to the email provider failed. Review the SMTP TLS settings, then try again.",
+      "connection_failed": "The email provider could not be reached. Check provider and network settings, then try again.",
+      "unknown": "The account and invitation are saved, but email delivery failed. Review the Vercel log, then resend."
+    },
     "schoolLabel": "Nursery",
     "emailLabel": "Email",
     "close": "Close",

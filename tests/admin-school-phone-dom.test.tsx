@@ -32,7 +32,9 @@ function schoolDetail(contactNumber: string, phoneNumber: string) {
       email: "school@example.invalid",
       plan_id: null,
       plan: null,
+      subscription_type: "UNASSIGNED",
       subscription_status: "active",
+      access_mode: "active",
       renewal_date: null,
       suspended_at: null,
       suspension_reason: null,
@@ -101,8 +103,53 @@ describe("Super Admin school phone fields", () => {
         phoneNumber: "+966522222222",
       })
     ));
+    const genericPayload = mocks.put.mock.calls.find(([url]) => url === "/api/admin/schools/school-1")?.[1];
+    expect(genericPayload).not.toHaveProperty("plan_id");
+    expect(genericPayload).not.toHaveProperty("renewal_date");
+    expect(genericPayload).not.toHaveProperty("subscription_status");
     await waitFor(() => expect(screen.getByText("+966511111111")).toBeTruthy());
     expect(screen.getByText("+966522222222")).toBeTruthy();
     expect(mocks.get.mock.calls.filter(([url]) => url === "/api/admin/schools/school-1")).toHaveLength(2);
+  });
+
+  it("changes the subscription through the dedicated automatic lifecycle action", async () => {
+    const unassigned = schoolDetail("+966500000001", "+966500000002");
+    const monthly = {
+      ...unassigned,
+      school: {
+        ...unassigned.school,
+        subscription_type: "MONTHLY" as const,
+        subscription_status: "active",
+        renewal_date: "2026-10-06T00:00:00.000Z",
+        plan: {
+          id: "monthly-plan",
+          name: "الاشتراك الشهري",
+          price: 299,
+          billing_interval: "MONTHLY" as const,
+        },
+      },
+    };
+    let schoolReads = 0;
+    mocks.get.mockImplementation((url: string) => {
+      if (url === "/api/admin/schools/school-1") {
+        schoolReads += 1;
+        return Promise.resolve({ data: schoolReads === 1 ? unassigned : monthly });
+      }
+      if (url === "/api/admin/invoices/school-1") return Promise.resolve({ data: [] });
+      return Promise.reject(new Error(`Unexpected GET ${url}`));
+    });
+    mocks.put.mockResolvedValue({ data: monthly.school });
+
+    render(<SchoolDetailPage />);
+    expect(await screen.findByText(/سجل قديم بلا نوع اشتراك/)).toBeTruthy();
+    await userEvent.selectOptions(screen.getByLabelText("نوع الاشتراك"), "MONTHLY");
+    await userEvent.click(screen.getByRole("button", { name: "تطبيق النوع وتحديث المدة" }));
+
+    await waitFor(() => expect(mocks.put).toHaveBeenCalledWith(
+      "/api/admin/subscriptions/school-1",
+      { action: "change_type", subscription_type: "MONTHLY" }
+    ));
+    await waitFor(() => expect(screen.getAllByText("شهري — 299 ر.س").length).toBeGreaterThan(0));
+    await waitFor(() => expect(screen.queryByText(/سجل قديم بلا نوع اشتراك/)).toBeNull());
   });
 });

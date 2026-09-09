@@ -465,6 +465,10 @@ describe("admin school creation", () => {
       expect.objectContaining({
         data: expect.objectContaining({
           name: "Test School",
+          plan_id: null,
+          subscription_status: "trial",
+          renewal_date: expect.any(Date),
+          createdAt: expect.any(Date),
           email: "school.admin@example.com",
         }),
         select: { id: true, name: true },
@@ -493,16 +497,20 @@ describe("admin school creation", () => {
       data: expect.objectContaining({
         school_id: "school-1",
         action: "school_created",
-        metadata: {
+        metadata: expect.objectContaining({
           email: "school.admin@example.com",
           userId: "user-1",
           adminId: ADMIN_ID,
-        },
+          subscriptionType: "TRIAL",
+          renewalDate: expect.any(Date),
+        }),
       }),
     });
     expect(mocks.sendEmail).toHaveBeenCalledTimes(1);
     expect(result.emailDelivery).toBe("sent");
     expect(result.invitationStatus).toBe("pending");
+    expect(result.subscriptionStatus).toBe("trial");
+    expect(new Date(result.renewalDate).getTime()).toBeGreaterThan(Date.now());
     expect(result).not.toHaveProperty("tempPassword");
     expect(result).not.toHaveProperty("token");
     expect(result).not.toHaveProperty("tokenHash");
@@ -555,7 +563,10 @@ describe("admin school creation", () => {
     mocks.sendEmail.mockResolvedValue({
       success: false,
       status: "failed",
-      error: "provider unavailable",
+      error: "Email delivery failed",
+      reason: "provider_unavailable",
+      provider: "resend",
+      providerStatus: 503,
     });
 
     const response = await createSchool(
@@ -565,6 +576,7 @@ describe("admin school creation", () => {
 
     expect(response.status).toBe(207);
     expect(result.emailDelivery).toBe("failed");
+    expect(result.emailDeliveryReason).toBe("provider_unavailable");
     const emailBody = String(mocks.sendEmail.mock.calls[0][2]);
     const token = emailBody.match(/\/activate\/([A-Za-z0-9_-]+)/)?.[1];
     const tokenHash = mocks.schoolAdminInvitationCreate.mock.calls[0][0].data.tokenHash;
@@ -693,7 +705,10 @@ describe("admin school invitation rotation", () => {
     mocks.sendEmail.mockResolvedValueOnce({
       success: false,
       status: "failed",
-      error: "provider unavailable",
+      error: "Email delivery failed",
+      reason: "provider_unavailable",
+      provider: "resend",
+      providerStatus: 503,
     });
 
     const response = await resendSchoolInvite(
@@ -703,7 +718,11 @@ describe("admin school invitation rotation", () => {
     const result = await response.json();
 
     expect(response.status).toBe(207);
-    expect(result).toEqual({ invitationStatus: "pending", emailDelivery: "failed" });
+    expect(result).toEqual({
+      invitationStatus: "pending",
+      emailDelivery: "failed",
+      emailDeliveryReason: "provider_unavailable",
+    });
     expect(mocks.schoolAdminInvitationCreate).toHaveBeenCalledTimes(1);
   });
 

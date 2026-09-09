@@ -1,6 +1,7 @@
 import { verifyAdminSessionFromRequest } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
 import { moneyNumber } from "@/lib/money";
+import { schoolSubscriptionAccess, schoolSubscriptionType } from "@/lib/school-subscription";
 
 export async function GET(request: Request) {
   const session = await verifyAdminSessionFromRequest(request);
@@ -33,17 +34,23 @@ export async function GET(request: Request) {
   }
 
   return Response.json({
-    schools: schools.map((s) => ({
-      id: s.id,
-      name: s.name,
-      plan: s.subscription_plan,
-      subscription_status: s.subscription_status,
-      renewal_date: s.renewal_date,
-      studentCount: s._count.students,
-      daysUntilRenewal: s.renewal_date
-        ? Math.ceil((s.renewal_date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-        : null,
-    })),
+    schools: schools.map((s) => {
+      const access = schoolSubscriptionAccess(s, now);
+      const renewalDate = access.renewalDate ? new Date(access.renewalDate) : null;
+      return {
+        id: s.id,
+        name: s.name,
+        plan: s.subscription_plan,
+        subscription_type: schoolSubscriptionType(s),
+        subscription_status: access.mode === "active" ? s.subscription_status : access.reason,
+        access_mode: access.mode,
+        renewal_date: access.renewalDate,
+        studentCount: s._count.students,
+        daysUntilRenewal: renewalDate
+          ? Math.ceil((renewalDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+          : null,
+      };
+    }),
     mrr,
   });
 }

@@ -18,6 +18,11 @@ export class PlanLimitError extends Error {
   }
 }
 
+/** Zero (and legacy negative values) mean unlimited across every plan screen. */
+export function isPlanLimitExceeded(current: number, maximum: number): boolean {
+  return maximum > 0 && current > maximum;
+}
+
 async function planFor(schoolId: string) {
   const school = await prisma.school.findUnique({
     where: { id: schoolId },
@@ -36,7 +41,7 @@ export async function assertStudentCapacity(schoolId: string, adding = 1): Promi
     where: { schoolId, deletedAt: null, isActive: true },
   });
 
-  if (current + adding > plan.max_students) {
+  if (isPlanLimitExceeded(current + adding, plan.max_students)) {
     throw new PlanLimitError(
       `خطة "${plan.name}" تسمح بـ${plan.max_students} طفلاً كحد أقصى (الحالي: ${current}). يرجى ترقية الخطة.`
     );
@@ -49,7 +54,7 @@ export async function assertClassCapacity(schoolId: string, adding = 1): Promise
 
   const current = await prisma.class.count({ where: { schoolId, deletedAt: null } });
 
-  if (current + adding > plan.max_classes) {
+  if (isPlanLimitExceeded(current + adding, plan.max_classes)) {
     throw new PlanLimitError(
       `خطة "${plan.name}" تسمح بـ${plan.max_classes} فصلاً كحد أقصى (الحالي: ${current}). يرجى ترقية الخطة.`
     );

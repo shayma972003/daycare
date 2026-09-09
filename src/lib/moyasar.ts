@@ -97,6 +97,11 @@ export async function verifyAndApplyMoyasarInvoice(providerInvoiceId: string) {
     if (!current) throw new Error("PAYMENT_NOT_FOUND");
     if (current.status === "PAID") return { applied: false, status: "paid" };
 
+    await tx.$queryRaw(Prisma.sql`
+      SELECT "id" FROM "School"
+      WHERE "id" = ${current.school_id}
+      FOR UPDATE
+    `);
     const school = await tx.school.findUnique({ where: { id: current.school_id }, select: { renewal_date: true } });
     if (!school) throw new Error("SCHOOL_NOT_FOUND");
     const now = new Date();

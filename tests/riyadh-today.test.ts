@@ -27,12 +27,18 @@ describe("Riyadh local today", () => {
   });
 
   it.each([
-    "src/app/(dashboard)/care/page.tsx",
     "src/components/attendance/AttendanceDonut.tsx",
     "src/app/(dashboard)/teachers/new/page.tsx",
     "src/components/admin/AdminInvoiceModal.tsx",
   ])("uses the shared Riyadh helper in %s", (path) => {
     expect(source(path)).toContain("astDateInputValue");
     expect(source(path)).not.toContain("new Date().toISOString().slice(0, 10)");
+  });
+
+  it("uses the device-local date for the daily care workflow", () => {
+    const carePage = source("src/app/(dashboard)/care/page.tsx");
+    expect(carePage).toContain("deviceDateInputValue");
+    expect(carePage).not.toContain("astDateInputValue");
+    expect(carePage).not.toContain("new Date().toISOString().slice(0, 10)");
   });
 });

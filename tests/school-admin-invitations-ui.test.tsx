@@ -152,6 +152,8 @@ describe("school administrator invitation UI", () => {
           email: "owner@example.test",
           invitationStatus: "pending",
           emailDelivery,
+          subscriptionStatus: "trial",
+          renewalDate: "2026-09-11T00:00:00.000Z",
         },
       });
       render(inEnglish(<AdminSchoolsPage />));
@@ -170,6 +172,29 @@ describe("school administrator invitation UI", () => {
       );
     }
   );
+
+  it("shows an actionable safe reason when Resend rejects the invitation", async () => {
+    const user = userEvent.setup();
+    axiosMocks.post.mockResolvedValueOnce({
+      status: 207,
+      data: {
+        id: "school-new",
+        name: "Safe nursery",
+        email: "owner@example.test",
+        invitationStatus: "pending",
+        emailDelivery: "failed",
+        emailDeliveryReason: "provider_rejected",
+        subscriptionStatus: "trial",
+        renewalDate: "2026-09-11T00:00:00.000Z",
+      },
+    });
+    render(inEnglish(<AdminSchoolsPage />));
+
+    await user.click(screen.getByRole("button", { name: /Create an account/ }));
+    await user.click(await reachCreateAction(user));
+
+    expect(await screen.findByText(/unverified FROM_EMAIL address or domain in Resend/i)).not.toBeNull();
+  });
 
   it("shows the duplicate-email response without exposing credentials", async () => {
     const user = userEvent.setup();
@@ -226,6 +251,8 @@ describe("school administrator invitation UI", () => {
           email: "owner@example.test",
           invitationStatus: "pending",
           emailDelivery: "sent",
+          subscriptionStatus: "trial",
+          renewalDate: "2026-09-11T00:00:00.000Z",
         },
       });
       await pendingCreate;

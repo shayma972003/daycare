@@ -1,6 +1,7 @@
 import { verifyAdminSessionFromRequest } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { schoolSubscriptionAccess, schoolSubscriptionType } from "@/lib/school-subscription";
 
 export async function GET(
   request: Request,
@@ -28,6 +29,7 @@ export async function GET(
   });
 
   if (!school) return Response.json({ error: "Not found" }, { status: 404 });
+  const subscriptionAccess = schoolSubscriptionAccess(school);
 
   const [activityLogs, messages] = await Promise.all([
     prisma.adminActivityLog.findMany({
@@ -50,12 +52,15 @@ export async function GET(
       email: school.email,
       plan_id: school.plan_id,
       plan: school.subscription_plan,
-      subscription_status: school.subscription_status,
-      renewal_date: school.renewal_date,
+      subscription_type: schoolSubscriptionType(school),
+      subscription_status: subscriptionAccess.mode === "active" ? school.subscription_status : subscriptionAccess.reason,
+      access_mode: subscriptionAccess.mode,
+      renewal_date: subscriptionAccess.renewalDate,
       suspended_at: school.suspended_at,
       suspension_reason: school.suspension_reason,
       last_login_at: school.last_login_at,
       createdAt: school.createdAt,
+      updatedAt: school.updatedAt,
       contactNumber: school.contactNumber,
       phoneNumber: school.phoneNumber,
       legalName: school.legalName,
@@ -95,11 +100,9 @@ export async function GET(
 }
 
 const updateSchema = z.object({
+  expectedUpdatedAt: z.iso.datetime(),
   name: z.string().min(1).optional(),
   email: z.string().email().nullish(),
-  plan_id: z.string().nullish(),
-  renewal_date: z.string().nullish(),
-  subscription_status: z.string().optional(),
 
   contactNumber: z.string().nullish(),
   phoneNumber: z.string().nullish(),
@@ -136,45 +139,48 @@ export async function PUT(
   const parsed = updateSchema.safeParse(body);
   if (!parsed.success) return Response.json({ error: "Invalid data" }, { status: 400 });
 
-  const data = parsed.data;
-  if (data.plan_id) {
-    const selectablePlan = await prisma.subscriptionPlan.findFirst({
-      where: { id: data.plan_id, is_active: true, billing_interval: { in: ["MONTHLY", "YEARLY"] } },
-      select: { id: true },
-    });
-    if (!selectablePlan) return Response.json({ error: "الخطة غير متاحة" }, { status: 409 });
-  }
-  const school = await prisma.school.update({
-    where: { id },
-    data: {
-      ...(data.name && { name: data.name }),
-      ...(data.email !== undefined && { email: data.email }),
-      ...(data.plan_id !== undefined && { plan_id: data.plan_id }),
-      ...(data.renewal_date !== undefined && { renewal_date: data.renewal_date ? new Date(data.renewal_date) : null }),
-      ...(data.subscription_status && { subscription_status: data.subscription_status }),
-      ...(data.contactNumber !== undefined && { contactNumber: data.contactNumber }),
-      ...(data.phoneNumber !== undefined && { phoneNumber: data.phoneNumber }),
-      ...(data.legalName !== undefined && { legalName: data.legalName }),
-      ...(data.commercialRegistration !== undefined && { commercialRegistration: data.commercialRegistration }),
-      ...(data.nationalUnifiedNumber !== undefined && { nationalUnifiedNumber: data.nationalUnifiedNumber }),
-      ...(data.entityType !== undefined && { entityType: data.entityType }),
-      ...(data.businessActivities !== undefined && { businessActivities: data.businessActivities }),
-      ...(data.schoolType !== undefined && { schoolType: data.schoolType }),
-      ...(data.educationStages !== undefined && { educationStages: data.educationStages }),
-      ...(data.licenseNumber !== undefined && { licenseNumber: data.licenseNumber }),
-      ...(data.branch !== undefined && { branch: data.branch }),
-      ...(data.address !== undefined && { address: data.address }),
-      ...(data.vatRegistered !== undefined && { vatRegistered: data.vatRegistered }),
-      ...(data.vatNumber !== undefined && { vatNumber: data.vatNumber }),
-      ...(data.zatcaUnifiedNumber !== undefined && { zatcaUnifiedNumber: data.zatcaUnifiedNumber }),
-      ...(data.zakatStatus !== undefined && { zakatStatus: data.zakatStatus }),
-      ...(data.financialYear !== undefined && { financialYear: data.financialYear }),
-      ...(data.taxPeriod !== undefined && { taxPeriod: data.taxPeriod }),
-    },
+  const { expectedUpdatedAt, ...data } = parsed.data;
+  const updateData = {
+    ...(data.name && { name: data.name }),
+    ...(data.email !== undefined && { email: data.email }),
+    ...(data.contactNumber !== undefined && { contactNumber: data.contactNumber }),
+    ...(data.phoneNumber !== undefined && { phoneNumber: data.phoneNumber }),
+    ...(data.legalName !== undefined && { legalName: data.legalName }),
+    ...(data.commercialRegistration !== undefined && { commercialRegistration: data.commercialRegistration }),
+    ...(data.nationalUnifiedNumber !== undefined && { nationalUnifiedNumber: data.nationalUnifiedNumber }),
+    ...(data.entityType !== undefined && { entityType: data.entityType }),
+    ...(data.businessActivities !== undefined && { businessActivities: data.businessActivities }),
+    ...(data.schoolType !== undefined && { schoolType: data.schoolType }),
+    ...(data.educationStages !== undefined && { educationStages: data.educationStages }),
+    ...(data.licenseNumber !== undefined && { licenseNumber: data.licenseNumber }),
+    ...(data.branch !== undefined && { branch: data.branch }),
+    ...(data.address !== undefined && { address: data.address }),
+    ...(data.vatRegistered !== undefined && { vatRegistered: data.vatRegistered }),
+    ...(data.vatNumber !== undefined && { vatNumber: data.vatNumber }),
+    ...(data.zatcaUnifiedNumber !== undefined && { zatcaUnifiedNumber: data.zatcaUnifiedNumber }),
+    ...(data.zakatStatus !== undefined && { zakatStatus: data.zakatStatus }),
+    ...(data.financialYear !== undefined && { financialYear: data.financialYear }),
+    ...(data.taxPeriod !== undefined && { taxPeriod: data.taxPeriod }),
+  };
+  const claimed = await prisma.school.updateMany({
+    where: { id, updatedAt: new Date(expectedUpdatedAt) },
+    data: updateData,
   });
+  if (claimed.count !== 1) {
+    const exists = await prisma.school.findUnique({ where: { id }, select: { id: true } });
+    return Response.json(exists
+      ? { error: "تم تعديل بيانات المدرسة من جلسة أخرى. أعيدي تحميل الصفحة قبل الحفظ.", code: "STALE_RECORD" }
+      : { error: "Not found" }, { status: exists ? 409 : 404 });
+  }
+  const school = await prisma.school.findUniqueOrThrow({ where: { id } });
 
   await prisma.adminActivityLog.create({
-    data: { school_id: id, action: "plan_changed", metadata: data, performed_by: "admin" },
+    data: {
+      school_id: id,
+      action: "school_updated",
+      metadata: { changedFields: Object.keys(updateData) },
+      performed_by: "super_admin",
+    },
   });
 
   return Response.json(school);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import axios from "axios";
 import { describeApiError } from "@/lib/api-error";
@@ -13,13 +13,16 @@ interface SchoolDetail {
     name: string;
     email: string | null;
     plan_id: string | null;
-    plan: { id: string; name: string; price: number } | null;
+    plan: { id: string; name: string; price: number; billing_interval: "MONTHLY" | "YEARLY" | null } | null;
+    subscription_type: SubscriptionType | "UNASSIGNED";
     subscription_status: string;
+    access_mode: "active" | "grace" | "locked";
     renewal_date: string | null;
     suspended_at: string | null;
     suspension_reason: string | null;
     last_login_at: string | null;
     createdAt: string;
+    updatedAt: string;
     contactNumber: string | null;
     phoneNumber: string | null;
     legalName: string | null;
@@ -44,7 +47,7 @@ interface SchoolDetail {
   messages: { id: string; subject: string; sent_at: string | null; is_automated: boolean; delivered_at: string | null; read_at: string | null }[];
 }
 
-interface Plan { id: string; name: string; price: number; billing_interval: "MONTHLY" | "YEARLY" }
+type SubscriptionType = "TRIAL" | "MONTHLY" | "YEARLY";
 
 interface AdminInvoice {
   id: string;
@@ -59,6 +62,12 @@ interface AdminInvoice {
 const STATUS_LABELS: Record<string, string> = {
   active: "نشط", suspended: "موقوف", expired: "منتهٍ", trial: "تجريبي",
 };
+const SUBSCRIPTION_TYPE_LABELS: Record<SubscriptionType | "UNASSIGNED", string> = {
+  TRIAL: "تجريبي — شهر واحد",
+  MONTHLY: "شهري — 299 ر.س",
+  YEARLY: "سنوي — 2990 ر.س",
+  UNASSIGNED: "غير محدد",
+};
 
 const EDUCATION_STAGE_OPTIONS = ["حضانة", "تمهيدي", "رياض أطفال", "ابتدائي"];
 const ENTITY_TYPE_OPTIONS = ["مؤسسة فردية", "شركة ذات مسؤولية محدودة", "شركة مساهمة", "شركة تضامن", "أخرى"];
@@ -69,16 +78,15 @@ export default function SchoolDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [data, setData] = useState<SchoolDetail | null>(null);
-  const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
+  const [subscriptionType, setSubscriptionType] = useState<SubscriptionType>("TRIAL");
+  const [subscriptionSaving, setSubscriptionSaving] = useState(false);
+  const [identitySaving, setIdentitySaving] = useState(false);
 
   // Edit form state
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState("");
   const [editEmail, setEditEmail] = useState("");
-  const [editPlanId, setEditPlanId] = useState("");
-  const [editRenewal, setEditRenewal] = useState("");
-  const [editStatus, setEditStatus] = useState("");
   const [editContactNumber, setEditContactNumber] = useState("");
   const [editPhoneNumber, setEditPhoneNumber] = useState("");
   const [editLegalName, setEditLegalName] = useState("");
@@ -143,19 +151,12 @@ export default function SchoolDetailPage() {
     document.body.removeChild(link);
   }
 
-  useEffect(() => {
-    Promise.all([
-      axios.get<SchoolDetail>(`/api/admin/schools/${id}`),
-      axios.get<Plan[]>("/api/admin/plans"),
-    ]).then(([schoolRes, plansRes]) => {
-      setData(schoolRes.data);
-      setPlans(plansRes.data);
-      const s = schoolRes.data.school;
+  const applySchoolResponse = useCallback((schoolData: SchoolDetail) => {
+      setData(schoolData);
+      const s = schoolData.school;
       setEditName(s.name);
       setEditEmail(s.email ?? "");
-      setEditPlanId(s.plan_id ?? "");
-      setEditRenewal(s.renewal_date ? s.renewal_date.substring(0, 10) : "");
-      setEditStatus(s.subscription_status);
+      setSubscriptionType(s.subscription_type === "UNASSIGNED" ? "TRIAL" : s.subscription_type);
       setEditContactNumber(s.contactNumber ?? "");
       setEditPhoneNumber(s.phoneNumber ?? "");
       setEditLegalName(s.legalName ?? "");
@@ -174,40 +175,91 @@ export default function SchoolDetailPage() {
       setEditZakatStatus((s.zakatStatus as "" | "yes" | "no" | "needs_review") ?? "");
       setEditFinancialYear(s.financialYear ?? "");
       setEditTaxPeriod(s.taxPeriod ?? "");
-    })
-      .catch((err) => setActionError(describeApiError(err, "فشل تحميل بيانات المدرسة")))
-      .finally(() => setLoading(false));
-  }, [id]);
+  }, []);
+
+  async function retryLoadSchool() {
+    setLoading(true);
+    setActionError(null);
+    try {
+      const schoolRes = await axios.get<SchoolDetail>(`/api/admin/schools/${id}`);
+      applySchoolResponse(schoolRes.data);
+    } catch (err) {
+      setData(null);
+      setActionError(describeApiError(err, "فشل تحميل بيانات المدرسة"));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    let active = true;
+    axios.get<SchoolDetail>(`/api/admin/schools/${id}`)
+      .then((schoolRes) => {
+        if (active) applySchoolResponse(schoolRes.data);
+      })
+      .catch((err) => {
+        if (active) setActionError(describeApiError(err, "فشل تحميل بيانات المدرسة"));
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [applySchoolResponse, id]);
 
   async function handleSave() {
-    await axios.put(`/api/admin/schools/${id}`, {
-      name: editName,
-      email: editEmail || null,
-      plan_id: editPlanId || null,
-      renewal_date: editRenewal || null,
-      subscription_status: editStatus,
-      contactNumber: editContactNumber || null,
-      phoneNumber: editPhoneNumber || null,
-      legalName: editLegalName || null,
-      commercialRegistration: editCommercialRegistration || null,
-      nationalUnifiedNumber: editNationalUnifiedNumber || null,
-      entityType: editEntityType || null,
-      businessActivities: editBusinessActivities || null,
-      schoolType: editSchoolType || null,
-      educationStages: editEducationStages,
-      licenseNumber: editLicenseNumber || null,
-      branch: editBranch || null,
-      address: editAddress || null,
-      vatRegistered: editVatRegistered ? editVatRegistered === "yes" : null,
-      vatNumber: editVatNumber || null,
-      zatcaUnifiedNumber: editZatcaUnifiedNumber || null,
-      zakatStatus: editZakatStatus || null,
-      financialYear: editFinancialYear || null,
-      taxPeriod: editTaxPeriod || null,
-    });
-    const res = await axios.get<SchoolDetail>(`/api/admin/schools/${id}`);
-    setData(res.data);
-    setEditing(false);
+    if (identitySaving || !data) return;
+    setIdentitySaving(true);
+    setActionError(null);
+    try {
+      await axios.put(`/api/admin/schools/${id}`, {
+        expectedUpdatedAt: data.school.updatedAt,
+        name: editName,
+        email: editEmail || null,
+        contactNumber: editContactNumber || null,
+        phoneNumber: editPhoneNumber || null,
+        legalName: editLegalName || null,
+        commercialRegistration: editCommercialRegistration || null,
+        nationalUnifiedNumber: editNationalUnifiedNumber || null,
+        entityType: editEntityType || null,
+        businessActivities: editBusinessActivities || null,
+        schoolType: editSchoolType || null,
+        educationStages: editEducationStages,
+        licenseNumber: editLicenseNumber || null,
+        branch: editBranch || null,
+        address: editAddress || null,
+        vatRegistered: editVatRegistered ? editVatRegistered === "yes" : null,
+        vatNumber: editVatNumber || null,
+        zatcaUnifiedNumber: editZatcaUnifiedNumber || null,
+        zakatStatus: editZakatStatus || null,
+        financialYear: editFinancialYear || null,
+        taxPeriod: editTaxPeriod || null,
+      });
+      const res = await axios.get<SchoolDetail>(`/api/admin/schools/${id}`);
+      setData(res.data);
+      setEditing(false);
+    } catch (error) {
+      setActionError(describeApiError(error, "تعذر حفظ بيانات المدرسة"));
+    } finally {
+      setIdentitySaving(false);
+    }
+  }
+
+  async function handleChangeSubscriptionType() {
+    setSubscriptionSaving(true);
+    try {
+      await axios.put(`/api/admin/subscriptions/${id}`, {
+        action: "change_type",
+        subscription_type: subscriptionType,
+      });
+      const res = await axios.get<SchoolDetail>(`/api/admin/schools/${id}`);
+      setData(res.data);
+      const nextType = res.data.school.subscription_type;
+      setSubscriptionType(nextType === "UNASSIGNED" ? "TRIAL" : nextType);
+    } finally {
+      setSubscriptionSaving(false);
+    }
   }
 
   async function handleSuspend() {
@@ -250,6 +302,7 @@ export default function SchoolDetailPage() {
   const onSuspend = guard(handleSuspend, "تعذر تعليق المدرسة");
   const onReactivate = guard(handleReactivate, "تعذر إعادة التفعيل");
   const onDelete = guard(handleDelete, "تعذر حذف المدرسة");
+  const onChangeSubscriptionType = guard(handleChangeSubscriptionType, "تعذر تغيير نوع الاشتراك");
 
   if (loading) return <div className="p-8 text-gray-400 text-sm">جاري التحميل...</div>;
   if (!data) {
@@ -257,9 +310,16 @@ export default function SchoolDetailPage() {
       <div className="p-8">
         <div
           role="alert"
-          className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-sm text-red-300"
+          className="p-5 bg-red-500/10 border border-red-500/30 rounded-xl text-sm text-red-300"
         >
-          {actionError ?? "تعذر تحميل بيانات المدرسة"}
+          <p>{actionError ?? "تعذر تحميل بيانات المدرسة"}</p>
+          <button
+            type="button"
+            onClick={() => void retryLoadSchool()}
+            className="mt-4 rounded-lg bg-white/10 px-4 py-2 text-xs font-semibold text-white hover:bg-white/15"
+          >
+            إعادة المحاولة
+          </button>
         </div>
       </div>
     );
@@ -293,6 +353,41 @@ export default function SchoolDetailPage() {
         </div>
       </div>
 
+      <section className="grid gap-4 rounded-2xl border border-indigo-500/20 bg-[#1e1e2e] p-5 md:grid-cols-[1fr_auto] md:items-end">
+        <div>
+          <h2 className="font-bold text-white">إدارة اشتراك المدرسة</h2>
+          <p className="mt-1 text-xs leading-6 text-gray-400">
+            اختيار النوع يحدّث الخطة والحالة وتاريخ الانتهاء تلقائيًا من اليوم. التجربة مدتها شهر تقويمي، وبعد الانتهاء توجد مهلة 7 أيام قبل وضع القراءة فقط.
+          </p>
+          <label className="mt-4 block max-w-md text-xs text-gray-400">
+            نوع الاشتراك
+            <select
+              aria-label="نوع الاشتراك"
+              value={subscriptionType}
+              onChange={(event) => setSubscriptionType(event.target.value as SubscriptionType)}
+              className="input-admin mt-1 w-full"
+            >
+              <option value="TRIAL">{SUBSCRIPTION_TYPE_LABELS.TRIAL}</option>
+              <option value="MONTHLY">{SUBSCRIPTION_TYPE_LABELS.MONTHLY}</option>
+              <option value="YEARLY">{SUBSCRIPTION_TYPE_LABELS.YEARLY}</option>
+            </select>
+          </label>
+          {school.subscription_type === "UNASSIGNED" && (
+            <p role="status" className="mt-2 text-xs text-amber-300">
+              هذا سجل قديم بلا نوع اشتراك. اختاري النوع الصحيح لتثبيت حالته وتاريخه.
+            </p>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={onChangeSubscriptionType}
+          disabled={subscriptionSaving}
+          className="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {subscriptionSaving ? "جاري التحديث..." : "تطبيق النوع وتحديث المدة"}
+        </button>
+      </section>
+
       <Tabs.Root defaultValue="info">
         <Tabs.List className="flex gap-1 bg-[#1e1e2e] p-1 rounded-xl w-fit border border-white/5 mb-6">
           {[
@@ -320,19 +415,6 @@ export default function SchoolDetailPage() {
                 <Field label="البريد الإلكتروني"><input value={editEmail} onChange={(e) => setEditEmail(e.target.value)} className="input-admin" /></Field>
                 <Field label="رقم التواصل الإداري"><input aria-label="رقم التواصل الإداري" value={editContactNumber} onChange={(e) => setEditContactNumber(e.target.value)} dir="ltr" className="input-admin" /></Field>
                 <Field label="رقم هاتف الحضانة"><input aria-label="رقم هاتف الحضانة" value={editPhoneNumber} onChange={(e) => setEditPhoneNumber(e.target.value)} dir="ltr" className="input-admin" /></Field>
-                <Field label="الخطة">
-                  <select value={editPlanId} onChange={(e) => setEditPlanId(e.target.value)} className="input-admin">
-                    <option value="">بدون خطة</option>
-                    {plans.map((p) => <option key={p.id} value={p.id}>{p.billing_interval === "MONTHLY" ? "شهري" : "سنوي"} — {p.price} ر.س</option>)}
-                  </select>
-                </Field>
-                <Field label="تاريخ التجديد"><input type="date" value={editRenewal} onChange={(e) => setEditRenewal(e.target.value)} className="input-admin" /></Field>
-                <Field label="الحالة">
-                  <select value={editStatus} onChange={(e) => setEditStatus(e.target.value)} className="input-admin">
-                    {["active", "trial", "suspended", "expired"].map((s) => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
-                  </select>
-                </Field>
-
                 <h3 className="text-white font-bold text-sm pt-4 border-t border-white/5 md:col-span-2">الهوية التجارية</h3>
                 <Field label="الاسم القانوني"><input value={editLegalName} onChange={(e) => setEditLegalName(e.target.value)} className="input-admin" /></Field>
                 <Field label="رقم السجل التجاري"><input value={editCommercialRegistration} onChange={(e) => setEditCommercialRegistration(e.target.value)} dir="ltr" className="input-admin" /></Field>
@@ -401,8 +483,8 @@ export default function SchoolDetailPage() {
                 <Field label="الفترة الضريبية"><input value={editTaxPeriod} onChange={(e) => setEditTaxPeriod(e.target.value)} className="input-admin" /></Field>
 
                 <div className="flex gap-3 pt-2 md:col-span-2">
-                  <button onClick={onSave} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-xl">حفظ</button>
-                  <button onClick={() => setEditing(false)} className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white text-sm rounded-xl">إلغاء</button>
+                  <button onClick={onSave} disabled={identitySaving} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm rounded-xl">{identitySaving ? "جاري الحفظ..." : "حفظ"}</button>
+                  <button onClick={() => setEditing(false)} disabled={identitySaving} className="px-4 py-2 bg-white/5 hover:bg-white/10 disabled:opacity-50 text-white text-sm rounded-xl">إلغاء</button>
                 </div>
               </>
             ) : (
@@ -411,7 +493,7 @@ export default function SchoolDetailPage() {
                 <InfoRow label="البريد" value={school.email ?? "—"} />
                 <InfoRow label="رقم التواصل الإداري" value={school.contactNumber ?? "—"} />
                 <InfoRow label="رقم هاتف الحضانة" value={school.phoneNumber ?? "—"} />
-                <InfoRow label="الخطة" value={school.plan?.name ?? "—"} />
+                <InfoRow label="نوع الاشتراك" value={SUBSCRIPTION_TYPE_LABELS[school.subscription_type]} />
                 <InfoRow label="الحالة" value={STATUS_LABELS[school.subscription_status] ?? school.subscription_status} />
                 <InfoRow label="التجديد" value={school.renewal_date ? new Date(school.renewal_date).toLocaleDateString("ar-SA") : "—"} />
                 <InfoRow label="آخر دخول" value={school.last_login_at ? new Date(school.last_login_at).toLocaleDateString("ar-SA") : "—"} />

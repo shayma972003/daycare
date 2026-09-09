@@ -1,5 +1,15 @@
 export const SCHOOL_SUBSCRIPTION_GRACE_DAYS = 7;
 
+export type SchoolSubscriptionType = "TRIAL" | "MONTHLY" | "YEARLY";
+export type SchoolSubscriptionTypeOrUnassigned = SchoolSubscriptionType | "UNASSIGNED";
+
+type SchoolSubscriptionRecord = {
+  subscription_status: string;
+  renewal_date: Date | null;
+  createdAt?: Date;
+  subscription_plan?: { billing_interval: "MONTHLY" | "YEARLY" | null } | null;
+};
+
 export type SchoolSubscriptionAccess = {
   mode: "active" | "grace" | "locked";
   reason: "active" | "expired" | "suspended" | "cancelled";
@@ -19,11 +29,33 @@ function utcDateOnly(value: Date): number {
  * A renewal date is valid through its calendar day. The next calendar day is
  * grace day one; write access closes after seven full grace days.
  */
+export function schoolSubscriptionRenewalDate(
+  school: Pick<SchoolSubscriptionRecord, "subscription_status" | "renewal_date" | "createdAt">
+): Date | null {
+  if (school.renewal_date) return school.renewal_date;
+  if (school.subscription_status === "trial" && school.createdAt) {
+    return addSchoolBillingPeriod(school.createdAt, "MONTHLY");
+  }
+  return null;
+}
+
+export function schoolSubscriptionType(
+  school: Pick<SchoolSubscriptionRecord, "subscription_status" | "subscription_plan">
+): SchoolSubscriptionTypeOrUnassigned {
+  const interval = school.subscription_plan?.billing_interval;
+  if (interval === "MONTHLY" || interval === "YEARLY") return interval;
+  if (school.subscription_status === "trial" || school.subscription_status === "expired") {
+    return "TRIAL";
+  }
+  return "UNASSIGNED";
+}
+
 export function schoolSubscriptionAccess(
-  school: { subscription_status: string; renewal_date: Date | null },
+  school: Pick<SchoolSubscriptionRecord, "subscription_status" | "renewal_date" | "createdAt">,
   now = new Date()
 ): SchoolSubscriptionAccess {
-  const renewalDate = school.renewal_date?.toISOString() ?? null;
+  const effectiveRenewalDate = schoolSubscriptionRenewalDate(school);
+  const renewalDate = effectiveRenewalDate?.toISOString() ?? null;
 
   if (school.subscription_status === "suspended" || school.subscription_status === "cancelled") {
     return {
@@ -36,7 +68,7 @@ export function schoolSubscriptionAccess(
     };
   }
 
-  if (!school.renewal_date) {
+  if (!effectiveRenewalDate) {
     return school.subscription_status === "expired"
       ? { mode: "locked", reason: "expired", renewalDate: null, daysOverdue: 0, graceDaysRemaining: 0, showFirstExpiredDayPopup: false }
       : { mode: "active", reason: "active", renewalDate: null, daysOverdue: 0, graceDaysRemaining: 0, showFirstExpiredDayPopup: false };
@@ -44,7 +76,7 @@ export function schoolSubscriptionAccess(
 
   const daysOverdue = Math.max(
     0,
-    Math.floor((utcDateOnly(now) - utcDateOnly(school.renewal_date)) / DAY_MS)
+    Math.floor((utcDateOnly(now) - utcDateOnly(effectiveRenewalDate)) / DAY_MS)
   );
   if (daysOverdue === 0) {
     return { mode: "active", reason: "active", renewalDate, daysOverdue: 0, graceDaysRemaining: 0, showFirstExpiredDayPopup: false };

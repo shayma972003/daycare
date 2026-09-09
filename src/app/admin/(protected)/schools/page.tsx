@@ -33,7 +33,18 @@ interface CreatedAccount {
   name: string;
   email: string;
   emailDelivery: "sent" | "failed" | "disabled";
+  emailDeliveryReason?: EmailDeliveryFailureReason;
 }
+
+type EmailDeliveryFailureReason =
+  | "not_configured"
+  | "authentication_failed"
+  | "provider_rejected"
+  | "rate_limited"
+  | "provider_unavailable"
+  | "tls_failed"
+  | "connection_failed"
+  | "unknown";
 
 interface CreateSchoolResponse {
   id: string;
@@ -41,6 +52,17 @@ interface CreateSchoolResponse {
   email: string;
   invitationStatus: "pending";
   emailDelivery: "sent" | "failed" | "disabled";
+  emailDeliveryReason?: EmailDeliveryFailureReason;
+  subscriptionStatus: "trial";
+  renewalDate: string;
+}
+
+function deliveryFailureMessage(
+  t: (key: string) => string,
+  reason: EmailDeliveryFailureReason | undefined
+): string {
+  const key = reason ? `adminSchools.emailFailureReasons.${reason}` : "adminSchools.createdFailedBody";
+  return t(key);
 }
 
 const STATUS_LABELS: Record<string, { label: string; cls: string }> = {
@@ -147,14 +169,15 @@ function CreateSchoolModal({ onClose, onCreated }: { onClose: () => void; onCrea
         name: res.data.name,
         email: res.data.email,
         emailDelivery: res.data.emailDelivery,
+        emailDeliveryReason: res.data.emailDeliveryReason,
       });
       onCreated({
         id: res.data.id,
         name: res.data.name,
         email: res.data.email,
         plan: null,
-        subscription_status: "active",
-        renewal_date: null,
+        subscription_status: res.data.subscriptionStatus,
+        renewal_date: res.data.renewalDate,
         last_login_at: null,
         createdAt: new Date().toISOString(),
         studentCount: 0,
@@ -223,7 +246,7 @@ function CreateSchoolModal({ onClose, onCreated }: { onClose: () => void; onCrea
                   ? t("adminSchools.createdSentBody")
                   : created.emailDelivery === "disabled"
                     ? t("adminSchools.createdDisabledBody")
-                    : t("adminSchools.createdFailedBody")}
+                    : deliveryFailureMessage(t, created.emailDeliveryReason)}
               </p>
             </div>
             <button onClick={onClose} className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-sm transition-colors">
@@ -516,6 +539,7 @@ export default function AdminSchoolsPage() {
       const response = await axios.post<{
         invitationStatus: "pending";
         emailDelivery: "sent" | "failed" | "disabled";
+        emailDeliveryReason?: EmailDeliveryFailureReason;
       }>(`/api/admin/schools/${school.id}/invite`);
 
       setSchools((current) =>
@@ -534,7 +558,7 @@ export default function AdminSchoolsPage() {
               ? t("adminSchools.resendSent")
               : response.data.emailDelivery === "disabled"
                 ? t("adminSchools.resendDisabled")
-                : t("adminSchools.resendFailed"),
+                : deliveryFailureMessage(t, response.data.emailDeliveryReason),
         },
       }));
     } catch {

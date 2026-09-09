@@ -5,6 +5,7 @@ import { z } from "zod";
 import { mintInvite } from "@/lib/invitations";
 import { env } from "@/lib/env";
 import { ROLE_TEMPLATES } from "@/lib/permissions";
+import { addSchoolBillingPeriod, schoolSubscriptionAccess } from "@/lib/school-subscription";
 
 export type SchoolAdminInvitationStatus =
   | "active"
@@ -51,25 +52,29 @@ export async function GET(request: Request) {
     orderBy: { createdAt: "desc" },
   });
 
+  const now = new Date();
   return Response.json(
-    schools.map((s) => ({
-      id: s.id,
-      name: s.name,
-      email: s.email,
-      plan: s.subscription_plan,
-      subscription_status: s.subscription_status,
-      renewal_date: s.renewal_date,
-      last_login_at: s.last_login_at,
-      createdAt: s.createdAt,
-      studentCount: s._count.students,
-      teacherCount: s._count.teachers,
-      classCount: s._count.classes,
-      invitation_status: schoolAdminInvitationStatus({
-        acceptedAt: s.users[0]?.acceptedAt ?? null,
-        passwordSet: Boolean(s.users[0]?.password),
-        invitation: s.school_admin_invitations[0] ?? null,
-      }),
-    }))
+    schools.map((s) => {
+      const access = schoolSubscriptionAccess(s, now);
+      return {
+        id: s.id,
+        name: s.name,
+        email: s.email,
+        plan: s.subscription_plan,
+        subscription_status: access.mode === "active" ? s.subscription_status : access.reason,
+        renewal_date: access.renewalDate,
+        last_login_at: s.last_login_at,
+        createdAt: s.createdAt,
+        studentCount: s._count.students,
+        teacherCount: s._count.teachers,
+        classCount: s._count.classes,
+        invitation_status: schoolAdminInvitationStatus({
+          acceptedAt: s.users[0]?.acceptedAt ?? null,
+          passwordSet: Boolean(s.users[0]?.password),
+          invitation: s.school_admin_invitations[0] ?? null,
+        }),
+      };
+    })
   );
 }
 
@@ -77,7 +82,6 @@ const createSchema = z.object({
   schoolName: z.string().min(2, "اسم المنشأة مطلوب"),
   email: z.string().email("البريد الإلكتروني غير صالح"),
   contactNumber: z.string().optional(),
-  planId: z.string().optional(),
 
   // Step 1 — Business identity
   legalName: z.string().optional(),
@@ -127,7 +131,7 @@ export async function POST(request: Request) {
     return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 422 });
 
   const {
-    schoolName, email: rawEmail, contactNumber, planId,
+    schoolName, email: rawEmail, contactNumber,
     legalName, commercialRegistration, nationalUnifiedNumber, entityType, businessActivities,
     schoolType, educationStages, licenseNumber, branch, address,
     vatRegistered, vatNumber, zatcaUnifiedNumber, zakatStatus, financialYear, taxPeriod,
@@ -135,14 +139,8 @@ export async function POST(request: Request) {
   const email = rawEmail.toLowerCase().trim();
 
   const invitation = mintInvite();
-
-  if (planId) {
-    const selectablePlan = await prisma.subscriptionPlan.findFirst({
-      where: { id: planId, is_active: true, billing_interval: { in: ["MONTHLY", "YEARLY"] } },
-      select: { id: true },
-    });
-    if (!selectablePlan) return Response.json({ error: "الخطة غير متاحة" }, { status: 409 });
-  }
+  const createdAt = new Date();
+  const trialEndsAt = addSchoolBillingPeriod(createdAt, "MONTHLY");
 
   let school: { id: string; name: string; userId: string };
   try {
@@ -155,7 +153,10 @@ export async function POST(request: Request) {
           name: schoolName,
           email,
           contactNumber: contactNumber ?? null,
-          ...(planId ? { plan_id: planId } : {}),
+          plan_id: null,
+          subscription_status: "trial",
+          renewal_date: trialEndsAt,
+          createdAt,
           legalName, commercialRegistration, nationalUnifiedNumber, entityType, businessActivities,
           schoolType, educationStages, licenseNumber, branch, address,
           vatRegistered, vatNumber, zatcaUnifiedNumber, zakatStatus, financialYear, taxPeriod,
@@ -205,7 +206,13 @@ export async function POST(request: Request) {
           school_id: createdSchool.id,
           action: "school_created",
           performed_by: "super_admin",
-          metadata: { email, userId: createdUser.id, adminId: session.adminId },
+          metadata: {
+            email,
+            userId: createdUser.id,
+            adminId: session.adminId,
+            subscriptionType: "TRIAL",
+            renewalDate: trialEndsAt,
+          },
         },
       });
 
@@ -238,7 +245,12 @@ export async function POST(request: Request) {
     school.name
   );
   if (emailDelivery.status === "failed") {
-    console.error("[admin-schools] invitation email delivery failed", school.id);
+    console.error("[admin-schools] invitation email delivery failed", {
+      schoolId: school.id,
+      provider: emailDelivery.provider,
+      reason: emailDelivery.reason,
+      providerStatus: emailDelivery.providerStatus ?? null,
+    });
   }
 
   return Response.json(
@@ -248,6 +260,9 @@ export async function POST(request: Request) {
       email,
       invitationStatus: "pending",
       emailDelivery: emailDelivery.status,
+      ...(emailDelivery.status === "failed" ? { emailDeliveryReason: emailDelivery.reason } : {}),
+      subscriptionStatus: "trial",
+      renewalDate: trialEndsAt.toISOString(),
     },
     {
       status: emailDelivery.success ? 201 : 207,

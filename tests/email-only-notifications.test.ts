@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { randomBytes } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -75,6 +76,8 @@ import { POST as sendActivationOtp } from "@/app/api/settings/2fa/send-activatio
 import { POST as submitEnrollment } from "@/app/api/enrollment/submit/route";
 
 beforeEach(() => {
+  process.env.PII_ENCRYPTION_KEY = randomBytes(32).toString("base64");
+  process.env.PII_INDEX_PEPPER = randomBytes(48).toString("base64");
   emailConfig.deliveryEnabled = true;
   for (const mock of Object.values(mocks)) mock.mockReset();
   mocks.transaction.mockImplementation((callback: (tx: unknown) => unknown) =>
@@ -269,7 +272,25 @@ describe("enrollment submission logging", () => {
       new Request("http://localhost/api/enrollment/submit", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ token: "live-token", full_name: "Child One" }),
+        body: JSON.stringify({
+          token: "live-token",
+          full_name: "Child One",
+          id_number: "1098765432",
+          nationality: "سعودي",
+          gender: "ذكر",
+          period: "صباحي",
+          date_of_birth: "2022-01-10",
+          health_condition: "لا يوجد",
+          allergies: "لا يوجد",
+          guardian_name: "Guardian One",
+          guardian_phone_1: "0500000001",
+          guardian_phone_2: "0500000002",
+          guardian_email: "guardian@example.com",
+          guardian_name_2: "Guardian Two",
+          guardian_email_2: "",
+          enrollment_date: "2026-09-09",
+          payment_method: "نقدي",
+        }),
       })
     );
 

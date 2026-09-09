@@ -1,6 +1,7 @@
 import { verifyAdminSessionFromRequest } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
 import { moneyNumber } from "@/lib/money";
+import { isPlanLimitExceeded } from "@/lib/plan-limits";
 
 export async function GET(request: Request) {
   const session = await verifyAdminSessionFromRequest(request);
@@ -55,7 +56,7 @@ export async function GET(request: Request) {
     if (s.subscription_status === "expired") {
       alerts.push({ schoolId: s.id, schoolName: s.name, type: "expired", detail: "الاشتراك منتهٍ" });
     }
-    if (s.subscription_plan && s._count.students > s.subscription_plan.max_students) {
+    if (s.subscription_plan && isPlanLimitExceeded(s._count.students, s.subscription_plan.max_students)) {
       alerts.push({ schoolId: s.id, schoolName: s.name, type: "plan_limit", detail: `تجاوز الحد (${s._count.students}/${s.subscription_plan.max_students})` });
     }
   }

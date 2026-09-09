@@ -17,6 +17,18 @@ describe("school subscription contracts", () => {
     expect(route).toContain('key: "manager"');
     expect(route).toContain('role: "manager"');
     expect(route).toContain("roleId: managerRole.id");
+    expect(route).toContain('subscription_status: "trial"');
+    expect(route).toContain('addSchoolBillingPeriod(createdAt, "MONTHLY")');
+  });
+
+  it("keeps subscription lifecycle changes out of the generic school editor", () => {
+    const genericEditor = source("src/app/api/admin/schools/[id]/route.ts");
+    const subscriptionEditor = source("src/app/api/admin/subscriptions/[schoolId]/route.ts");
+    expect(genericEditor).not.toContain("plan_id: z.");
+    expect(genericEditor).not.toContain("renewal_date: z.");
+    expect(genericEditor).not.toContain("subscription_status: z.");
+    expect(subscriptionEditor).toContain('action: z.enum(["extend", "change_type"');
+    expect(subscriptionEditor).toContain('subscription_status: type === "TRIAL" ? "trial" : "active"');
   });
 
   it("keeps card data out of the application and verifies hosted invoices server-side", () => {

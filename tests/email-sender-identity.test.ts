@@ -166,9 +166,51 @@ describe("central email sender identity", () => {
       success: false,
       status: "failed",
       error: "Email delivery failed",
+      reason: "provider_unavailable",
+      provider: "resend",
+      providerStatus: 503,
     });
     expect(JSON.stringify(result)).not.toContain("secret-provider-diagnostic");
     expect(JSON.stringify(result)).not.toContain(mocks.env.RESEND_API_KEY);
+  });
+
+  it.each([
+    [401, "authentication_failed"],
+    [403, "provider_rejected"],
+    [422, "provider_rejected"],
+    [429, "rate_limited"],
+  ] as const)("classifies Resend status %s without returning the provider body", async (status, reason) => {
+    mocks.fetch.mockResolvedValueOnce(new Response("must-not-leak", { status }));
+
+    const result = await sendEmail("owner@example.test", "Subject", "Body", "School");
+
+    expect(result).toMatchObject({ success: false, status: "failed", reason, provider: "resend", providerStatus: status });
+    expect(JSON.stringify(result)).not.toContain("must-not-leak");
+  });
+
+  it("distinguishes an invalid Resend key from a sender validation rejection", async () => {
+    mocks.fetch.mockResolvedValueOnce(
+      Response.json({ name: "invalid_api_key", message: "must-not-leak" }, { status: 403 })
+    );
+
+    const result = await sendEmail("owner@example.test", "Subject", "Body", "School");
+
+    expect(result).toMatchObject({
+      success: false,
+      reason: "authentication_failed",
+      providerStatus: 403,
+    });
+    expect(JSON.stringify(result)).not.toContain("must-not-leak");
+  });
+
+  it("classifies SMTP TLS failures without returning the raw exception", async () => {
+    mocks.provider = "smtp";
+    mocks.sendMail.mockRejectedValueOnce(Object.assign(new Error("certificate details"), { code: "CERT_HAS_EXPIRED" }));
+
+    const result = await sendEmail("owner@example.test", "Subject", "Body", "School");
+
+    expect(result).toMatchObject({ success: false, status: "failed", reason: "tls_failed", provider: "smtp" });
+    expect(JSON.stringify(result)).not.toContain("certificate details");
   });
 
   it.each(["resend", "smtp"] as const)(
@@ -197,7 +239,6 @@ describe("email call-site classification", () => {
       "src/app/api/guardian-accounts/route.ts",
       "src/app/api/guardian-accounts/[id]/invite/route.ts",
       "src/app/api/enrollment/create-token/route.ts",
-      "src/app/api/enrollment/resend-otp/route.ts",
       "src/lib/care-report-digest.ts",
     ];
     const schoolNotifications = [

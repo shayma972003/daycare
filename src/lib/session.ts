@@ -152,7 +152,7 @@ export async function requireSession(): Promise<AuthSession> {
       authVersion: true,
       roleRef: { select: { permissions: true } },
       school: {
-        select: { name: true, subscription_status: true, renewal_date: true },
+        select: { name: true, subscription_status: true, renewal_date: true, createdAt: true },
       },
     },
   });

@@ -31,10 +31,59 @@ export interface SendEmailOptions {
   language?: PlatformLanguage;
 }
 
+export type EmailDeliveryFailureReason =
+  | "not_configured"
+  | "authentication_failed"
+  | "provider_rejected"
+  | "rate_limited"
+  | "provider_unavailable"
+  | "tls_failed"
+  | "connection_failed"
+  | "unknown";
+
 export type EmailDeliveryResult =
   | { success: true; status: "sent" }
   | { success: false; status: "disabled" }
-  | { success: false; status: "failed"; error: string };
+  | {
+      success: false;
+      status: "failed";
+      error: "Email delivery failed";
+      reason: EmailDeliveryFailureReason;
+      provider: "resend" | "smtp" | "none";
+      providerStatus?: number;
+    };
+
+async function resendFailureReason(response: Response): Promise<EmailDeliveryFailureReason> {
+  let providerCode = "";
+  try {
+    const payload = await response.json() as { name?: unknown };
+    providerCode = typeof payload.name === "string" ? payload.name : "";
+  } catch {
+    // Provider bodies are deliberately ignored unless they contain a known,
+    // non-sensitive machine code. Raw bodies never reach logs or callers.
+  }
+  if (response.status === 401 || ["invalid_api_key", "restricted_api_key"].includes(providerCode)) {
+    return "authentication_failed";
+  }
+  if (response.status === 403 || response.status === 422) return "provider_rejected";
+  if (response.status === 429) return "rate_limited";
+  if (response.status >= 500) return "provider_unavailable";
+  return "unknown";
+}
+
+function transportFailureReason(error: unknown): EmailDeliveryFailureReason {
+  const code = error && typeof error === "object" && "code" in error
+    ? String((error as { code?: unknown }).code ?? "").toUpperCase()
+    : "";
+  if (code === "EAUTH") return "authentication_failed";
+  if (["CERT_HAS_EXPIRED", "DEPTH_ZERO_SELF_SIGNED_CERT", "SELF_SIGNED_CERT_IN_CHAIN", "UNABLE_TO_VERIFY_LEAF_SIGNATURE", "ERR_TLS_CERT_ALTNAME_INVALID"].includes(code)) {
+    return "tls_failed";
+  }
+  if (["ECONNREFUSED", "ECONNRESET", "ENOTFOUND", "EAI_AGAIN", "ETIMEDOUT", "ESOCKET"].includes(code)) {
+    return "connection_failed";
+  }
+  return "unknown";
+}
 
 /**
  * Message bodies and school names are user-controlled and land inside an HTML
@@ -100,7 +149,13 @@ export async function sendEmail(
 
     if (!emailEnabled) {
       console.warn("No email backend configured, skipping email");
-      return { success: false, status: "failed", error: "Email not configured" };
+      return {
+        success: false,
+        status: "failed",
+        error: "Email delivery failed",
+        reason: "not_configured",
+        provider: "none",
+      };
     }
 
     const language = options.language ?? "ar";
@@ -173,11 +228,24 @@ body{font-family:'Tajawal',Arial,sans-serif;background:#f4f6fb;margin:0;padding:
     });
 
     if (!response.ok) {
-      return { success: false, status: "failed", error: "Email delivery failed" };
+      return {
+        success: false,
+        status: "failed",
+        error: "Email delivery failed",
+        reason: await resendFailureReason(response),
+        provider: "resend",
+        providerStatus: response.status,
+      };
     }
     return { success: true, status: "sent" };
-  } catch {
-    return { success: false, status: "failed", error: "Email delivery failed" };
+  } catch (error) {
+    return {
+      success: false,
+      status: "failed",
+      error: "Email delivery failed",
+      reason: transportFailureReason(error),
+      provider: emailProvider,
+    };
   }
 }
 

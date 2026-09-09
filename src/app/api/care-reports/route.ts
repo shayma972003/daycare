@@ -1,7 +1,7 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
-import { astDayStart, astDayEnd } from "@/lib/datetime";
+import { addDateDays, requestTimeZone, zonedTimeOnDate } from "@/lib/device-date";
 import {
   careReportInputSchema,
   buildReportFields,
@@ -43,11 +43,19 @@ export async function GET(request: Request) {
   const type = url.searchParams.get("type");
   const date = url.searchParams.get("date");
 
-  // Day boundaries in AST, not UTC. A report filed at 01:00 Riyadh time belongs
-  // to that day; UTC arithmetic files it under yesterday and it vanishes from
-  // the parent's view.
-  const day = date ? new Date(date) : null;
-  const validDay = day && !Number.isNaN(day.getTime()) ? day : null;
+  let dayRange: { start: Date; end: Date } | null = null;
+  if (date) {
+    let timeZone: string;
+    try {
+      timeZone = requestTimeZone(request);
+    } catch {
+      return Response.json({ error: "Invalid time zone" }, { status: 422 });
+    }
+    const start = zonedTimeOnDate(date, "00:00", timeZone);
+    const end = zonedTimeOnDate(addDateDays(date, 1), "00:00", timeZone);
+    if (!start || !end) return Response.json({ error: "التاريخ غير صحيح" }, { status: 422 });
+    dayRange = { start, end };
+  }
 
   const reports = await prisma.careReport.findMany({
     where: {
@@ -58,8 +66,8 @@ export async function GET(request: Request) {
       ...(type && (CARE_REPORT_TYPES as string[]).includes(type)
         ? { type: type as (typeof CARE_REPORT_TYPES)[number] }
         : {}),
-      ...(validDay
-        ? { occurredAt: { gte: astDayStart(validDay), lt: astDayEnd(validDay) } }
+      ...(dayRange
+        ? { occurredAt: { gte: dayRange.start, lt: dayRange.end } }
         : {}),
     },
     orderBy: { occurredAt: "desc" },

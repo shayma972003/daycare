@@ -10,6 +10,7 @@
 import { z } from "zod";
 import type {
   CareReportType,
+  CareMealSource,
   MealAmount,
   ToiletKind,
   ChildMood,
@@ -74,7 +75,7 @@ export const CARE_TYPE_LABEL_KEYS: Record<CareReportType, string> = {
 export const CARE_TYPE_COLORS: Record<CareReportType, string> = {
   MEAL: "text-[#C45000]",
   NAP: "text-[#7C3AED]",
-  TOILET: "text-[#2F96A6]",
+  TOILET: "text-[#5B14D1]",
   MOOD: "text-[#F8B500]",
   MEDICATION: "text-[#C0232C]",
   HEALTH: "text-[#2D7A4F]",
@@ -145,7 +146,7 @@ export const SUPPLY_URGENCY_LABEL_KEYS: Record<SupplyUrgency, string> = {
  * aggregate.
  */
 export const TYPE_FIELDS: Record<CareReportType, readonly string[]> = {
-  MEAL: ["mealName", "mealAmount"],
+  MEAL: ["mealSource", "mealName", "mealAmount"],
   NAP: ["napStartAt", "napEndAt", "napMinutes", "napQuality"],
   TOILET: ["toiletKind", "toiletState"],
   MOOD: ["mood"],
@@ -176,6 +177,7 @@ export const careReportInputSchema = z.object({
   occurredAt: z.string().optional(),
 
   mealName: z.string().max(120).nullish(),
+  mealSource: z.enum(["CENTER", "HOME"]).nullish(),
   mealAmount: z.enum(["ALL", "HALF", "LITTLE", "REFUSED"]).nullish(),
 
   napStartAt: z.string().nullish(),
@@ -232,6 +234,7 @@ export function buildReportFields(
   };
 
   set("mealName", input.mealName);
+  set("mealSource", input.mealSource);
   set("mealAmount", input.mealAmount);
   set("napQuality", input.napQuality);
   set("toiletKind", input.toiletKind);
@@ -277,9 +280,11 @@ export function buildReportFields(
 /** One-line rendering, used by the daily digest and the child's feed. */
 export function describeReport(report: {
   type: CareReportType;
+  mealSource?: CareMealSource | null;
   mealName?: string | null;
   mealAmount?: MealAmount | null;
   napMinutes?: number | null;
+  napQuality?: string | null;
   toiletKind?: ToiletKind | null;
   toiletState?: string | null;
   mood?: ChildMood | null;
@@ -294,17 +299,26 @@ export function describeReport(report: {
   switch (report.type) {
     case "MEAL":
       return [
-        report.mealName,
+        report.mealSource === "HOME" ? "وجبة منزلية" : report.mealName,
         report.mealAmount ? `(${MEAL_AMOUNT_LABELS[report.mealAmount]})` : null,
+        report.note,
       ]
         .filter(Boolean)
-        .join(" ") || "وجبة";
+        .join(" — ") || "وجبة";
     case "NAP":
-      return report.napMinutes ? `نوم ${report.napMinutes} دقيقة` : "نوم";
+      if (report.napQuality === "DID_NOT_SLEEP") return "لم ينم";
+      return [report.napMinutes ? `نوم ${report.napMinutes} دقيقة` : "نوم", report.note]
+        .filter(Boolean)
+        .join(" — ");
     case "TOILET":
       return [
         report.toiletKind ? TOILET_KIND_LABELS[report.toiletKind] : null,
-        report.toiletState,
+        report.toiletState === "WET"
+            ? "مبلل"
+          : report.toiletState === "SOILED"
+            ? "متسخ"
+            : report.toiletState,
+        report.note,
       ]
         .filter(Boolean)
         .join(" — ") || "دورة مياه";

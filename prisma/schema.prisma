@@ -192,6 +192,11 @@ enum MealAmount {
   REFUSED
 }
 
+enum CareMealSource {
+  CENTER
+  HOME
+}
+
 enum ToiletKind {
   DIAPER
   POTTY
@@ -430,6 +435,7 @@ model CareReport {
   occurredAt DateTime
 
   // ── MEAL ────────────────────────────────────────────────────────────────
+  mealSource CareMealSource?
   mealName   String?
   mealAmount MealAmount?
 
@@ -484,9 +490,19 @@ model CareReport {
   /// The daily digest sends each report once. Null means "not yet included".
   summarizedAt DateTime?
 
+  /// Groups the independently stored meal/nap/toilet/mood rows created by one
+  /// tap on the unified daily form. Nullable for historical and quick reports.
+  dailyBatchId   String?
+  dailyBatchHash String?
+  /// Stable name of the item inside a unified batch. This permits several
+  /// events of the same type while keeping concurrent retries idempotent.
+  dailyItemKey   String?
+
   @@index([studentId, occurredAt])
   @@index([schoolId, occurredAt])
   @@index([schoolId, type, occurredAt])
+  @@unique([schoolId, dailyBatchId, studentId, dailyItemKey])
+  @@index([schoolId, dailyBatchId])
   /// Drives the nightly digest: unsent reports for a given day.
   @@index([schoolId, summarizedAt])
 }

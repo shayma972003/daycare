@@ -221,6 +221,9 @@ export const ROUTE_PERMISSIONS: Record<string, RouteRule> = {
   "/api/care-reports": {
     methods: { GET: "students.view", POST: "attendance.students" },
   },
+  "/api/care-reports/daily": {
+    methods: { POST: "attendance.students" },
+  },
   "/api/care-reports/:id": {
     methods: { PUT: "attendance.students", DELETE: "students.manage" },
   },

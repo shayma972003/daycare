@@ -11,14 +11,6 @@ const PUBLIC_ENROLLMENT_ROUTES: ReadonlyArray<{
     methods: ["GET"],
   },
   {
-    matches: (pathname) => pathname === "/api/enrollment/verify-otp",
-    methods: ["POST"],
-  },
-  {
-    matches: (pathname) => pathname === "/api/enrollment/resend-otp",
-    methods: ["POST"],
-  },
-  {
     matches: (pathname) => pathname === "/api/enrollment/submit",
     methods: ["POST"],
   },

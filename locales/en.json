@@ -389,6 +389,8 @@
     "appliesToSelected": "Applies to {count} selected student(s)",
     "sendFormTitle": "Send the registration form",
     "linkSentTo": "The link was sent to",
+    "localPreviewReady": "Email could not be sent locally, but the preview link is ready.",
+    "openLocalRegistrationForm": "Open the local registration form",
     "formEmailHint": "The form link and verification code go to this address.",
     "sendLink": "Send the link",
     "reviewRequestTitle": "Review the registration request",

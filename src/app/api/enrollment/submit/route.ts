@@ -1,5 +1,4 @@
 import { prisma } from "@/lib/prisma";
-import { z } from "zod";
 // Was a second, laxer copy of this that turned "12" into "+96612". One
 // implementation, one set of rules.
 import { normalizePhone } from "@/lib/phone-normalizer";
@@ -13,33 +12,12 @@ import {
 import { STORED_FILE_OWNER } from "@/lib/stored-file-ownership";
 import { reserveEnrollmentSlot } from "@/lib/enrollment-atomic";
 import { protectEnrollmentSubmissionIdNumber } from "@/lib/enrollment-submission-pii";
+import { publicEnrollmentFormSchema } from "@/lib/enrollment-form";
+import { z } from "zod";
 
 class EnrollmentSlotUnavailable extends Error {}
 
-const schema = z.object({
-  token: z.string().min(1),
-  full_name: z.string().min(1),
-  id_number: z.string().nullish(),
-  nationality: z.string().nullish(),
-  academic_stage: z.string().nullish(),
-  gender: z.string().nullish(),
-  period: z.string().nullish(),
-  date_of_birth: z.string().nullish(),
-  health_condition: z.string().nullish(),
-  allergies: z.string().nullish(),
-  payment_method: z.string().nullish(),
-  enrollment_date: z.string().nullish(),
-  evaluation_file_url: z.string().nullish(),
-  evaluation_file_name: z.string().nullish(),
-  guardian_name: z.string().nullish(),
-  guardian_phone_1: z.string().nullish(),
-  guardian_phone_2: z.string().nullish(),
-  guardian_email: z.string().nullish(),
-  guardian_name_2: z.string().nullish(),
-  guardian_phone_3: z.string().nullish(),
-  guardian_phone_4: z.string().nullish(),
-  guardian_email_2: z.string().nullish(),
-});
+const schema = publicEnrollmentFormSchema.extend({ token: z.string().min(1) });
 
 export async function POST(request: Request) {
   const limited = await rateLimit({
@@ -59,7 +37,13 @@ export async function POST(request: Request) {
 
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
-    return Response.json({ error: "بيانات غير صحيحة", details: parsed.error.flatten() }, { status: 422 });
+    return Response.json(
+      {
+        error: parsed.error.issues[0]?.message ?? "بيانات غير صحيحة",
+        details: parsed.error.flatten(),
+      },
+      { status: 422 }
+    );
   }
 
   const { token, ...formData } = parsed.data;
@@ -122,7 +106,6 @@ export async function POST(request: Request) {
       full_name: formData.full_name,
       ...protectedIdNumber,
       nationality: formData.nationality ?? null,
-      academic_stage: formData.academic_stage ?? null,
       gender: formData.gender ?? null,
       period: formData.period ?? null,
       date_of_birth: formData.date_of_birth ? new Date(formData.date_of_birth) : null,
@@ -147,8 +130,6 @@ export async function POST(request: Request) {
       guardian_phone_2: normalizePhone(formData.guardian_phone_2),
       guardian_email: formData.guardian_email ?? null,
       guardian_name_2: formData.guardian_name_2 ?? null,
-      guardian_phone_3: normalizePhone(formData.guardian_phone_3),
-      guardian_phone_4: normalizePhone(formData.guardian_phone_4),
       guardian_email_2: formData.guardian_email_2 ?? null,
         },
       });

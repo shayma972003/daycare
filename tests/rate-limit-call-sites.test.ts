@@ -15,8 +15,6 @@ const RATE_LIMITED_CALL_SITES = [
   "src/app/api/mobile/v1/auth/login/route.ts",
   "src/app/api/enrollment/create-token/route.ts",
   "src/app/api/enrollment/verify-token/[token]/route.ts",
-  "src/app/api/enrollment/verify-otp/route.ts",
-  "src/app/api/enrollment/resend-otp/route.ts",
   "src/app/api/enrollment/submit/route.ts",
   "src/app/api/enrollment/upload/route.ts",
   "src/app/api/staff-accounts/[id]/invite/route.ts",

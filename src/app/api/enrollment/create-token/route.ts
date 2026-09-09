@@ -8,8 +8,8 @@ import { env } from "@/lib/env";
 import { ENROLLMENT_MANAGE_PERMISSION } from "@/lib/enrollment-access";
 import {
   generateEnrollmentToken,
-  TOKEN_TTL_MS,
-} from "@/lib/enrollment-otp";
+  ENROLLMENT_TOKEN_TTL_MS,
+} from "@/lib/enrollment-token";
 import { z } from "zod";
 
 const schema = z.object({
@@ -106,7 +106,7 @@ export async function POST(request: Request) {
       token: generateEnrollmentToken(),
       sent_to_phone: normalizedPhone,
       sent_to_email: email,
-      expires_at: new Date(now.getTime() + TOKEN_TTL_MS),
+      expires_at: new Date(now.getTime() + ENROLLMENT_TOKEN_TTL_MS),
     },
   });
 
@@ -126,7 +126,8 @@ export async function POST(request: Request) {
     }
   );
 
-  if (!sent.success) {
+  const localPreview = env.NODE_ENV === "development";
+  if (!sent.success && !localPreview) {
     // Leaving a token behind that no one can reach only creates confusion later.
     await prisma.enrollmentToken.deleteMany({
       where: { id: enrollmentToken.id, school_id: schoolId },
@@ -139,12 +140,22 @@ export async function POST(request: Request) {
 
   await logAction({
     school_id: schoolId,
-    action: `إرسال نموذج تسجيل إلى: ${email}`,
+    action: sent.success
+      ? `إرسال نموذج تسجيل إلى: ${email}`
+      : "إنشاء رابط معاينة محلي لنموذج التسجيل",
     entity_type: "enrollment",
     entity_id: enrollmentToken.id,
     performed_by: session.user.name ?? "المدير",
     request,
   });
 
-  return Response.json({ success: true, email });
+  return Response.json(
+    {
+      success: true,
+      email,
+      emailDelivered: sent.success,
+      ...(localPreview ? { previewUrl: enrollUrl } : {}),
+    },
+    { status: sent.success ? 200 : 207 }
+  );
 }

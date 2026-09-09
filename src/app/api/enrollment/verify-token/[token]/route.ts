@@ -18,7 +18,13 @@ export async function GET(
 
   const rec = await prisma.enrollmentToken.findUnique({
     where: { token },
-    include: { school: { select: { name: true, logoUrl: true } } },
+    select: {
+      expires_at: true,
+      status: true,
+      submissions_count: true,
+      max_submissions: true,
+      school: { select: { name: true, logoUrl: true } },
+    },
   });
 
   if (!rec) {
@@ -33,22 +39,8 @@ export async function GET(
     return Response.json({ error: "limit_reached", max: rec.max_submissions }, { status: 429 });
   }
 
-  // The code is delivered by email, so show a masked address — pointing at a
-  // phone number would send the parent looking in the wrong place.
-  // Null on every link issued since the invite stopped asking for a number. The
-  // page falls back to the masked address, which is where the code was sent.
-  const maskedPhone = rec.sent_to_phone
-    ? rec.sent_to_phone.slice(0, -4).replace(/\d/g, "X") + rec.sent_to_phone.slice(-4)
-    : null;
-  const maskedEmail = rec.sent_to_email
-    ? `${rec.sent_to_email.slice(0, 2)}***@${rec.sent_to_email.split("@")[1] ?? ""}`
-    : null;
-
   return Response.json({
     valid: true,
-    otpVerified: rec.otp_verified,
-    maskedPhone,
-    maskedEmail,
     submissionsCount: rec.submissions_count,
     maxSubmissions: rec.max_submissions,
     school: {

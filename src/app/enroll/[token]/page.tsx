@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import axios from "axios";
 import { astDateInputValue } from "@/lib/datetime";
+import { publicEnrollmentFormSchema } from "@/lib/enrollment-form";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -27,8 +28,6 @@ interface GuardianPrefill {
   guardian_phone_2?: string;
   guardian_email?: string;
   guardian_name_2?: string;
-  guardian_phone_3?: string;
-  guardian_phone_4?: string;
   guardian_email_2?: string;
 }
 
@@ -45,35 +44,6 @@ function SchoolHeader({ school }: { school: SchoolInfo }) {
         )}
       </div>
       <h1 className="text-xl font-bold text-[#1a2340]">{school.name}</h1>
-    </div>
-  );
-}
-
-// ─── Progress Bar ─────────────────────────────────────────────────────────────
-
-function ProgressBar({ step }: { step: 1 | 2 | 3 }) {
-  const steps = ["التحقق", "معلومات التسجيل", "تأكيد"];
-  return (
-    <div className="flex items-center justify-center gap-2 mb-8">
-      {steps.map((label, i) => {
-        const n = i + 1;
-        const active = step === n;
-        const done = step > n;
-        return (
-          <div key={i} className="flex items-center">
-            <div className={`flex items-center gap-1.5 ${active ? "text-[#22c55e]" : done ? "text-gray-400" : "text-gray-300"}`}>
-              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2
-                ${active ? "border-[#22c55e] bg-[#22c55e] text-white" : done ? "border-gray-300 bg-gray-100 text-gray-400" : "border-gray-200 text-gray-300"}`}>
-                {done ? "✓" : n}
-              </div>
-              <span className="text-xs font-medium hidden sm:block">{label}</span>
-            </div>
-            {i < steps.length - 1 && (
-              <div className={`w-6 h-0.5 mx-2 ${done ? "bg-gray-300" : "bg-gray-200"}`} />
-            )}
-          </div>
-        );
-      })}
     </div>
   );
 }
@@ -108,21 +78,16 @@ const selectCls = `${inputCls} appearance-none`;
 function EnrollmentForm({
   token,
   initialGuardian,
-  submissionsCount,
-  maxSubmissions,
   onSuccess,
 }: {
   token: string;
   initialGuardian: GuardianPrefill;
-  submissionsCount: number;
-  maxSubmissions: number;
   onSuccess: (childName: string, newCount: number, guardian: GuardianPrefill) => void;
 }) {
   const [form, setForm] = useState({
     full_name: "",
     id_number: "",
     nationality: "",
-    academic_stage: "",
     gender: "",
     period: "",
     date_of_birth: "",
@@ -148,10 +113,10 @@ function EnrollmentForm({
     guardian_phone_2: initialGuardian.guardian_phone_2 ?? "",
     guardian_email: initialGuardian.guardian_email ?? "",
     guardian_name_2: initialGuardian.guardian_name_2 ?? "",
-    guardian_phone_3: initialGuardian.guardian_phone_3 ?? "",
-    guardian_phone_4: initialGuardian.guardian_phone_4 ?? "",
     guardian_email_2: initialGuardian.guardian_email_2 ?? "",
   });
+  const [healthAnswer, setHealthAnswer] = useState<"" | "none" | "has">("");
+  const [allergyAnswer, setAllergyAnswer] = useState<"" | "none" | "has">("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [evaluationFile, setEvaluationFile] = useState<{ name: string; url: string } | null>(null);
@@ -204,35 +169,47 @@ function EnrollmentForm({
 
   async function handleSubmit(e: React.SyntheticEvent) {
     e.preventDefault();
-    if (!form.full_name.trim()) {
-      setError("الاسم الكامل مطلوب");
+    if (!healthAnswer) {
+      setError("اختاري هل توجد حالة صحية");
       return;
     }
+    if (!allergyAnswer) {
+      setError("اختاري هل توجد حساسيات أو تنبيهات");
+      return;
+    }
+    // Already uploaded — only its URL travels with the form.
+    const evaluationPayload = evaluationFile
+      ? { evaluation_file_url: evaluationFile.url, evaluation_file_name: evaluationFile.name }
+      : {};
+    const parsed = publicEnrollmentFormSchema.safeParse({
+      ...form,
+      health_condition: healthAnswer === "none" ? "لا يوجد" : form.health_condition,
+      allergies: allergyAnswer === "none" ? "لا يوجد" : form.allergies,
+      ...evaluationPayload,
+    });
+    if (!parsed.success) {
+      setError(parsed.error.issues[0]?.message ?? "يرجى تعبئة جميع الحقول المطلوبة");
+      return;
+    }
+
     setSubmitting(true);
     setError(null);
     try {
-      // Already uploaded — only its URL travels with the form.
-      const evaluationPayload = evaluationFile
-        ? { evaluation_file_url: evaluationFile.url, evaluation_file_name: evaluationFile.name }
-        : {};
       // `form` already carries `enrollment_date`, which used to be overwritten
       // here with the moment of submission — so whatever the parent chose was
       // discarded. Sent as a plain `yyyy-mm-dd`; the server anchors it to the
       // Riyadh business day.
       const res = await axios.post<{ success: boolean; submissions_count: number }>("/api/enrollment/submit", {
         token,
-        ...form,
-        ...evaluationPayload,
+        ...parsed.data,
       });
       const guardian: GuardianPrefill = {
-        guardian_name: form.guardian_name,
-        guardian_phone_1: form.guardian_phone_1,
-        guardian_phone_2: form.guardian_phone_2,
-        guardian_email: form.guardian_email,
-        guardian_name_2: form.guardian_name_2,
-        guardian_phone_3: form.guardian_phone_3,
-        guardian_phone_4: form.guardian_phone_4,
-        guardian_email_2: form.guardian_email_2,
+        guardian_name: parsed.data.guardian_name,
+        guardian_phone_1: parsed.data.guardian_phone_1,
+        guardian_phone_2: parsed.data.guardian_phone_2,
+        guardian_email: parsed.data.guardian_email,
+        guardian_name_2: parsed.data.guardian_name_2,
+        guardian_email_2: parsed.data.guardian_email_2 ?? "",
       };
       try {
         sessionStorage.setItem(`enrollment_guardian_${token}`, JSON.stringify(guardian));
@@ -255,24 +232,29 @@ function EnrollmentForm({
         <Field label="الاسم الكامل" required>
           <input className={inputCls} value={form.full_name} onChange={(e) => set("full_name", e.target.value)} placeholder="أدخل الاسم الكامل" />
         </Field>
-        <Field label="رقم الإقامة / الهوية">
-          <input className={inputCls} value={form.id_number} onChange={(e) => set("id_number", e.target.value)} />
+        <Field label="رقم الإقامة / الهوية" required>
+          <input
+            className={inputCls}
+            value={form.id_number}
+            onChange={(e) => set("id_number", e.target.value)}
+            inputMode="numeric"
+            dir="ltr"
+            maxLength={10}
+            placeholder="10 أرقام"
+          />
         </Field>
-        <Field label="الجنسية">
+        <Field label="الجنسية" required>
           <input className={inputCls} value={form.nationality} onChange={(e) => set("nationality", e.target.value)} placeholder="مثال: سعودي" />
         </Field>
-        <Field label="المرحلة الدراسية">
-          <input className={inputCls} value={form.academic_stage} onChange={(e) => set("academic_stage", e.target.value)} placeholder="مثال: KG1" />
-        </Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="الجنس">
+          <Field label="الجنس" required>
             <select className={selectCls} value={form.gender} onChange={(e) => set("gender", e.target.value)}>
               <option value="">اختر</option>
               <option value="ذكر">ذكر</option>
               <option value="أنثى">أنثى</option>
             </select>
           </Field>
-          <Field label="الفترة">
+          <Field label="الفترة" required>
             <select className={selectCls} value={form.period} onChange={(e) => set("period", e.target.value)}>
               <option value="">اختر</option>
               <option value="صباحي">صباحي</option>
@@ -280,7 +262,7 @@ function EnrollmentForm({
             </select>
           </Field>
         </div>
-        <Field label="تاريخ الميلاد">
+        <Field label="تاريخ الميلاد" required>
           <input type="date" className={inputCls} value={form.date_of_birth} onChange={(e) => set("date_of_birth", e.target.value)} />
         </Field>
         <div className="flex flex-col gap-1">
@@ -312,11 +294,51 @@ function EnrollmentForm({
       </Card>
 
       <Card title="المعلومات الصحية">
-        <Field label="الحالة الصحية">
-          <textarea className={`${inputCls} h-20 resize-none`} value={form.health_condition} onChange={(e) => set("health_condition", e.target.value)} placeholder="أي حالات صحية خاصة..." />
+        <Field label="الحالة الصحية" required>
+          <select
+            className={selectCls}
+            value={healthAnswer}
+            onChange={(e) => {
+              const answer = e.target.value as "" | "none" | "has";
+              setHealthAnswer(answer);
+              if (answer !== "has") set("health_condition", "");
+            }}
+          >
+            <option value="">اختاري</option>
+            <option value="none">لا توجد</option>
+            <option value="has">توجد</option>
+          </select>
+          {healthAnswer === "has" && (
+            <textarea
+              className={`${inputCls} h-20 resize-none mt-3`}
+              value={form.health_condition}
+              onChange={(e) => set("health_condition", e.target.value)}
+              placeholder="اكتبي تفاصيل الحالة الصحية"
+            />
+          )}
         </Field>
-        <Field label="الحساسيات والتنبيهات">
-          <textarea className={`${inputCls} h-20 resize-none`} value={form.allergies} onChange={(e) => set("allergies", e.target.value)} placeholder="الحساسيات إن وجدت..." />
+        <Field label="الحساسيات والتنبيهات" required>
+          <select
+            className={selectCls}
+            value={allergyAnswer}
+            onChange={(e) => {
+              const answer = e.target.value as "" | "none" | "has";
+              setAllergyAnswer(answer);
+              if (answer !== "has") set("allergies", "");
+            }}
+          >
+            <option value="">اختاري</option>
+            <option value="none">لا توجد</option>
+            <option value="has">توجد</option>
+          </select>
+          {allergyAnswer === "has" && (
+            <textarea
+              className={`${inputCls} h-20 resize-none mt-3`}
+              value={form.allergies}
+              onChange={(e) => set("allergies", e.target.value)}
+              placeholder="اكتبي تفاصيل الحساسية أو التنبيه"
+            />
+          )}
         </Field>
       </Card>
 
@@ -327,20 +349,14 @@ function EnrollmentForm({
         <Field label="رقم الجوال 1" required>
           <input className={inputCls} value={form.guardian_phone_1} onChange={(e) => set("guardian_phone_1", e.target.value)} type="tel" dir="ltr" />
         </Field>
-        <Field label="رقم الجوال 2">
+        <Field label="رقم الجوال 2" required>
           <input className={inputCls} value={form.guardian_phone_2} onChange={(e) => set("guardian_phone_2", e.target.value)} type="tel" dir="ltr" />
         </Field>
-        <Field label="البريد الإلكتروني">
+        <Field label="البريد الإلكتروني" required>
           <input className={inputCls} value={form.guardian_email} onChange={(e) => set("guardian_email", e.target.value)} type="email" dir="ltr" />
         </Field>
-        <Field label="اسم ولي الأمر 2">
+        <Field label="اسم ولي الأمر 2" required>
           <input className={inputCls} value={form.guardian_name_2} onChange={(e) => set("guardian_name_2", e.target.value)} />
-        </Field>
-        <Field label="رقم الجوال 3">
-          <input className={inputCls} value={form.guardian_phone_3} onChange={(e) => set("guardian_phone_3", e.target.value)} type="tel" dir="ltr" />
-        </Field>
-        <Field label="رقم الجوال 4">
-          <input className={inputCls} value={form.guardian_phone_4} onChange={(e) => set("guardian_phone_4", e.target.value)} type="tel" dir="ltr" />
         </Field>
         <Field label="البريد الإلكتروني 2">
           <input className={inputCls} value={form.guardian_email_2} onChange={(e) => set("guardian_email_2", e.target.value)} type="email" dir="ltr" />
@@ -348,7 +364,7 @@ function EnrollmentForm({
       </Card>
 
       <Card title="معلومات التسجيل">
-        <Field label="تاريخ الانضمام">
+        <Field label="تاريخ الانضمام" required>
           <input
             type="date"
             // LTR because a date input's own segments read left to right in
@@ -359,7 +375,7 @@ function EnrollmentForm({
             className={inputCls}
           />
         </Field>
-        <Field label="طريقة الدفع">
+        <Field label="طريقة الدفع" required>
           <select className={selectCls} value={form.payment_method} onChange={(e) => set("payment_method", e.target.value)}>
             <option value="">اختر</option>
             <option value="نقدي">نقدي</option>
@@ -375,9 +391,6 @@ function EnrollmentForm({
       )}
 
       <div className="pb-2">
-        <p className="text-xs text-gray-400 text-center mb-3">
-          الطلب {submissionsCount + 1} من {maxSubmissions} المسموح بها في هذا الرابط
-        </p>
         <button
           type="submit"
           disabled={submitting}
@@ -496,20 +509,15 @@ export default function EnrollPage() {
   }
 
   const school = page.state === "form" || page.state === "done" ? page.school : { name: "", logoUrl: null };
-  const step: 1 | 2 | 3 = page.state === "form" ? 2 : 3;
-
   return (
     <div dir="rtl" className="min-h-screen bg-gradient-to-b from-[#f0fdf4] to-[#f4f6fb]">
       <div className="max-w-lg mx-auto px-4 py-8">
         <SchoolHeader school={school} />
-        <ProgressBar step={step} />
 
         {page.state === "form" && (
           <EnrollmentForm
             token={token}
             initialGuardian={guardianPrefill}
-            submissionsCount={page.submissionsCount}
-            maxSubmissions={page.maxSubmissions}
             onSuccess={handleFormSuccess}
           />
         )}

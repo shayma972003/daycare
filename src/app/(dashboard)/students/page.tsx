@@ -192,6 +192,8 @@ export default function StudentsPage() {
   const [enrollEmail, setEnrollEmail] = useState("");
   const [enrollSending, setEnrollSending] = useState(false);
   const [enrollSuccess, setEnrollSuccess] = useState<string | null>(null);
+  const [enrollPreviewUrl, setEnrollPreviewUrl] = useState<string | null>(null);
+  const [enrollDeliveryWarning, setEnrollDeliveryWarning] = useState(false);
   const [enrollError, setEnrollError] = useState<string | null>(null);
 
   // Review queue
@@ -220,6 +222,8 @@ export default function StudentsPage() {
     setEnrollmentModalOpen(false);
     setEnrollEmail("");
     setEnrollSuccess(null);
+    setEnrollPreviewUrl(null);
+    setEnrollDeliveryWarning(false);
     setEnrollError(null);
   }
 
@@ -433,13 +437,22 @@ export default function StudentsPage() {
     if (!canManageEnrollment) return;
     setEnrollSending(true);
     setEnrollSuccess(null);
+    setEnrollPreviewUrl(null);
+    setEnrollDeliveryWarning(false);
     setEnrollError(null);
     try {
-      const res = await axios.post<{ success: boolean; email: string }>("/api/enrollment/create-token", {
+      const res = await axios.post<{
+        success: boolean;
+        email: string;
+        emailDelivered: boolean;
+        previewUrl?: string;
+      }>("/api/enrollment/create-token", {
         email: enrollEmail,
       });
       // The address, because that is where the link actually went.
       setEnrollSuccess(res.data.email);
+      setEnrollPreviewUrl(res.data.previewUrl ?? null);
+      setEnrollDeliveryWarning(res.data.emailDelivered === false);
       setEnrollEmail("");
     } catch (err) {
       setEnrollError(axios.isAxiosError(err) ? err.response?.data?.error ?? t("common.somethingWentWrong") : t("common.somethingWentWrong"));
@@ -1172,8 +1185,20 @@ export default function StudentsPage() {
                   <span className="text-2xl">✓</span>
                 </div>
                 <p className="text-sm text-gray-700 font-medium">
-                  {t("students.linkSentTo")} <span dir="ltr" className="font-mono">{enrollSuccess}</span>
+                  {enrollDeliveryWarning
+                    ? t("students.localPreviewReady")
+                    : <>{t("students.linkSentTo")} <span dir="ltr" className="font-mono">{enrollSuccess}</span></>}
                 </p>
+                {enrollPreviewUrl && (
+                  <a
+                    href={enrollPreviewUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-4 block w-full rounded-xl border border-[#5B14D1] px-4 py-2.5 text-sm font-semibold text-[#5B14D1] hover:bg-purple-50"
+                  >
+                    {t("students.openLocalRegistrationForm")}
+                  </a>
+                )}
                 <DialogClose asChild>
                   <button
                     type="button"

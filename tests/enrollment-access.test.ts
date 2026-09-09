@@ -14,8 +14,6 @@ function source(...segments: string[]): string {
 describe("enrollment route boundary", () => {
   const publicRoutes = [
     ["/api/enrollment/verify-token/opaque-token-123456789", "GET"],
-    ["/api/enrollment/verify-otp", "POST"],
-    ["/api/enrollment/resend-otp", "POST"],
     ["/api/enrollment/submit", "POST"],
     ["/api/enrollment/upload", "POST"],
   ] as const;
@@ -53,8 +51,6 @@ describe("enrollment route boundary", () => {
   it("keeps every public enrollment handler rate limited and token-bound", () => {
     const handlers = [
       "src/app/api/enrollment/verify-token/[token]/route.ts",
-      "src/app/api/enrollment/verify-otp/route.ts",
-      "src/app/api/enrollment/resend-otp/route.ts",
       "src/app/api/enrollment/submit/route.ts",
       "src/app/api/enrollment/upload/route.ts",
     ];
@@ -65,10 +61,11 @@ describe("enrollment route boundary", () => {
       expect(code).toContain("token");
     }
 
-    // The email link itself is the access proof for the registration form;
-    // OTP remains available only to the dedicated legacy handlers and login/2FA.
+    // The email link itself is the access proof for the registration form.
     expect(source("src/app/api/enrollment/submit/route.ts")).not.toContain("rec.otp_verified");
     expect(source("src/app/api/enrollment/upload/route.ts")).not.toContain("record.otp_verified");
+    expect(isPublicEnrollmentRoute("/api/enrollment/verify-otp", "POST")).toBe(false);
+    expect(isPublicEnrollmentRoute("/api/enrollment/resend-otp", "POST")).toBe(false);
   });
 });
 

@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { hashOtp } from "@/lib/enrollment-otp";
 import { randomBytes } from "node:crypto";
 
 const mocks = vi.hoisted(() => ({
@@ -57,9 +56,31 @@ vi.mock("@/lib/rate-limit", async (importOriginal) => ({
 }));
 
 import { GET as verifyToken } from "@/app/api/enrollment/verify-token/[token]/route";
-import { POST as verifyOtp } from "@/app/api/enrollment/verify-otp/route";
 import { POST as submitEnrollment } from "@/app/api/enrollment/submit/route";
 import { POST as uploadEnrollmentFile } from "@/app/api/enrollment/upload/route";
+
+function validEnrollmentBody(overrides: Record<string, unknown> = {}) {
+  return {
+    token: "raw-token",
+    full_name: "Child One",
+    id_number: "1098765432",
+    nationality: "سعودي",
+    gender: "ذكر",
+    period: "صباحي",
+    date_of_birth: "2022-01-10",
+    health_condition: "لا يوجد",
+    allergies: "لا يوجد",
+    guardian_name: "Guardian One",
+    guardian_phone_1: "0500000001",
+    guardian_phone_2: "0500000002",
+    guardian_email: "guardian@example.com",
+    guardian_name_2: "Guardian Two",
+    guardian_email_2: "",
+    enrollment_date: "2026-09-09",
+    payment_method: "نقدي",
+    ...overrides,
+  };
+}
 
 beforeEach(() => {
   process.env.PII_ENCRYPTION_KEY = randomBytes(32).toString("base64");
@@ -119,7 +140,7 @@ describe("public enrollment handlers", () => {
     );
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toMatchObject({ valid: true, otpVerified: false });
+    await expect(response.json()).resolves.toMatchObject({ valid: true });
     expect(mocks.rateLimit).toHaveBeenCalledOnce();
   });
 
@@ -135,31 +156,6 @@ describe("public enrollment handlers", () => {
     expect(mocks.rateLimit).toHaveBeenCalledOnce();
   });
 
-  it("rejects an invalid OTP and consumes one token attempt", async () => {
-    mocks.findUnique.mockResolvedValue({
-      expires_at: new Date(Date.now() + 60_000),
-      otp_verified: false,
-      otp_attempts: 0,
-      otp_expires_at: new Date(Date.now() + 60_000),
-      otp_code_hash: hashOtp("654321"),
-      school: { name: "Test school", logoUrl: null },
-    });
-    const response = await verifyOtp(
-      new Request("http://localhost/api/enrollment/verify-otp", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ token: "live-token", otp_code: "123456" }),
-      })
-    );
-
-    expect(response.status).toBe(401);
-    expect(mocks.updateMany).toHaveBeenCalledWith({
-      where: expect.objectContaining({ token: "live-token", otp_verified: false }),
-      data: { otp_attempts: { increment: 1 } },
-    });
-    expect(mocks.rateLimit).toHaveBeenCalledOnce();
-  });
-
   it("rejects a submission whose token does not exist", async () => {
     mocks.findUnique.mockResolvedValue(null);
 
@@ -167,7 +163,7 @@ describe("public enrollment handlers", () => {
       new Request("http://localhost/api/enrollment/submit", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ token: "missing-token", full_name: "Child" }),
+        body: JSON.stringify(validEnrollmentBody({ token: "missing-token" })),
       })
     );
 
@@ -247,11 +243,10 @@ describe("public enrollment handlers", () => {
       new Request("http://localhost/api/enrollment/submit", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          token: "raw-token",
-          full_name: "Child",
+        body: JSON.stringify(validEnrollmentBody({
           evaluation_file_url: "/api/files/schools/school-1/students/token-id/file.pdf",
-        }),
+          evaluation_file_name: "file.pdf",
+        })),
       })
     );
 
@@ -259,8 +254,8 @@ describe("public enrollment handlers", () => {
     expect(mocks.submissionCreate).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
         id_number: null,
-        encrypted_id_number: null,
-        id_number_hash: null,
+        encrypted_id_number: expect.any(String),
+        id_number_hash: expect.stringMatching(/^[a-f0-9]{64}$/),
       }),
     }));
     expect(mocks.transferOwnership).toHaveBeenCalledWith(
@@ -292,7 +287,7 @@ describe("public enrollment handlers", () => {
     const response = await submitEnrollment(new Request("http://localhost/api/enrollment/submit", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ token: "raw-token", full_name: "Child", id_number: plaintext }),
+      body: JSON.stringify(validEnrollmentBody({ id_number: plaintext })),
     }));
 
     expect(response.status).toBe(200);
@@ -301,6 +296,35 @@ describe("public enrollment handlers", () => {
     expect(data.encrypted_id_number).not.toContain(plaintext);
     expect(data.id_number_hash).toMatch(/^[a-f0-9]{64}$/);
     expect(JSON.stringify(data)).not.toContain(plaintext);
+  });
+
+  it("does not write retired public fields supplied by an older client", async () => {
+    mocks.findUnique.mockResolvedValue({
+      id: "token-id",
+      token: "raw-token",
+      school_id: "school-1",
+      status: "active",
+      expires_at: new Date(Date.now() + 60_000),
+      submissions_count: 0,
+      max_submissions: 3,
+    });
+    mocks.submissionCreate.mockResolvedValue({ id: "submission-1" });
+
+    const response = await submitEnrollment(new Request("http://localhost/api/enrollment/submit", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(validEnrollmentBody({
+        academic_stage: "KG1",
+        guardian_phone_3: "0500000003",
+        guardian_phone_4: "0500000004",
+      })),
+    }));
+
+    expect(response.status).toBe(200);
+    const data = mocks.submissionCreate.mock.calls[0]?.[0]?.data;
+    expect(data).not.toHaveProperty("academic_stage");
+    expect(data).not.toHaveProperty("guardian_phone_3");
+    expect(data).not.toHaveProperty("guardian_phone_4");
   });
 
   it("fails before the transaction when PII keys are unavailable", async () => {
@@ -319,7 +343,7 @@ describe("public enrollment handlers", () => {
     const response = await submitEnrollment(new Request("http://localhost/api/enrollment/submit", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ token: "raw-token", full_name: "Child", id_number: "1098765432" }),
+      body: JSON.stringify(validEnrollmentBody()),
     }));
 
     expect(response.status).toBe(503);
@@ -344,7 +368,7 @@ describe("public enrollment handlers", () => {
       new Request("http://localhost/api/enrollment/submit", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ token: "raw-token", full_name: "Child" }),
+        body: JSON.stringify(validEnrollmentBody()),
       })
     );
 
@@ -370,11 +394,10 @@ describe("public enrollment handlers", () => {
       new Request("http://localhost/api/enrollment/submit", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          token: "raw-token",
-          full_name: "Child",
+        body: JSON.stringify(validEnrollmentBody({
           evaluation_file_url: "/api/files/schools/school-1/students/other-token/file.pdf",
-        }),
+          evaluation_file_name: "file.pdf",
+        })),
       })
     );
 

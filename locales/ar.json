@@ -389,6 +389,8 @@
     "appliesToSelected": "سيتم تطبيقه على {count} طالب محدد",
     "sendFormTitle": "إرسال نموذج التسجيل",
     "linkSentTo": "تم إرسال الرابط إلى",
+    "localPreviewReady": "تعذر إرسال البريد محليًا، لكن رابط المعاينة أصبح جاهزًا.",
+    "openLocalRegistrationForm": "فتح نموذج التسجيل محليًا",
     "formEmailHint": "يُرسل رابط النموذج ورمز التحقق إلى هذا البريد.",
     "sendLink": "إرسال الرابط",
     "reviewRequestTitle": "مراجعة طلب التسجيل",

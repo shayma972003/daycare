@@ -11,7 +11,6 @@ const suite = enabled ? describe.sequential : describe.skip;
 suite("one-time authentication CAS on PostgreSQL", () => {
   let prisma: PrismaClient;
   let verifyTwoFa: typeof import("@/app/api/auth/verify-2fa/route")["POST"];
-  let verifyEnrollment: typeof import("@/app/api/enrollment/verify-otp/route")["POST"];
   let resetPassword: typeof import("@/app/api/auth/reset-password/route")["POST"];
   const suffix = randomBytes(5).toString("hex");
   const schoolId = `codex6c_school_${suffix}`;
@@ -37,7 +36,6 @@ suite("one-time authentication CAS on PostgreSQL", () => {
     vi.doMock("@/lib/file-token", () => ({ stampFileUrl: (value: string | null) => value }));
 
     ({ POST: verifyTwoFa } = await import("@/app/api/auth/verify-2fa/route"));
-    ({ POST: verifyEnrollment } = await import("@/app/api/enrollment/verify-otp/route"));
     ({ POST: resetPassword } = await import("@/app/api/auth/reset-password/route"));
 
     await prisma.school.create({ data: { id: schoolId, name: "Codex 6C" } });
@@ -126,30 +124,6 @@ suite("one-time authentication CAS on PostgreSQL", () => {
       )
     );
     expect(results.filter(Boolean)).toHaveLength(1);
-  });
-
-  it("lets exactly one concurrent enrollment verification claim the code", async () => {
-    const code = "234567";
-    const token = await prisma.enrollmentToken.create({
-      data: {
-        school_id: schoolId,
-        token: `codex6c_enroll_${suffix}`,
-        status: "pending",
-        otp_code_hash: hashOneTimeCode(code, "enrollment"),
-        otp_expires_at: new Date(Date.now() + 60_000),
-        expires_at: new Date(Date.now() + 3_600_000),
-      },
-    });
-    const responses = await Promise.all(
-      Array.from({ length: 8 }, () =>
-        verifyEnrollment(json("/api/enrollment/verify-otp", { token: token.token, otp_code: code }))
-      )
-    );
-    expect(responses.filter((response) => response.status === 200)).toHaveLength(1);
-    await expect(prisma.enrollmentToken.findUnique({ where: { id: token.id } })).resolves.toMatchObject({
-      otp_verified: true,
-      otp_code_hash: null,
-    });
   });
 
   it("consumes a password reset once and increments the web session generation", async () => {

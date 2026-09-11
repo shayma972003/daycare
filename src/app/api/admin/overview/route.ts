@@ -30,7 +30,12 @@ export async function GET(request: Request) {
       },
     }),
     prisma.school.findMany({
-      include: { subscription_plan: true, _count: { select: { students: true } } },
+      include: {
+        subscription_plan: true,
+        _count: {
+          select: { students: { where: { isActive: true, deletedAt: null } } },
+        },
+      },
     }),
     prisma.adminActivityLog.findMany({
       take: 20,

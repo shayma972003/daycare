@@ -5,6 +5,8 @@ import { withNoStore } from "@/lib/auth-response";
 import { z } from "zod";
 import { replaceVariables } from "@/lib/utils";
 import { moneyNumber } from "@/lib/money";
+import { isPlanLimitExceeded } from "@/lib/plan-limits";
+import type { Prisma } from "@/generated/prisma/client";
 
 const patchSchema = z.object({ recipientId: z.string().min(1).optional() }).strict();
 
@@ -26,7 +28,12 @@ export async function GET(request: Request) {
     select: {
       name: true,
       renewal_date: true,
-      subscription_plan: { select: { name: true, price: true, billing_interval: true } },
+      subscription_plan: {
+        select: { name: true, price: true, billing_interval: true, max_students: true },
+      },
+      _count: {
+        select: { students: { where: { isActive: true, deletedAt: null } } },
+      },
     },
   });
   const locale = request.headers.get("accept-language")?.toLowerCase().startsWith("en") ? "en-GB" : "ar-SA-u-ca-gregory-nu-latn";
@@ -37,15 +44,27 @@ export async function GET(request: Request) {
     amount_due: school?.subscription_plan ? `${moneyNumber(school.subscription_plan.price)} ر.س` : "",
   };
 
+  const planLimitActive = Boolean(
+    school?.subscription_plan &&
+      isPlanLimitExceeded(school._count.students, school.subscription_plan.max_students)
+  );
+  const recipientWhere: Prisma.AdminMessageRecipientWhereInput = {
+    school_id: schoolId,
+    // A plan-limit message is a snapshot from the time it was generated. Do
+    // not keep presenting it as a current warning after the school is back
+    // within its cap or has moved to an unlimited plan.
+    ...(planLimitActive ? {} : { NOT: { message: { template_key: "plan_limit" } } }),
+  };
+
   const recipients = await prisma.adminMessageRecipient.findMany({
-    where: { school_id: schoolId },
+    where: recipientWhere,
     include: { message: { select: { id: true, subject: true, body: true, sent_at: true } } },
     orderBy: { message: { sent_at: "desc" } },
     take: 20,
   });
 
   const unreadCount = await prisma.adminMessageRecipient.count({
-    where: { school_id: schoolId, read_at: null, delivered_at: { not: null } },
+    where: { ...recipientWhere, read_at: null, delivered_at: { not: null } },
   });
 
   const messages = recipients.map((r) => ({

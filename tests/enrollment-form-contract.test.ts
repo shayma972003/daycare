@@ -85,8 +85,14 @@ describe("admin plan-limit alerts", () => {
   });
 
   it("uses the shared rule in both the overview and automated alerts", () => {
-    expect(source("src/app/api/admin/overview/route.ts")).toContain("isPlanLimitExceeded(");
+    const overview = source("src/app/api/admin/overview/route.ts");
+    const notifications = source("src/app/api/notifications/admin-messages/route.ts");
+    expect(overview).toContain("isPlanLimitExceeded(");
+    expect(overview).toContain('students: { where: { isActive: true, deletedAt: null } }');
     expect(source("src/app/api/admin/cron/alerts/route.ts")).toContain("isPlanLimitExceeded(");
+    expect(notifications).toContain("const planLimitActive = Boolean(");
+    expect(notifications).toContain('NOT: { message: { template_key: "plan_limit" } }');
+    expect(notifications).toContain("where: { ...recipientWhere, read_at: null");
     expect(source("src/app/admin/(protected)/schools/[id]/page.tsx")).toContain("إعادة المحاولة");
   });
 });

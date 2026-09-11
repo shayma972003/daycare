@@ -287,7 +287,15 @@ export async function checkoutStudent(input: {
         lateHours: { increment: lateHours },
       },
     });
-    return { attendanceId: existing.id, checkoutAt: input.now, totalHours, lateHours, lateFee, personName: student.name };
+    return {
+      attendanceId: existing.id,
+      checkinAt: existing.checkinAt,
+      checkoutAt: input.now,
+      totalHours,
+      lateHours,
+      lateFee,
+      personName: student.name,
+    };
   });
 }
 

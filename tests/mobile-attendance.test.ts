@@ -90,10 +90,15 @@ describe("mobile route contracts", () => {
     expect(source("attendance/today/route.ts")).not.toContain("guardianChildIds");
   });
 
-  it("uses the shared definition of today, not its own arithmetic", () => {
+  it("uses the shared device-zone calendar and attendance operations", () => {
     // Two definitions of "today" is how the app and the dashboard start
     // disagreeing about which day a check-in belongs to.
-    expect(source("attendance/route.ts")).toContain("astDateOnly");
+    const mutationRoute = source("attendance/route.ts");
+    expect(mutationRoute).toContain("requestTimeZone");
+    expect(mutationRoute).toContain("calendarToday");
+    expect(mutationRoute).toContain("checkInStudent");
+    expect(mutationRoute).toContain("checkoutStudent");
+    expect(mutationRoute).not.toContain("prisma.attendance.upsert");
     expect(source("attendance/today/route.ts")).toContain("astDayStart");
     for (const [file] of ROUTES) {
       expect(source(file), `${file} does its own offset arithmetic`).not.toMatch(

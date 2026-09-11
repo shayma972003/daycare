@@ -54,6 +54,11 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // The in-app browser and local device testing use the loopback IP while the
+  // dev server advertises localhost. Without this Next blocks its own dev
+  // assets and repeatedly reloads the page before client data can settle.
+  allowedDevOrigins: ["127.0.0.1"],
+
   experimental: {
     // Disable the client-side Router Cache for dynamic pages so navigating
     // back to a page after making a change always reflects the latest data,

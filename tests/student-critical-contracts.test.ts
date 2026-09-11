@@ -48,6 +48,12 @@ describe("student lifecycle contracts", () => {
     expect(tasks).toContain('subscriptionFilterWhere("current", today)');
   });
 
+  it("does not wrap independent dashboard counters in a timeout-prone transaction", () => {
+    const tasks = source("src/app/api/dashboard/tasks/route.ts");
+    expect(tasks).toContain("await Promise.all([");
+    expect(tasks).not.toContain("await prisma.$transaction([");
+  });
+
   it("removes the retired attendance type from student and enrollment forms", () => {
     for (const path of ["src/app/(dashboard)/students/page.tsx", "src/app/(dashboard)/students/[id]/page.tsx", "src/app/(dashboard)/students/new/page.tsx", "src/app/enroll/[token]/page.tsx", "src/lib/form-schemas.ts"]) {
       expect(source(path)).not.toMatch(/attendanceType|attendance_type/);

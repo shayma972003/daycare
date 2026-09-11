@@ -15,9 +15,9 @@ import { PaymentStatus } from "@/lib/payment-status";
  * next door already costs seventeen Prisma calls and needed `maxDuration` raised
  * to 120s in vercel.json, so this screen has no budget to waste.
  *
- * One `$transaction` instead: the driver pipelines the batch over a single
- * connection, and the numbers are all read at one instant rather than drifting
- * apart as a check-in lands halfway through.
+ * These are independent read-only counters. Run them concurrently rather than
+ * holding one database transaction open across a remote Neon connection: a
+ * slow cold start must not turn a harmless dashboard read into a P2028 timeout.
  *
  * Counts the caller may not act on are not computed at all. An accountant has no
  * `students.view`, so asking the database how many children are absent would be
@@ -63,7 +63,7 @@ export async function GET(request: Request) {
     teacherCount,
     invitesSent,
     school,
-  ] = await prisma.$transaction([
+  ] = await Promise.all([
     canStudents
       ? prisma.student.count({ where: { schoolId, deletedAt: null, isActive: true, status: "ACTIVE", ...subscriptionFilterWhere("current", today) } })
       : prisma.student.count({ where: { id: "" } }),
@@ -142,15 +142,16 @@ export async function GET(request: Request) {
         })
       : prisma.student.count({ where: { id: "" } }),
 
-    // The setup checklist. Cheap counts, and the owner is the only reader — but
-    // running them unconditionally keeps the transaction one fixed shape.
-    prisma.class.count({ where: { schoolId, deletedAt: null } }),
-    prisma.teacher.count({ where: { schoolId, deletedAt: null } }),
-    prisma.enrollmentToken.count({ where: { school_id: schoolId } }),
-    prisma.school.findUnique({
-      where: { id: schoolId },
-      select: { commercialRegistration: true, phoneNumber: true, logoUrl: true },
-    }),
+    // Only the owner can see or act on the setup checklist.
+    canSettings ? prisma.class.count({ where: { schoolId, deletedAt: null } }) : Promise.resolve(0),
+    canSettings ? prisma.teacher.count({ where: { schoolId, deletedAt: null } }) : Promise.resolve(0),
+    canSettings ? prisma.enrollmentToken.count({ where: { school_id: schoolId } }) : Promise.resolve(0),
+    canSettings
+      ? prisma.school.findUnique({
+          where: { id: schoolId },
+          select: { commercialRegistration: true, phoneNumber: true, logoUrl: true },
+        })
+      : Promise.resolve(null),
   ]);
 
   /**

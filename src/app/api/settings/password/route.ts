@@ -56,9 +56,15 @@ export async function PUT(request: Request) {
   }
 
   const hashed = await bcrypt.hash(newPassword, BCRYPT_COST);
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { password: hashed },
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({
+      where: { id: user.id },
+      data: { password: hashed, authVersion: { increment: 1 } },
+    });
+    // A password change is a security boundary: invalidate every stateless web
+    // session through authVersion and remove unfinished one-time sessions too.
+    await tx.twoFASession.deleteMany({ where: { userId: user.id } });
+    await tx.passwordResetToken.deleteMany({ where: { userId: user.id } });
   });
 
   await logAction({

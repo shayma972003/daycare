@@ -4,6 +4,20 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import bcrypt from "bcryptjs";
 import { ROLE_TEMPLATES } from "../src/lib/permissions";
 
+function assertLocalDevelopmentSeed() {
+  if (process.env.ALLOW_DEVELOPMENT_SEED !== "true") {
+    throw new Error("Development seed is disabled. Set ALLOW_DEVELOPMENT_SEED=true explicitly.");
+  }
+  const rawUrl = process.env.DATABASE_URL;
+  if (!rawUrl) throw new Error("DATABASE_URL is required for the development seed.");
+  const hostname = new URL(rawUrl).hostname.toLowerCase();
+  if (!["localhost", "127.0.0.1", "::1"].includes(hostname)) {
+    throw new Error("Development seed may run only against a local PostgreSQL database.");
+  }
+}
+
+assertLocalDevelopmentSeed();
+
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!,
 });

@@ -7,21 +7,21 @@
 
 @theme {
   /* Brand Colors */
-  --color-coral: #F64651;
-  --color-coral-dark: #D93A44;
-  --color-coral-light: #FFE8EA;
+  --color-coral: #5B14D1;
+  --color-coral-dark: #490EA9;
+  --color-coral-light: #F1E8FF;
   --color-yellow: #F8B500;
   --color-yellow-dark: #D99E00;
   --color-yellow-light: #FFF8E0;
-  --color-teal: #2F96A6;
-  --color-teal-dark: #237585;
-  --color-teal-light: #E0F7FA;
+  --color-teal: #5B14D1;
+  --color-teal-dark: #490EA9;
+  --color-teal-light: #F1E8FF;
 
   /* Neutrals — now the dominant palette */
-  --color-navy: #111111;        /* sidebar background — near black */
-  --color-brand-bg: #F7F8FA;    /* page background — cool light gray */
+  --color-navy: #2D2238;
+  --color-brand-bg: #F8F7FA;
   --color-brand-surface: #FFFFFF;
-  --color-brand-border: #EBEBEB;
+  --color-brand-border: #E8E3EF;
 
   /* Status Colors — flat, for dot + text badges */
   --color-success: #2D7A4F;
@@ -34,14 +34,14 @@
   --color-success-text: #2D7A4F;
   --color-warning-bg: #FFF0E0;
   --color-warning-text: #C45000;
-  --color-danger-bg: #FFE8EA;
+  --color-danger-bg: #F1E8FF;
   --color-danger-text: #C0232C;
   --color-neutral-bg: #F0F0F0;
   --color-neutral-text: #666666;
   --color-pending-bg: #F3EEFF;
   --color-pending-text: #7C3AED;
-  --color-active-bg: #E0F7FA;
-  --color-active-text: #2F96A6;
+  --color-active-bg: #F1E8FF;
+  --color-active-text: #5B14D1;
 
   /* Radius */
   --radius-sm: 8px;
@@ -77,8 +77,8 @@
 
 :root {
   /* legacy aliases kept for any remaining references */
-  --sidebar-bg: #111111;
-  --primary-green: #F64651;
+  --sidebar-bg: #FFFFFF;
+  --primary-green: #5B14D1;
   --font-arabic: "Tajawal", sans-serif;
 }
 

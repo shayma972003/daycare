@@ -44,7 +44,7 @@ const CATEGORY_KEYS = [
 ] as const;
 
 const CATEGORY_COLORS: Record<(typeof CATEGORY_KEYS)[number], string> = {
-  studentFilesBytes: "bg-[#2F96A6]",
+  studentFilesBytes: "bg-[#5B14D1]",
   careReportBytes: "bg-[#F8B500]",
   unitFilesBytes: "bg-[#7C3AED]",
   invoiceBytes: "bg-[#2D7A4F]",
@@ -198,7 +198,7 @@ export default function StoragePage() {
                   minute: "2-digit",
                 }) : "—"}
                 {" · "}
-                <button onClick={refresh} disabled={busy} className="text-[#2F96A6] hover:underline">
+                <button onClick={refresh} disabled={busy} className="text-[#5B14D1] hover:underline">
                   {t("common.recalculate")}
                 </button>
               </p>

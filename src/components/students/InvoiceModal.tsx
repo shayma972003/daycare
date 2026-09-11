@@ -62,9 +62,9 @@ interface InvoiceModalProps {
 }
 
 const inputCls =
-  "w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651]";
+  "w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#5B14D1]";
 const tdInput =
-  "border border-gray-200 rounded px-2 py-1 text-sm w-full focus:outline-none focus:ring-1 focus:ring-[#F64651]";
+  "border border-gray-200 rounded px-2 py-1 text-sm w-full focus:outline-none focus:ring-1 focus:ring-[#5B14D1]";
 
 function calcTotal(items: Array<{ qty: number | ""; price: number | "" }>) {
   return items.reduce((s, r) => s + (Number(r.qty) || 0) * (Number(r.price) || 0), 0);
@@ -305,7 +305,7 @@ function InvoiceModalContent({ studentId, onClose, onIssued }: Omit<InvoiceModal
 
           {loading ? (
             <div className="flex justify-center py-12">
-              <div className="w-7 h-7 border-2 border-gray-200 border-t-[#F64651] rounded-full animate-spin" />
+              <div className="w-7 h-7 border-2 border-gray-200 border-t-[#5B14D1] rounded-full animate-spin" />
             </div>
           ) : (
             <div className="space-y-5">
@@ -508,7 +508,7 @@ function InvoiceModalContent({ studentId, onClose, onIssued }: Omit<InvoiceModal
                             </div>
                           </td>
                           <td className="px-3 py-1.5 text-center">
-                            <span className="text-sm font-medium" style={{ color: "#F64651" }}>
+                            <span className="text-sm font-medium" style={{ color: "#5B14D1" }}>
                               -{((calcTotal(lineItems) * discountPercent) / 100).toFixed(2)} {t("finance.sar")}
                             </span>
                           </td>
@@ -534,7 +534,7 @@ function InvoiceModalContent({ studentId, onClose, onIssued }: Omit<InvoiceModal
                     <button
                       type="button"
                       onClick={addLineItem}
-                      className="text-sm text-[#F64651] hover:underline font-medium"
+                      className="text-sm text-[#5B14D1] hover:underline font-medium"
                     >
                       {t("invoiceForm.addRow")}
                     </button>
@@ -586,7 +586,7 @@ function InvoiceModalContent({ studentId, onClose, onIssued }: Omit<InvoiceModal
                     type="checkbox"
                     checked={includeActivities}
                     onChange={(e) => handleIncludeActivities(e.target.checked)}
-                    className="w-4 h-4 accent-[#F64651]"
+                    className="w-4 h-4 accent-[#5B14D1]"
                   />
                   <span className="text-sm font-medium text-[#111111]">{t("invoiceForm.addActivities")}</span>
                 </label>
@@ -698,7 +698,7 @@ function InvoiceModalContent({ studentId, onClose, onIssued }: Omit<InvoiceModal
                   type="button"
                   onClick={handleGenerate}
                   disabled={generating}
-                  className="flex-1 py-2.5 bg-[#F64651] text-white rounded-xl font-bold text-sm hover:bg-[#D93A44] transition-colors disabled:opacity-60"
+                  className="flex-1 py-2.5 bg-[#5B14D1] text-white rounded-xl font-bold text-sm hover:bg-[#490EA9] transition-colors disabled:opacity-60"
                 >
                   {generating ? t("invoiceForm.issuing") : t("invoiceForm.issueAction")}
                 </button>

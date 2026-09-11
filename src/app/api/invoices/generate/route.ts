@@ -354,7 +354,7 @@ export async function POST(request: Request) {
                     createElement(Text, { style: { ...styles.tableBodyCell, ...styles.col1 } }, inv.discountLabel || "التخفيض"),
                     createElement(Text, { style: { ...styles.tableBodyCell, ...styles.col2 } }, "—"),
                     createElement(Text, { style: { ...styles.tableBodyCell, ...styles.col3 } }, `%${inv.discountPercent ?? 0}`),
-                    createElement(Text, { style: { ...styles.tableBodyCell, ...styles.col4, color: "#F64651" } }, `-${(inv.discountAmount ?? 0).toFixed(2)} ر.س`),
+                    createElement(Text, { style: { ...styles.tableBodyCell, ...styles.col4, color: "#5B14D1" } }, `-${(inv.discountAmount ?? 0).toFixed(2)} ر.س`),
                   ),
                 ]
               : []),

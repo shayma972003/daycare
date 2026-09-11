@@ -199,7 +199,7 @@ export function WeeklyAttendanceGrid({ classId, search = "" }: { classId?: strin
                   <div className="text-gray-600 font-medium">{WEEKDAY_LABELS[day.weekday]}</div>
                   <div className="text-[11px] text-gray-400">{day.date.slice(5)}</div>
                   {/* "2/3 حاضر" per column — task 2.13. */}
-                  <div className="text-[11px] text-[#2F96A6] mt-0.5">
+                  <div className="text-[11px] text-[#5B14D1] mt-0.5">
                     {data.dayTotals[index].present}/{data.dayTotals[index].expected} {t("attendance.present")}
                   </div>
                 </th>

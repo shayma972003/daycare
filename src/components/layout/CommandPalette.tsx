@@ -193,7 +193,7 @@ export function CommandPalette() {
                     onClick={() => go(row.href)}
                     onMouseEnter={() => setCursor(index)}
                     className={`w-full flex items-center gap-3 px-5 py-2.5 text-sm text-start transition-colors ${
-                      index === cursor ? "bg-[#E0F7FA]" : "hover:bg-gray-50"
+                      index === cursor ? "bg-[#F1E8FF]" : "hover:bg-gray-50"
                     }`}
                   >
                     <span className="flex-1 truncate text-gray-800">{row.label}</span>

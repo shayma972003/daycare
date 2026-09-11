@@ -221,7 +221,7 @@ export default function NewTeacherPage() {
               <button
                 type="submit"
                 disabled={saving}
-                className="px-8 py-2.5 bg-[#F64651] text-white rounded-xl text-sm font-bold hover:bg-[#D93A44] transition-colors disabled:opacity-60"
+                className="px-8 py-2.5 bg-[#5B14D1] text-white rounded-xl text-sm font-bold hover:bg-[#490EA9] transition-colors disabled:opacity-60"
               >
                 {saving ? t("common.loading") : t("teachers.saveAndAdd")}
               </button>

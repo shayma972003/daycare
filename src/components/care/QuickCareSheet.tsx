@@ -75,7 +75,7 @@ export function QuickCareSheet({
               key={type}
               type="button"
               onClick={() => onPick(type)}
-              className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-gray-100 hover:border-[#2F96A6] hover:bg-[#E0F7FA] active:bg-[#E0F7FA] transition-all"
+              className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-gray-100 hover:border-[#5B14D1] hover:bg-[#F1E8FF] active:bg-[#F1E8FF] transition-all"
             >
               <Icon name={CARE_TYPE_ICON_NAMES[type]} size={26} className={CARE_TYPE_COLORS[type]} />
               <span className="text-[10px] font-medium text-[#111111] text-center leading-tight">

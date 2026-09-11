@@ -23,9 +23,9 @@ export const EVENT_TYPE_LABEL_KEYS: Record<CalendarEventType, string> = {
 };
 
 export const EVENT_TYPE_STYLES: Record<CalendarEventType, string> = {
-  LESSON: "bg-[#E0F7FA] border-[#2F96A6] text-[#12626f]",
+  LESSON: "bg-[#F1E8FF] border-[#5B14D1] text-[#4A168C]",
   ACTIVITY: "bg-[#FFF1E6] border-[#F8B500] text-[#8a5a00]",
-  ANNOUNCEMENT: "bg-[#FFE8EA] border-[#F64651] text-[#8f1f27]",
+  ANNOUNCEMENT: "bg-[#F1E8FF] border-[#5B14D1] text-[#8f1f27]",
   UNIT: "bg-[#F3EEFF] border-[#7C3AED] text-[#4c1d95]",
 };
 

@@ -309,7 +309,7 @@ export default function TeachersPage() {
               value={search}
               onChange={(e) => changeSearch(e.target.value)}
               placeholder={t("students.searchPlaceholder")}
-              className="w-64 px-4 py-2 ps-9 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#F64651] text-sm bg-white shadow-sm"
+              className="w-64 px-4 py-2 ps-9 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#5B14D1] text-sm bg-white shadow-sm"
             />
             <span className="absolute start-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
           </div>
@@ -351,7 +351,7 @@ export default function TeachersPage() {
             <div className="relative" ref={dropdownRef}>
               <button
                 onClick={() => setDropdownOpen(!dropdownOpen)}
-                className="flex items-center gap-1 px-4 py-2 bg-[#F64651] text-white rounded-xl text-sm font-bold hover:bg-[#D93A44] transition-all shadow-md"
+                className="flex items-center gap-1 px-4 py-2 bg-[#5B14D1] text-white rounded-xl text-sm font-bold hover:bg-[#490EA9] transition-all shadow-md"
               >
                 + {t("teachers.addTeacher")}
                 <span className="text-xs ms-1">▼</span>
@@ -524,7 +524,7 @@ export default function TeachersPage() {
                                 <button
                                   onClick={() => handleCheckin(teacher.id)}
                                   disabled={actionLoading === teacher.id + ":checkin"}
-                                  className="px-3 py-1.5 bg-[#F64651] text-white rounded-lg text-xs font-medium hover:bg-[#D93A44] transition-all disabled:opacity-60"
+                                  className="px-3 py-1.5 bg-[#5B14D1] text-white rounded-lg text-xs font-medium hover:bg-[#490EA9] transition-all disabled:opacity-60"
                                 >
                                   {actionLoading === teacher.id + ":checkin" ? "..." : t("teachers.actions.checkin")}
                                 </button>

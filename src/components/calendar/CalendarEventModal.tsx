@@ -54,7 +54,7 @@ interface Option {
 
 /** `datetime-local` carries a wall clock resolved in the user's device zone. */
 const inputCls =
-  "w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2F96A6]";
+  "w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#5B14D1]";
 
 interface CalendarEventModalProps {
   event: EventRow | null;
@@ -261,7 +261,7 @@ function CalendarEventModalContent({
                   }}
                   className={`px-4 py-2 rounded-xl text-sm transition-colors ${
                     !programme && type === option
-                      ? "bg-[#2F96A6] text-white"
+                      ? "bg-[#5B14D1] text-white"
                       : "bg-gray-50 text-gray-700 hover:bg-gray-100"
                   } disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-gray-50`}
                 >
@@ -280,7 +280,7 @@ function CalendarEventModalContent({
                 onClick={() => setProgramme(true)}
                 className={`px-4 py-2 rounded-xl text-sm transition-colors ${
                   programme
-                    ? "bg-[#2F96A6] text-white"
+                    ? "bg-[#5B14D1] text-white"
                     : "bg-gray-50 text-gray-700 hover:bg-gray-100"
                 } disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-gray-50`}
               >
@@ -334,7 +334,7 @@ function CalendarEventModalContent({
                     type="checkbox"
                     checked={allDay}
                     onChange={(e) => changeAllDay(e.target.checked)}
-                    className="accent-[#2F96A6]"
+                    className="accent-[#5B14D1]"
                   />
                   {t("calendar.allDay")}
                 </label>
@@ -378,7 +378,7 @@ function CalendarEventModalContent({
                         onClick={() => toggleClass(item.id)}
                         className={`px-3 py-2 rounded-xl text-sm transition-colors ${
                           classIds.includes(item.id)
-                            ? "bg-[#2F96A6] text-white"
+                            ? "bg-[#5B14D1] text-white"
                             : "bg-gray-50 text-gray-700 hover:bg-gray-100"
                         }`}
                       >
@@ -421,7 +421,7 @@ function CalendarEventModalContent({
               type="button"
               onClick={submit}
               disabled={saving || !title.trim() || !startAt}
-              className="flex-1 px-5 py-3 bg-[#2F96A6] text-white rounded-xl text-sm font-bold hover:bg-[#26808e] disabled:opacity-60"
+              className="flex-1 px-5 py-3 bg-[#5B14D1] text-white rounded-xl text-sm font-bold hover:bg-[#490EA9] disabled:opacity-60"
             >
               {saving ? t("careForm.saving") : t("common.save")}
             </button>

@@ -186,7 +186,7 @@ export default function PortalPage() {
             {data.children.map((child) => (
               <section key={child.id} className="bg-white rounded-2xl shadow-sm p-5 space-y-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-[#E0F7FA] flex items-center justify-center text-[#2F96A6] font-bold shrink-0">
+                  <div className="w-12 h-12 rounded-full bg-[#F1E8FF] flex items-center justify-center text-[#5B14D1] font-bold shrink-0">
                     {child.name.slice(0, 1)}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -371,7 +371,7 @@ function PortalSignIn({ onSignedIn }: { onSignedIn: (token: string) => void }) {
         <button
           onClick={signIn}
           disabled={busy || !email.trim() || !password}
-          className="w-full py-3 bg-[#2F96A6] text-white rounded-xl text-sm font-bold hover:bg-[#26808e] disabled:opacity-60"
+          className="w-full py-3 bg-[#5B14D1] text-white rounded-xl text-sm font-bold hover:bg-[#490EA9] disabled:opacity-60"
         >
           {busy ? "..." : "دخول"}
         </button>

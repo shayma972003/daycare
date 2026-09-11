@@ -257,7 +257,7 @@ function GuardianAccountsContent() {
                           onClick={() => sendInitialInvitation(row)}
                           disabled={busy}
                           aria-label={t("guardianAccounts.sendFor", { name: row.name })}
-                          className="text-xs text-[#2F96A6] hover:underline disabled:opacity-50"
+                          className="text-xs text-[#5B14D1] hover:underline disabled:opacity-50"
                         >
                           {busy
                             ? t("guardianAccounts.sending")
@@ -269,7 +269,7 @@ function GuardianAccountsContent() {
                           onClick={() => resendInvitation(row)}
                           disabled={busy}
                           aria-label={t("guardianAccounts.resendFor", { name: row.name })}
-                          className="text-xs text-[#2F96A6] hover:underline disabled:opacity-50"
+                          className="text-xs text-[#5B14D1] hover:underline disabled:opacity-50"
                         >
                           {busy
                             ? t("guardianAccounts.sending")
@@ -280,7 +280,7 @@ function GuardianAccountsContent() {
                           {t("guardianAccounts.activeRecoveryPrefix")} {" "}
                           <Link
                             href="/forgot-password?kind=guardian"
-                            className="text-[#2F96A6] underline"
+                            className="text-[#5B14D1] underline"
                           >
                             {t("guardianAccounts.forgotPassword")}
                           </Link>

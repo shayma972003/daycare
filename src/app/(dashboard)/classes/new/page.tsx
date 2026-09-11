@@ -77,7 +77,7 @@ export default function NewClassPage() {
             <input
               value={form.name}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#F64651] text-sm"
+              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#5B14D1] text-sm"
               placeholder={t("classes.form.name")}
             />
           </div>
@@ -87,7 +87,7 @@ export default function NewClassPage() {
             <select
               value={form.teacherId}
               onChange={(e) => setForm((f) => ({ ...f, teacherId: e.target.value }))}
-              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#F64651] text-sm bg-white"
+              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#5B14D1] text-sm bg-white"
             >
               <option value="">{t("common.select")}</option>
               {teachers.map((tch) => (
@@ -101,7 +101,7 @@ export default function NewClassPage() {
             <select
               value={form.stageId}
               onChange={(e) => setForm((f) => ({ ...f, stageId: e.target.value }))}
-              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#F64651] text-sm bg-white"
+              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#5B14D1] text-sm bg-white"
             >
               <option value="">{t("common.select")}</option>
               {stages.map((stage) => (
@@ -117,7 +117,7 @@ export default function NewClassPage() {
             <select
               value={form.period}
               onChange={(e) => setForm((f) => ({ ...f, period: e.target.value as "" | "MORNING" | "EVENING", teacherId: "" }))}
-              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#F64651] text-sm bg-white"
+              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#5B14D1] text-sm bg-white"
             >
               <option value="">{t("common.select")}</option>
               <option value="MORNING">{t("periods.MORNING")}</option>
@@ -132,7 +132,7 @@ export default function NewClassPage() {
               dir="ltr"
               value={form.registrationDate}
               onChange={(e) => setForm((f) => ({ ...f, registrationDate: e.target.value }))}
-              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#F64651] text-sm"
+              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#5B14D1] text-sm"
             />
           </div>
 
@@ -142,7 +142,7 @@ export default function NewClassPage() {
               value={form.notes}
               onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
               rows={4}
-              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#F64651] text-sm resize-none"
+              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#5B14D1] text-sm resize-none"
             />
           </div>
 
@@ -156,7 +156,7 @@ export default function NewClassPage() {
             <button
               onClick={handleSave}
             disabled={saving}
-              className="flex-1 py-2.5 bg-[#F64651] hover:bg-[#D93A44] text-white rounded-xl font-bold text-sm transition-all disabled:opacity-60"
+              className="flex-1 py-2.5 bg-[#5B14D1] hover:bg-[#490EA9] text-white rounded-xl font-bold text-sm transition-all disabled:opacity-60"
             >
               {saving ? t("common.loading") : t("classes.form.save")}
             </button>

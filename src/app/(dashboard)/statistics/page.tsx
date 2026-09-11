@@ -132,7 +132,7 @@ function AddExpenseForm({ onSaved, onCancel }: { onSaved: (e: Expense) => void; 
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">{t("finance.type")} *</label>
           <select value={type} onChange={(e) => setType(e.target.value as "one_time" | "monthly")}
-            className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651]">
+            className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#5B14D1]">
             <option value="one_time">{t("finance.oneOff")}</option>
             <option value="monthly">{t("finance.recurring")}</option>
           </select>
@@ -140,22 +140,22 @@ function AddExpenseForm({ onSaved, onCancel }: { onSaved: (e: Expense) => void; 
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">{t("finance.title")} *</label>
           <input value={title} onChange={(e) => setTitle(e.target.value)} required
-            className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651]" />
+            className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#5B14D1]" />
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">{t("finance.description")}</label>
           <input value={description} onChange={(e) => setDescription(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651]" />
+            className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#5B14D1]" />
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">{t("finance.priceSar")} *</label>
           <input type="number" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} required dir="ltr"
-            className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651]" />
+            className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#5B14D1]" />
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">{t("finance.startDate")} *</label>
           <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} required dir="ltr"
-            className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651]" />
+            className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#5B14D1]" />
         </div>
         {type === "monthly" && (
           <div>
@@ -163,14 +163,14 @@ function AddExpenseForm({ onSaved, onCancel }: { onSaved: (e: Expense) => void; 
               {t("fields.endDate")} <span className="text-gray-400">{t("finance.optional")}</span>
             </label>
             <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} dir="ltr"
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651]" />
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#5B14D1]" />
             <p className="text-xs text-gray-400 mt-1">{t("finance.openEndedHint")}</p>
           </div>
         )}
       </div>
       <div className="flex gap-2 pt-1">
         <button type="submit" disabled={saving}
-          className="px-5 py-2 bg-[#F64651] text-white rounded-xl text-sm font-medium hover:bg-[#D93A44] disabled:opacity-60">
+          className="px-5 py-2 bg-[#5B14D1] text-white rounded-xl text-sm font-medium hover:bg-[#490EA9] disabled:opacity-60">
           {saving ? t("finance.adding") : t("common.add")}
         </button>
         <button type="button" onClick={onCancel}
@@ -220,7 +220,7 @@ function EditExpenseRow({ expense, onSaved, onCancel }: { expense: Expense; onSa
     <tr className="bg-blue-50/40">
       <td className="px-4 py-2">
         <input value={title} onChange={(e) => setTitle(e.target.value)}
-          className="w-full px-2 py-1 text-sm rounded border border-gray-200 focus:outline-none focus:ring-1 focus:ring-[#F64651]" />
+          className="w-full px-2 py-1 text-sm rounded border border-gray-200 focus:outline-none focus:ring-1 focus:ring-[#5B14D1]" />
       </td>
       <td className="px-4 py-2 text-xs text-gray-500">{expense.type === "monthly" ? t("finance.recurring") : t("finance.oneOff")}</td>
       <td className="px-4 py-2">
@@ -241,7 +241,7 @@ function EditExpenseRow({ expense, onSaved, onCancel }: { expense: Expense; onSa
       <td className="px-4 py-2">
         <div className="flex gap-1.5 flex-wrap">
           <button onClick={handleSave} disabled={saving}
-            className="px-3 py-1 bg-[#F64651] text-white rounded-lg text-xs font-medium hover:bg-[#D93A44] disabled:opacity-60">
+            className="px-3 py-1 bg-[#5B14D1] text-white rounded-lg text-xs font-medium hover:bg-[#490EA9] disabled:opacity-60">
             {saving ? "..." : t("common.save")}
           </button>
           <button onClick={onCancel}
@@ -425,7 +425,7 @@ function SummaryTab() {
         <button
           type="button"
           onClick={retrySummary}
-          className="px-5 py-2 rounded-lg bg-[#2F96A6] text-white text-sm font-medium hover:bg-[#26808e]"
+          className="px-5 py-2 rounded-lg bg-[#5B14D1] text-white text-sm font-medium hover:bg-[#490EA9]"
         >
           {t("common.retry")}
         </button>
@@ -735,16 +735,16 @@ function ExpensesTab() {
       <div className="flex flex-wrap items-center gap-3 justify-between">
         <div className="flex gap-2 flex-wrap">
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("finance.searchByName")}
-            className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651] bg-white" />
+            className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#5B14D1] bg-white" />
           <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}
-            className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651] bg-white">
+            className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#5B14D1] bg-white">
             <option value="">{t("common.all")}</option>
             <option value="monthly">{t("finance.recurring")}</option>
             <option value="one_time">{t("finance.oneOff")}</option>
           </select>
         </div>
         <button onClick={() => setShowAddForm(true)}
-          className="px-4 py-2 bg-[#F64651] text-white rounded-xl text-sm font-bold hover:bg-[#D93A44] transition-all shadow-md">
+          className="px-4 py-2 bg-[#5B14D1] text-white rounded-xl text-sm font-bold hover:bg-[#490EA9] transition-all shadow-md">
           {t("finance.addExpense")}
         </button>
       </div>

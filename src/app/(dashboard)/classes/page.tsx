@@ -120,7 +120,7 @@ export default function ClassesPage() {
                   onClick={() => changePeriod(p)}
                   className={`px-3 py-1.5 text-xs font-medium transition-all ${
                     periodFilter === p
-                      ? "bg-[#F64651] text-white"
+                      ? "bg-[#5B14D1] text-white"
                       : "text-gray-600 hover:bg-gray-50"
                   }`}
                 >
@@ -140,7 +140,7 @@ export default function ClassesPage() {
                   onClick={() => changeStage(g.id)}
                   className={`px-3 py-1.5 text-xs font-medium transition-all ${
                     stageFilter === g.id
-                      ? "bg-[#F64651] text-white"
+                      ? "bg-[#5B14D1] text-white"
                       : "text-gray-600 hover:bg-gray-50"
                   }`}
                 >
@@ -177,12 +177,12 @@ export default function ClassesPage() {
             <PermissionGate permission="classes.manage">
               <button
                 onClick={addClass.open}
-                className="bg-white rounded-xl shadow-md border-2 border-dashed border-gray-200 flex flex-col items-center justify-center gap-2 min-h-[220px] hover:border-[#F64651] hover:shadow-lg transition-all group cursor-pointer"
+                className="bg-white rounded-xl shadow-md border-2 border-dashed border-gray-200 flex flex-col items-center justify-center gap-2 min-h-[220px] hover:border-[#5B14D1] hover:shadow-lg transition-all group cursor-pointer"
               >
-                <div className="w-12 h-12 rounded-full bg-gray-100 group-hover:bg-[#F64651]/10 flex items-center justify-center text-2xl text-gray-400 group-hover:text-[#F64651] transition-colors">
+                <div className="w-12 h-12 rounded-full bg-gray-100 group-hover:bg-[#5B14D1]/10 flex items-center justify-center text-2xl text-gray-400 group-hover:text-[#5B14D1] transition-colors">
                   +
                 </div>
-                <span className="text-sm text-gray-400 group-hover:text-[#F64651] font-medium transition-colors">
+                <span className="text-sm text-gray-400 group-hover:text-[#5B14D1] font-medium transition-colors">
                   {t("classes.addClass")}
                 </span>
               </button>

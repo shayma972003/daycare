@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/Dialog";
 
 const inputCls =
-  "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2F96A6]";
+  "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#5B14D1]";
 
 export function QuickAddClass({
   open,
@@ -145,7 +145,7 @@ export function QuickAddClass({
           <button
             type="submit"
             disabled={saving || !name.trim()}
-            className="px-5 py-2.5 bg-[#2F96A6] text-white rounded-xl text-sm font-medium hover:bg-[#26808e] disabled:opacity-50"
+            className="px-5 py-2.5 bg-[#5B14D1] text-white rounded-xl text-sm font-medium hover:bg-[#490EA9] disabled:opacity-50"
           >
             {saving ? t("careForm.saving") : t("common.save")}
           </button>
@@ -166,7 +166,7 @@ export function QuickAddClass({
           type="button"
           onClick={onNeedFullForm}
           disabled={saving}
-          className="text-xs text-[#2F96A6] hover:underline pt-1 disabled:cursor-not-allowed disabled:opacity-50"
+          className="text-xs text-[#5B14D1] hover:underline pt-1 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {t("classes.openFullForm")}
         </button>

@@ -285,7 +285,7 @@ export default function TeachersImportPage() {
             <p className="text-sm text-gray-500 mb-6">{t("importer.supports")}</p>
             <div
               className={`border-2 border-dashed rounded-2xl p-12 text-center transition-colors cursor-pointer ${
-                dragOver ? "border-[#F64651] bg-success-bg" : "border-gray-200 hover:border-[#111111]"
+                dragOver ? "border-[#5B14D1] bg-success-bg" : "border-gray-200 hover:border-[#111111]"
               }`}
               onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
               onDragLeave={() => setDragOver(false)}
@@ -458,7 +458,7 @@ export default function TeachersImportPage() {
         {/* STEP 4: Importing */}
         {step === 4 && (
           <div className="bg-white rounded-2xl shadow-md p-12 flex flex-col items-center justify-center gap-6">
-            <div className="w-16 h-16 border-4 border-gray-100 border-t-[#F64651] rounded-full animate-spin" />
+            <div className="w-16 h-16 border-4 border-gray-100 border-t-[#5B14D1] rounded-full animate-spin" />
             <div className="text-center">
               <p className="text-xl font-bold text-[#111111]">{t("importer.importing")}</p>
               <p className="text-sm text-gray-500 mt-1">{t("importer.doNotClose")}</p>

@@ -315,7 +315,7 @@ export default function StudentsImportPage() {
             <p className="text-sm text-gray-500 mb-6">{t("importer.supports")}</p>
             <div
               className={`border-2 border-dashed rounded-2xl p-12 text-center transition-colors cursor-pointer ${
-                dragOver ? "border-[#F64651] bg-success-bg" : "border-gray-200 hover:border-[#111111]"
+                dragOver ? "border-[#5B14D1] bg-success-bg" : "border-gray-200 hover:border-[#111111]"
               }`}
               onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
               onDragLeave={() => setDragOver(false)}
@@ -571,7 +571,7 @@ export default function StudentsImportPage() {
               {sessionData.valid_rows > 0 && (
                 <button
                   onClick={() => { confirmCalledRef.current = false; setStep(5); }}
-                  className="px-6 py-2 bg-[#F64651] text-white rounded-xl text-sm font-bold hover:bg-[#D93A44] transition-colors"
+                  className="px-6 py-2 bg-[#5B14D1] text-white rounded-xl text-sm font-bold hover:bg-[#490EA9] transition-colors"
                 >
                   {t("importer.confirmStudentImport", { n: String(sessionData.valid_rows) })}
                 </button>
@@ -587,7 +587,7 @@ export default function StudentsImportPage() {
             a state of its own, with a way forward and a way back. */}
         {step === 5 && !error && (
           <div className="bg-white rounded-2xl shadow-md p-12 flex flex-col items-center justify-center gap-6">
-            <div className="w-16 h-16 border-4 border-gray-100 border-t-[#F64651] rounded-full animate-spin" />
+            <div className="w-16 h-16 border-4 border-gray-100 border-t-[#5B14D1] rounded-full animate-spin" />
             <div className="text-center">
               <p className="text-xl font-bold text-[#111111]">{t("importer.importing")}</p>
               <p className="text-sm text-gray-500 mt-1">{t("importer.doNotClose")}</p>
@@ -611,7 +611,7 @@ export default function StudentsImportPage() {
               <button
                 onClick={() => { confirmCalledRef.current = true; runConfirm(); }}
                 disabled={loading}
-                className="px-6 py-2 bg-[#F64651] text-white rounded-xl text-sm font-bold hover:bg-[#D93A44] transition-colors disabled:opacity-60"
+                className="px-6 py-2 bg-[#5B14D1] text-white rounded-xl text-sm font-bold hover:bg-[#490EA9] transition-colors disabled:opacity-60"
               >
                 {loading ? t("importer.retrying") : t("fields.retry")}
               </button>

@@ -801,7 +801,7 @@ export default function SettingsPage() {
                   <button
                     onClick={handleSendActivationOtp}
                     disabled={activateLoading}
-                    className="px-5 py-2 bg-[#F64651] hover:bg-[#D93A44] text-white rounded-xl text-sm font-medium disabled:opacity-60"
+                    className="px-5 py-2 bg-[#5B14D1] hover:bg-[#490EA9] text-white rounded-xl text-sm font-medium disabled:opacity-60"
                   >
                     {activateLoading ? "..." : t("settings.twoFa.sendCode")}
                   </button>
@@ -833,7 +833,7 @@ export default function SettingsPage() {
                   <button
                     onClick={handleConfirmActivation}
                     disabled={activateLoading || activateOtp.length !== 6}
-                    className="px-5 py-2 bg-[#F64651] hover:bg-[#D93A44] text-white rounded-xl text-sm font-medium disabled:opacity-60"
+                    className="px-5 py-2 bg-[#5B14D1] hover:bg-[#490EA9] text-white rounded-xl text-sm font-medium disabled:opacity-60"
                   >
                     {activateLoading ? "..." : t("common.confirm")}
                   </button>
@@ -928,7 +928,7 @@ export default function SettingsPage() {
               <button
                 onClick={handleRestoreAll}
                 disabled={restoringAll}
-                className="px-5 py-2 bg-[#F64651] text-white rounded-xl text-sm font-medium hover:bg-[#D93A44] disabled:opacity-60"
+                className="px-5 py-2 bg-[#5B14D1] text-white rounded-xl text-sm font-medium hover:bg-[#490EA9] disabled:opacity-60"
               >
                 {restoringAll ? "..." : t("settings.restoreAll")}
               </button>
@@ -1193,7 +1193,7 @@ export default function SettingsPage() {
                     type="button"
                     onClick={handleToggle2FA}
                     className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors shrink-0 ${
-                      twoFaEnabled ? "bg-[#F64651]" : "bg-gray-300"
+                      twoFaEnabled ? "bg-[#5B14D1]" : "bg-gray-300"
                     }`}
                   >
                     <span
@@ -1214,7 +1214,7 @@ export default function SettingsPage() {
                 <PermissionGate permission="settings.manage"><button
                   type="button"
                   onClick={() => router.push("/settings/logs")}
-                  className="w-full px-5 py-2.5 rounded-md bg-white border border-[#666666] text-[#666666] text-sm font-medium hover:border-[#2F96A6] hover:text-[#2F96A6] hover:bg-[#E0F7FA] transition-all text-right"
+                  className="w-full px-5 py-2.5 rounded-md bg-white border border-[#666666] text-[#666666] text-sm font-medium hover:border-[#5B14D1] hover:text-[#5B14D1] hover:bg-[#F1E8FF] transition-all text-right"
                 >
                   {t("settings.logsLink")}
                 </button></PermissionGate>
@@ -1222,7 +1222,7 @@ export default function SettingsPage() {
                 <PermissionGate permission="staff.manage"><button
                   type="button"
                   onClick={() => router.push("/settings/permissions")}
-                  className="w-full px-5 py-2.5 rounded-md bg-white border border-[#666666] text-[#666666] text-sm font-medium hover:border-[#2F96A6] hover:text-[#2F96A6] hover:bg-[#E0F7FA] transition-all text-right"
+                  className="w-full px-5 py-2.5 rounded-md bg-white border border-[#666666] text-[#666666] text-sm font-medium hover:border-[#5B14D1] hover:text-[#5B14D1] hover:bg-[#F1E8FF] transition-all text-right"
                 >
                   {t("settings.permissionsLink")}
                 </button></PermissionGate>
@@ -1230,7 +1230,7 @@ export default function SettingsPage() {
                 <PermissionGate permission="settings.storage"><button
                   type="button"
                   onClick={() => router.push("/settings/storage")}
-                  className="w-full px-5 py-2.5 rounded-md bg-white border border-[#666666] text-[#666666] text-sm font-medium hover:border-[#2F96A6] hover:text-[#2F96A6] hover:bg-[#E0F7FA] transition-all text-right"
+                  className="w-full px-5 py-2.5 rounded-md bg-white border border-[#666666] text-[#666666] text-sm font-medium hover:border-[#5B14D1] hover:text-[#5B14D1] hover:bg-[#F1E8FF] transition-all text-right"
                 >
                   {t("settings.storageLink")}
                 </button></PermissionGate>
@@ -1261,7 +1261,7 @@ export default function SettingsPage() {
                   {currentTrashList.length > 0 && (
                     <button
                       onClick={() => setShowRestoreAllConfirm(true)}
-                      className="px-4 py-1.5 border-2 border-[#F64651] text-[#D93A44] rounded-full text-sm font-medium hover:bg-success-bg transition-all"
+                      className="px-4 py-1.5 border-2 border-[#5B14D1] text-[#490EA9] rounded-full text-sm font-medium hover:bg-success-bg transition-all"
                     >
                       {t("common.restoreAll")}
                     </button>

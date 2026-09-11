@@ -16,7 +16,7 @@ export function Topbar({ title }: TopbarProps = {}) {
   const { mobileOpen, openMobile, closeMobile, triggerRef } = useDashboardNavigation();
 
   return (
-    <header className="sticky top-0 z-30 flex min-h-16 w-full min-w-0 items-center gap-2 border-b border-brand-border bg-white px-3 py-2 shadow-card sm:gap-3 sm:px-4 lg:px-6">
+    <header className="sticky top-0 z-30 flex min-h-16 w-full min-w-0 items-center gap-2 border-b border-[#E8E3EF] bg-white px-3 py-2 sm:gap-3 sm:px-4 lg:px-6">
       <button
         ref={triggerRef}
         type="button"

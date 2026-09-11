@@ -808,7 +808,7 @@ export default function StudentsPage() {
             <button
               ref={addStudentButtonRef}
               onClick={() => setDropdownOpen(!dropdownOpen)}
-              className="flex items-center gap-1 px-4 py-2 bg-[#F64651] text-white rounded-lg text-sm font-medium hover:bg-[#D93A44] transition-colors"
+              className="flex items-center gap-1 px-4 py-2 bg-[#5B14D1] text-white rounded-lg text-sm font-medium hover:bg-[#490EA9] transition-colors"
             >
               + {t("students.addStudent")}
               <span className="text-xs ms-1">▼</span>
@@ -830,7 +830,7 @@ export default function StudentsPage() {
                 <PermissionGate permission={ENROLLMENT_MANAGE_PERMISSION}>
                   <button
                     onClick={() => { setDropdownOpen(false); setEnrollmentModalOpen(true); setEnrollSuccess(null); setEnrollError(null); }}
-                    className="w-full text-start px-4 py-3 text-sm text-[#F64651] font-medium hover:bg-success-bg transition-colors"
+                    className="w-full text-start px-4 py-3 text-sm text-[#5B14D1] font-medium hover:bg-success-bg transition-colors"
                   >
                     {t("students.sendRegistrationForm")}
                   </button>
@@ -910,7 +910,7 @@ export default function StudentsPage() {
         <div className="bg-white rounded-xl shadow-md overflow-hidden">
           {studentView === "loading" ? (
             <div className="flex justify-center items-center h-48">
-              <div className="w-7 h-7 border-2 border-gray-200 border-t-[#F64651] rounded-full animate-spin" />
+              <div className="w-7 h-7 border-2 border-gray-200 border-t-[#5B14D1] rounded-full animate-spin" />
             </div>
           ) : studentView === "error" ? (
             <div className="p-5">
@@ -1124,7 +1124,7 @@ export default function StudentsPage() {
               dir="ltr"
               value={newEndDate}
               onChange={(e) => setNewEndDate(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-lg border border-gray-200 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-[#F64651]"
+              className="w-full px-4 py-2.5 rounded-lg border border-gray-200 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-[#5B14D1]"
             />}
             {automaticBulk && renewalToday && <ul className="mb-4 max-h-48 space-y-2 overflow-y-auto rounded-lg bg-gray-50 p-3 text-sm">
               {students.filter((student) => selected.has(student.id)).map((student) => <li key={student.id} className="flex flex-wrap justify-between gap-2">
@@ -1151,7 +1151,7 @@ export default function StudentsPage() {
                 type="button"
                 onClick={handleExtendSubscription}
                 disabled={(!automaticBulk && !newEndDate) || isExtending}
-                className="px-4 py-2.5 rounded-lg bg-[#F64651] text-white text-sm hover:bg-[#D93A44] disabled:opacity-50 transition-colors"
+                className="px-4 py-2.5 rounded-lg bg-[#5B14D1] text-white text-sm hover:bg-[#490EA9] disabled:opacity-50 transition-colors"
               >
                 {isExtending ? t("common.updating") : t("common.approve")}
               </button>
@@ -1224,7 +1224,7 @@ export default function StudentsPage() {
                     value={enrollEmail}
                     onChange={(e) => setEnrollEmail(e.target.value)}
                     placeholder="example@email.com"
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651]"
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#5B14D1]"
                   />
                 </div>
                 {enrollError && (
@@ -1235,7 +1235,7 @@ export default function StudentsPage() {
                     type="button"
                     onClick={sendEnrollmentForm}
                     disabled={enrollSending || !enrollEmail.trim()}
-                    className="flex-1 py-2.5 bg-[#F64651] text-white rounded-xl text-sm font-medium hover:bg-[#D93A44] disabled:opacity-50 transition-colors"
+                    className="flex-1 py-2.5 bg-[#5B14D1] text-white rounded-xl text-sm font-medium hover:bg-[#490EA9] disabled:opacity-50 transition-colors"
                   >
                     {enrollSending ? t("common.sending") : t("students.sendLink")}
                   </button>
@@ -1304,23 +1304,23 @@ export default function StudentsPage() {
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">{t("students.fullName")} *</label>
-                  <input className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.full_name ?? ""} onChange={(e) => setRE("full_name", e.target.value)} />
+                  <input className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#5B14D1]" value={reviewEdit.full_name ?? ""} onChange={(e) => setRE("full_name", e.target.value)} />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">{t("students.idNumber")}</label>
-                  <input dir="ltr" className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.id_number ?? ""} onChange={(e) => setRE("id_number", e.target.value)} />
+                  <input dir="ltr" className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-[#5B14D1]" value={reviewEdit.id_number ?? ""} onChange={(e) => setRE("id_number", e.target.value)} />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">{t("students.nationality")}</label>
-                  <input className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.nationality ?? ""} onChange={(e) => setRE("nationality", e.target.value)} />
+                  <input className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#5B14D1]" value={reviewEdit.nationality ?? ""} onChange={(e) => setRE("nationality", e.target.value)} />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">{t("students.academicStage")}</label>
-                  <input className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.academic_stage ?? ""} onChange={(e) => setRE("academic_stage", e.target.value)} />
+                  <input className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#5B14D1]" value={reviewEdit.academic_stage ?? ""} onChange={(e) => setRE("academic_stage", e.target.value)} />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">{t("fields.gender")}</label>
-                  <select className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.gender ?? ""} onChange={(e) => setRE("gender", e.target.value)}>
+                  <select className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#5B14D1]" value={reviewEdit.gender ?? ""} onChange={(e) => setRE("gender", e.target.value)}>
                     <option value="">—</option>
                     <option value="ذكر">{t("gender.MALE")}</option>
                     <option value="أنثى">{t("gender.FEMALE")}</option>
@@ -1328,7 +1328,7 @@ export default function StudentsPage() {
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">{t("fields.period")}</label>
-                  <select className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.period ?? ""} onChange={(e) => setRE("period", e.target.value)}>
+                  <select className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#5B14D1]" value={reviewEdit.period ?? ""} onChange={(e) => setRE("period", e.target.value)}>
                     <option value="">—</option>
                     <option value="صباحي">{t("fields.morning")}</option>
                     <option value="مسائي">{t("fields.evening")}</option>
@@ -1336,7 +1336,7 @@ export default function StudentsPage() {
                 </div>
                 <div className="sm:col-span-2">
                   <label className="block text-xs text-gray-500 mb-1">{t("fields.dateOfBirth")}</label>
-                  <input type="date" dir="ltr" className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={(reviewEdit as Record<string, string>).date_of_birth_str ?? ""} onChange={(e) => setRE("date_of_birth_str", e.target.value)} />
+                  <input type="date" dir="ltr" className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#5B14D1]" value={(reviewEdit as Record<string, string>).date_of_birth_str ?? ""} onChange={(e) => setRE("date_of_birth_str", e.target.value)} />
                 </div>
               </div>
             </div>
@@ -1346,11 +1346,11 @@ export default function StudentsPage() {
               <h3 className="text-sm font-bold text-gray-700">{t("fields.healthInfo")}</h3>
               <div>
                 <label className="block text-xs text-gray-500 mb-1">{t("fields.healthCondition")}</label>
-                <textarea className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651] resize-none h-16" value={reviewEdit.health_condition ?? ""} onChange={(e) => setRE("health_condition", e.target.value)} />
+                <textarea className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#5B14D1] resize-none h-16" value={reviewEdit.health_condition ?? ""} onChange={(e) => setRE("health_condition", e.target.value)} />
               </div>
               <div>
                 <label className="block text-xs text-gray-500 mb-1">{t("fields.allergies")}</label>
-                <textarea className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651] resize-none h-16" value={reviewEdit.allergies ?? ""} onChange={(e) => setRE("allergies", e.target.value)} />
+                <textarea className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#5B14D1] resize-none h-16" value={reviewEdit.allergies ?? ""} onChange={(e) => setRE("allergies", e.target.value)} />
               </div>
             </div>
 
@@ -1360,31 +1360,31 @@ export default function StudentsPage() {
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="sm:col-span-2">
                   <label className="block text-xs text-gray-500 mb-1">{t("students.guardianName")}</label>
-                  <input className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.guardian_name ?? ""} onChange={(e) => setRE("guardian_name", e.target.value)} />
+                  <input className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#5B14D1]" value={reviewEdit.guardian_name ?? ""} onChange={(e) => setRE("guardian_name", e.target.value)} />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">{t("fields.mobile1")}</label>
-                  <input dir="ltr" className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.guardian_phone_1 ?? ""} onChange={(e) => setRE("guardian_phone_1", e.target.value)} />
+                  <input dir="ltr" className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-[#5B14D1]" value={reviewEdit.guardian_phone_1 ?? ""} onChange={(e) => setRE("guardian_phone_1", e.target.value)} />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">{t("fields.mobile2")}</label>
-                  <input dir="ltr" className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.guardian_phone_2 ?? ""} onChange={(e) => setRE("guardian_phone_2", e.target.value)} />
+                  <input dir="ltr" className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-[#5B14D1]" value={reviewEdit.guardian_phone_2 ?? ""} onChange={(e) => setRE("guardian_phone_2", e.target.value)} />
                 </div>
                 <div className="sm:col-span-2">
                   <label className="block text-xs text-gray-500 mb-1">{t("fields.email")}</label>
-                  <input dir="ltr" type="email" className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.guardian_email ?? ""} onChange={(e) => setRE("guardian_email", e.target.value)} />
+                  <input dir="ltr" type="email" className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#5B14D1]" value={reviewEdit.guardian_email ?? ""} onChange={(e) => setRE("guardian_email", e.target.value)} />
                 </div>
                 <div className="sm:col-span-2">
                   <label className="block text-xs text-gray-500 mb-1">{t("fields.guardianName2")}</label>
-                  <input className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.guardian_name_2 ?? ""} onChange={(e) => setRE("guardian_name_2", e.target.value)} />
+                  <input className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#5B14D1]" value={reviewEdit.guardian_name_2 ?? ""} onChange={(e) => setRE("guardian_name_2", e.target.value)} />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">{t("fields.phone3")}</label>
-                  <input dir="ltr" className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.guardian_phone_3 ?? ""} onChange={(e) => setRE("guardian_phone_3", e.target.value)} />
+                  <input dir="ltr" className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-[#5B14D1]" value={reviewEdit.guardian_phone_3 ?? ""} onChange={(e) => setRE("guardian_phone_3", e.target.value)} />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">{t("fields.phone4")}</label>
-                  <input dir="ltr" className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.guardian_phone_4 ?? ""} onChange={(e) => setRE("guardian_phone_4", e.target.value)} />
+                  <input dir="ltr" className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-[#5B14D1]" value={reviewEdit.guardian_phone_4 ?? ""} onChange={(e) => setRE("guardian_phone_4", e.target.value)} />
                 </div>
               </div>
             </div>
@@ -1395,7 +1395,7 @@ export default function StudentsPage() {
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">{t("fields.paymentMethod")}</label>
-                  <select className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#F64651]" value={reviewEdit.payment_method ?? ""} onChange={(e) => setRE("payment_method", e.target.value)}>
+                  <select className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#5B14D1]" value={reviewEdit.payment_method ?? ""} onChange={(e) => setRE("payment_method", e.target.value)}>
                     <option value="">—</option>
                     <option value="نقدي">{t("fields.cash")}</option>
                     <option value="تحويل">{t("fields.transfer")}</option>
@@ -1414,7 +1414,7 @@ export default function StudentsPage() {
                 <select
                   value={reviewClassId}
                   onChange={(e) => setReviewClassId(e.target.value)}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651]"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#5B14D1]"
                 >
                   <option value="">{t("students.noClass")}</option>
                   {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -1425,7 +1425,7 @@ export default function StudentsPage() {
                 <select
                   value={reviewStageId}
                   onChange={(e) => setReviewStageId(e.target.value)}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#F64651]"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#5B14D1]"
                 >
                   <option value="">{t("common.noStage")}</option>
                   {stages.map((stage) => (
@@ -1443,7 +1443,7 @@ export default function StudentsPage() {
                 type="button"
                 onClick={approveSubmission}
                 disabled={reviewPending}
-                className="flex-1 py-3 bg-[#F64651] text-white rounded-xl text-sm font-bold hover:bg-[#D93A44] disabled:opacity-50 transition-colors"
+                className="flex-1 py-3 bg-[#5B14D1] text-white rounded-xl text-sm font-bold hover:bg-[#490EA9] disabled:opacity-50 transition-colors"
               >
                 {reviewApproving ? t("reviewForm.accepting") : t("reviewForm.acceptAndActivate")}
               </button>

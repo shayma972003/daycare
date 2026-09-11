@@ -141,7 +141,7 @@ export default function ActivityLogsPage() {
             <button
               onClick={handleExportLogs}
               disabled={exporting}
-              className="px-4 py-2 rounded-md bg-white border border-[#666666] text-[#666666] text-sm hover:border-[#2F96A6] hover:text-[#2F96A6] hover:bg-[#E0F7FA] transition-all disabled:opacity-60 whitespace-nowrap"
+              className="px-4 py-2 rounded-md bg-white border border-[#666666] text-[#666666] text-sm hover:border-[#5B14D1] hover:text-[#5B14D1] hover:bg-[#F1E8FF] transition-all disabled:opacity-60 whitespace-nowrap"
             >
               {exporting ? t("logs.exporting") : t("logs.downloadPdf")}
             </button>

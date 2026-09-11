@@ -174,7 +174,7 @@ export function AcademicStagesPanel() {
                   <button
                     onClick={() => save(stage.id)}
                     disabled={busy || !draft.nameAr.trim()}
-                    className="px-3 py-1.5 text-xs bg-[#2F96A6] text-white rounded-lg disabled:opacity-60"
+                    className="px-3 py-1.5 text-xs bg-[#5B14D1] text-white rounded-lg disabled:opacity-60"
                   >
                     {t("common.save")}
                   </button>
@@ -233,7 +233,7 @@ export function AcademicStagesPanel() {
                       setEditing(stage.id);
                       setDraft({ nameAr: stage.nameAr, nameEn: stage.nameEn ?? "" });
                     }}
-                    className="px-3 py-1.5 text-xs text-[#2F96A6] hover:underline"
+                    className="px-3 py-1.5 text-xs text-[#5B14D1] hover:underline"
                   >
                     {t("common.edit")}
                   </button>
@@ -269,7 +269,7 @@ export function AcademicStagesPanel() {
         <button
           onClick={add}
           disabled={busy || !newAr.trim()}
-          className="px-4 py-2 bg-[#2F96A6] text-white rounded-xl text-sm font-medium disabled:opacity-60"
+          className="px-4 py-2 bg-[#5B14D1] text-white rounded-xl text-sm font-medium disabled:opacity-60"
         >
           {t("settings.stages.add")}
         </button>
@@ -285,7 +285,7 @@ export function AcademicStagesPanel() {
                 {canManage && <button
                   onClick={() => setArchived(stage, false)}
                   disabled={busy}
-                  className="text-xs text-[#2F96A6] hover:underline disabled:opacity-50"
+                  className="text-xs text-[#5B14D1] hover:underline disabled:opacity-50"
                 >
                   {t("settings.stages.restore")}
                 </button>}

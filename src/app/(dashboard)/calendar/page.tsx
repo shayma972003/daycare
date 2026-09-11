@@ -418,7 +418,7 @@ export default function CalendarPage() {
             <PermissionGate permission="schedule.manage">
               <button
                 onClick={() => setCreating(anchor)}
-                className="px-4 py-2 bg-[#2F96A6] text-white rounded-xl text-sm font-medium hover:bg-[#26808e]"
+                className="px-4 py-2 bg-[#5B14D1] text-white rounded-xl text-sm font-medium hover:bg-[#490EA9]"
               >
                 {t("common.add")}
               </button>
@@ -509,7 +509,7 @@ export function HourGrid({
             </div>
             <div
               className={`text-sm font-medium ${
-                isSameCalendarDay(day, new Date(), timeZone) ? "text-[#2F96A6]" : "text-[#111111]"
+                isSameCalendarDay(day, new Date(), timeZone) ? "text-[#5B14D1]" : "text-[#111111]"
               }`}
             >
               {Number(dateKeyInTimeZone(day, timeZone).slice(8, 10))}
@@ -648,7 +648,7 @@ export function MonthGrid({
               <div
                 className={`text-xs mb-1 ${
                   isSameCalendarDay(day, new Date(), timeZone)
-                    ? "text-[#2F96A6] font-bold"
+                    ? "text-[#5B14D1] font-bold"
                     : outside
                       ? "text-gray-300"
                       : "text-gray-600"

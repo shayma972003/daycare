@@ -54,7 +54,7 @@ function nowForInput(): string {
 }
 
 const inputCls =
-  "w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2F96A6]";
+  "w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#5B14D1]";
 
 export function CareReportModal({
   type,
@@ -455,7 +455,7 @@ function CareReportModalContent({
             type="button"
             onClick={submit}
             disabled={dismissBlocked}
-            className="flex-1 px-5 py-3 bg-[#2F96A6] text-white rounded-xl text-sm font-bold hover:bg-[#26808e] disabled:opacity-60"
+            className="flex-1 px-5 py-3 bg-[#5B14D1] text-white rounded-xl text-sm font-bold hover:bg-[#490EA9] disabled:opacity-60"
           >
             {saving ? t("careForm.saving") : t("careForm.submit")}
           </button>
@@ -510,7 +510,7 @@ function ChoiceRow({
           onClick={() => onChange(key)}
           className={`px-4 py-2.5 rounded-xl text-sm transition-colors ${
             value === key
-              ? "bg-[#2F96A6] text-white"
+              ? "bg-[#5B14D1] text-white"
               : "bg-gray-50 text-gray-700 hover:bg-gray-100"
           }`}
         >
@@ -528,7 +528,7 @@ function NapDuration({ start, end }: { start?: string; end?: string }) {
   const to = new Date(end).getTime();
   if (Number.isNaN(from) || Number.isNaN(to) || to <= from) return null;
   return (
-    <p className="text-xs text-[#2F96A6]">
+    <p className="text-xs text-[#5B14D1]">
       {t("careForm.durationMinutes", { n: String(Math.round((to - from) / 60000)) })}
     </p>
   );

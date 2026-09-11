@@ -241,7 +241,7 @@ export default function PermissionsPage() {
                   <button
                     ref={inviteTriggerRef}
                     onClick={() => setShowInvite(true)}
-                    className="px-4 py-2 bg-[#2F96A6] text-white rounded-xl text-sm font-medium hover:bg-[#26808e]"
+                    className="px-4 py-2 bg-[#5B14D1] text-white rounded-xl text-sm font-medium hover:bg-[#490EA9]"
                   >
                     {t("permissions.addAccount")}
                   </button>
@@ -312,7 +312,7 @@ export default function PermissionsPage() {
                                       : "permissions.resendInviteFor",
                                     { name: user.name }
                                   )}
-                                  className="text-xs text-[#2F96A6] hover:underline disabled:opacity-50"
+                                  className="text-xs text-[#5B14D1] hover:underline disabled:opacity-50"
                                 >
                                   {inviting === user.id
                                     ? t("permissions.sendingInvite")
@@ -330,7 +330,7 @@ export default function PermissionsPage() {
                                       : "permissions.disableAccountFor",
                                     { name: user.name }
                                   )}
-                                  className="text-xs text-[#2F96A6] hover:underline"
+                                  className="text-xs text-[#5B14D1] hover:underline"
                                 >
                                   {user.disabled ? t("permissions.enable") : t("permissions.disable")}
                                 </button>
@@ -362,7 +362,7 @@ export default function PermissionsPage() {
                     onClick={() => setSelectedRoleId(role.id)}
                     className={`px-4 py-2 rounded-xl text-sm transition-colors ${
                       role.id === selectedRoleId
-                        ? "bg-[#2F96A6] text-white"
+                        ? "bg-[#5B14D1] text-white"
                         : "bg-gray-50 text-gray-600 hover:bg-gray-100"
                     }`}
                   >
@@ -493,7 +493,7 @@ function RolePermissionEditor({
                 type="checkbox"
                 checked={bundleOn(bundle)}
                 onChange={() => toggleBundle(bundle)}
-                className="mt-0.5 accent-[#2F96A6]"
+                className="mt-0.5 accent-[#5B14D1]"
               />
               <span>{t(`capabilities.${bundle.key}`)}</span>
             </label>
@@ -510,13 +510,13 @@ function RolePermissionEditor({
           <button
             onClick={save}
             disabled={saving}
-            className="px-6 py-2 bg-[#2F96A6] text-white rounded-xl text-sm font-medium hover:bg-[#26808e] disabled:opacity-60"
+            className="px-6 py-2 bg-[#5B14D1] text-white rounded-xl text-sm font-medium hover:bg-[#490EA9] disabled:opacity-60"
           >
             {saving ? t("careForm.saving") : t("permissions.savePermissions")}
           </button>
           <button
             onClick={() => setAdvanced(true)}
-            className="text-sm text-[#2F96A6] hover:underline"
+            className="text-sm text-[#5B14D1] hover:underline"
           >
             {t("permissions.advanced")}
           </button>
@@ -529,7 +529,7 @@ function RolePermissionEditor({
     <>
       <button
         onClick={() => setAdvanced(false)}
-        className="text-sm text-[#2F96A6] hover:underline mb-4"
+        className="text-sm text-[#5B14D1] hover:underline mb-4"
       >
         {t("permissions.backToSimple")}
       </button>
@@ -547,7 +547,7 @@ function RolePermissionEditor({
                     type="checkbox"
                     checked={draft.includes(permission.key)}
                     onChange={() => toggle(permission.key)}
-                    className="mt-0.5 accent-[#2F96A6]"
+                    className="mt-0.5 accent-[#5B14D1]"
                   />
                   <span>
                     {permission.labelAr}
@@ -565,7 +565,7 @@ function RolePermissionEditor({
       <button
         onClick={save}
         disabled={saving}
-        className="mt-5 px-6 py-2 bg-[#2F96A6] text-white rounded-xl text-sm font-medium hover:bg-[#26808e] disabled:opacity-60"
+        className="mt-5 px-6 py-2 bg-[#5B14D1] text-white rounded-xl text-sm font-medium hover:bg-[#490EA9] disabled:opacity-60"
       >
         {saving ? t("careForm.saving") : t("permissions.savePermissions")}
       </button>
@@ -761,7 +761,7 @@ function InviteStaffModal({
             <button
               type="submit"
               disabled={saving || !name || !email || !roleId}
-              className="rounded-xl bg-[#2F96A6] px-5 py-2 text-sm font-medium text-white hover:bg-[#26808e] disabled:opacity-60"
+              className="rounded-xl bg-[#5B14D1] px-5 py-2 text-sm font-medium text-white hover:bg-[#490EA9] disabled:opacity-60"
             >
               {saving ? t("permissions.creating") : t("permissions.createAndInvite")}
             </button>

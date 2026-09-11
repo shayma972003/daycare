@@ -4,6 +4,7 @@ import { logAction } from "@/lib/activity-logger";
 import { PAYMENT_STATUSES } from "@/lib/payment-status";
 import { z } from "zod";
 import { bulkSummary } from "@/lib/bulk-result";
+import { astDateOnly } from "@/lib/datetime";
 
 const schema = z.object({
   ids: z.array(z.string()).min(1).max(500),
@@ -47,6 +48,22 @@ export async function PUT(request: Request) {
     where: { id: { in: [...ownedIds] }, schoolId, deletedAt: null },
     data: { paymentStatus },
   });
+
+  if (paymentStatus === "PAID" && ownedIds.size > 0) {
+    await prisma.paymentCycle.updateMany({
+      where: {
+        school_id: schoolId,
+        student_id: { in: [...ownedIds] },
+        due_date: { lte: astDateOnly() },
+        status: { notIn: ["PAID", "CANCELLED"] },
+      },
+      data: {
+        status: "PAID",
+        paid_at: new Date(),
+        paid_by: session.user.name ?? session.user.id,
+      },
+    });
+  }
 
   await logAction({
     school_id: schoolId,

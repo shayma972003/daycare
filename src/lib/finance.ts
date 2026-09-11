@@ -1,10 +1,8 @@
 import { prisma } from "@/lib/prisma";
-import { astDateOnly, astParts } from "@/lib/datetime";
-import type { PaymentStatus } from "@/generated/prisma/enums";
-import type { BillingCycle } from "@/generated/prisma/enums";
+import { astDayEnd, astParts } from "@/lib/datetime";
+import type { PaymentCycleStatus } from "@/generated/prisma/enums";
 import { calculateRecurringMoney } from "@/lib/finance-calculator";
 import { money, moneyAdd, moneyMultiply, moneyNumber, moneySubtract, type MoneyInput } from "@/lib/money";
-import { nthDueDate } from "@/lib/billing-cycles";
 
 export type ReportPeriodType = "monthly" | "semi_annual" | "annual";
 
@@ -34,12 +32,24 @@ export interface PeriodRange {
 // 6-month window ending at the current month.
 export function getPeriodRange(type: ReportPeriodType): PeriodRange {
   const { y, m } = astNowParts();
-  if (type === "annual") return { from: astToUtc(y, 0, 1), to: astToUtc(y, 11, 31, 23, 59, 59, 999) };
-  if (type === "semi_annual") {
-    if (m <= 5) return { from: astToUtc(y, 0, 1), to: astToUtc(y, 6, 0, 23, 59, 59, 999) };
-    return { from: astToUtc(y, 6, 1), to: astToUtc(y, 12, 0, 23, 59, 59, 999) };
+  const todayEnd = new Date(astDayEnd().getTime() - 1);
+  if (type === "annual") {
+    return {
+      from: astToUtc(y, 0, 1),
+      to: new Date(Math.min(astToUtc(y, 11, 31, 23, 59, 59, 999).getTime(), todayEnd.getTime())),
+    };
   }
-  return { from: astToUtc(y, m, 1), to: astToUtc(y, m + 1, 0, 23, 59, 59, 999) };
+  if (type === "semi_annual") {
+    const from = m <= 5 ? astToUtc(y, 0, 1) : astToUtc(y, 6, 1);
+    const calendarEnd = m <= 5
+      ? astToUtc(y, 6, 0, 23, 59, 59, 999)
+      : astToUtc(y, 12, 0, 23, 59, 59, 999);
+    return { from, to: new Date(Math.min(calendarEnd.getTime(), todayEnd.getTime())) };
+  }
+  return {
+    from: astToUtc(y, m, 1),
+    to: new Date(Math.min(astToUtc(y, m + 1, 0, 23, 59, 59, 999).getTime(), todayEnd.getTime())),
+  };
 }
 
 /**
@@ -60,20 +70,25 @@ export function getPeriodRange(type: ReportPeriodType): PeriodRange {
  */
 export function getPreviousPeriodRange(type: ReportPeriodType, current: PeriodRange): PeriodRange {
   const { year: y, month: m } = astParts(current.from);
+  const elapsed = current.to.getTime() - current.from.getTime();
+  const matched = (from: Date, calendarEnd: Date): PeriodRange => ({
+    from,
+    to: new Date(Math.min(calendarEnd.getTime(), from.getTime() + elapsed)),
+  });
 
   if (type === "annual") {
-    return { from: astToUtc(y - 1, 0, 1), to: astToUtc(y - 1, 11, 31, 23, 59, 59, 999) };
+    return matched(astToUtc(y - 1, 0, 1), astToUtc(y - 1, 11, 31, 23, 59, 59, 999));
   }
 
   if (type === "semi_annual") {
     // current.from is either January (H1) or July (H2).
-    if (m === 0) return { from: astToUtc(y - 1, 6, 1), to: astToUtc(y - 1, 12, 0, 23, 59, 59, 999) };
-    return { from: astToUtc(y, 0, 1), to: astToUtc(y, 6, 0, 23, 59, 59, 999) };
+    if (m === 0) return matched(astToUtc(y - 1, 6, 1), astToUtc(y - 1, 12, 0, 23, 59, 59, 999));
+    return matched(astToUtc(y, 0, 1), astToUtc(y, 6, 0, 23, 59, 59, 999));
   }
 
   // Whole previous calendar month. `astToUtc(y, m, 0, …)` is the last instant
   // of the month before m, which is exactly the end we want.
-  return { from: astToUtc(y, m - 1, 1), to: astToUtc(y, m, 0, 23, 59, 59, 999) };
+  return matched(astToUtc(y, m - 1, 1), astToUtc(y, m, 0, 23, 59, 59, 999));
 }
 
 interface ExpenseLike {
@@ -106,11 +121,11 @@ export interface FinancialSummary {
 
   revenue: {
     total: number;
-    monthlyFees: number; // الاشتراكات الشهرية المستحقة على الطلاب النشطين خلال الفترة (حسب تداخل تاريخ الاشتراك مع الفترة)
-    registrationFeesCollected: number; // رسوم تسجيل لطلاب مسجّلين خلال الفترة وحالتهم "مدفوع"
-    activities: number; // رسوم الفعاليات المقامة خلال الفترة
+    monthlyFees: number; // أقساط الاشتراك المستحقة والمسجلة خلال الفترة
+    registrationFeesCollected: number; // رسوم التسجيل المستحقة لطلاب سُجلوا خلال الفترة
+    activities: number; // القيمة المتوقعة للفعاليات المقامة خلال الفترة
     lateFees: number; // غرامات تأخير الطلاب (Attendance.lateFee) خلال الفترة
-    vatCollected: number; // ضريبة القيمة المضافة (15% تقديري من الرسوم الشهرية المحصَّلة)
+    vatCollected: number; // جزء الضريبة المستخرج من أقساط الاشتراك الشاملة للضريبة
   };
   expenses: {
     total: number;
@@ -128,8 +143,8 @@ export interface FinancialSummary {
   };
 
   collection: {
-    paid: number; // ر.س — طلاب بحالة "مدفوع"
-    paidWithVat: number; // الإجمالي شامل الضريبة (15%)
+    paid: number; // ر.س — دورات دفع مسددة داخل الفترة
+    vatIncluded: number; // جزء الضريبة المستخرج من المبالغ المدفوعة الشاملة للضريبة
     late: number; // ر.س — طلاب بحالة "متأخر"
     pending: number; // ر.س — طلاب بحالة "بانتظار الدفع"
     suspended: number; // ر.س — طلاب موقوفين، كانوا مستبعدين تماماً من التقرير
@@ -141,8 +156,7 @@ export interface FinancialSummary {
 
   salaries: {
     totalBudgeted: number; // رواتب المعلمين النشطين خلال الفترة (حسب العقود)
-    paid: number; // نفس القيمة — لا يوجد مصدر منفصل "مدفوع فعليًا" بدون الفواتير
-    remaining: number;
+    invoicesIssued: number; // وثائق صادرة وليست إثبات دفع
   };
 
   cashFlow: {
@@ -159,87 +173,54 @@ export interface FinancialSummary {
   };
 }
 
-/** Per-student billable amount uses the student's saved subscription snapshot;
- * changing school settings must not reprice an active contract. */
-async function getStudentBillableByStatus(schoolId: string) {
-  const students = await prisma.student.findMany({
-    where: { schoolId, isActive: true },
-    select: { paymentStatus: true, registration_fee: true, cycleFee: true },
+async function getCycleBillableByStatus(schoolId: string, range: PeriodRange) {
+  const cycles = await prisma.paymentCycle.findMany({
+    where: { school_id: schoolId, due_date: { gte: range.from, lte: range.to } },
+    select: { status: true, amount: true },
   });
-  // Every status gets a bucket. The old version knew only three and skipped the
-  // rest, so SUSPENDED students — the ones who owe the most — were silently
-  // dropped from both the collection breakdown and the amount-due total.
-  const buckets: Record<PaymentStatus, { amount: ReturnType<typeof money>; count: number }> = {
+  const buckets: Record<PaymentCycleStatus, { amount: ReturnType<typeof money>; count: number }> = {
     PENDING: { amount: money(0), count: 0 },
     PAID: { amount: money(0), count: 0 },
-    LATE: { amount: money(0), count: 0 },
+    OVERDUE: { amount: money(0), count: 0 },
     SUSPENDED: { amount: money(0), count: 0 },
     CANCELLED: { amount: money(0), count: 0 },
   };
 
-  for (const s of students) {
-    buckets[s.paymentStatus].amount = moneyAdd(buckets[s.paymentStatus].amount, s.cycleFee, s.registration_fee);
-    buckets[s.paymentStatus].count += 1;
+  for (const cycle of cycles) {
+    buckets[cycle.status].amount = moneyAdd(buckets[cycle.status].amount, cycle.amount);
+    buckets[cycle.status].count += 1;
   }
 
   return buckets;
 }
 
-function subscriptionAmountInRange(student: {
-  enrollment_date: Date;
-  enrollmentEndDate: Date | null;
-  billingCycle: BillingCycle;
-  billingIntervalDays: number | null;
-  cycleFee: MoneyInput;
-}, range: PeriodRange) {
-  if (student.cycleFee == null) return money(0);
-  const contractStart = astDateOnly(student.enrollment_date);
-  const contractEnd = astDateOnly(student.enrollmentEndDate ?? range.to);
-  let total = money(0);
-  // Ten thousand daily cycles cover over 27 years and keep corrupted ranges
-  // from creating an unbounded report loop.
-  for (let index = 0; index < 10_000; index++) {
-    const due = nthDueDate(contractStart, student.billingCycle, index, student.billingIntervalDays);
-    if (due > contractEnd || due > range.to) break;
-    if (due >= range.from) total = moneyAdd(total, student.cycleFee);
+async function getCashWindow(schoolId: string, range: PeriodRange) {
+  const profile = await prisma.financeProfile.findUnique({ where: { school_id: schoolId } });
+  if (!profile?.opening_balance_date) return { openingBalance: money(0), from: range.from };
+  const balanceStart = new Date(profile.opening_balance_date.getTime() - AST_OFFSET_MS);
+  if (balanceStart > range.to) {
+    return { openingBalance: money(0), from: new Date(range.to.getTime() + 1) };
   }
-  return total;
-}
-
-/** Sum of active-teacher monthly salaries prorated across each teacher's contract, up to `before`. */
-async function getCumulativeSalaryExpense(schoolId: string, before: Date) {
-  const teachers = await prisma.teacher.findMany({
-    where: { schoolId, isActive: true },
-    select: { joinDate: true, monthlySalary: true, enrollmentEndDate: true },
-  });
-  const dayBefore = new Date(before.getTime() - 1);
-  const veryEarly = new Date(0);
-  return teachers.reduce((s, t) => {
-    const effectiveEnd = t.enrollmentEndDate && t.enrollmentEndDate.getTime() < dayBefore.getTime() ? t.enrollmentEndDate : dayBefore;
-    return moneyAdd(s, calculateRecurringMoney(t.monthlySalary, new Date(t.joinDate), effectiveEnd, veryEarly, dayBefore));
-  }, money(0));
-}
-
-async function getCumulativeCashPosition(schoolId: string, before: Date) {
-  const [paidCycles, paidRegFees, expenses] = await Promise.all([
+  if (balanceStart >= range.from) {
+    return { openingBalance: money(profile.opening_balance), from: balanceStart };
+  }
+  const [paidCycles, paidExpenses] = await Promise.all([
     prisma.paymentCycle.aggregate({
-      where: { school_id: schoolId, status: "PAID", due_date: { lt: before } },
+      where: { school_id: schoolId, status: "PAID", paid_at: { gte: balanceStart, lt: range.from } },
       _sum: { amount: true },
     }),
-    prisma.student.aggregate({
-      where: { schoolId, isActive: true, paymentStatus: "PAID", registrationDate: { lt: before } },
-      _sum: { registration_fee: true },
+    prisma.expenseOccurrence.aggregate({
+      where: { school_id: schoolId, status: "PAID", paid_at: { gte: balanceStart, lt: range.from } },
+      _sum: { amount: true },
     }),
-    prisma.expense.findMany({ where: { school_id: schoolId } }),
   ]);
-
-  const veryEarly = new Date(0);
-  const manualExpensesTotal = expenses.reduce((s, e) => moneyAdd(s, expenseAmountInPeriod(e, veryEarly, new Date(before.getTime() - 1))), money(0));
-  const salariesExpense = await getCumulativeSalaryExpense(schoolId, before);
-
-  const inflows = moneyAdd(paidCycles._sum.amount, paidRegFees._sum.registration_fee);
-  const outflows = moneyAdd(salariesExpense, manualExpensesTotal);
-  return moneySubtract(inflows, outflows);
+  return {
+    openingBalance: moneySubtract(
+      moneyAdd(profile.opening_balance, paidCycles._sum.amount),
+      paidExpenses._sum.amount
+    ),
+    from: range.from,
+  };
 }
 
 export async function getFinancialSummary(schoolId: string, type: ReportPeriodType): Promise<FinancialSummary> {
@@ -251,28 +232,30 @@ export async function getFinancialSummary(schoolId: string, type: ReportPeriodTy
   const range = getPeriodRange(type);
   const prevRange = getPreviousPeriodRange(type, range);
 
-  const [school, subscribedStudents, activeTeachers, activitiesInPeriod, expenses, paidRegFeesResult, lateFeesResult] = await Promise.all([
+  const [school, paymentCyclesInPeriod, teachersInScope, activitiesInPeriod, expenseOccurrences, registrationFeesResult, lateFeesResult] = await Promise.all([
     prisma.school.findUnique({ where: { id: schoolId }, select: { vatRegistered: true } }),
-    prisma.student.findMany({
-      // `enrollmentEndDate: { not: null }` is deliberately gone. Open-ended
-      // enrolment is the normal case for a daycare, and requiring an end date
-      // silently excluded those children from revenue entirely — the report
-      // simply under-reported with no indication why. They are billed to the
-      // end of the reporting period instead.
-      where: { schoolId, isActive: true, deletedAt: null, enrollment_date: { not: null } },
-      select: { name: true, registration_fee: true, enrollment_date: true, enrollmentEndDate: true, billingCycle: true, billingIntervalDays: true, cycleFee: true },
+    prisma.paymentCycle.findMany({
+      where: { school_id: schoolId, due_date: { gte: range.from, lte: range.to }, status: { not: "CANCELLED" } },
+      select: { id: true, amount: true, due_date: true, student: { select: { name: true } } },
     }),
     prisma.teacher.findMany({
-      where: { schoolId, isActive: true },
+      where: {
+        schoolId,
+        joinDate: { lte: range.to },
+        OR: [{ enrollmentEndDate: null }, { enrollmentEndDate: { gte: range.from } }],
+      },
       select: { id: true, name: true, monthlySalary: true, joinDate: true, enrollmentEndDate: true },
     }),
     prisma.activity.findMany({
       where: { schoolId, startDate: { gte: range.from, lte: range.to } },
       select: { name: true, activityFee: true, childrenCount: true },
     }),
-    prisma.expense.findMany({ where: { school_id: schoolId } }),
+    prisma.expenseOccurrence.findMany({
+      where: { school_id: schoolId, due_date: { gte: range.from, lte: range.to }, status: { not: "CANCELLED" } },
+      select: { id: true, amount: true, due_date: true, expense: { select: { title: true } } },
+    }),
     prisma.student.aggregate({
-      where: { schoolId, isActive: true, paymentStatus: "PAID", registrationDate: { gte: range.from, lte: range.to } },
+      where: { schoolId, registrationDate: { gte: range.from, lte: range.to } },
       _sum: { registration_fee: true },
     }),
     prisma.attendance.aggregate({
@@ -281,38 +264,33 @@ export async function getFinancialSummary(schoolId: string, type: ReportPeriodTy
     }),
   ]);
 
-  // Subscription revenue: for each active student under contract, count only the months of
-  // their enrollment period that overlap the reporting period — not the full contract duration.
-  const monthlyFeeItems = subscribedStudents
-    .map((st) => {
-      // `registration_fee` is a one-off joining fee, counted separately below.
-      // Using it as the monthly rate charged it every single month *and* again
-      // as a registration fee — the same money twice. The monthly rate is the
-      // school's configured fee.
-      const amount = subscriptionAmountInRange({ ...st, enrollment_date: st.enrollment_date! }, range);
-      return { name: st.name, amount };
-    })
-    .filter((item) => item.amount.greaterThan(0));
+  // Subscription revenue comes from the persisted schedule, not a second
+  // projection from the student's current product. Changing terms can therefore
+  // never rewrite what an earlier report says was due.
+  const monthlyFeeItems = paymentCyclesInPeriod.map((cycle) => ({
+    id: cycle.id,
+    name: cycle.student.name,
+    date: cycle.due_date,
+    amount: money(cycle.amount),
+  }));
 
   const lateFeeRevenue = lateFeesResult._sum.lateFee ?? 0;
   const monthlyFeesRevenue = monthlyFeeItems.reduce((s, item) => moneyAdd(s, item.amount), money(0));
   const activitiesTotal = activitiesInPeriod.reduce((s, a) => moneyAdd(s, moneyMultiply(a.activityFee, a.childrenCount)), money(0));
-  const registrationFeesCollected = paidRegFeesResult._sum.registration_fee ?? 0;
+  const registrationFeesCollected = registrationFeesResult._sum.registration_fee ?? 0;
 
-  // VAT is money collected on ZATCA's behalf and owed onward — a liability, not
-  // income. It used to be added into revenueTotal, which flowed through to net
-  // income and the closing cash balance and overstated both by ~15% of
-  // subscription revenue. It is reported separately now.
-  //
-  // The rate is also only applied to schools that are actually VAT-registered;
-  // previously every school had 15% added regardless of `vatRegistered`.
-  const vatCollected = school?.vatRegistered ? moneyMultiply(monthlyFeesRevenue, VAT_RATE) : money(0);
+  // Subscription prices are VAT-inclusive (the invoice path uses the same
+  // contract). Extract 15/115 from billed fees; adding 15% here would disagree
+  // with the invoice and overstate the liability.
+  const vatCollected = school?.vatRegistered
+    ? money(monthlyFeesRevenue).mul(VAT_RATE).div(1 + VAT_RATE).toDecimalPlaces(2)
+    : money(0);
 
   const revenueTotal = moneyAdd(monthlyFeesRevenue, activitiesTotal, registrationFeesCollected, lateFeeRevenue);
 
   // Teacher salary expense: only count months where the teacher's contract (joinDate through
   // enrollmentEndDate, or ongoing if no end date) overlaps the reporting period.
-  const salaryItems = activeTeachers
+  const salaryItems = teachersInScope
     .map((t) => {
       const effectiveEnd = t.enrollmentEndDate ?? range.to;
       const amount = calculateRecurringMoney(t.monthlySalary, new Date(t.joinDate), new Date(effectiveEnd), range.from, range.to);
@@ -320,17 +298,22 @@ export async function getFinancialSummary(schoolId: string, type: ReportPeriodTy
     })
     .filter((item) => item.amount.greaterThan(0));
   const salariesExpense = salaryItems.reduce((s, item) => moneyAdd(s, item.amount), money(0));
-  const manualExpenseItems = expenses
-    .map((e) => ({ title: e.title, amount: expenseAmountInPeriod(e, range.from, range.to) }))
-    .filter((e) => e.amount.greaterThan(0));
+  const manualExpenseMap = new Map<string, ReturnType<typeof money>>();
+  for (const occurrence of expenseOccurrences) {
+    manualExpenseMap.set(
+      occurrence.expense.title,
+      moneyAdd(manualExpenseMap.get(occurrence.expense.title), occurrence.amount)
+    );
+  }
+  const manualExpenseItems = [...manualExpenseMap].map(([title, amount]) => ({ title, amount }));
   const manualExpensesTotal = manualExpenseItems.reduce((s, e) => moneyAdd(s, e.amount), money(0));
   const expensesTotal = moneyAdd(salariesExpense, manualExpensesTotal);
 
   const netIncome = moneySubtract(revenueTotal, expensesTotal);
 
-  const billableByStatus = await getStudentBillableByStatus(schoolId);
+  const billableByStatus = await getCycleBillableByStatus(schoolId, range);
   const amountDue = moneyAdd(
-    billableByStatus.LATE.amount,
+    billableByStatus.OVERDUE.amount,
     billableByStatus.PENDING.amount,
     // Suspended students still owe — excluding them understated receivables.
     billableByStatus.SUSPENDED.amount);
@@ -341,38 +324,44 @@ export async function getFinancialSummary(schoolId: string, type: ReportPeriodTy
   // current period used to include late fees and VAT while the previous one
   // included neither, so growth was overstated by construction — before even
   // accounting for the broken range this compared against.
-  const [prevActivities, prevRegFees, prevLateFees] = await Promise.all([
+  const [prevActivities, prevRegFees, prevLateFees, prevPaymentCycles, prevTeachers, prevExpenseOccurrences] = await Promise.all([
     prisma.activity.findMany({
       where: { schoolId, startDate: { gte: prevRange.from, lte: prevRange.to } },
       select: { activityFee: true, childrenCount: true },
     }),
     prisma.student.aggregate({
-      where: { schoolId, isActive: true, paymentStatus: "PAID", registrationDate: { gte: prevRange.from, lte: prevRange.to } },
+      where: { schoolId, registrationDate: { gte: prevRange.from, lte: prevRange.to } },
       _sum: { registration_fee: true },
     }),
     prisma.attendance.aggregate({
       where: { schoolId, date: { gte: prevRange.from, lte: prevRange.to } },
       _sum: { lateFee: true },
     }),
+    prisma.paymentCycle.findMany({
+      where: { school_id: schoolId, due_date: { gte: prevRange.from, lte: prevRange.to }, status: { not: "CANCELLED" } },
+      select: { amount: true },
+    }),
+    prisma.teacher.findMany({
+      where: {
+        schoolId,
+        joinDate: { lte: prevRange.to },
+        OR: [{ enrollmentEndDate: null }, { enrollmentEndDate: { gte: prevRange.from } }],
+      },
+      select: { monthlySalary: true, joinDate: true, enrollmentEndDate: true },
+    }),
+    prisma.expenseOccurrence.findMany({
+      where: { school_id: schoolId, due_date: { gte: prevRange.from, lte: prevRange.to }, status: { not: "CANCELLED" } },
+      select: { amount: true },
+    }),
   ]);
 
   const prevActivitiesTotal = prevActivities.reduce((s, a) => moneyAdd(s, moneyMultiply(a.activityFee, a.childrenCount)), money(0));
-  const prevMonthlyFeesRevenue = subscribedStudents.reduce(
-    (sum, student) =>
-      moneyAdd(
-        sum,
-        subscriptionAmountInRange(
-          { ...student, enrollment_date: student.enrollment_date! },
-          prevRange
-        )
-      ),
-    money(0)
-  );
-  const prevSalariesExpense = activeTeachers.reduce((s, t) => {
+  const prevMonthlyFeesRevenue = prevPaymentCycles.reduce((sum, cycle) => moneyAdd(sum, cycle.amount), money(0));
+  const prevSalariesExpense = prevTeachers.reduce((s, t) => {
     const effectiveEnd = t.enrollmentEndDate ?? prevRange.to;
     return moneyAdd(s, calculateRecurringMoney(t.monthlySalary, t.joinDate, effectiveEnd, prevRange.from, prevRange.to));
   }, money(0));
-  const prevManualExpensesTotal = expenses.reduce((s, e) => moneyAdd(s, expenseAmountInPeriod(e, prevRange.from, prevRange.to)), money(0));
+  const prevManualExpensesTotal = prevExpenseOccurrences.reduce((sum, occurrence) => moneyAdd(sum, occurrence.amount), money(0));
 
   // Same four components as revenueTotal, VAT excluded from both.
   const prevRevenue = moneyAdd(prevMonthlyFeesRevenue, prevActivitiesTotal, prevRegFees._sum.registration_fee, prevLateFees._sum.lateFee);
@@ -380,22 +369,37 @@ export async function getFinancialSummary(schoolId: string, type: ReportPeriodTy
 
   const totalBudgetedSalaries = salariesExpense;
 
-  // Salary invoices actually issued in the period — the only evidence the system
-  // holds that a salary was settled.
+  // Salary invoices issued in the period. Issuance is not treated as proof that
+  // the salary was paid; the schema does not currently store salary settlement.
   const salaryInvoices = await prisma.invoice.aggregate({
     where: { schoolId, type: "TEACHER", generationStatus: "COMPLETED", createdAt: { gte: range.from, lte: range.to } },
     _sum: { amount: true },
   });
-  const salariesPaid = salaryInvoices._sum.amount ?? 0;
+  const salaryInvoicesIssued = salaryInvoices._sum.amount ?? 0;
 
-  const openingBalance = await getCumulativeCashPosition(schoolId, range.from);
-  const closingBalance = moneySubtract(moneyAdd(openingBalance, revenueTotal), expensesTotal);
+  const cashWindow = await getCashWindow(schoolId, range);
+  const [cashInflowsResult, cashOutflowsResult] = cashWindow.from <= range.to
+    ? await Promise.all([
+        prisma.paymentCycle.aggregate({
+          where: { school_id: schoolId, status: "PAID", paid_at: { gte: cashWindow.from, lte: range.to } },
+          _sum: { amount: true },
+        }),
+        prisma.expenseOccurrence.aggregate({
+          where: { school_id: schoolId, status: "PAID", paid_at: { gte: cashWindow.from, lte: range.to } },
+          _sum: { amount: true },
+        }),
+      ])
+    : [{ _sum: { amount: null } }, { _sum: { amount: null } }];
+  const openingBalance = cashWindow.openingBalance;
+  const cashInflows = money(cashInflowsResult._sum.amount);
+  const cashOutflows = money(cashOutflowsResult._sum.amount);
+  const closingBalance = moneySubtract(moneyAdd(openingBalance, cashInflows), cashOutflows);
 
-  const revenueDetails = monthlyFeeItems.map((item, i) => ({
-    id: `subscription-${i}`,
-    date: range.to.toISOString(),
+  const revenueDetails = monthlyFeeItems.map((item) => ({
+    id: item.id,
+    date: item.date.toISOString(),
     amount: item.amount,
-    label: `اشتراك شهري — ${item.name}`,
+    label: `استحقاق اشتراك — ${item.name}`,
   }));
   const salaryDetails = salaryItems.map((s, i) => ({
     id: `salary-${i}`,
@@ -403,9 +407,12 @@ export async function getFinancialSummary(schoolId: string, type: ReportPeriodTy
     amount: s.amount,
     label: `راتب — ${s.name}`,
   }));
-  const manualExpenseDetails = expenses
-    .map((e) => ({ id: e.id, date: e.start_date.toISOString(), amount: expenseAmountInPeriod(e, range.from, range.to), label: e.title }))
-    .filter((e) => e.amount.greaterThan(0));
+  const manualExpenseDetails = expenseOccurrences.map((occurrence) => ({
+    id: occurrence.id,
+    date: occurrence.due_date.toISOString(),
+    amount: money(occurrence.amount),
+    label: occurrence.expense.title,
+  }));
 
   const asNumber = moneyNumber;
 
@@ -434,28 +441,25 @@ export async function getFinancialSummary(schoolId: string, type: ReportPeriodTy
     },
     collection: {
       paid: asNumber(billableByStatus.PAID.amount),
-      paidWithVat: asNumber(moneyMultiply(billableByStatus.PAID.amount, school?.vatRegistered ? 1 + VAT_RATE : 1)),
-      late: asNumber(billableByStatus.LATE.amount),
+      vatIncluded: asNumber(school?.vatRegistered
+        ? money(billableByStatus.PAID.amount).mul(VAT_RATE).div(1 + VAT_RATE).toDecimalPlaces(2)
+        : money(0)),
+      late: asNumber(billableByStatus.OVERDUE.amount),
       pending: asNumber(billableByStatus.PENDING.amount),
       suspended: asNumber(billableByStatus.SUSPENDED.amount),
       paidCount: billableByStatus.PAID.count,
-      lateCount: billableByStatus.LATE.count,
+      lateCount: billableByStatus.OVERDUE.count,
       pendingCount: billableByStatus.PENDING.count,
       suspendedCount: billableByStatus.SUSPENDED.count,
     },
     salaries: {
       totalBudgeted: asNumber(totalBudgetedSalaries),
-      // `paid` used to be set to the full budget with `remaining: 0`, so the UI
-      // reported 100% of salaries as paid no matter what. There is no
-      // paid-salary source yet — issued salary invoices are the closest signal,
-      // so that is what is reported rather than a fabricated figure.
-      paid: asNumber(salariesPaid),
-      remaining: asNumber(moneySubtract(totalBudgetedSalaries, salariesPaid).greaterThan(0) ? moneySubtract(totalBudgetedSalaries, salariesPaid) : money(0)),
+      invoicesIssued: asNumber(salaryInvoicesIssued),
     },
     cashFlow: {
       openingBalance: asNumber(openingBalance),
-      inflows: asNumber(revenueTotal),
-      outflows: asNumber(expensesTotal),
+      inflows: asNumber(cashInflows),
+      outflows: asNumber(cashOutflows),
       closingBalance: asNumber(closingBalance),
     },
     details: {

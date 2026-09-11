@@ -125,6 +125,28 @@ describe("student subscription fee snapshots", () => {
     expect(mocks.generateCycles).toHaveBeenCalledOnce();
   });
 
+  it("refuses to rewrite the billing product while the current subscription is still active", async () => {
+    mocks.studentFind.mockResolvedValue({
+      ...existingStudent,
+      enrollmentEndDate: new Date("2099-12-31T00:00:00.000Z"),
+    });
+
+    const response = await updateStudent(new Request("http://localhost/api/students/student-1", {
+      method: "PUT",
+      headers: { "X-Time-Zone": "Asia/Riyadh" },
+      body: JSON.stringify({
+        expectedUpdatedAt: existingStudent.updatedAt.toISOString(),
+        billingCycle: "YEARLY",
+      }),
+    }), { params: Promise.resolve({ id: "student-1" }) });
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ code: "ACTIVE_TERMS_CHANGE" });
+    expect(mocks.transaction).not.toHaveBeenCalled();
+    expect(mocks.settingsFind).not.toHaveBeenCalled();
+    expect(mocks.generateCycles).not.toHaveBeenCalled();
+  });
+
   it("does not reprice or regenerate the current subscription when the same billing cycle is saved", async () => {
     mocks.settingsFind.mockResolvedValue({ dailyStudentFee: 10, weeklyStudentFee: 70, monthlyStudentFee: 999, yearlyStudentFee: 2500 });
     const response = await updateStudent(new Request("http://localhost/api/students/student-1", {

@@ -8,12 +8,15 @@ vi.mock("@/lib/prisma", () => ({ prisma: {
 } }));
 describe("current-period payment rollup", () => {
   it("keeps historical debts but does not suspend a renewed period because of them", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-11T09:00:00.000Z"));
     mocks.currentCycles.mockResolvedValue([{ status: "PENDING" }]);
     await updatePaymentStatuses("a");
     expect(mocks.cycleUpdate).toHaveBeenCalledWith({ where: { id: "old" }, data: { status: "SUSPENDED" } });
-    expect(mocks.currentCycles).toHaveBeenCalledWith({ where: { student_id: "s", due_date: { gte: new Date("2026-08-27"), lte: new Date("2026-09-26") } }, select: { status: true } });
+    expect(mocks.currentCycles).toHaveBeenCalledWith({ where: { student_id: "s", due_date: { gte: new Date("2026-08-27"), lte: new Date("2026-09-10T21:00:00.000Z") } }, select: { status: true } });
     expect(mocks.update).toHaveBeenCalledWith({ where: { id: "s" }, data: { paymentStatus: "PENDING" } });
     expect(mocks.many).not.toHaveBeenCalled();
     expect(mocks.lock.mock.calls[0][0].strings.join("?")).toContain("FOR UPDATE");
+    vi.useRealTimers();
   });
 });

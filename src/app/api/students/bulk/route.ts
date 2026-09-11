@@ -24,7 +24,7 @@ const rowSchema = z.object({
   phone2: z.string().optional(),
   email: z.string().email().optional().or(z.literal("")),
   paymentMethod: z.enum(["CASH", "TRANSFER", "CARD"]).default("CASH"),
-  paymentStatus: z.enum(["PAID", "LATE", "CANCELLED", "SUSPENDED"]).default("PAID"),
+  paymentStatus: z.enum(["PENDING", "PAID", "LATE", "CANCELLED", "SUSPENDED"]).default("PENDING"),
   allergies: z.string().optional(),
 });
 
@@ -32,7 +32,7 @@ function mapRow(raw: Record<string, unknown>) {
   const periodMap: Record<string, string> = { صباحي: "MORNING", مسائي: "EVENING", MORNING: "MORNING", EVENING: "EVENING" };
   const genderMap: Record<string, string> = { ذكر: "MALE", أنثى: "FEMALE", MALE: "MALE", FEMALE: "FEMALE" };
   const payMethodMap: Record<string, string> = { نقدي: "CASH", تحويل: "TRANSFER", بطاقة: "CARD", CASH: "CASH", TRANSFER: "TRANSFER", CARD: "CARD" };
-  const payStatusMap: Record<string, string> = { مدفوع: "PAID", متأخر: "LATE", ملغي: "CANCELLED", موقف: "SUSPENDED", PAID: "PAID", LATE: "LATE", CANCELLED: "CANCELLED", SUSPENDED: "SUSPENDED" };
+  const payStatusMap: Record<string, string> = { "بانتظار الدفع": "PENDING", مدفوع: "PAID", متأخر: "LATE", ملغي: "CANCELLED", موقف: "SUSPENDED", PENDING: "PENDING", PAID: "PAID", LATE: "LATE", CANCELLED: "CANCELLED", SUSPENDED: "SUSPENDED" };
 
   return {
     name: String(raw["الاسم"] ?? raw["name"] ?? "").trim(),
@@ -48,7 +48,7 @@ function mapRow(raw: Record<string, unknown>) {
     phone2: String(raw["الهاتف 2"] ?? raw["phone2"] ?? "").trim() || undefined,
     email: String(raw["البريد الإلكتروني"] ?? raw["email"] ?? "").trim() || undefined,
     paymentMethod: payMethodMap[String(raw["طريقة الدفع"] ?? raw["paymentMethod"] ?? "").trim()] ?? "CASH",
-    paymentStatus: payStatusMap[String(raw["حالة الدفع"] ?? raw["paymentStatus"] ?? "").trim()] ?? "PAID",
+    paymentStatus: payStatusMap[String(raw["حالة الدفع"] ?? raw["paymentStatus"] ?? "").trim()] ?? "PENDING",
     allergies: String(raw["الحساسيات"] ?? raw["allergies"] ?? "").trim() || undefined,
   };
 }
@@ -131,7 +131,7 @@ export async function POST(request: Request) {
         gender: v.gender as "MALE" | "FEMALE",
         guardianId,
         paymentMethod: v.paymentMethod as "CASH" | "TRANSFER" | "CARD",
-        paymentStatus: v.paymentStatus as "PAID" | "LATE" | "CANCELLED" | "SUSPENDED",
+        paymentStatus: v.paymentStatus as "PENDING" | "PAID" | "LATE" | "CANCELLED" | "SUSPENDED",
         allergies: v.allergies ?? null,
       },
     });

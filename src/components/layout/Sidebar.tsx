@@ -11,7 +11,7 @@ import { clearPermissions, usePermissions } from "@/lib/use-permissions";
 import { NAV_GROUPS } from "@/lib/nav";
 import { Drawer } from "@/components/ui/Drawer";
 import { SchoolLogo } from "@/components/layout/SchoolLogo";
-import type { RefObject } from "react";
+import { useEffect, useState, type RefObject } from "react";
 
 interface SidebarProps {
   schoolName?: string | null;
@@ -28,6 +28,27 @@ function SidebarContent({
   const pathname = usePathname();
   const { data: session } = useSession();
   const { can, loading: permissionsLoading } = usePermissions();
+  const canViewFinance = !permissionsLoading && can("finance.view");
+  const [financeDueCount, setFinanceDueCount] = useState(0);
+
+  useEffect(() => {
+    if (!canViewFinance) return;
+    let controller = new AbortController();
+    const load = () => {
+      controller.abort();
+      controller = new AbortController();
+      fetch("/api/expenses/occurrences?status=PENDING&due=1&limit=1", { signal: controller.signal })
+        .then((response) => response.ok ? response.json() as Promise<{ count?: number }> : null)
+        .then((data) => setFinanceDueCount(data?.count ?? 0))
+        .catch(() => undefined);
+    };
+    load();
+    window.addEventListener("finance-expenses-updated", load);
+    return () => {
+      controller.abort();
+      window.removeEventListener("finance-expenses-updated", load);
+    };
+  }, [canViewFinance]);
 
   const schoolName =
     schoolNameProp ??
@@ -95,6 +116,14 @@ function SidebarContent({
                         )}
                       />
                       <span>{t(item.key)}</span>
+                      {item.href === "/statistics" && financeDueCount > 0 && (
+                        <span
+                          aria-label={t("finance.expensesNeedAction", { n: String(financeDueCount) })}
+                          className="ms-auto inline-flex min-w-5 items-center justify-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800"
+                        >
+                          {financeDueCount > 99 ? "99+" : financeDueCount}
+                        </span>
+                      )}
                     </Link>
                   );
 

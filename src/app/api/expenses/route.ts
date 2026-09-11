@@ -1,16 +1,20 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { deactivateExpiredExpenses } from "@/lib/expense-updater";
-import { z } from "zod";
+import { syncExpenseOccurrence } from "@/lib/expense-occurrences";
 import { logSafeError } from "@/lib/safe-logger";
+import { z } from "zod";
 
 const createSchema = z.object({
   title: z.string().min(1),
   description: z.string().nullish(),
-  amount: z.number().min(0),
+  amount: z.number().finite().positive(),
   type: z.enum(["one_time", "monthly"]),
-  start_date: z.string(),
-  end_date: z.string().nullish(),
+  start_date: z.iso.date(),
+  end_date: z.iso.date().nullish(),
+}).superRefine((value, ctx) => {
+  if (value.end_date && value.end_date < value.start_date) {
+    ctx.addIssue({ code: "custom", path: ["end_date"], message: "End date must not be before start date" });
+  }
 });
 
 export async function GET(request: Request) {
@@ -26,20 +30,22 @@ export async function GET(request: Request) {
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
 
-  deactivateExpiredExpenses(schoolId).catch((err) => logSafeError("expenses-deactivate-expired", err));
-
   const { searchParams } = new URL(request.url);
   const typeFilter = searchParams.get("type"); // "one_time" | "monthly" | null
 
   const where: Record<string, unknown> = { school_id: schoolId };
   if (typeFilter) where.type = typeFilter;
 
-  const expenses = await prisma.expense.findMany({
-    where,
-    orderBy: { created_at: "desc" },
-  });
-
-  return Response.json(expenses);
+  try {
+    const expenses = await prisma.expense.findMany({
+      where,
+      orderBy: { created_at: "desc" },
+    });
+    return Response.json(expenses);
+  } catch (error) {
+    logSafeError("expenses-list", error);
+    return Response.json({ error: "Could not load expenses" }, { status: 500 });
+  }
 }
 
 export async function POST(request: Request) {
@@ -70,17 +76,25 @@ export async function POST(request: Request) {
 
   const { title, description, amount, type, start_date, end_date } = parsed.data;
 
-  const expense = await prisma.expense.create({
-    data: {
-      school_id: schoolId,
-      title,
-      description: description ?? null,
-      amount,
-      type,
-      start_date: new Date(start_date),
-      end_date: end_date ? new Date(end_date) : null,
-    },
-  });
-
-  return Response.json(expense, { status: 201 });
+  try {
+    const expense = await prisma.$transaction(async (tx) => {
+      const created = await tx.expense.create({
+        data: {
+          school_id: schoolId,
+          title,
+          description: description ?? null,
+          amount,
+          type,
+          start_date: new Date(start_date),
+          end_date: end_date ? new Date(end_date) : null,
+        },
+      });
+      await syncExpenseOccurrence(created.id, tx);
+      return created;
+    });
+    return Response.json(expense, { status: 201 });
+  } catch (error) {
+    logSafeError("expenses-create", error);
+    return Response.json({ error: "Could not create expense" }, { status: 500 });
+  }
 }

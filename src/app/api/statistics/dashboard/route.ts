@@ -1,6 +1,5 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { getFinancialSummary, type ReportPeriodType } from "@/lib/finance";
-import { updatePaymentStatuses } from "@/lib/payment-status-updater";
 import { logSafeError } from "@/lib/safe-logger";
 
 const VALID_TYPES: ReportPeriodType[] = ["monthly", "semi_annual", "annual"];
@@ -18,12 +17,15 @@ export async function GET(request: Request) {
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
 
-  updatePaymentStatuses(schoolId).catch((err) => logSafeError("statistics-payment-status", err));
-
   const { searchParams } = new URL(request.url);
   const typeParam = searchParams.get("type");
   const type: ReportPeriodType = VALID_TYPES.includes(typeParam as ReportPeriodType) ? (typeParam as ReportPeriodType) : "monthly";
 
-  const summary = await getFinancialSummary(schoolId, type);
-  return Response.json(summary);
+  try {
+    const summary = await getFinancialSummary(schoolId, type);
+    return Response.json(summary);
+  } catch (error) {
+    logSafeError("statistics-dashboard", error);
+    return Response.json({ error: "Could not load financial summary" }, { status: 500 });
+  }
 }

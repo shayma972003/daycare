@@ -37,21 +37,21 @@ function atRiyadh(iso: string) {
 }
 
 describe("getPeriodRange", () => {
-  it("monthly covers the calendar month in Riyadh terms", async () => {
+  it("monthly covers the elapsed calendar month in Riyadh terms", async () => {
     const { getPeriodRange } = await import("@/lib/finance");
     atRiyadh("2026-08-03T14:00:00");
 
     const range = getPeriodRange("monthly");
 
     expect(ast(range.from)).toBe("2026-08-01T00:00:00.000+03:00");
-    expect(ast(range.to)).toBe("2026-08-31T23:59:59.999+03:00");
+    expect(ast(range.to)).toBe("2026-08-03T23:59:59.999+03:00");
   });
 
   it("monthly ends on the right day in a leap February", async () => {
     const { getPeriodRange } = await import("@/lib/finance");
     atRiyadh("2028-02-10T09:00:00");
 
-    expect(ast(getPeriodRange("monthly").to)).toBe("2028-02-29T23:59:59.999+03:00");
+    expect(ast(getPeriodRange("monthly").to)).toBe("2028-02-10T23:59:59.999+03:00");
   });
 
   it("uses the Riyadh date late at night, not the host's UTC date", async () => {
@@ -63,39 +63,39 @@ describe("getPeriodRange", () => {
     expect(ast(getPeriodRange("monthly").from)).toBe("2026-09-01T00:00:00.000+03:00");
   });
 
-  it("semi-annual is a fixed calendar half, not a rolling six months", async () => {
+  it("semi-annual starts at the fixed calendar half and stops today", async () => {
     const { getPeriodRange } = await import("@/lib/finance");
 
     atRiyadh("2026-03-15T12:00:00");
     const h1 = getPeriodRange("semi_annual");
     expect(ast(h1.from)).toBe("2026-01-01T00:00:00.000+03:00");
-    expect(ast(h1.to)).toBe("2026-06-30T23:59:59.999+03:00");
+    expect(ast(h1.to)).toBe("2026-03-15T23:59:59.999+03:00");
 
     atRiyadh("2026-11-20T12:00:00");
     const h2 = getPeriodRange("semi_annual");
     expect(ast(h2.from)).toBe("2026-07-01T00:00:00.000+03:00");
-    expect(ast(h2.to)).toBe("2026-12-31T23:59:59.999+03:00");
+    expect(ast(h2.to)).toBe("2026-11-20T23:59:59.999+03:00");
   });
 
-  it("annual covers the calendar year", async () => {
+  it("annual starts in January and stops today", async () => {
     const { getPeriodRange } = await import("@/lib/finance");
     atRiyadh("2026-08-03T14:00:00");
 
     const range = getPeriodRange("annual");
     expect(ast(range.from)).toBe("2026-01-01T00:00:00.000+03:00");
-    expect(ast(range.to)).toBe("2026-12-31T23:59:59.999+03:00");
+    expect(ast(range.to)).toBe("2026-08-03T23:59:59.999+03:00");
   });
 });
 
 describe("getPreviousPeriodRange", () => {
-  it("monthly is the whole previous month, not a sliver of it", async () => {
+  it("monthly compares the same elapsed portion of the previous month", async () => {
     const { getPeriodRange, getPreviousPeriodRange } = await import("@/lib/finance");
     atRiyadh("2026-07-15T10:00:00");
 
     const previous = getPreviousPeriodRange("monthly", getPeriodRange("monthly"));
 
     expect(ast(previous.from)).toBe("2026-06-01T00:00:00.000+03:00");
-    expect(ast(previous.to)).toBe("2026-06-30T23:59:59.999+03:00");
+    expect(ast(previous.to)).toBe("2026-06-15T23:59:59.999+03:00");
   });
 
   it("monthly crosses the year boundary", async () => {
@@ -105,7 +105,7 @@ describe("getPreviousPeriodRange", () => {
     const previous = getPreviousPeriodRange("monthly", getPeriodRange("monthly"));
 
     expect(ast(previous.from)).toBe("2025-12-01T00:00:00.000+03:00");
-    expect(ast(previous.to)).toBe("2025-12-31T23:59:59.999+03:00");
+    expect(ast(previous.to)).toBe("2025-12-10T23:59:59.999+03:00");
   });
 
   it("annual is one year back, not two", async () => {
@@ -115,7 +115,7 @@ describe("getPreviousPeriodRange", () => {
     const previous = getPreviousPeriodRange("annual", getPeriodRange("annual"));
 
     expect(ast(previous.from)).toBe("2025-01-01T00:00:00.000+03:00");
-    expect(ast(previous.to)).toBe("2025-12-31T23:59:59.999+03:00");
+    expect(ast(previous.to)).toBe("2025-08-03T23:59:59.999+03:00");
   });
 
   it("compares H1 against the previous year's H2, and H2 against the same year's H1", async () => {
@@ -124,12 +124,12 @@ describe("getPreviousPeriodRange", () => {
     atRiyadh("2026-03-15T12:00:00");
     const beforeH1 = getPreviousPeriodRange("semi_annual", getPeriodRange("semi_annual"));
     expect(ast(beforeH1.from)).toBe("2025-07-01T00:00:00.000+03:00");
-    expect(ast(beforeH1.to)).toBe("2025-12-31T23:59:59.999+03:00");
+    expect(ast(beforeH1.to)).toBe("2025-09-12T23:59:59.999+03:00");
 
     atRiyadh("2026-11-20T12:00:00");
     const beforeH2 = getPreviousPeriodRange("semi_annual", getPeriodRange("semi_annual"));
     expect(ast(beforeH2.from)).toBe("2026-01-01T00:00:00.000+03:00");
-    expect(ast(beforeH2.to)).toBe("2026-06-30T23:59:59.999+03:00");
+    expect(ast(beforeH2.to)).toBe("2026-05-23T23:59:59.999+03:00");
   });
 
   it("produces a previous period that never overlaps the current one", async () => {

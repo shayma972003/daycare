@@ -1,7 +1,7 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { activityLogData, logAction } from "@/lib/activity-logger";
-import { generatePaymentCycles } from "@/lib/payment-cycles";
+import { generatePaymentCycles, markDuePaymentCyclesPaid } from "@/lib/payment-cycles";
 import {
   assertClassOwned,
   assertGuardianOwned,
@@ -20,7 +20,7 @@ import {
   getRetentionPolicy,
 } from "@/lib/data-retention";
 import { z } from "zod";
-import { requestTimeZone } from "@/lib/device-date";
+import { calendarToday, requestTimeZone, storedDate } from "@/lib/device-date";
 import { requireStudentCycleFee, StudentCycleFeeError, studentFeeSettingsSelect } from "@/lib/student-cycle-fee";
 
 const updateStudentSchema = z.object({
@@ -198,6 +198,8 @@ export async function PUT(
 
   const data = parsed.data;
   const financialFields = [
+    "billingCycle",
+    "billingIntervalDays",
     "paymentMethod",
     "enrollmentDate",
     "enrollmentEndDate",
@@ -211,6 +213,23 @@ export async function PUT(
     return Response.json({ error: "Forbidden", code: "FORBIDDEN" }, { status: 403 });
   }
   const updateData: Record<string, unknown> = {};
+
+  const requestedCycle = "billingCycle" in data
+    ? data.billingCycle ?? "MONTHLY"
+    : existing.billingCycle;
+  const billingCycleChanged = "billingCycle" in data && requestedCycle !== existing.billingCycle;
+  const currentSubscriptionEnd = existing.enrollmentEndDate
+    ? storedDate(existing.enrollmentEndDate)
+    : null;
+  if (billingCycleChanged && currentSubscriptionEnd && currentSubscriptionEnd >= calendarToday(new Date(), timeZone)) {
+    return Response.json(
+      {
+        error: "Subscription terms cannot change during an active period",
+        code: "ACTIVE_TERMS_CHANGE",
+      },
+      { status: 409 }
+    );
+  }
 
   if (data.name !== undefined) updateData.name = data.name;
   if ("classId" in data) {
@@ -404,15 +423,13 @@ export async function PUT(
 
   try {
   const student = await prisma.$transaction(async (tx) => {
-    const nextCycle = "billingCycle" in data ? data.billingCycle ?? "MONTHLY" : existing.billingCycle;
-    const billingCycleChanged = "billingCycle" in data && nextCycle !== existing.billingCycle;
     if (billingCycleChanged) {
-      if (nextCycle === "CUSTOM") {
+      if (requestedCycle === "CUSTOM") {
         if (existing.billingCycle !== "CUSTOM") throw new StudentCycleFeeError();
         updateData.cycleFee = existing.cycleFee;
       } else {
         const settings = await tx.settings.findUnique({ where: { schoolId }, select: studentFeeSettingsSelect });
-        updateData.cycleFee = requireStudentCycleFee(nextCycle, settings);
+        updateData.cycleFee = requireStudentCycleFee(requestedCycle, settings);
         updateData.billingIntervalDays = null;
       }
     }
@@ -445,6 +462,13 @@ export async function PUT(
       "billingIntervalDays" in data
     ) {
       await generatePaymentCycles(updated.id, tx);
+    }
+    if (updated.paymentStatus === "PAID") {
+      await markDuePaymentCyclesPaid({
+        studentId: updated.id,
+        schoolId,
+        actor: session.user.name ?? session.user.id,
+      }, tx);
     }
     await tx.activityLog.create({ data: activityLogData({
       school_id: schoolId,

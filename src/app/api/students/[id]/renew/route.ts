@@ -6,7 +6,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   let session;
   try { session = await requireSession(); }
   catch (error) { return sessionErrorResponse(error) ?? Response.json({ error: "Unauthorized" }, { status: 401 }); }
-  if (!session.can("students.manage")) return Response.json({ error: "Forbidden" }, { status: 403 });
+  if (!session.can("students.manage") || !session.can("finance.manage")) return Response.json({ error: "Forbidden" }, { status: 403 });
   let body: unknown;
   try { body = await request.json(); }
   catch { return Response.json({ error: "Invalid JSON" }, { status: 400 }); }

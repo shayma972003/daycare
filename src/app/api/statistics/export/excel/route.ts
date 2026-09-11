@@ -33,11 +33,11 @@ export async function POST(request: Request) {
   const wb = XLSX.utils.book_new();
 
   const revenueSheet = XLSX.utils.json_to_sheet([
-    { البند: "الرسوم الشهرية", المبلغ: summary.revenue.monthlyFees },
-    { البند: "رسوم التسجيل المحصّلة", المبلغ: summary.revenue.registrationFeesCollected },
-    { البند: "رسوم الفعاليات", المبلغ: summary.revenue.activities },
+    { البند: "استحقاقات الاشتراكات", المبلغ: summary.revenue.monthlyFees },
+    { البند: "رسوم التسجيل المستحقة", المبلغ: summary.revenue.registrationFeesCollected },
+    { البند: "قيمة الفعاليات المتوقعة", المبلغ: summary.revenue.activities },
     { البند: "غرامات التأخير", المبلغ: summary.revenue.lateFees },
-    { البند: "ضريبة القيمة المضافة المحصَّلة", المبلغ: summary.revenue.vatCollected },
+    { البند: "جزء الضريبة في الاشتراكات المستحقة", المبلغ: summary.revenue.vatCollected },
     { البند: "إجمالي الإيرادات", المبلغ: summary.revenue.total },
     ...summary.details.revenue.map((r) => ({ البند: r.label, المبلغ: r.amount, التاريخ: new Date(r.date).toLocaleDateString("ar-SA") })),
   ]);
@@ -59,8 +59,7 @@ export async function POST(request: Request) {
 
   const salariesSheet = XLSX.utils.json_to_sheet([
     { البند: "إجمالي الرواتب (عقود المعلمين النشطين)", المبلغ: summary.salaries.totalBudgeted },
-    { البند: "مصروف", المبلغ: summary.salaries.paid },
-    { البند: "متبقي", المبلغ: summary.salaries.remaining },
+    { البند: "فواتير رواتب صادرة (ليست إثبات دفع)", المبلغ: summary.salaries.invoicesIssued },
     ...summary.expenses.salaryItems.map((s) => ({ البند: s.name, المبلغ: s.amount })),
   ]);
   XLSX.utils.book_append_sheet(wb, salariesSheet, "الرواتب");

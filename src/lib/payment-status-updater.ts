@@ -75,15 +75,19 @@ export async function updatePaymentStatuses(school_id: string) {
 
 async function updateStudentPaymentStatus(studentId: string) {
   await prisma.$transaction(async (tx) => {
+    const today = astDayStart();
     await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "Student" WHERE "id" = ${studentId} FOR UPDATE`);
     const student = await tx.student.findUnique({ where: { id: studentId }, select: { isActive: true, deletedAt: true, paymentStatus: true, enrollment_date: true, enrollmentEndDate: true } });
     if (!student || !student.isActive || student.deletedAt || student.paymentStatus === "CANCELLED") return;
     // Previous-period debts remain on their cycles, but cannot suspend a newly
     // renewed period when the statistics screen refreshes its status rollup.
+    const dueThrough = student.enrollmentEndDate && student.enrollmentEndDate < today
+      ? student.enrollmentEndDate
+      : today;
     const cycles = await tx.paymentCycle.findMany({
       where: { student_id: studentId, due_date: {
         ...(student.enrollment_date ? { gte: student.enrollment_date } : {}),
-        ...(student.enrollmentEndDate ? { lte: student.enrollmentEndDate } : {}),
+        lte: dueThrough,
       } }, select: { status: true },
     });
     for (const status of STATUS_PRIORITY) {

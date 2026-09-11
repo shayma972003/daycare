@@ -1,6 +1,7 @@
 import { cleanupExpiredTrash } from "@/lib/trash-cleanup";
 import { deleteExpiredImportSessions } from "@/lib/import-cleanup";
 import { deactivateAllExpiredExpenses } from "@/lib/expense-updater";
+import { syncAllExpenseOccurrences } from "@/lib/expense-occurrences";
 import { purgeExpiredRateLimits } from "@/lib/rate-limit";
 import { isAuthorizedCron, cronUnauthorized } from "@/lib/cron-auth";
 import { refreshStorageUsage } from "@/lib/storage-usage";
@@ -16,16 +17,17 @@ import { logSafeError } from "@/lib/safe-logger";
 export async function GET(request: Request) {
   if (!isAuthorizedCron(request)) return cronUnauthorized();
 
+  const now = new Date();
   const trash = await cleanupExpiredTrash();
   const importSessions = await deleteExpiredImportSessions();
   const rateLimits = await purgeExpiredRateLimits();
   // Moved off the financial-report path, where it made a read mutate rows and
   // let two concurrent reports race each other.
   const expensesStopped = await deactivateAllExpiredExpenses();
+  const expenseOccurrencesCreated = await syncAllExpenseOccurrences(now);
 
   // These two tables grew without bound: nothing ever removed a spent 2FA
   // session or an expired enrolment link.
-  const now = new Date();
   const retention = await runBoundedRetention(now);
   const enrollmentFiles = await cleanupEnrollmentStoredFiles({ now, limit: 100 });
   const enrollmentTokens = await purgeExpiredEnrollmentTokens({ now, limit: 100 });
@@ -61,6 +63,7 @@ export async function GET(request: Request) {
     importSessions,
     rateLimits,
     expensesStopped,
+    expenseOccurrencesCreated,
     retention,
     enrollmentFiles,
     enrollmentTokens,

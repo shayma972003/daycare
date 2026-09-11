@@ -107,6 +107,12 @@ enum InvoiceType {
   TEACHER
 }
 
+enum ExpenseOccurrenceStatus {
+  PENDING
+  PAID
+  CANCELLED
+}
+
 enum SchoolBillingInterval {
   MONTHLY
   YEARLY
@@ -1019,6 +1025,8 @@ model School {
   import_sessions   ImportSession[]
   financial_reports FinancialReport[]
   expenses          Expense[]
+  expense_occurrences ExpenseOccurrence[]
+  finance_profile     FinanceProfile?
   enrollment_tokens       EnrollmentToken[]
   enrollment_submissions  EnrollmentSubmission[]
   twoFaSessions           TwoFASession[]
@@ -1048,6 +1056,8 @@ model PaymentCycle {
   due_date     DateTime
   amount       Decimal   @db.Decimal(18, 2)
   status       PaymentCycleStatus @default(PENDING)
+  paid_at      DateTime?
+  paid_by      String?
   cycle_number Int // 1 = first payment, 2 = second, etc.
   notified_at  DateTime?
   created_at   DateTime  @default(now())
@@ -1057,6 +1067,7 @@ model PaymentCycle {
 
   @@index([school_id, due_date])
   @@index([student_id])
+  @@unique([student_id, due_date])
 }
 
 model ActivityLog {
@@ -2025,8 +2036,46 @@ model Expense {
   updated_at   DateTime  @updatedAt
 
   school School @relation(fields: [school_id], references: [id])
+  occurrences ExpenseOccurrence[]
 
+  @@unique([id, school_id])
   @@index([school_id, is_active])
+}
+
+/// One payable occurrence of an expense template. A monthly expense is the
+/// rule; each month has its own settlement state so paying September cannot
+/// silently mark October paid too.
+model ExpenseOccurrence {
+  id          String                  @id @default(cuid())
+  school_id   String
+  expense_id  String
+  due_date    DateTime                @db.Date
+  amount      Decimal                 @db.Decimal(18, 2)
+  status      ExpenseOccurrenceStatus @default(PENDING)
+  paid_at     DateTime?
+  paid_by     String?
+  created_at  DateTime                @default(now())
+  updated_at  DateTime                @updatedAt
+
+  school  School  @relation(fields: [school_id], references: [id], onDelete: Cascade)
+  expense Expense @relation(fields: [expense_id, school_id], references: [id, school_id], onDelete: Cascade)
+
+  @@unique([expense_id, due_date])
+  @@index([school_id, status, due_date])
+}
+
+/// The balance supplied by the nursery when it starts using the finance area.
+/// Later changes are audited by the route and are never inferred from current
+/// students or staff, whose lifecycle must not rewrite financial history.
+model FinanceProfile {
+  id                   String   @id @default(cuid())
+  school_id            String   @unique
+  opening_balance      Decimal  @default(0) @db.Decimal(18, 2)
+  opening_balance_date DateTime? @db.Date
+  created_at           DateTime @default(now())
+  updated_at           DateTime @updatedAt
+
+  school School @relation(fields: [school_id], references: [id], onDelete: Cascade)
 }
 
 model FinancialReport {

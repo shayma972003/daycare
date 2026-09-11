@@ -98,3 +98,23 @@ export async function generatePaymentCycles(studentId: string, tx?: Prisma.Trans
   if (tx) return generatePaymentCyclesWithClient(studentId, tx, renewalStart);
   return prisma.$transaction((transaction) => generatePaymentCyclesWithClient(studentId, transaction), { timeout: 30_000 });
 }
+
+/** Marks only installments that are already due; future months remain pending. */
+export async function markDuePaymentCyclesPaid(input: {
+  studentId: string;
+  schoolId: string;
+  actor: string;
+  at?: Date;
+}, tx?: Prisma.TransactionClient) {
+  const client = tx ?? prisma;
+  const paidAt = input.at ?? new Date();
+  return client.paymentCycle.updateMany({
+    where: {
+      student_id: input.studentId,
+      school_id: input.schoolId,
+      due_date: { lte: astDateOnly(paidAt) },
+      status: { notIn: ["PAID", "CANCELLED"] },
+    },
+    data: { status: "PAID", paid_at: paidAt, paid_by: input.actor },
+  });
+}

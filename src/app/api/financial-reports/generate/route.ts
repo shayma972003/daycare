@@ -111,23 +111,23 @@ export async function POST(request: Request) {
       // الإيرادات
       createElement(View, { style: styles.section },
         createElement(Text, { style: styles.sectionTitle }, "الإيرادات"),
-        row("الرسوم الشهرية", fmt(summary.revenue.monthlyFees)),
+        row("استحقاقات الاشتراكات", fmt(summary.revenue.monthlyFees)),
         row("غرامات التأخير", fmt(summary.revenue.lateFees)),
-        row("رسوم التسجيل المحصّلة", fmt(summary.revenue.registrationFeesCollected)),
-        row("رسوم الفعاليات", fmt(summary.revenue.activities)),
-        row("ضريبة القيمة المضافة المحصَّلة", fmt(summary.revenue.vatCollected)),
+        row("رسوم التسجيل المستحقة", fmt(summary.revenue.registrationFeesCollected)),
+        row("قيمة الفعاليات المتوقعة", fmt(summary.revenue.activities)),
+        row("جزء الضريبة في الاشتراكات المستحقة", fmt(summary.revenue.vatCollected)),
       ),
 
       // التحصيل
       createElement(View, { style: styles.section },
-        createElement(Text, { style: styles.sectionTitle }, "التحصيل (حسب حالة دفع الطلاب النشطين)"),
-        row(`مدفوع — الإجمالي الصافي (${summary.collection.paidCount} طالب)`, fmt(summary.collection.paid)),
-        row(`مدفوع — شامل الضريبة (${summary.collection.paidCount} طالب)`, fmt(summary.collection.paidWithVat)),
-        row(`متأخر (${summary.collection.lateCount} طالب)`, fmt(summary.collection.late)),
-        row(`بانتظار الدفع (${summary.collection.pendingCount} طالب)`, fmt(summary.collection.pending)),
+        createElement(Text, { style: styles.sectionTitle }, "تحصيل استحقاقات الفترة حتى اليوم"),
+        row(`مدفوع (${summary.collection.paidCount} استحقاق)`, fmt(summary.collection.paid)),
+        row(`جزء الضريبة داخل المدفوع (${summary.collection.paidCount} استحقاق)`, fmt(summary.collection.vatIncluded)),
+        row(`متأخر (${summary.collection.lateCount} استحقاق)`, fmt(summary.collection.late)),
+        row(`بانتظار الدفع (${summary.collection.pendingCount} استحقاق)`, fmt(summary.collection.pending)),
         // Suspended students were absent from this report entirely, so the
         // rows never added up to the receivables figure above.
-        row(`موقوف (${summary.collection.suspendedCount} طالب)`, fmt(summary.collection.suspended)),
+        row(`موقوف (${summary.collection.suspendedCount} استحقاق)`, fmt(summary.collection.suspended)),
       ),
 
       // المصروفات
@@ -146,8 +146,7 @@ export async function POST(request: Request) {
       createElement(View, { style: styles.section },
         createElement(Text, { style: styles.sectionTitle }, "الرواتب"),
         row("إجمالي الرواتب (حسب عقود المعلمين النشطين)", fmt(summary.salaries.totalBudgeted)),
-        row("مصروف", fmt(summary.salaries.paid)),
-        row("متبقي", fmt(summary.salaries.remaining)),
+        row("فواتير رواتب صادرة (ليست إثبات دفع)", fmt(summary.salaries.invoicesIssued)),
       ),
 
       // التدفق النقدي

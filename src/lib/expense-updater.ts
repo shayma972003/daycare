@@ -1,3 +1,4 @@
+import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { astDayStart } from "@/lib/datetime";
 
@@ -19,11 +20,17 @@ async function deactivate(where: { school_id?: string }): Promise<number> {
   });
 
   if (count > 0) {
-    await prisma.$executeRaw`
+    const tenantClause = where.school_id
+      ? Prisma.sql`AND "school_id" = ${where.school_id}`
+      : Prisma.empty;
+    await prisma.$executeRaw(Prisma.sql`
       UPDATE "Expense"
       SET "stopped_at" = "end_date"
-      WHERE "is_active" = false AND "stopped_at" IS NULL AND "end_date" IS NOT NULL
-    `;
+      WHERE "is_active" = false
+        AND "stopped_at" IS NULL
+        AND "end_date" IS NOT NULL
+        ${tenantClause}
+    `);
   }
 
   return count;

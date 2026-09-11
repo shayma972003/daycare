@@ -469,7 +469,10 @@ export default function StudentProfilePage({
       }
       alert(t("studentProfile.saved"));
     } catch (error) {
-      alert(describeApiError(error, t("common.error")));
+      const code = axios.isAxiosError(error) ? error.response?.data?.code : undefined;
+      alert(code === "ACTIVE_TERMS_CHANGE"
+        ? t(renewalErrorKey(code))
+        : describeApiError(error, t("common.error")));
     } finally {
       setSaving(false);
     }

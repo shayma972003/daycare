@@ -7,6 +7,7 @@ import { formatCurrency } from "@/lib/utils";
 import { describeApiError } from "@/lib/api-error";
 import { useT, useLocale } from "@/lib/i18n-provider";
 import { formatAst } from "@/lib/datetime";
+import { usePermissions } from "@/lib/use-permissions";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -25,6 +26,22 @@ interface Expense {
   created_at: string;
 }
 
+interface ExpenseOccurrence {
+  id: string;
+  due_date: string;
+  amount: number;
+  status: "PENDING" | "PAID" | "CANCELLED";
+  paid_at: string | null;
+  updated_at: string;
+  expense: { id: string; title: string; type: "one_time" | "monthly"; is_active: boolean };
+}
+
+interface FinanceProfileDto {
+  opening_balance: number;
+  opening_balance_date: string | null;
+  updated_at: string | null;
+}
+
 interface DetailRow {
   id: string;
   date: string;
@@ -38,14 +55,14 @@ interface DashboardSummary {
   netIncome: number;
   amountDue: number;
   comparison: { revenuePct: number | null; expensesPct: number | null };
-  collection: { paid: number; paidWithVat: number; late: number; pending: number; paidCount: number; lateCount: number; pendingCount: number };
-  salaries: { totalBudgeted: number; paid: number; remaining: number };
+  collection: { paid: number; vatIncluded: number; late: number; pending: number; suspended: number; paidCount: number; lateCount: number; pendingCount: number; suspendedCount: number };
+  salaries: { totalBudgeted: number; invoicesIssued: number };
   cashFlow: { openingBalance: number; inflows: number; outflows: number; closingBalance: number };
   details: { revenue: DetailRow[]; salaries: DetailRow[]; manualExpenses: DetailRow[] };
 }
 
 interface Report {
-  id: string; name: string; type: string; period_label: string; file_url: string; issued_at: string;
+  id: string; name: string; type: string; period_label: string; file_url?: string; issued_at: string;
 }
 
 function DetailList({ rows, emptyText }: { rows: { label: string; date: string; amount: number }[]; emptyText: string }) {
@@ -149,7 +166,7 @@ function AddExpenseForm({ onSaved, onCancel }: { onSaved: (e: Expense) => void; 
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">{t("finance.priceSar")} *</label>
-          <input type="number" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} required dir="ltr"
+          <input type="number" min="0.01" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} required dir="ltr"
             className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#5B14D1]" />
         </div>
         <div>
@@ -187,32 +204,35 @@ function AddExpenseForm({ onSaved, onCancel }: { onSaved: (e: Expense) => void; 
 function EditExpenseRow({ expense, onSaved, onCancel }: { expense: Expense; onSaved: (e: Expense) => void; onCancel: () => void }) {
   const t = useT();
   const [title, setTitle] = useState(expense.title);
-  const [description, setDescription] = useState(expense.description ?? "");
+  const description = expense.description ?? "";
   const [amount, setAmount] = useState(String(expense.amount));
   const [startDate, setStartDate] = useState(expense.start_date.split("T")[0]);
   const [endDate, setEndDate] = useState(expense.end_date ? expense.end_date.split("T")[0] : "");
   const [saving, setSaving] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [confirmStop, setConfirmStop] = useState(false);
+  const [error, setError] = useState("");
 
   async function handleSave() {
     setSaving(true);
+    setError("");
     try {
       const res = await axios.put<Expense>(`/api/expenses/${expense.id}`, {
         title, description: description || null, amount: parseFloat(amount), start_date: startDate,
         end_date: expense.type === "monthly" ? (endDate || null) : undefined,
       });
       onSaved(res.data);
-    } catch { /* silent */ }
+    } catch (cause) { setError(describeApiError(cause, t("finance.saveFailed"))); }
     finally { setSaving(false); }
   }
 
   async function handleStop() {
     setStopping(true);
+    setError("");
     try {
       const res = await axios.put<Expense>(`/api/expenses/${expense.id}/stop`);
       onSaved(res.data);
-    } catch { /* silent */ }
+    } catch (cause) { setError(describeApiError(cause, t("finance.saveFailed"))); }
     finally { setStopping(false); setConfirmStop(false); }
   }
 
@@ -224,7 +244,7 @@ function EditExpenseRow({ expense, onSaved, onCancel }: { expense: Expense; onSa
       </td>
       <td className="px-4 py-2 text-xs text-gray-500">{expense.type === "monthly" ? t("finance.recurring") : t("finance.oneOff")}</td>
       <td className="px-4 py-2">
-        <input type="number" min="0" value={amount} onChange={(e) => setAmount(e.target.value)} dir="ltr"
+        <input type="number" min="0.01" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} dir="ltr"
           className="w-28 px-2 py-1 text-sm rounded border border-gray-200 focus:outline-none" />
       </td>
       <td className="px-4 py-2">
@@ -266,6 +286,7 @@ function EditExpenseRow({ expense, onSaved, onCancel }: { expense: Expense; onSa
             )
           )}
         </div>
+        {error && <p role="alert" className="mt-1 text-xs text-red-600">{error}</p>}
       </td>
     </tr>
   );
@@ -309,6 +330,183 @@ function SummaryRow({ label, value, valueClass }: { label: string; value: string
     <div className="flex items-center justify-between text-sm py-1">
       <span className={`font-bold ${valueClass ?? "text-gray-900"}`} dir="ltr">{value}</span>
       <span className="text-gray-500">{label}</span>
+    </div>
+  );
+}
+
+function OpeningBalanceCard({ onSaved }: { onSaved: () => void }) {
+  const t = useT();
+  const { locale } = useLocale();
+  const { can } = usePermissions();
+  const [profile, setProfile] = useState<FinanceProfileDto | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [amount, setAmount] = useState("0");
+  const [date, setDate] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const controller = new AbortController();
+    axios.get<FinanceProfileDto>("/api/finance/settings", { signal: controller.signal })
+      .then(({ data }) => {
+        setProfile(data);
+        setAmount(String(data.opening_balance ?? 0));
+        setDate(data.opening_balance_date?.slice(0, 10) ?? "");
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, []);
+
+  async function save() {
+    setSaving(true);
+    setError("");
+    try {
+      const { data } = await axios.put<FinanceProfileDto>("/api/finance/settings", {
+        openingBalance: Number(amount),
+        openingBalanceDate: date || null,
+      });
+      setProfile(data);
+      setEditing(false);
+      onSaved();
+    } catch (cause) {
+      setError(describeApiError(cause, t("finance.saveFailed")));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-[#E8E3EF] bg-white p-4 shadow-[0_1px_4px_rgba(0,0,0,0.04)]">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-bold text-[#2D2238]">{t("finance.openingBalanceSetup")}</p>
+          <p className="mt-1 text-xs text-[#8B8095]">{t("finance.openingBalanceHint")}</p>
+        </div>
+        {!editing && (
+          <div className="flex items-center gap-3">
+            <div className="text-end">
+              <p className="font-bold text-[#2D2238]" dir="ltr">{formatCurrency(profile?.opening_balance ?? 0, locale)}</p>
+              <p className="text-xs text-[#9A909F]">
+                {profile?.opening_balance_date
+                  ? formatAst(new Date(profile.opening_balance_date), { year: "numeric", month: "2-digit", day: "2-digit" }, locale)
+                  : t("finance.openingBalanceNotSet")}
+              </p>
+            </div>
+            {can("finance.manage") && (
+              <button type="button" onClick={() => setEditing(true)} className="rounded-lg border border-[#D8CCE8] px-3 py-1.5 text-xs font-medium text-[#5B14D1] hover:bg-[#F7F2FC]">
+                {t("common.edit")}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+      {editing && (
+        <div className="mt-4 grid grid-cols-1 gap-3 border-t border-[#EEEAF2] pt-4 sm:grid-cols-[1fr_1fr_auto]">
+          <label className="text-xs text-[#776C80]">
+            {t("finance.openingBalance")}
+            <input type="number" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} className="mt-1 w-full rounded-lg border border-[#DED5E8] px-3 py-2 text-sm" dir="ltr" />
+          </label>
+          <label className="text-xs text-[#776C80]">
+            {t("finance.openingBalanceDate")}
+            <input type="date" value={date} onChange={(event) => setDate(event.target.value)} className="mt-1 w-full rounded-lg border border-[#DED5E8] px-3 py-2 text-sm" dir="ltr" />
+          </label>
+          <div className="flex items-end gap-2">
+            <button type="button" onClick={save} disabled={saving || !Number.isFinite(Number(amount)) || (Number(amount) !== 0 && !date)} className="rounded-lg bg-[#5B14D1] px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
+              {saving ? "..." : t("common.save")}
+            </button>
+            <button type="button" onClick={() => setEditing(false)} className="rounded-lg border border-[#DED5E8] px-4 py-2 text-sm text-[#776C80]">{t("common.cancel")}</button>
+          </div>
+          {error && <p role="alert" className="text-xs text-red-600 sm:col-span-3">{error}</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ExpenseDuePanel() {
+  const t = useT();
+  const { locale } = useLocale();
+  const [items, setItems] = useState<ExpenseOccurrence[]>([]);
+  const [filter, setFilter] = useState<"PENDING" | "PAID">("PENDING");
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let controller: AbortController | null = null;
+    const load = () => {
+      controller?.abort();
+      controller = new AbortController();
+      setError("");
+      axios.get<{ items: ExpenseOccurrence[] }>("/api/expenses/occurrences?due=1&limit=100", { signal: controller.signal })
+        .then(({ data }) => setItems(data.items.filter((item) => item.status !== "CANCELLED")))
+        .catch((cause) => {
+          if (!axios.isCancel(cause)) setError(t("finance.expenseOccurrencesLoadFailed"));
+        });
+    };
+    load();
+    window.addEventListener("finance-expenses-updated", load);
+    return () => {
+      controller?.abort();
+      window.removeEventListener("finance-expenses-updated", load);
+    };
+  }, [t]);
+
+  async function changeStatus(item: ExpenseOccurrence) {
+    const status = item.status === "PAID" ? "PENDING" : "PAID";
+    setUpdatingId(item.id);
+    setError("");
+    try {
+      const { data } = await axios.patch<ExpenseOccurrence>(`/api/expenses/occurrences/${item.id}`, {
+        status,
+        expectedUpdatedAt: item.updated_at,
+      });
+      setItems((current) => current.map((entry) => entry.id === data.id ? data : entry));
+      window.dispatchEvent(new Event("finance-expenses-updated"));
+    } catch (cause) {
+      setError(describeApiError(cause, t("finance.saveFailed")));
+    } finally {
+      setUpdatingId(null);
+    }
+  }
+
+  const visible = items.filter((item) => item.status === filter);
+  const pendingCount = items.filter((item) => item.status === "PENDING").length;
+  return (
+    <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-bold text-amber-950">{t("finance.expensesNeedAction", { n: String(pendingCount) })}</p>
+          <p className="mt-1 text-xs text-amber-800/70">{t("finance.expenseReminderHint")}</p>
+        </div>
+        <div className="flex rounded-lg bg-white p-1 text-xs shadow-sm">
+          {(["PENDING", "PAID"] as const).map((status) => (
+            <button key={status} type="button" onClick={() => setFilter(status)} className={`rounded-md px-3 py-1.5 ${filter === status ? "bg-[#5B14D1] text-white" : "text-[#776C80]"}`}>
+              {status === "PENDING" ? t("finance.unpaid") : t("finance.paid")}
+            </button>
+          ))}
+        </div>
+      </div>
+      {error && <p role="alert" className="mt-3 text-xs text-red-600">{error}</p>}
+      {visible.length === 0 ? (
+        <p className="mt-4 text-sm text-amber-900/60">{filter === "PENDING" ? t("finance.noUnpaidExpenses") : t("finance.noPaidExpenses")}</p>
+      ) : (
+        <div className="mt-4 grid gap-2">
+          {visible.map((item) => (
+            <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-100 bg-white px-3 py-2">
+              <div>
+                <p className="text-sm font-medium text-[#2D2238]">{item.expense.title}</p>
+                <p className="text-xs text-[#8B8095]">{formatAst(new Date(item.due_date), { year: "numeric", month: "2-digit", day: "2-digit" }, locale)}</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-bold text-[#2D2238]" dir="ltr">{formatCurrency(item.amount, locale)}</span>
+                <button type="button" disabled={updatingId === item.id} onClick={() => changeStatus(item)} className="rounded-lg border border-[#D8CCE8] px-3 py-1.5 text-xs font-medium text-[#5B14D1] hover:bg-[#F7F2FC] disabled:opacity-50">
+                  {item.status === "PAID" ? t("finance.markUnpaid") : t("finance.markPaid")}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -384,7 +582,8 @@ function SummaryTab() {
       const tab = PERIOD_TABS.find((p) => p.key === periodType);
       const label = tab ? t(tab.labelKey) : periodType;
       const res = await axios.post<Report>("/api/financial-reports/generate", { type: periodType, period_label: label });
-      setReports((prev) => [res.data, ...prev]);
+      if (!res.data.file_url) throw new Error("MISSING_REPORT_FILE");
+      setReports((prev) => [{ ...res.data, file_url: undefined }, ...prev]);
       const b64 = res.data.file_url.split(",")[1];
       if (b64) {
         const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
@@ -392,6 +591,29 @@ function SummaryTab() {
       }
     } catch { alert(t("finance.reportFailed")); }
     finally { setGeneratingReport(false); }
+  }
+
+  async function handleReportAction(report: Report, download: boolean) {
+    try {
+      const fileUrl = report.file_url ?? (await axios.get<{ file_url: string }>(`/api/financial-reports/${report.id}`)).data.file_url;
+      if (download) {
+        const link = document.createElement("a");
+        link.href = fileUrl;
+        link.download = `${report.name}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        return;
+      }
+      const base64 = fileUrl.split(",")[1];
+      if (!base64) throw new Error("INVALID_REPORT_FILE");
+      const bytes = Uint8Array.from(atob(base64), (character) => character.charCodeAt(0));
+      const objectUrl = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+      window.open(objectUrl, "_blank");
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+    } catch {
+      alert(t("finance.reportFailed"));
+    }
   }
 
   const [exportingExcel, setExportingExcel] = useState(false);
@@ -444,6 +666,8 @@ function SummaryTab() {
 
   return (
     <div className="space-y-6">
+      <OpeningBalanceCard onSaved={() => setReloadKey((key) => key + 1)} />
+
       {/* Period selector */}
       <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
         {PERIOD_TABS.map((p) => (
@@ -503,8 +727,8 @@ function SummaryTab() {
                   <span className="text-xs text-gray-400">{t("finance.netTotal")}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-bold text-emerald-600" dir="ltr">{formatCurrency(summary.collection.paidWithVat, locale)}</span>
-                  <span className="text-xs text-gray-400">{t("finance.vatIncluded")}</span>
+                  <span className="text-sm font-bold text-gray-600" dir="ltr">{formatCurrency(summary.collection.vatIncluded, locale)}</span>
+                  <span className="text-xs text-gray-400">{t("finance.vatComponent")}</span>
                 </div>
               </div>
             </div>
@@ -512,6 +736,7 @@ function SummaryTab() {
           </div>
           <SummaryRow label={t("finance.lateCount", { n: String(summary.collection.lateCount) })} value={formatCurrency(summary.collection.late, locale)} valueClass="text-red-500" />
           <SummaryRow label={t("finance.pendingCount", { n: String(summary.collection.pendingCount) })} value={formatCurrency(summary.collection.pending, locale)} valueClass="text-amber-500" />
+          <SummaryRow label={t("finance.suspendedCount", { n: String(summary.collection.suspendedCount) })} value={formatCurrency(summary.collection.suspended, locale)} valueClass="text-red-700" />
         </SectionCard>
       </div>
 
@@ -532,8 +757,7 @@ function SummaryTab() {
         {/* الرواتب */}
         <SectionCard title={t("finance.salaries")}>
           <SummaryRow label={t("finance.totalSalaries")} value={formatCurrency(summary.salaries.totalBudgeted, locale)} />
-          <SummaryRow label={t("finance.expenseRow")} value={formatCurrency(summary.salaries.paid, locale)} valueClass="text-emerald-600" />
-          <SummaryRow label={t("finance.remaining")} value={formatCurrency(summary.salaries.remaining, locale)} valueClass="text-amber-500" />
+          <SummaryRow label={t("finance.salaryInvoicesIssued")} value={formatCurrency(summary.salaries.invoicesIssued, locale)} valueClass="text-gray-700" />
         </SectionCard>
       </div>
 
@@ -546,6 +770,7 @@ function SummaryTab() {
           <div className="pt-2 border-t border-gray-100">
             <SummaryRow label={t("finance.currentBalance")} value={formatCurrency(summary.cashFlow.closingBalance, locale)} valueClass={summary.cashFlow.closingBalance >= 0 ? "text-emerald-600" : "text-red-500"} />
           </div>
+          <p className="pt-1 text-xs leading-5 text-gray-400">{t("finance.cashRecordedHint")}</p>
         </SectionCard>
       </div>
 
@@ -643,9 +868,9 @@ function SummaryTab() {
                   <td className="px-5 py-3 text-gray-500">{formatAst(new Date(r.issued_at), { year: "numeric", month: "2-digit", day: "2-digit" }, locale)}</td>
                   <td className="px-5 py-3">
                     <div className="flex gap-2">
-                      <button onClick={() => { const b64=r.file_url.split(",")[1]; const bytes=Uint8Array.from(atob(b64),(c)=>c.charCodeAt(0)); window.open(URL.createObjectURL(new Blob([bytes],{type:"application/pdf"})),"_blank"); }}
+                      <button onClick={() => handleReportAction(r, false)}
                         className="px-2.5 py-1 text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100">{t("finance.view")}</button>
-                      <button onClick={() => { const a=document.createElement("a"); a.href=r.file_url; a.download=`${r.name}.pdf`; document.body.appendChild(a); a.click(); document.body.removeChild(a); }}
+                      <button onClick={() => handleReportAction(r, true)}
                         className="px-2.5 py-1 text-xs bg-gray-50 text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-100">{t("finance.download")}</button>
                     </div>
                   </td>
@@ -673,38 +898,42 @@ function ExpensesTab() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [operationError, setOperationError] = useState("");
 
   useEffect(() => {
     const controller = new AbortController();
     axios
       .get<Expense[]>("/api/expenses", { signal: controller.signal })
       .then((res) => setExpenses(res.data))
-      .catch(() => {
-        // The tab retains its empty state; visible operation errors are handled separately.
+      .catch((cause) => {
+        if (!axios.isCancel(cause)) setOperationError(t("finance.expenseOccurrencesLoadFailed"));
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, []);
+  }, [t]);
 
   async function handleDelete(id: string) {
     setDeletingId(id);
+    setOperationError("");
     try {
       await axios.delete(`/api/expenses/${id}`);
       setExpenses((prev) => prev.filter((e) => e.id !== id));
-    } catch { /* silent */ }
+    } catch (cause) { setOperationError(describeApiError(cause, t("finance.deleteExpenseFailed"))); }
     finally { setDeletingId(null); setConfirmDeleteId(null); }
   }
 
   function handleExpenseSaved(updated: Expense) {
     setExpenses((prev) => prev.map((e) => e.id === updated.id ? updated : e));
     setEditingId(null);
+    window.dispatchEvent(new Event("finance-expenses-updated"));
   }
 
   function handleExpenseAdded(newExp: Expense) {
     setExpenses((prev) => [newExp, ...prev]);
     setShowAddForm(false);
+    window.dispatchEvent(new Event("finance-expenses-updated"));
   }
 
   const filtered = expenses.filter((exp) => {
@@ -715,6 +944,9 @@ function ExpensesTab() {
 
   return (
     <div className="space-y-4">
+      <ExpenseDuePanel />
+      {operationError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{operationError}</p>}
+
       {/* Confirm delete dialog */}
       {confirmDeleteId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-3 sm:p-4">

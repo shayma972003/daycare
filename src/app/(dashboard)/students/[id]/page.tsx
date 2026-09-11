@@ -49,6 +49,7 @@ type Sibling = { id: string; name: string; avatarUrl?: string | null };
 
 type StudentData = {
   id: string;
+  updatedAt: string;
   name: string;
   healthCondition: string | null;
   stageId: string | null;
@@ -373,8 +374,9 @@ export default function StudentProfilePage({
     setShowSuggestions(false);
   }
 
-  function syncSavedSubscription(saved: Pick<StudentData, "billingCycle" | "billingIntervalDays" | "cycleFee" | "enrollmentDate" | "enrollmentEndDate" | "paymentStatus" | "isActive" | "status">, submitted?: FormData) {
+  function syncSavedSubscription(saved: Pick<StudentData, "updatedAt" | "billingCycle" | "billingIntervalDays" | "cycleFee" | "enrollmentDate" | "enrollmentEndDate" | "paymentStatus" | "isActive" | "status">, submitted?: FormData) {
     setStudent((previous) => previous ? { ...previous,
+      updatedAt: saved.updatedAt,
       billingCycle: saved.billingCycle, billingIntervalDays: saved.billingIntervalDays,
       cycleFee: saved.cycleFee, enrollmentDate: saved.enrollmentDate,
       enrollmentEndDate: saved.enrollmentEndDate, paymentStatus: saved.paymentStatus,
@@ -396,11 +398,12 @@ export default function StudentProfilePage({
   }
 
   async function onSave(data: FormData) {
-    if (saving || renewalInFlight.current) return;
+    if (saving || renewalInFlight.current || !student) return;
     const submittedValues = getValues();
     setSaving(true);
     try {
       const payloadDraft = {
+        expectedUpdatedAt: student?.updatedAt,
         name: data.name,
         classId: data.classId || null,
         healthCondition: data.healthCondition || null,
@@ -448,6 +451,7 @@ export default function StudentProfilePage({
       };
       const guardianKeys = new Set(["guardianId", "guardianName", "guardianPhone1", "guardianPhone2", "guardianEmail", "guardianName2", "guardianPhone3", "guardianPhone4", "guardianEmail2"]);
       const payload = Object.fromEntries(Object.entries(payloadDraft).filter(([key]) => {
+        if (key === "expectedUpdatedAt") return true;
         if (guardianKeys.has(key)) {
           const guardianChanged = guardianId !== initialGuardianId.current || Object.keys(dirtyFields).some((field) => guardianKeys.has(field));
           return guardianChanged;
@@ -464,8 +468,8 @@ export default function StudentProfilePage({
         if (getValues(key) === submittedValues[key]) resetField(key, { defaultValue: submittedValues[key] });
       }
       alert(t("studentProfile.saved"));
-    } catch {
-      alert(t("common.error"));
+    } catch (error) {
+      alert(describeApiError(error, t("common.error")));
     } finally {
       setSaving(false);
     }
@@ -665,7 +669,7 @@ export default function StudentProfilePage({
       <div dir="rtl" className="min-h-screen bg-brand-bg">
         <Topbar title={t("students.profile.title")} />
         <div className="flex justify-center items-center h-64">
-          <div className="w-7 h-7 border-2 border-gray-200 border-t-[#F64651] rounded-full animate-spin" />
+          <div className="w-7 h-7 border-2 border-gray-200 border-t-[#5B14D1] rounded-full animate-spin" />
         </div>
       </div>
     );
@@ -754,7 +758,7 @@ export default function StudentProfilePage({
                     onChange={handleAvatarUpload}
                   />
                   {avatarError && (
-                    <p className="text-xs mt-1 text-right" style={{ color: "#F64651" }}>
+                    <p className="text-xs mt-1 text-right" style={{ color: "#5B14D1" }}>
                       {avatarError}
                     </p>
                   )}
@@ -848,7 +852,7 @@ export default function StudentProfilePage({
                     onChange={handleEvalFileChange}
                   />
                   {evaluationError && (
-                    <p className="text-xs mt-1 mb-2 text-right" style={{ color: "#F64651" }}>
+                    <p className="text-xs mt-1 mb-2 text-right" style={{ color: "#5B14D1" }}>
                       {evaluationError}
                     </p>
                   )}
@@ -1144,7 +1148,7 @@ export default function StudentProfilePage({
                     onClick={sendReminder}
                     className="w-full px-5 py-2.5 rounded-md bg-white font-medium text-sm
                                border border-[#666666] text-[#666666]
-                               hover:border-[#2F96A6] hover:text-[#2F96A6] hover:bg-[#E0F7FA]
+                               hover:border-[#5B14D1] hover:text-[#5B14D1] hover:bg-[#F1E8FF]
                                active:scale-[0.98] transition-all"
                   >
                     {t("students.profile.actions.sendPaymentReminder")}
@@ -1156,7 +1160,7 @@ export default function StudentProfilePage({
                     onClick={issueInvoice}
                     className="w-full px-5 py-2.5 rounded-md bg-white font-medium text-sm
                                border border-[#666666] text-[#666666]
-                               hover:border-[#2F96A6] hover:text-[#2F96A6] hover:bg-[#E0F7FA]
+                               hover:border-[#5B14D1] hover:text-[#5B14D1] hover:bg-[#F1E8FF]
                                active:scale-[0.98] transition-all"
                   >
                     {t("students.profile.actions.issueInvoice")}
@@ -1169,7 +1173,7 @@ export default function StudentProfilePage({
                       onClick={() => setShowDepartureModal(true)}
                       className="w-full px-5 py-2.5 rounded-md bg-white font-medium text-sm
                                  border border-[#666666] text-[#666666]
-                                 hover:border-[#2F96A6] hover:text-[#2F96A6] hover:bg-[#E0F7FA]
+                                 hover:border-[#5B14D1] hover:text-[#5B14D1] hover:bg-[#F1E8FF]
                                  active:scale-[0.98] transition-all"
                     >
                       {t("students.profile.actions.cancel")}
@@ -1180,7 +1184,7 @@ export default function StudentProfilePage({
                       onClick={reactivate}
                       className="w-full px-5 py-2.5 rounded-md bg-white font-medium text-sm
                                  border border-[#666666] text-[#666666]
-                                 hover:border-[#2F96A6] hover:text-[#2F96A6] hover:bg-[#E0F7FA]
+                                 hover:border-[#5B14D1] hover:text-[#5B14D1] hover:bg-[#F1E8FF]
                                  active:scale-[0.98] transition-all"
                     >
                       {t("students.profile.actions.reactivate")}
@@ -1193,7 +1197,7 @@ export default function StudentProfilePage({
                     onClick={() => setShowLateFeeConfirm(true)}
                     className="w-full px-5 py-2.5 rounded-md bg-white font-medium text-sm
                                border border-[#666666] text-[#666666]
-                               hover:border-[#2F96A6] hover:text-[#2F96A6] hover:bg-[#E0F7FA]
+                               hover:border-[#5B14D1] hover:text-[#5B14D1] hover:bg-[#F1E8FF]
                                active:scale-[0.98] transition-all"
                   >
                     {t("students.profile.actions.deleteLateFee")}
@@ -1206,7 +1210,7 @@ export default function StudentProfilePage({
                       onClick={() => setShowTrashModal(true)}
                       className="w-full px-5 py-2.5 rounded-md bg-white font-medium text-sm
                                  border border-[#666666] text-[#666666]
-                                 hover:border-[#F64651] hover:text-[#F64651] hover:bg-[#FFE8EA]
+                                 hover:border-[#5B14D1] hover:text-[#5B14D1] hover:bg-[#F1E8FF]
                                  active:scale-[0.98] transition-all"
                     >
                       {t("classes.moveToTrash")}
@@ -1258,7 +1262,7 @@ export default function StudentProfilePage({
                 <button
                   onClick={confirmDeparture}
                   disabled={departing || !departureDate}
-                  className="px-5 py-2 bg-[#2F96A6] text-white rounded-xl text-sm font-medium hover:bg-[#26808e] disabled:opacity-60"
+                  className="px-5 py-2 bg-[#5B14D1] text-white rounded-xl text-sm font-medium hover:bg-[#490EA9] disabled:opacity-60"
                 >
                   {departing ? "..." : t("common.confirm")}
                 </button>

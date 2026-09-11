@@ -24,6 +24,7 @@ import { requestTimeZone } from "@/lib/device-date";
 import { requireStudentCycleFee, StudentCycleFeeError, studentFeeSettingsSelect } from "@/lib/student-cycle-fee";
 
 const updateStudentSchema = z.object({
+  expectedUpdatedAt: z.iso.datetime(),
   name: z.string().min(1).optional(),
   classId: z.string().nullish(),
   healthCondition: z.string().nullish(),
@@ -422,7 +423,20 @@ export async function PUT(
       const created = await tx.guardian.create({ data: guardianCreate });
       updateData.guardianId = created.id;
     }
-    const updated = await tx.student.update({ where: { id }, data: updateData, select: studentDetailSelect });
+    const claimed = await tx.student.updateMany({
+      where: {
+        id,
+        schoolId,
+        deletedAt: null,
+        updatedAt: new Date(data.expectedUpdatedAt),
+      },
+      data: updateData,
+    });
+    if (claimed.count !== 1) throw new Error("STALE_RECORD");
+    const updated = await tx.student.findFirstOrThrow({
+      where: { id, schoolId, deletedAt: null },
+      select: studentDetailSelect,
+    });
     if (
       "enrollmentDate" in data ||
       "enrollmentEndDate" in data ||
@@ -467,6 +481,12 @@ export async function PUT(
     )
   );
   } catch (error) {
+    if (error instanceof Error && error.message === "STALE_RECORD") {
+      return withNoStore(Response.json({
+        error: "تم تعديل بيانات الطالب من جلسة أخرى. أعيدي تحميل الصفحة قبل الحفظ.",
+        code: "STALE_RECORD",
+      }, { status: 409 }));
+    }
     if (error instanceof StudentCycleFeeError) {
       return withNoStore(Response.json({ error: "Subscription fee is not configured", code: error.code }, { status: 422 }));
     }

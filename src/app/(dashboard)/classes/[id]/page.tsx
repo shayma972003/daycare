@@ -10,6 +10,7 @@ import { PermissionGate } from "@/components/auth/PermissionGate";
 import { useT, useLocale } from "@/lib/i18n-provider";
 import { useAcademicStages, useStageName } from "@/lib/use-academic-stages";
 import { formatAst } from "@/lib/datetime";
+import { describeApiError } from "@/lib/api-error";
 
 
 type Teacher = { id: string; name: string };
@@ -31,6 +32,7 @@ type AvailableStudent = {
 
 type ClassData = {
   id: string;
+  updatedAt: string;
   name: string;
   teacherId: string | null;
   teacher: Teacher | null;
@@ -169,8 +171,8 @@ export default function ClassProfilePage({
       setShowAddStudentsModal(false);
       setSelectedStudentIds([]);
       refreshClass();
-    } catch {
-      setError(t("common.error"));
+    } catch (error) {
+      setError(describeApiError(error, t("common.error")));
     } finally {
       setIsAdding(false);
     }
@@ -204,10 +206,12 @@ export default function ClassProfilePage({
   }
 
   async function saveEditing() {
+    if (saving || !cls) return;
     setSaving(true);
     setError(null);
     try {
       const res = await axios.put<ClassData>(`/api/classes/${id}`, {
+        expectedUpdatedAt: cls.updatedAt,
         name: form.name,
         teacherId: form.teacherId || null,
         stageId: form.stageId || null,
@@ -258,7 +262,7 @@ export default function ClassProfilePage({
       <div className="min-h-screen bg-brand-bg">
         <Topbar title={t("classes.form.title")} />
         <div className="flex justify-center items-center h-64">
-          <div className="w-7 h-7 border-2 border-gray-200 border-t-[#F64651] rounded-full animate-spin" />
+          <div className="w-7 h-7 border-2 border-gray-200 border-t-[#5B14D1] rounded-full animate-spin" />
         </div>
       </div>
     );
@@ -305,7 +309,7 @@ export default function ClassProfilePage({
                   <button
                     onClick={saveEditing}
                     disabled={saving}
-                    className="px-4 py-2 bg-[#F64651] text-white rounded-lg text-sm font-medium hover:bg-[#D93A44] disabled:opacity-60 transition-colors"
+                    className="px-4 py-2 bg-[#5B14D1] text-white rounded-lg text-sm font-medium hover:bg-[#490EA9] disabled:opacity-60 transition-colors"
                   >
                     {saving ? t("common.loading") : t("classes.form.save")}
                   </button>
@@ -462,7 +466,7 @@ export default function ClassProfilePage({
                 <button
                   onClick={openAddStudentsModal}
                   title={t("classes.addStudents")}
-                  className="w-8 h-8 rounded-full bg-[#F64651] text-white flex items-center justify-center text-lg font-bold hover:bg-[#D93A44] transition-colors"
+                  className="w-8 h-8 rounded-full bg-[#5B14D1] text-white flex items-center justify-center text-lg font-bold hover:bg-[#490EA9] transition-colors"
                 >
                   +
                 </button>
@@ -579,7 +583,7 @@ export default function ClassProfilePage({
             <div className="flex-1 overflow-y-auto p-4 space-y-2">
               {loadingAvailable ? (
                 <div className="flex justify-center items-center h-32">
-                  <div className="w-6 h-6 border-2 border-gray-200 border-t-[#F64651] rounded-full animate-spin" />
+                  <div className="w-6 h-6 border-2 border-gray-200 border-t-[#5B14D1] rounded-full animate-spin" />
                 </div>
               ) : availableError ? (
                 <p role="alert" className="text-center text-red-600 py-8 text-sm">{availableError}</p>
@@ -619,7 +623,7 @@ export default function ClassProfilePage({
               <button
                 onClick={handleAddStudents}
                 disabled={selectedStudentIds.length === 0 || isAdding}
-                className="px-5 py-2.5 rounded-md bg-[#F64651] text-white text-sm font-medium hover:bg-[#D93A44] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="px-5 py-2.5 rounded-md bg-[#5B14D1] text-white text-sm font-medium hover:bg-[#490EA9] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {isAdding ? t("finance.adding") : `${t("common.add")}${selectedStudentIds.length > 0 ? ` (${selectedStudentIds.length})` : ""}`}
               </button>

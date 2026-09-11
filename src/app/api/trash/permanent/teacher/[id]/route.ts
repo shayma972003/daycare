@@ -33,6 +33,10 @@ export async function DELETE(
   await prisma.$transaction(async (tx) => {
     const activityIds = await lockActivitiesForTeacherTargetChange(tx, { teacherId: id, schoolId });
     await tx.teacherAttendance.deleteMany({ where: { teacherId: id } });
+    await tx.user.updateMany({
+      where: { teacherId: id, schoolId },
+      data: { teacherId: null },
+    });
     await tx.class.updateMany({ where: { teacherId: id }, data: { teacherId: null } });
     await tx.activity.updateMany({ where: { teacherId: id }, data: { teacherId: null } });
     await touchActivityTargetRevisions(tx, { activityIds, schoolId });

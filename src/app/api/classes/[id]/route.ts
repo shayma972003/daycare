@@ -8,6 +8,7 @@ import { capacityState } from "@/lib/attendance-schedule";
 import { z } from "zod";
 
 const updateClassSchema = z.object({
+  expectedUpdatedAt: z.iso.datetime(),
   name: z.string().min(1).optional(),
   teacherId: z.string().nullish(),
   /** DEPRECATED — still accepted so older clients keep working. */
@@ -149,27 +150,49 @@ export async function PUT(
     return Response.json({ error: "Not found" }, { status: 404 });
   }
 
-  const cls = await prisma.class.update({
-    where: { id },
-    data: updateData,
-    include: {
-      teacher: { select: { id: true, name: true } },
-      students: {
-        where: { deletedAt: null, isActive: true },
-        select: {
-          id: true,
-          name: true,
-          avatarUrl: true,
-          period: true,
-          guardian: { select: { name: true, phone1: true } },
+  let cls;
+  try {
+    cls = await prisma.$transaction(async (tx) => {
+      const claimed = await tx.class.updateMany({
+        where: {
+          id,
+          schoolId,
+          deletedAt: null,
+          updatedAt: new Date(data.expectedUpdatedAt),
         },
-        orderBy: { name: "asc" },
-      },
-      _count: {
-        select: { students: { where: { deletedAt: null, isActive: true } } },
-      },
-    },
-  });
+        data: updateData,
+      });
+      if (claimed.count !== 1) throw new Error("STALE_RECORD");
+      return tx.class.findFirstOrThrow({
+        where: { id, schoolId, deletedAt: null },
+        include: {
+          teacher: { select: { id: true, name: true } },
+          students: {
+            where: { deletedAt: null, isActive: true },
+            select: {
+              id: true,
+              name: true,
+              avatarUrl: true,
+              period: true,
+              guardian: { select: { name: true, phone1: true } },
+            },
+            orderBy: { name: "asc" },
+          },
+          _count: {
+            select: { students: { where: { deletedAt: null, isActive: true } } },
+          },
+        },
+      });
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === "STALE_RECORD") {
+      return Response.json({
+        error: "تم تعديل بيانات الفصل من جلسة أخرى. أعيدي تحميل الصفحة قبل الحفظ.",
+        code: "STALE_RECORD",
+      }, { status: 409 });
+    }
+    throw error;
+  }
 
   await logAction({
     school_id: schoolId,

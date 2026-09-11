@@ -10,6 +10,7 @@ export interface RosterDtoAccess {
 
 export const studentDetailSelect = {
   id: true,
+  updatedAt: true,
   name: true,
   stageId: true,
   academicStage: true,
@@ -59,6 +60,7 @@ export const studentDetailSelect = {
 
 export const teacherDetailSelect = {
   id: true,
+  updatedAt: true,
   name: true,
   period: true,
   classes: { select: { id: true, name: true } },
@@ -175,6 +177,7 @@ export function studentDetailDto(
   const guardian = student.guardian as Record<string, unknown> | null;
   const base = {
     id: student.id,
+    updatedAt: student.updatedAt,
     name: student.name,
     stageId: student.stageId,
     academicStage: student.academicStage,
@@ -260,6 +263,7 @@ export function teacherDetailDto(
 ) {
   return {
     id: teacher.id,
+    updatedAt: teacher.updatedAt,
     name: teacher.name,
     period: teacher.period,
     classes: teacher.classes,

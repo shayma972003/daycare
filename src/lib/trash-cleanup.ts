@@ -84,6 +84,10 @@ export async function cleanupExpiredTrash(): Promise<TrashCleanupResult> {
           schoolId: teacher.schoolId,
         });
         await tx.teacherAttendance.deleteMany({ where: { teacherId: teacher.id } });
+        await tx.user.updateMany({
+          where: { teacherId: teacher.id, schoolId: teacher.schoolId },
+          data: { teacherId: null },
+        });
         await tx.class.updateMany({
           where: { teacherId: teacher.id },
           data: { teacherId: null },

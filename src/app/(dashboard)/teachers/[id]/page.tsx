@@ -33,6 +33,7 @@ interface Invoice { id: string; createdAt: string; type: string; amount?: number
 
 interface Teacher {
   id: string; name: string;
+  updatedAt: string;
   period?: "MORNING" | "EVENING" | null;
   classes?: ClassItem[];
   idNumber?: string | null; dateOfBirth?: string | null; nationality?: string | null;
@@ -170,6 +171,7 @@ export default function TeacherProfilePage() {
   }, [watchedPeriod, loading]);
 
   async function onSubmit(values: FormValues) {
+    if (saving || !teacher) return;
     setSaving(true); setSaveError(null); setSaveSuccess(false);
     try {
       const extraPayload: Record<string, string | null> = {};
@@ -178,6 +180,7 @@ export default function TeacherProfilePage() {
         extraPayload[`qualification${i}`] = val;
       }
       await axios.put(`/api/teachers/${id}`, {
+        expectedUpdatedAt: teacher.updatedAt,
         name: values.name, period: values.period || null,
         idNumber: values.idNumber || null, dateOfBirth: values.dateOfBirth || null,
         nationality: values.nationality || null, email: values.email || null,
@@ -299,9 +302,9 @@ export default function TeacherProfilePage() {
     }
   }
 
-  const inputCls = "w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#F64651] text-sm";
+  const inputCls = "w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#5B14D1] text-sm";
   const readonlyCls = "w-full px-4 py-2.5 rounded-xl border border-gray-100 bg-gray-50 text-sm text-gray-600 cursor-default";
-  const selectCls = "w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#F64651] text-sm bg-white";
+  const selectCls = "w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#5B14D1] text-sm bg-white";
   const labelCls = "block text-sm font-medium text-gray-700 mb-1.5";
 
   const baseSalary = teacher?.monthlySalary ?? 0;
@@ -487,7 +490,7 @@ export default function TeacherProfilePage() {
                     <button
                       type="button"
                       onClick={() => setExtraQuals((prev) => [...prev, ""])}
-                      className="text-sm text-[#F64651] hover:underline font-medium"
+                      className="text-sm text-[#5B14D1] hover:underline font-medium"
                     >
                       {t("teacherProfile.addQualification")}
                     </button>
@@ -547,7 +550,7 @@ export default function TeacherProfilePage() {
                     onClick={() => setInvoiceModalOpen(true)}
                     className="w-full px-5 py-2.5 rounded-md bg-white font-medium text-sm
                                border border-[#666666] text-[#666666]
-                               hover:border-[#2F96A6] hover:text-[#2F96A6] hover:bg-[#E0F7FA]
+                               hover:border-[#5B14D1] hover:text-[#5B14D1] hover:bg-[#F1E8FF]
                                active:scale-[0.98] transition-all"
                   >
                     {t("teachers.profile.actions.issueInvoice")}
@@ -562,7 +565,7 @@ export default function TeacherProfilePage() {
                     disabled={actionLoading === "cancel"}
                     className="w-full px-5 py-2.5 rounded-md bg-white font-medium text-sm
                                border border-[#666666] text-[#666666]
-                               hover:border-[#2F96A6] hover:text-[#2F96A6] hover:bg-[#E0F7FA]
+                               hover:border-[#5B14D1] hover:text-[#5B14D1] hover:bg-[#F1E8FF]
                                active:scale-[0.98] transition-all disabled:opacity-60"
                   >
                     {actionLoading === "cancel"
@@ -579,7 +582,7 @@ export default function TeacherProfilePage() {
                     disabled={actionLoading === "lateFee"}
                     className="w-full px-5 py-2.5 rounded-md bg-white font-medium text-sm
                                border border-[#666666] text-[#666666]
-                               hover:border-[#2F96A6] hover:text-[#2F96A6] hover:bg-[#E0F7FA]
+                               hover:border-[#5B14D1] hover:text-[#5B14D1] hover:bg-[#F1E8FF]
                                active:scale-[0.98] transition-all disabled:opacity-60"
                   >
                     {actionLoading === "lateFee" ? t("common.loading") : t("teachers.profile.actions.deleteLateFee")}
@@ -592,7 +595,7 @@ export default function TeacherProfilePage() {
                       onClick={openTrashModal}
                       className="w-full px-5 py-2.5 rounded-md bg-white font-medium text-sm
                                  border border-[#666666] text-[#666666]
-                                 hover:border-[#F64651] hover:text-[#F64651] hover:bg-[#FFE8EA]
+                                 hover:border-[#5B14D1] hover:text-[#5B14D1] hover:bg-[#F1E8FF]
                                  active:scale-[0.98] transition-all"
                     >
                       {t("classes.moveToTrash")}
@@ -614,7 +617,7 @@ export default function TeacherProfilePage() {
                   </div>
                   <div className="flex justify-between items-center py-2 bg-gray-50 rounded-lg px-2">
                     <span className="font-bold text-[#111111]">{t("teachers.profile.salaryCalc.netSalary")}</span>
-                    <span className="font-bold text-[#F64651] text-base">{formatCurrency(netSalary, locale)}</span>
+                    <span className="font-bold text-[#5B14D1] text-base">{formatCurrency(netSalary, locale)}</span>
                   </div>
                   <p className="text-xs text-gray-400 text-center pt-1"><span dir="ltr">{formatDurationHours(lateHrs)}</span> × {formatCurrency(deductionRate, locale)} = {formatCurrency(lateDeduction, locale)}</p>
                 </div>
@@ -706,7 +709,7 @@ export default function TeacherProfilePage() {
               <button
                 onClick={confirmDeparture}
                 disabled={actionLoading === "cancel" || !departureDate}
-                className="px-5 py-2 bg-[#2F96A6] text-white rounded-xl text-sm font-medium hover:bg-[#26808e] disabled:opacity-60"
+                className="px-5 py-2 bg-[#5B14D1] text-white rounded-xl text-sm font-medium hover:bg-[#490EA9] disabled:opacity-60"
               >
                 {actionLoading === "cancel" ? "..." : t("common.confirm")}
               </button>

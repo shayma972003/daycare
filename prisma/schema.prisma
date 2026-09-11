@@ -534,6 +534,7 @@ model Unit {
 
   @@index([schoolId, archivedAt])
   @@index([schoolId, deletedAt])
+  @@unique([id, schoolId])
 }
 
 /// Which rooms a unit is taught to (task 2.24).
@@ -611,8 +612,9 @@ model CalendarEvent {
   allDay  Boolean   @default(false)
 
   teacherId String?
+  teacher   Teacher? @relation(fields: [teacherId, schoolId], references: [id, schoolId], onDelete: Restrict)
   unitId    String?
-  unit      Unit?    @relation(fields: [unitId], references: [id])
+  unit      Unit?    @relation(fields: [unitId, schoolId], references: [id, schoolId], onDelete: Restrict)
   lessonId  String?
   lesson    Lesson?  @relation(fields: [lessonId], references: [id])
 
@@ -654,7 +656,7 @@ model Shift {
   teacherId String
   teacher   Teacher @relation(fields: [teacherId, schoolId], references: [id, schoolId], onDelete: Cascade)
   classId   String?
-  class     Class?   @relation(fields: [classId], references: [id], onDelete: SetNull)
+  class     Class?   @relation(fields: [classId, schoolId], references: [id, schoolId], onDelete: Restrict)
   classNameSnapshot String?
 
   /// The rota day. `@db.Date` so it compares by equality, like Attendance.
@@ -1216,6 +1218,7 @@ model User {
   /// can be scoped to her own classes. Null for an office account with no
   /// teaching record.
   teacherId String?
+  teacher   Teacher? @relation(fields: [teacherId, schoolId], references: [id, schoolId], onDelete: Restrict)
 
   /// Set when the account is suspended without being deleted — a teacher on
   /// leave keeps her history but cannot sign in.
@@ -1449,14 +1452,14 @@ model Class {
   schoolId         String
   school           School   @relation(fields: [schoolId], references: [id])
   teacherId        String?
-  teacher          Teacher? @relation(fields: [teacherId], references: [id])
+  teacher          Teacher? @relation(fields: [teacherId, schoolId], references: [id, schoolId], onDelete: Restrict)
   /// DEPRECATED — read `stage` instead. Kept until the last reader is gone.
   group            ClassGroup @default(KG1)
   /// The school's own academic stage. Nullable because a room need not have one
   /// — and because making it required would have meant guessing for every
   /// existing row rather than carrying its old value across.
   stageId          String?
-  stage            AcademicStageOption? @relation(fields: [stageId], references: [id])
+  stage            AcademicStageOption? @relation(fields: [stageId, schoolId], references: [id, schoolId], onDelete: Restrict)
   /// Age bands this room takes. An array because a small nursery runs one room
   /// for 1–3 year olds and must be able to say so, rather than being forced to
   /// pick the band that fits worst.
@@ -1586,6 +1589,8 @@ model Teacher {
 
   classes            Class[]
   activities         Activity[]
+  calendarEvents     CalendarEvent[]
+  users              User[]
   teacherAttendances TeacherAttendance[]
   invoices           Invoice[]
   shifts             Shift[]
@@ -1809,11 +1814,11 @@ model Activity {
   schoolId      String
   school        School   @relation(fields: [schoolId], references: [id])
   teacherId     String?
-  teacher       Teacher? @relation(fields: [teacherId], references: [id])
+  teacher       Teacher? @relation(fields: [teacherId, schoolId], references: [id, schoolId], onDelete: Restrict)
   /// DEPRECATED — read `stage` instead (task 2.44).
   group         ClassGroup @default(KG1)
   stageId       String?
-  stage         AcademicStageOption? @relation(fields: [stageId], references: [id])
+  stage         AcademicStageOption? @relation(fields: [stageId, schoolId], references: [id, schoolId], onDelete: Restrict)
   period        Period   @default(MORNING)
   childrenCount Int      @default(0)
   startDate     DateTime

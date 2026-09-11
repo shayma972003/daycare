@@ -6,7 +6,8 @@ const mocks = vi.hoisted(() => ({
   studentFind: vi.fn(),
   settingsFind: vi.fn(),
   studentCreate: vi.fn(),
-  studentUpdate: vi.fn(),
+  studentUpdateMany: vi.fn(),
+  studentFindOrThrow: vi.fn(),
   activityCreate: vi.fn(),
   generateCycles: vi.fn(),
 }));
@@ -52,6 +53,7 @@ const existingStudent = {
   billingIntervalDays: null,
   cycleFee: 250,
   registration_fee: 0,
+  updatedAt: new Date("2026-09-07T00:00:00.000Z"),
 };
 
 beforeEach(() => {
@@ -63,12 +65,21 @@ beforeEach(() => {
   mocks.settingsFind.mockResolvedValue({ dailyStudentFee: 10, weeklyStudentFee: 70, monthlyStudentFee: 250, yearlyStudentFee: 2500 });
   mocks.studentFind.mockResolvedValue({ ...existingStudent });
   mocks.studentCreate.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({ ...existingStudent, ...data }));
-  mocks.studentUpdate.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({ ...existingStudent, ...data }));
+  mocks.studentUpdateMany.mockResolvedValue({ count: 1 });
+  mocks.studentFindOrThrow.mockImplementation(async () => ({
+    ...existingStudent,
+    ...mocks.studentUpdateMany.mock.calls.at(-1)?.[0]?.data,
+    updatedAt: new Date("2026-09-07T00:01:00.000Z"),
+  }));
   mocks.activityCreate.mockResolvedValue({});
   mocks.generateCycles.mockResolvedValue(1);
   const tx = {
     settings: { findUnique: mocks.settingsFind },
-    student: { create: mocks.studentCreate, update: mocks.studentUpdate },
+    student: {
+      create: mocks.studentCreate,
+      updateMany: mocks.studentUpdateMany,
+      findFirstOrThrow: mocks.studentFindOrThrow,
+    },
     guardian: { create: vi.fn(), update: vi.fn() },
     activityLog: { create: mocks.activityCreate },
   };
@@ -105,10 +116,10 @@ describe("student subscription fee snapshots", () => {
     const response = await updateStudent(new Request("http://localhost/api/students/student-1", {
       method: "PUT",
       headers: { "X-Time-Zone": "UTC" },
-      body: JSON.stringify({ billingCycle: "YEARLY", cycleFee: 1 }),
+      body: JSON.stringify({ expectedUpdatedAt: existingStudent.updatedAt.toISOString(), billingCycle: "YEARLY", cycleFee: 1 }),
     }), { params: Promise.resolve({ id: "student-1" }) });
     expect(response.status).toBe(200);
-    const update = mocks.studentUpdate.mock.calls[0][0].data;
+    const update = mocks.studentUpdateMany.mock.calls[0][0].data;
     expect(update.billingCycle).toBe("YEARLY");
     expect(String(update.cycleFee)).toBe("2500");
     expect(mocks.generateCycles).toHaveBeenCalledOnce();
@@ -119,15 +130,28 @@ describe("student subscription fee snapshots", () => {
     const response = await updateStudent(new Request("http://localhost/api/students/student-1", {
       method: "PUT",
       headers: { "X-Time-Zone": "UTC" },
-      body: JSON.stringify({ billingCycle: "MONTHLY" }),
+      body: JSON.stringify({ expectedUpdatedAt: existingStudent.updatedAt.toISOString(), billingCycle: "MONTHLY" }),
     }), { params: Promise.resolve({ id: "student-1" }) });
 
     expect(response.status).toBe(200);
-    const update = mocks.studentUpdate.mock.calls[0][0].data;
+    const update = mocks.studentUpdateMany.mock.calls[0][0].data;
     expect(update.billingCycle).toBe("MONTHLY");
     expect(update).not.toHaveProperty("cycleFee");
     expect(String(existingStudent.cycleFee)).toBe("250");
     expect(mocks.settingsFind).not.toHaveBeenCalled();
+    expect(mocks.generateCycles).not.toHaveBeenCalled();
+  });
+
+  it("rejects a stale profile save before changing billing data", async () => {
+    mocks.studentUpdateMany.mockResolvedValueOnce({ count: 0 });
+    const response = await updateStudent(new Request("http://localhost/api/students/student-1", {
+      method: "PUT",
+      headers: { "X-Time-Zone": "UTC" },
+      body: JSON.stringify({ expectedUpdatedAt: "2026-09-06T00:00:00.000Z", billingCycle: "YEARLY" }),
+    }), { params: Promise.resolve({ id: "student-1" }) });
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ code: "STALE_RECORD" });
     expect(mocks.generateCycles).not.toHaveBeenCalled();
   });
 });

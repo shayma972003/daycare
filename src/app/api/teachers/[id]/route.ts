@@ -17,6 +17,7 @@ import {
 import { z } from "zod";
 
 const updateTeacherSchema = z.object({
+  expectedUpdatedAt: z.iso.datetime(),
   name: z.string().min(1).optional(),
   period: z.enum(["MORNING", "EVENING"]).nullish(),
   /** Primary class. The profile form sent this but the route never read it. */
@@ -267,29 +268,51 @@ export async function PUT(
     }
   }
 
-  const [teacher] = await prisma.$transaction([
-    prisma.teacher.update({
-      where: { id },
-      data: updateData,
-      select: teacherDetailSelect,
-    }),
-    ...(classReassignment
-      ? [
-          prisma.class.updateMany({
-            where: { teacherId: classReassignment.detachFrom, schoolId },
-            data: { teacherId: null, needsTeacherWarning: true },
-          }),
-          ...(classReassignment.attachTo
-            ? [
-                prisma.class.update({
-                  where: { id: classReassignment.attachTo },
-                  data: { teacherId: id, needsTeacherWarning: false },
-                }),
-              ]
-            : []),
-        ]
-      : []),
-  ]);
+  let teacher;
+  try {
+    teacher = await prisma.$transaction(async (tx) => {
+      const claimed = await tx.teacher.updateMany({
+        where: {
+          id,
+          schoolId,
+          deletedAt: null,
+          updatedAt: new Date(data.expectedUpdatedAt),
+        },
+        data: updateData,
+      });
+      if (claimed.count !== 1) throw new Error("STALE_RECORD");
+
+      if (classReassignment) {
+        await tx.class.updateMany({
+          where: { teacherId: classReassignment.detachFrom, schoolId },
+          data: { teacherId: null, needsTeacherWarning: true },
+        });
+        if (classReassignment.attachTo) {
+          const attached = await tx.class.updateMany({
+            where: { id: classReassignment.attachTo, schoolId, deletedAt: null },
+            data: { teacherId: id, needsTeacherWarning: false },
+          });
+          if (attached.count !== 1) throw new Error("CLASS_NOT_FOUND");
+        }
+      }
+
+      return tx.teacher.findFirstOrThrow({
+        where: { id, schoolId, deletedAt: null },
+        select: teacherDetailSelect,
+      });
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === "STALE_RECORD") {
+      return withNoStore(Response.json({
+        error: "تم تعديل بيانات المعلمة من جلسة أخرى. أعيدي تحميل الصفحة قبل الحفظ.",
+        code: "STALE_RECORD",
+      }, { status: 409 }));
+    }
+    if (error instanceof Error && error.message === "CLASS_NOT_FOUND") {
+      return Response.json({ error: "الفصل غير موجود" }, { status: 404 });
+    }
+    throw error;
+  }
 
   await logAction({
     school_id: schoolId,

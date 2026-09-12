@@ -67,9 +67,10 @@ describe("daily attendance search", () => {
       expect(board.className).toContain("flex-col");
       expect(board.className).toContain("lg:flex-row");
       expect(filter.className).toContain("w-full");
-      expect(filter.className).toContain("lg:w-56");
-      expect(filter.className).toContain("overflow-x-auto");
-      expect(options.className).toContain("lg:flex-col");
+      expect(filter.className).toContain("lg:w-72");
+      expect(options.className).toContain("grid");
+      expect(screen.getByRole("searchbox", { name: "All classes" })).toBeTruthy();
+      expect(screen.getByRole("combobox")).toBeTruthy();
       expect(screen.getByRole("textbox", { name: "Search" }).className).toContain("w-full");
     }
   );

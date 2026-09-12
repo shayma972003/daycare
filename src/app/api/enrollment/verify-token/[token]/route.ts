@@ -35,6 +35,12 @@ export async function GET(
     return Response.json({ error: "expired" }, { status: 410 });
   }
 
+  // Keep the public preview and the atomic submit contract identical. A token
+  // that cannot reserve a slot must never render a form that appears usable.
+  if (rec.status !== "active") {
+    return Response.json({ error: "unavailable" }, { status: 409 });
+  }
+
   if (rec.submissions_count >= rec.max_submissions) {
     return Response.json({ error: "limit_reached", max: rec.max_submissions }, { status: 429 });
   }

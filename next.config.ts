@@ -26,10 +26,10 @@ const securityHeaders = [
       "default-src 'self'",
       // Next.js injects inline bootstrap scripts and, in dev, uses eval for HMR.
       process.env.NODE_ENV === "production"
-        ? "script-src 'self' 'unsafe-inline'"
-        : "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+        ? "script-src 'self' 'unsafe-inline' https://cdn.moyasar.com"
+        : "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.moyasar.com",
       // Tailwind and the Google Fonts stylesheet both need inline styles.
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.moyasar.com",
       "font-src 'self' data: https://fonts.gstatic.com",
       // `data:` covers uploads not yet migrated off base64 columns. The R2 host
       // is needed because `/api/files/…` answers with a 302 to a signed URL, and
@@ -43,7 +43,7 @@ const securityHeaders = [
       // document is opened as a navigation. A bucket with no CORS policy would
       // refuse a cross-origin `fetch` regardless, so allowing it here would only
       // suggest a path that does not work.
-      "connect-src 'self' https://*.ingest.de.sentry.io",
+      "connect-src 'self' https://api.moyasar.com https://*.ingest.de.sentry.io",
       "object-src 'none'",
       "base-uri 'self'",
       "form-action 'self'",

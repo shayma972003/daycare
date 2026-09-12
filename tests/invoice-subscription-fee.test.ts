@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   claim: vi.fn(),
   complete: vi.fn(),
   fail: vi.fn(),
+  attendanceAggregate: vi.fn(),
 }));
 
 vi.mock("@/lib/session", () => ({ requireSession: mocks.session, sessionErrorResponse: () => null }));
@@ -17,6 +18,7 @@ vi.mock("@/lib/prisma", () => ({ prisma: {
   settings: { findUnique: mocks.settingsFind },
   school: { findUnique: mocks.schoolFind },
   invoice: { findUniqueOrThrow: mocks.invoiceFind },
+  attendance: { aggregate: mocks.attendanceAggregate },
 } }));
 vi.mock("@/lib/invoice-duplicates", () => ({ findInvoiceThisMonth: () => Promise.resolve(null), duplicateInvoiceResponse: vi.fn() }));
 vi.mock("@/lib/invoice-idempotency", () => ({
@@ -44,6 +46,7 @@ beforeEach(() => {
   mocks.claim.mockResolvedValue({ state: "claimed", id: "invoice-1", leaseExpiresAt: new Date("2026-09-02") });
   mocks.complete.mockResolvedValue(undefined);
   mocks.fail.mockResolvedValue(undefined);
+  mocks.attendanceAggregate.mockResolvedValue({ _sum: { lateMinutes: 0, lateFee: 0 } });
   mocks.invoiceFind.mockResolvedValue({ id: "invoice-1", amount: 2400 });
 });
 
@@ -59,5 +62,20 @@ describe("student invoice subscription pricing", () => {
       data: expect.objectContaining({ monthlyFee: "2400.00" }),
     }));
     expect(String(mocks.complete.mock.calls[0][2].amount)).toBe("2400");
+  });
+
+  it("adds only the current month's stored attendance late fees", async () => {
+    mocks.attendanceAggregate.mockResolvedValue({ _sum: { lateMinutes: 90, lateFee: 45 } });
+    await POST(new Request("http://localhost/api/students/student-1/invoice", {
+      method: "POST",
+      headers: { "Idempotency-Key": "invoice-request-late" },
+    }), { params: Promise.resolve({ id: "student-1" }) });
+
+    const payload = mocks.complete.mock.calls[0][2];
+    expect(String(payload.amount)).toBe("2445");
+    expect(payload.data).toMatchObject({ lateHours: 1.5, lateFee: "45.00" });
+    expect(mocks.attendanceAggregate).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ schoolId: "school-1", studentId: "student-1" }),
+    }));
   });
 });

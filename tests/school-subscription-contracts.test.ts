@@ -31,20 +31,35 @@ describe("school subscription contracts", () => {
     expect(subscriptionEditor).toContain('subscription_status: type === "TRIAL" ? "trial" : "active"');
   });
 
-  it("keeps card data out of the application and verifies hosted invoices server-side", () => {
+  it("embeds Moyasar without storing abandoned pending attempts and verifies paid payments server-side", () => {
     const checkout = source("src/app/api/subscription/checkout/route.ts");
     const provider = source("src/lib/moyasar.ts");
+    const form = source("src/components/subscription/MoyasarPaymentForm.tsx");
     expect(checkout).not.toMatch(/card_number|\bcvc\b|credit_card/);
-    expect(provider).toContain("fetchMoyasarInvoice");
-    expect(provider).toContain('invoice.status !== "paid"');
-    expect(provider).toContain("invoice.amount !== expectedHalalas");
+    expect(checkout).not.toContain("schoolSubscriptionPayment.create");
+    expect(checkout).toContain("createMoyasarPaymentIntent");
+    expect(form).toContain("Moyasar.init");
+    expect(form).toContain('methods: ["creditcard"]');
+    expect(provider).toContain("fetchMoyasarPayment");
+    expect(provider).toContain('payment.status !== "paid"');
+    expect(provider).toContain("payment.amount !== intent.amountHalalas");
     expect(provider).toContain("FOR UPDATE");
   });
 
-  it("keeps suspended school sessions so the web portal can remain read-only", () => {
+  it("keeps only the subscription flow available after the grace period", () => {
     const suspend = source("src/app/api/admin/schools/[id]/suspend/route.ts");
+    const session = source("src/lib/session.ts");
+    const sidebar = source("src/components/layout/Sidebar.tsx");
+    const topbar = source("src/components/layout/Topbar.tsx");
+    const layout = source("src/app/(dashboard)/layout.tsx");
     expect(suspend).not.toContain("refreshToken.updateMany");
     expect(suspend).not.toContain("deviceToken.deleteMany");
-    expect(source("src/lib/session.ts")).toContain("SUBSCRIPTION_READ_ONLY");
+    expect(session).toContain('"/api/subscription"');
+    expect(session).not.toContain('"/api/notifications/admin-messages"');
+    expect(session).toContain("LOCKED_ACCESS_ALLOWLIST");
+    expect(sidebar).toContain('item.href !== "/subscription"');
+    expect(sidebar).toContain("bg-red-500");
+    expect(topbar).toContain("!subscriptionLocked");
+    expect(layout).toContain('disabled={subscriptionAccess.mode === "locked"}');
   });
 });

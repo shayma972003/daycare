@@ -48,24 +48,22 @@ export class ForbiddenError extends Error {
 
 export class SubscriptionLockedError extends Error {
   constructor() {
-    super("اشتراك الحضانة يحتاج إلى تجديد. التصفح متاح مؤقتًا دون تعديل البيانات.");
+    super("انتهت مهلة الاشتراك. جددي الاشتراك من تبويب اشتراك النظام للمتابعة.");
     this.name = "SubscriptionLockedError";
   }
 }
 
-const LOCKED_WRITE_ALLOWLIST = [
+const LOCKED_ACCESS_ALLOWLIST = [
   "/api/subscription",
-  "/api/notifications/admin-messages",
 ];
 
-async function enforceSubscriptionWriteAccess(access: SchoolSubscriptionAccess): Promise<void> {
+async function enforceSubscriptionAccess(access: SchoolSubscriptionAccess): Promise<void> {
   if (access.mode !== "locked") return;
   try {
     const headerList = await headers();
     const pathname = headerList.get("x-pathname");
-    const method = headerList.get("x-method") ?? "GET";
-    if (!pathname || method === "GET" || method === "HEAD" || method === "OPTIONS") return;
-    if (LOCKED_WRITE_ALLOWLIST.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))) return;
+    if (!pathname) return;
+    if (LOCKED_ACCESS_ALLOWLIST.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))) return;
     throw new SubscriptionLockedError();
   } catch (error) {
     if (error instanceof SubscriptionLockedError) throw error;
@@ -176,7 +174,7 @@ export async function requireSession(): Promise<AuthSession> {
   const permissions = await resolvePermissions(user.schoolId, user);
 
   await enforceRoutePermission(permissions);
-  await enforceSubscriptionWriteAccess(subscription);
+  await enforceSubscriptionAccess(subscription);
 
   return {
     user: {

@@ -1,5 +1,6 @@
 import "server-only";
 
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { env, moyasarEnabled } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
 import { addSchoolBillingPeriod } from "@/lib/school-subscription";
@@ -15,6 +16,64 @@ type MoyasarInvoice = {
   url?: string;
   metadata?: Record<string, string> | null;
 };
+
+type MoyasarPayment = MoyasarInvoice;
+
+type MoyasarPaymentIntent = {
+  version: 1;
+  schoolId: string;
+  planId: string;
+  billingInterval: "MONTHLY" | "YEARLY";
+  amountHalalas: number;
+  createdById: string;
+  expiresAt: string;
+};
+
+function intentSignature(intent: string): string {
+  return createHmac("sha256", env.NEXTAUTH_SECRET).update(intent).digest("base64url");
+}
+
+/**
+ * Authorises an embedded Moyasar Form without creating a local pending row.
+ * The browser may read this payload, but any change invalidates the signature.
+ */
+export function createMoyasarPaymentIntent(input: Omit<MoyasarPaymentIntent, "version" | "expiresAt">) {
+  const payload: MoyasarPaymentIntent = {
+    version: 1,
+    ...input,
+    expiresAt: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
+  };
+  const intent = Buffer.from(JSON.stringify(payload)).toString("base64url");
+  return { intent, signature: intentSignature(intent) };
+}
+
+function readMoyasarPaymentIntent(metadata: Record<string, string> | null | undefined): MoyasarPaymentIntent {
+  const intent = metadata?.subscription_intent;
+  const signature = metadata?.subscription_signature;
+  if (!intent || !signature) throw new Error("PAYMENT_INTENT_MISSING");
+
+  const expected = Buffer.from(intentSignature(intent));
+  const supplied = Buffer.from(signature);
+  if (expected.length !== supplied.length || !timingSafeEqual(expected, supplied)) {
+    throw new Error("PAYMENT_INTENT_INVALID");
+  }
+
+  const value = JSON.parse(Buffer.from(intent, "base64url").toString("utf8")) as Partial<MoyasarPaymentIntent>;
+  if (
+    value.version !== 1 ||
+    typeof value.schoolId !== "string" ||
+    typeof value.planId !== "string" ||
+    (value.billingInterval !== "MONTHLY" && value.billingInterval !== "YEARLY") ||
+    !Number.isSafeInteger(value.amountHalalas) ||
+    Number(value.amountHalalas) < 100 ||
+    typeof value.createdById !== "string" ||
+    typeof value.expiresAt !== "string" ||
+    new Date(value.expiresAt).getTime() < Date.now()
+  ) {
+    throw new Error("PAYMENT_INTENT_INVALID");
+  }
+  return value as MoyasarPaymentIntent;
+}
 
 async function moyasarRequest<T>(path: string, init?: RequestInit): Promise<T> {
   if (!moyasarEnabled || !env.MOYASAR_SECRET_KEY) throw new Error("MOYASAR_NOT_CONFIGURED");
@@ -52,6 +111,110 @@ export function createMoyasarInvoice(input: {
 
 export function fetchMoyasarInvoice(id: string): Promise<MoyasarInvoice> {
   return moyasarRequest<MoyasarInvoice>(`/invoices/${encodeURIComponent(id)}`);
+}
+
+export function fetchMoyasarPayment(id: string): Promise<MoyasarPayment> {
+  return moyasarRequest<MoyasarPayment>(`/payments/${encodeURIComponent(id)}`);
+}
+
+/**
+ * Applies a completed embedded-form payment. No local row exists before this
+ * point: abandoning the form leaves nothing to resume. The school row lock and
+ * provider id uniqueness make callback retries idempotent.
+ */
+export async function verifyAndApplyMoyasarPayment(providerPaymentId: string) {
+  const payment = await fetchMoyasarPayment(providerPaymentId);
+  const intent = readMoyasarPaymentIntent(payment.metadata);
+
+  if (
+    payment.amount !== intent.amountHalalas ||
+    payment.currency !== "SAR" ||
+    payment.metadata?.school_id !== intent.schoolId ||
+    payment.metadata?.plan_id !== intent.planId
+  ) {
+    throw new Error("PAYMENT_VERIFICATION_FAILED");
+  }
+
+  if (payment.status !== "paid") {
+    return { applied: false, status: payment.status };
+  }
+
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw(Prisma.sql`
+      SELECT "id" FROM "School"
+      WHERE "id" = ${intent.schoolId}
+      FOR UPDATE
+    `);
+
+    const existing = await tx.schoolSubscriptionPayment.findUnique({
+      where: { provider_invoice_id: providerPaymentId },
+    });
+    if (existing) {
+      if (existing.school_id !== intent.schoolId || existing.status !== "PAID") {
+        throw new Error("PAYMENT_ID_COLLISION");
+      }
+      return { applied: false, status: "paid", renewalDate: existing.period_end };
+    }
+
+    const [school, plan] = await Promise.all([
+      tx.school.findUnique({ where: { id: intent.schoolId }, select: { renewal_date: true } }),
+      tx.subscriptionPlan.findFirst({
+        where: {
+          id: intent.planId,
+          is_active: true,
+          billing_interval: intent.billingInterval,
+        },
+        select: { id: true },
+      }),
+    ]);
+    if (!school) throw new Error("SCHOOL_NOT_FOUND");
+    if (!plan) throw new Error("SUBSCRIPTION_OPTION_NOT_FOUND");
+
+    const now = new Date();
+    const periodStart = school.renewal_date && school.renewal_date > now ? school.renewal_date : now;
+    const periodEnd = addSchoolBillingPeriod(periodStart, intent.billingInterval);
+
+    const saved = await tx.schoolSubscriptionPayment.create({
+      data: {
+        school_id: intent.schoolId,
+        plan_id: intent.planId,
+        billing_interval: intent.billingInterval,
+        amount: intent.amountHalalas / 100,
+        currency: "SAR",
+        status: "PAID",
+        provider: "moyasar-payment-form",
+        provider_invoice_id: providerPaymentId,
+        created_by_id: intent.createdById,
+        paid_at: now,
+        period_start: periodStart,
+        period_end: periodEnd,
+      },
+    });
+    await tx.school.update({
+      where: { id: intent.schoolId },
+      data: {
+        plan_id: intent.planId,
+        subscription_status: "active",
+        renewal_date: periodEnd,
+        suspended_at: null,
+        suspension_reason: null,
+      },
+    });
+    await tx.adminActivityLog.create({
+      data: {
+        school_id: intent.schoolId,
+        action: "school_subscription_paid",
+        performed_by: "moyasar",
+        metadata: {
+          paymentId: saved.id,
+          providerPaymentId,
+          interval: intent.billingInterval,
+          amount: intent.amountHalalas / 100,
+        },
+      },
+    });
+    return { applied: true, status: "paid", renewalDate: periodEnd };
+  });
 }
 
 export async function verifyAndApplyMoyasarInvoice(providerInvoiceId: string) {

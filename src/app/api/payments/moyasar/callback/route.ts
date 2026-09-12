@@ -1,4 +1,5 @@
-import { verifyAndApplyMoyasarInvoice } from "@/lib/moyasar";
+import { NextResponse } from "next/server";
+import { verifyAndApplyMoyasarInvoice, verifyAndApplyMoyasarPayment } from "@/lib/moyasar";
 import { z } from "zod";
 
 const invoiceIdSchema = z.string().uuid();
@@ -25,4 +26,22 @@ export async function POST(request: Request) {
   } catch {
     return Response.json({ error: "Payment verification failed" }, { status: 400 });
   }
+}
+
+/** Browser return from the embedded Moyasar Form. */
+export async function GET(request: Request) {
+  const parsedId = invoiceIdSchema.safeParse(await invoiceId(request));
+  const destination = new URL("/subscription", request.url);
+  if (!parsedId.success) {
+    destination.searchParams.set("payment", "failed");
+    return NextResponse.redirect(destination);
+  }
+
+  try {
+    const result = await verifyAndApplyMoyasarPayment(parsedId.data);
+    destination.searchParams.set("payment", result.status === "paid" ? "success" : "failed");
+  } catch {
+    destination.searchParams.set("payment", "failed");
+  }
+  return NextResponse.redirect(destination);
 }

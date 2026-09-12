@@ -192,6 +192,7 @@ export const ROUTE_PERMISSIONS: Record<string, RouteRule> = {
   "/api/calendar/:id": {
     methods: { PUT: "schedule.manage", DELETE: "schedule.delete" },
   },
+  "/api/calendar/:id/send": { default: "schedule.manage" },
   "/api/units": { methods: { GET: "units.view", POST: "units.manage" } },
   "/api/units/:id": {
     methods: {
@@ -248,7 +249,7 @@ export const ROUTE_PERMISSIONS: Record<string, RouteRule> = {
   // in-app feed remains `/api/notifications/admin-messages`.
   "/api/notifications": { default: "settings.manage" },
   "/api/notifications/alerts": { default: null },
-  "/api/notifications/admin-messages": { default: null },
+  "/api/notifications/admin-messages": { default: "settings.manage" },
   "/api/notifications/log/:id": { default: "settings.manage" },
   "/api/notifications/log/bulk": { default: "settings.manage" },
   "/api/import/upload": { default: "students.manage" },

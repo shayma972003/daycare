@@ -632,7 +632,9 @@ model CalendarEvent {
   updatedAt     DateTime @updatedAt
 
   classes CalendarEventClass[]
+  messages ActivityMessage[]
 
+  @@unique([id, schoolId])
   /// The month view's query: everything in a school between two instants.
   @@index([schoolId, startAt])
   @@index([schoolId, type, startAt])
@@ -1857,7 +1859,8 @@ model Activity {
 model ActivityMessage {
   id             String   @id @default(cuid())
   schoolId       String
-  activityId     String
+  activityId     String?
+  calendarEventId String?
   body           String
   idempotencyKey String
   requestHash    String
@@ -1871,12 +1874,15 @@ model ActivityMessage {
   createdAt      DateTime @default(now())
 
   school     School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  activity   Activity @relation(fields: [activityId, schoolId], references: [id, schoolId], onDelete: Cascade)
+  activity   Activity? @relation(fields: [activityId, schoolId], references: [id, schoolId], onDelete: Cascade)
+  calendarEvent CalendarEvent? @relation(fields: [calendarEventId, schoolId], references: [id, schoolId], onDelete: Cascade)
   recipients ActivityMessageRecipient[]
 
   @@unique([id, schoolId])
   @@unique([schoolId, activityId, idempotencyKey])
+  @@unique([schoolId, calendarEventId, idempotencyKey])
   @@index([activityId, createdAt])
+  @@index([calendarEventId, createdAt])
   @@index([schoolId, createdAt])
 }
 

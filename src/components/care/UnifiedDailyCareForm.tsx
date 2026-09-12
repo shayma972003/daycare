@@ -554,7 +554,7 @@ function ChildDetails({
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-[#2D2238]">{t("care.childReport", { name: student.name })}</h2>
+          <h2 className="text-lg font-bold text-[#2D2238] sm:text-2xl">{t("care.childReport", { name: student.name })}</h2>
           <p className="mt-1 text-xs text-[#8B8095]">{t("care.detailsDraftHint")}</p>
         </div>
         <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F1E8FF] font-bold text-[#5B14D1]">

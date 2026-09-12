@@ -91,7 +91,6 @@ function SettingsSection({
     "academic-stages": 40,
     password: 50,
     security: 51,
-    subscription: 60,
     "message-template": 70,
     "notification-log": 80,
     trash: 90,
@@ -732,7 +731,7 @@ export default function SettingsPage() {
     () => [
       { id: "school", title: t("settings.schoolInfo"), sections: ["school-info"] },
       { id: "hours", title: t("settings.schoolHours"), sections: ["school-hours"] },
-      { id: "fees", title: t("settings.fees.title"), sections: ["fees", "subscription"] },
+      { id: "fees", title: t("settings.fees.title"), sections: ["fees"] },
       { id: "stages", title: t("settings.stages.title"), sections: ["academic-stages"] },
       { id: "security", title: t("settings.accountSecurity"), sections: ["password", "security"] },
       { id: "notifications", title: t("settings.notificationsSection"), sections: ["message-template", "notification-log"] },
@@ -754,15 +753,6 @@ export default function SettingsPage() {
   function showSection(id: string) {
     return filteredSections.includes(id);
   }
-
-  // ── Plan label ────────────────────────────────────────────────────────────
-
-  const planLabels: Record<string, string> = {
-    basic: t("plans.basic"),
-    pro: t("plans.pro"),
-    enterprise: t("plans.enterprise"),
-  };
-  const planLabel = planLabels[settingsData?.plan ?? ""] ?? settingsData?.plan ?? "—";
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -1327,26 +1317,6 @@ export default function SettingsPage() {
               </SettingsSection>
               );
             })()}
-
-            {/* ── Subscription ──────────────────────────────────────── */}
-            {showSection("subscription") && (
-              <SettingsSection
-                id="subscription"
-                title={t("settings.subscription.title")}
-              >
-                <div className="flex items-center gap-3">
-                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-50 text-blue-700 border border-blue-200">
-                    {planLabel}
-                  </span>
-                  <button
-                    onClick={() => alert(t("settings.planUpdateNote"))}
-                    className="px-5 py-2 border-2 border-[#111111] text-[#111111] hover:bg-[#111111] hover:text-white rounded-xl font-medium text-sm transition-all"
-                  >
-                    {t("settings.subscription.update")}
-                  </button>
-                </div>
-              </SettingsSection>
-            )}
 
             {/* ── Fee Settings ──────────────────────────────────────── */}
             {showSection("fees") && (

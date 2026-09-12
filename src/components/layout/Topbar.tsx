@@ -13,7 +13,7 @@ interface TopbarProps {
 export function Topbar({ title }: TopbarProps = {}) {
   const t = useT();
   const router = useRouter();
-  const { mobileOpen, openMobile, closeMobile, triggerRef } = useDashboardNavigation();
+  const { mobileOpen, subscriptionLocked, openMobile, closeMobile, triggerRef } = useDashboardNavigation();
 
   return (
     <header className="sticky top-0 z-30 flex min-h-16 w-full min-w-0 items-center gap-2 border-b border-[#E8E3EF] bg-white px-3 py-2 sm:gap-3 sm:px-4 lg:px-6">
@@ -29,7 +29,7 @@ export function Topbar({ title }: TopbarProps = {}) {
         <span aria-hidden className="text-xl leading-none">☰</span>
       </button>
       <h1 className="min-w-0 flex-1 truncate text-base font-bold text-navy sm:text-lg">{title ?? t("dashboard.title")}</h1>
-      <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+      {!subscriptionLocked && <div className="flex shrink-0 items-center gap-1 sm:gap-2">
         {/* The palette's own trigger. A keyboard shortcut nobody is told about
             is a shortcut nobody uses — and this is also the only way in on a
             touch device, which has no Ctrl+K. */}
@@ -54,8 +54,10 @@ export function Topbar({ title }: TopbarProps = {}) {
             <div className="w-5 h-5 bg-gray-300 rounded" />
           </button>
         </PermissionGate>
-        <AdminNotificationBell />
-      </div>
+        <PermissionGate permission="settings.manage">
+          <AdminNotificationBell />
+        </PermissionGate>
+      </div>}
     </header>
   );
 }

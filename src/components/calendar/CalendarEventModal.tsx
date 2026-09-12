@@ -45,6 +45,7 @@ interface EventRow {
   teacherId: string | null;
   location: string | null;
   classIds: string[];
+  updatedAt?: string;
 }
 
 interface Option {
@@ -124,6 +125,8 @@ function CalendarEventModalContent({
   const [teacherId, setTeacherId] = useState(event?.teacherId ?? "");
   const [location, setLocation] = useState(event?.location ?? "");
   const [classIds, setClassIds] = useState<string[]>(event?.classIds ?? []);
+  const [notifyGuardians, setNotifyGuardians] = useState(true);
+  const [notifyStaff, setNotifyStaff] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [embeddedDismissBlocked, setEmbeddedDismissBlocked] = useState(false);
@@ -137,11 +140,11 @@ function CalendarEventModalContent({
     );
   }
 
-  async function submit() {
+  async function submit(sendAnnouncement = false) {
     setSaving(true);
     setError(null);
     try {
-      const resolvedStart = allDay
+      const resolvedStart = isAnnouncement || allDay
         ? new Date(`${startAt}T00:00:00.000Z`)
         : zonedDateTimeInputToDate(startAt, timeZone);
       const resolvedEnd = isAnnouncement
@@ -160,17 +163,26 @@ function CalendarEventModalContent({
         description: description.trim() || null,
         startAt: resolvedStart.toISOString(),
         endAt: resolvedEnd?.toISOString() ?? null,
-        allDay,
+        allDay: isAnnouncement ? true : allDay,
         timeZone,
         teacherId: teacherId || null,
         location: location.trim() || null,
-        classIds: isAnnouncement ? [] : classIds,
+        classIds,
       };
 
-      if (isEdit && event) {
-        await axios.put(`/api/calendar/${event.id}`, payload);
-      } else {
-        await axios.post("/api/calendar", payload);
+      const response = isEdit && event
+        ? await axios.put<EventRow>(`/api/calendar/${event.id}`, payload)
+        : await axios.post<EventRow>("/api/calendar", payload);
+      if (sendAnnouncement) {
+        if (!response.data.updatedAt) throw new Error(t("calendar.saveFailed"));
+        await axios.post(`/api/calendar/${response.data.id}/send`, {
+          notifyGuardians,
+          notifyStaff,
+          message: description.trim(),
+          eventVersion: response.data.updatedAt,
+          idempotencyKey: crypto.randomUUID(),
+          confirmSchoolWide: classIds.length === 0,
+        });
       }
       onSaved();
     } catch (err) {
@@ -243,7 +255,7 @@ function CalendarEventModalContent({
 
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1.5">{t("finance.type")}</label>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {(Object.keys(EVENT_TYPE_LABEL_KEYS) as CalendarEventType[]).map((option) => (
                 <button
                   key={option}
@@ -258,8 +270,12 @@ function CalendarEventModalContent({
                   onClick={() => {
                     setProgramme(false);
                     setType(option);
+                    if (option === "ANNOUNCEMENT") {
+                      setStartAt(startAt.slice(0, 10));
+                      setAllDay(true);
+                    }
                   }}
-                  className={`px-4 py-2 rounded-xl text-sm transition-colors ${
+                  className={`min-w-[calc(50%-0.25rem)] flex-1 rounded-xl px-3 py-2 text-sm transition-colors sm:min-w-0 ${
                     !programme && type === option
                       ? "bg-[#5B14D1] text-white"
                       : "bg-gray-50 text-gray-700 hover:bg-gray-100"
@@ -278,7 +294,7 @@ function CalendarEventModalContent({
                 disabled={Boolean(event) || Boolean(activity)}
                 title={event ? t("calendar.cannotConvert") : undefined}
                 onClick={() => setProgramme(true)}
-                className={`px-4 py-2 rounded-xl text-sm transition-colors ${
+                className={`min-w-[calc(50%-0.25rem)] flex-1 rounded-xl px-3 py-2 text-sm transition-colors sm:min-w-0 ${
                   programme
                     ? "bg-[#5B14D1] text-white"
                     : "bg-gray-50 text-gray-700 hover:bg-gray-100"
@@ -319,7 +335,7 @@ function CalendarEventModalContent({
                 {isAnnouncement ? t("finance.date") : t("common.from")}
               </label>
               <input
-                type={allDay ? "date" : "datetime-local"}
+                type={isAnnouncement || allDay ? "date" : "datetime-local"}
                 value={startAt}
                 onChange={(e) => setStartAt(e.target.value)}
                 className={inputCls}
@@ -408,6 +424,52 @@ function CalendarEventModalContent({
                 className={`${inputCls} resize-none`}
               />
             </div>
+
+            {isAnnouncement && (
+              <div className="space-y-4 rounded-xl border border-violet-100 bg-violet-50/50 p-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1.5">{t("fields.teacher")}</label>
+                  <select value={teacherId} onChange={(e) => setTeacherId(e.target.value)} className={inputCls}>
+                    <option value="">{t("common.none")}</option>
+                    {teachers.map((teacher) => (
+                      <option key={teacher.id} value={teacher.id}>{teacher.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium text-gray-500">
+                    {t("nav.classes")} <span className="text-gray-400">{t("calendar.allClassesHint")}</span>
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {classes.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => toggleClass(item.id)}
+                        className={`rounded-xl px-3 py-2 text-sm transition-colors ${
+                          classIds.includes(item.id)
+                            ? "bg-[#5B14D1] text-white"
+                            : "bg-white text-gray-700 hover:bg-gray-100"
+                        }`}
+                      >
+                        {item.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <p className="text-xs font-medium text-gray-600">{t("calendar.sendAudience")}</p>
+                <div className="flex flex-wrap gap-4 text-sm text-gray-700">
+                  <label className="flex items-center gap-2">
+                    <input type="checkbox" checked={notifyGuardians} onChange={(e) => setNotifyGuardians(e.target.checked)} />
+                    {t("calendar.guardians")}
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input type="checkbox" checked={notifyStaff} onChange={(e) => setNotifyStaff(e.target.checked)} />
+                    {t("calendar.staff")}
+                  </label>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -419,13 +481,31 @@ function CalendarEventModalContent({
           <PermissionGate permission="schedule.manage">
             <button
               type="button"
-              onClick={submit}
+              onClick={() => void submit(false)}
               disabled={saving || !title.trim() || !startAt}
               className="flex-1 px-5 py-3 bg-[#5B14D1] text-white rounded-xl text-sm font-bold hover:bg-[#490EA9] disabled:opacity-60"
             >
               {saving ? t("careForm.saving") : t("common.save")}
             </button>
           </PermissionGate>
+          {isAnnouncement && (
+            <PermissionGate permission="schedule.manage">
+              <button
+                type="button"
+                onClick={() => void submit(true)}
+                disabled={
+                  saving ||
+                  !title.trim() ||
+                  !startAt ||
+                  !description.trim() ||
+                  (!notifyGuardians && !notifyStaff)
+                }
+                className="flex-1 rounded-xl border border-[#5B14D1] px-4 py-3 text-sm font-bold text-[#5B14D1] hover:bg-violet-50 disabled:opacity-50"
+              >
+                {saving ? t("careForm.saving") : t("calendar.saveAndSend")}
+              </button>
+            </PermissionGate>
+          )}
           {isEdit && (
             <PermissionGate permission="schedule.delete">
               <button

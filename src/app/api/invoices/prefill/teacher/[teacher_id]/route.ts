@@ -1,5 +1,6 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { teacherLatenessForInvoice } from "@/lib/invoice-lateness";
 
 export async function GET(
   _request: Request,
@@ -19,23 +20,15 @@ export async function GET(
   const { teacher_id } = await params;
 
   const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  const [school, teacher, invoiceCount, lateResult] = await Promise.all([
+  const [school, teacher, invoiceCount, lateness] = await Promise.all([
     prisma.school.findUnique({ where: { id: schoolId } }),
     prisma.teacher.findFirst({
       where: { id: teacher_id, schoolId, deletedAt: null },
       include: { classes: { take: 1 } },
     }),
     prisma.invoice.count({ where: { schoolId, generationStatus: "COMPLETED" } }),
-    prisma.teacherAttendance.aggregate({
-      where: {
-        teacherId: teacher_id,
-        schoolId,
-        date: { gte: monthStart, lte: now },
-      },
-      _sum: { lateMinutes: true },
-    }),
+    teacherLatenessForInvoice(schoolId, teacher_id, now),
   ]);
 
   if (!teacher) {
@@ -49,8 +42,7 @@ export async function GET(
   const yyyy = now.getFullYear();
   const issueDate = `${dd}/${mm}/${yyyy}`;
 
-  const totalLateMinutes = lateResult._sum.lateMinutes ?? 0;
-  const totalLateHoursThisMonth = Math.round((totalLateMinutes / 60) * 100) / 100;
+  const totalLateHoursThisMonth = Math.round(lateness.lateHours * 100) / 100;
 
   return Response.json({
     school: {

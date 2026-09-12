@@ -77,23 +77,8 @@ export async function GET(request: Request) {
       system: false,
     }));
 
-  if (session.subscription.mode !== "active") {
-    const body = session.subscription.mode === "grace"
-      ? `انتهى الاشتراك. بقي ${session.subscription.graceDaysRemaining} يوم قبل انتقال الحساب إلى وضع القراءة فقط. يمكنك التجديد الآن دون فقد أي بيانات.`
-      : "الاشتراك غير نشط. يمكنك تصفح بيانات الحضانة، لكن تعديل البيانات متوقف حتى تجديد الاشتراك.";
-    messages.unshift({
-      recipientId: `subscription:${session.subscription.mode}`,
-      messageId: `subscription:${session.subscription.renewalDate ?? "none"}`,
-      subject: session.subscription.mode === "grace" ? "تنبيه مهلة تجديد الاشتراك" : "الحساب في وضع القراءة فقط",
-      body,
-      sent_at: new Date(),
-      read_at: null,
-      system: true,
-    });
-  }
-
   return withNoStore(Response.json({
-    unreadCount: unreadCount + (session.subscription.mode === "active" ? 0 : 1),
+    unreadCount,
     messages,
   }));
 }

@@ -18,7 +18,10 @@ export async function GET() {
         orderBy: { price: "asc" },
       }),
       prisma.schoolSubscriptionPayment.findMany({
-        where: { school_id: session.user.schoolId },
+        // An abandoned embedded form creates no row. Hide historical pending
+        // invoice attempts as well so this list remains a payment history, not
+        // a queue of actions the customer is expected to resume.
+        where: { school_id: session.user.schoolId, status: { not: "PENDING" } },
         select: { id: true, billing_interval: true, amount: true, status: true, created_at: true, paid_at: true },
         orderBy: { created_at: "desc" },
         take: 10,

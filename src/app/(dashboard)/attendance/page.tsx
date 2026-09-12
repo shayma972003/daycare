@@ -8,6 +8,7 @@ import { WeeklyAttendanceGrid } from "@/components/attendance/WeeklyAttendanceGr
 import { WeeklyTeacherAttendanceGrid } from "@/components/attendance/WeeklyTeacherAttendanceGrid";
 import { useT } from "@/lib/i18n-provider";
 import { deviceHeaders } from "@/lib/device-date";
+import { Topbar } from "@/components/layout/Topbar";
 
 interface ClassItem {
   id: string;
@@ -66,8 +67,9 @@ export default function AttendancePage() {
   }
 
   return (
-    <div>
-      <div className="px-6 pt-6 flex items-center gap-2 flex-wrap">
+    <div className="min-h-screen bg-brand-bg">
+      <Topbar title={t("nav.attendance")} />
+      <div className="flex flex-wrap items-center gap-2 px-3 pt-4 sm:px-6 sm:pt-6">
         <div className="inline-flex bg-gray-100 rounded-xl p-1">
           <button
             onClick={() => selectTab("today")}
@@ -107,7 +109,7 @@ export default function AttendancePage() {
       {tab === "today" ? (
         <AttendanceBoard schoolName={schoolName} />
       ) : (
-        <div className="p-6">
+        <div className="p-3 sm:p-6">
           <div className="bg-white rounded-2xl shadow-sm p-5">
             {weekKind === "students" ? <WeeklyAttendanceGrid classId={classFilter || undefined} search={weekSearch} /> : <WeeklyTeacherAttendanceGrid search={weekSearch} />}
           </div>

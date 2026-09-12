@@ -1,10 +1,11 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
-import { astDateInputValue, astDateOnly, astParts } from "@/lib/datetime";
+import { astDateInputValue } from "@/lib/datetime";
 import { findInvoiceThisMonth, duplicateInvoiceResponse } from "@/lib/invoice-duplicates";
 import { moneyMaxZero, moneyMultiply, moneyString, moneySubtract } from "@/lib/money";
 import { claimInvoice, completeInvoiceClaim, failInvoiceClaim, idempotencyConflictResponse, invoiceRequestHash, missingIdempotencyKeyResponse, readIdempotencyKey } from "@/lib/invoice-idempotency";
+import { teacherLatenessForInvoice } from "@/lib/invoice-lateness";
 
 export async function POST(
   request: Request,
@@ -52,21 +53,8 @@ export async function POST(
   // Lateness for *this month only*. `teacher.lateHours` is a cumulative total
   // that is never reset, so using it meant every monthly salary invoice
   // re-deducted the teacher's entire history of lateness, over and over.
-  const { year, month } = astParts(now);
-  const monthStart = astDateOnly(new Date(Date.UTC(year, month, 1)));
-  const monthEnd = astDateOnly(new Date(Date.UTC(year, month + 1, 0)));
-
-  const monthLateness = await prisma.teacherAttendance.aggregate({
-    where: {
-      teacherId: id,
-      schoolId,
-      compensated: false,
-      date: { gte: monthStart, lte: monthEnd },
-    },
-    _sum: { lateMinutes: true },
-  });
-
-  const lateHours = (monthLateness._sum.lateMinutes ?? 0) / 60;
+  const lateness = await teacherLatenessForInvoice(schoolId, id, now);
+  const lateHours = lateness.lateHours;
   const lateDeduction = moneyMultiply(teacher.lateDeductionRate, lateHours);
   const netSalary = moneyMaxZero(moneySubtract(teacher.monthlySalary, lateDeduction));
 
@@ -78,8 +66,8 @@ export async function POST(
     lateDeduction: moneyString(lateDeduction),
     netSalary: moneyString(netSalary),
     issueDate,
-    periodFrom: monthStart.toISOString().slice(0, 10),
-    periodTo: monthEnd.toISOString().slice(0, 10),
+    periodFrom: lateness.from.toISOString().slice(0, 10),
+    periodTo: lateness.to.toISOString().slice(0, 10),
   };
 
   const invoice = await (async () => {

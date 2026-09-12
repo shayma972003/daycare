@@ -25,6 +25,7 @@ import { join } from "path";
 import { money, moneyAdd, moneyMaxZero, moneyMultiply, moneyNumber, moneySubtract } from "@/lib/money";
 import { claimInvoice, completeInvoiceClaim, failInvoiceClaim, idempotencyConflictResponse, invoiceRequestHash, missingIdempotencyKeyResponse, readIdempotencyKey } from "@/lib/invoice-idempotency";
 import { resolveStudentCycleFee } from "@/lib/student-cycle-fee";
+import { studentLatenessForInvoice, teacherLatenessForInvoice } from "@/lib/invoice-lateness";
 
 Font.register({
   family: "Arabic",
@@ -514,7 +515,8 @@ export async function POST(request: Request) {
       return Response.json({ error: "Subscription fee is not configured", code: "CYCLE_FEE_REQUIRED" }, { status: 422 });
     }
 
-    const lateHoursFee = moneyMultiply(school.settings?.hourlyLateFee, student.lateHours ?? 0);
+    const lateness = await studentLatenessForInvoice(schoolId, student.id, today);
+    const lateHoursFee = money(lateness.lateFee);
     amount = moneyNumber(moneyAdd(subscriptionFee, lateHoursFee));
 
     // Fees are quoted VAT-inclusive, so the tax is extracted from the total
@@ -534,7 +536,7 @@ export async function POST(request: Request) {
       paymentStatus: student.paymentStatus,
       paymentMethod: student.paymentMethod,
       monthlyFee: moneyNumber(subscriptionFee),
-      lateHours: student.lateHours,
+      lateHours: lateness.lateHours,
       lateHoursFee,
       amount,
     };
@@ -604,9 +606,9 @@ export async function POST(request: Request) {
             ),
             ...([
               lateHoursFee.greaterThan(0) ? createElement(View, { style: styles.tableRow },
-                createElement(Text, { style: { ...styles.tableBodyCell, ...styles.col1 } }, `رسوم تأخير (${student.lateHours} ساعة)`),
-                createElement(Text, { style: { ...styles.tableBodyCell, ...styles.col2 } }, `${student.lateHours}`),
-                createElement(Text, { style: { ...styles.tableBodyCell, ...styles.col3 } }, `${school.settings?.hourlyLateFee} ر.س`),
+                createElement(Text, { style: { ...styles.tableBodyCell, ...styles.col1 } }, `رسوم تأخير (${lateness.lateHours} ساعة)`),
+                createElement(Text, { style: { ...styles.tableBodyCell, ...styles.col2 } }, `${lateness.lateHours}`),
+                createElement(Text, { style: { ...styles.tableBodyCell, ...styles.col3 } }, `حسب سجل الحضور`),
                 createElement(Text, { style: { ...styles.tableBodyCell, ...styles.col4 } }, `${lateHoursFee} ر.س`),
               ) : undefined,
             ].filter(Boolean) as ReturnType<typeof createElement>[]),
@@ -633,7 +635,8 @@ export async function POST(request: Request) {
       return Response.json({ error: "Teacher not found" }, { status: 404 });
     }
 
-    const deduction = moneyNumber(moneyMultiply(teacher.lateDeductionRate, teacher.lateHours ?? 0));
+    const lateness = await teacherLatenessForInvoice(schoolId, teacher.id, today);
+    const deduction = moneyNumber(moneyMultiply(teacher.lateDeductionRate, lateness.lateHours));
     const netSalary = moneyNumber(moneyMaxZero(moneySubtract(teacher.monthlySalary, deduction)));
     amount = netSalary;
 
@@ -642,7 +645,7 @@ export async function POST(request: Request) {
       teacherName: teacher.name,
       className: teacher.classes?.[0]?.name,
       baseSalary: teacher.monthlySalary,
-      lateHours: teacher.lateHours,
+      lateHours: lateness.lateHours,
       deduction,
       netSalary,
     };
@@ -687,7 +690,7 @@ export async function POST(request: Request) {
           { style: styles.section },
           createElement(Text, { style: styles.sectionTitle }, "تفاصيل الراتب"),
           createElement(View, { style: styles.row }, createElement(Text, { style: styles.label }, "الراتب الأساسي"), createElement(Text, { style: styles.value }, `${teacher.monthlySalary} ر.س`)),
-          createElement(View, { style: styles.row }, createElement(Text, { style: styles.label }, `ساعات التأخير (${teacher.lateHours})`), createElement(Text, { style: { ...styles.value, color: "#ef4444" } }, `- ${deduction} ر.س`)),
+          createElement(View, { style: styles.row }, createElement(Text, { style: styles.label }, `ساعات التأخير (${lateness.lateHours})`), createElement(Text, { style: { ...styles.value, color: "#ef4444" } }, `- ${deduction} ر.س`)),
           createElement(View, { style: styles.total },
             createElement(Text, { style: styles.totalLabel }, "صافي الراتب"),
             createElement(Text, { style: styles.totalValue }, `${netSalary} ر.س`),

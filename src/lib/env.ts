@@ -105,8 +105,10 @@ const envSchema = z.object({
   R2_SECRET_ACCESS_KEY: optional(z.string()),
   R2_BUCKET: optional(z.string()),
 
-  /** Moyasar hosted invoices. The secret key is server-only. */
+  /** Moyasar embedded payment form. The secret key is server-only. */
   MOYASAR_SECRET_KEY: optional(z.string().startsWith("sk_")),
+  /** Public by design: Moyasar Form uses it directly in the browser. */
+  NEXT_PUBLIC_MOYASAR_PUBLISHABLE_KEY: optional(z.string().startsWith("pk_")),
 
 }).superRefine((value, ctx) => {
   if (value.NODE_ENV !== "production") return;
@@ -222,4 +224,6 @@ export const storageEnabled = Boolean(
   env.R2_ACCOUNT_ID && env.R2_ACCESS_KEY_ID && env.R2_SECRET_ACCESS_KEY && env.R2_BUCKET
 );
 
-export const moyasarEnabled = Boolean(env.MOYASAR_SECRET_KEY);
+export const moyasarEnabled = Boolean(
+  env.MOYASAR_SECRET_KEY && env.NEXT_PUBLIC_MOYASAR_PUBLISHABLE_KEY
+);

@@ -12,15 +12,18 @@ import { NAV_GROUPS } from "@/lib/nav";
 import { Drawer } from "@/components/ui/Drawer";
 import { SchoolLogo } from "@/components/layout/SchoolLogo";
 import { useEffect, useState, type RefObject } from "react";
+import type { SchoolSubscriptionAccess } from "@/lib/school-subscription";
 
 interface SidebarProps {
   schoolName?: string | null;
   schoolLogo?: string | null;
+  subscriptionAccess?: SchoolSubscriptionAccess;
 }
 
 function SidebarContent({
   schoolName: schoolNameProp,
   schoolLogo,
+  subscriptionAccess,
   onNavigate,
 }: SidebarProps & { onNavigate?: () => void }) {
   // Locale-aware translation — see src/lib/i18n.tsx.
@@ -79,9 +82,10 @@ function SidebarContent({
           /* While the permission list is still in flight, show only what needs
              no permission. Filling a short menu in reads better than showing
              everything and taking entries away a moment later. */
-          const visible = group.items.filter(
-            (item) => item.permission === null || (!permissionsLoading && can(item.permission))
-          );
+          const visible = group.items.filter((item) => {
+            if (subscriptionAccess?.mode === "locked" && item.href !== "/subscription") return false;
+            return item.permission === null || (!permissionsLoading && can(item.permission));
+          });
           if (visible.length === 0) return null;
 
           return (
@@ -116,6 +120,12 @@ function SidebarContent({
                         )}
                       />
                       <span>{t(item.key)}</span>
+                      {item.href === "/subscription" && subscriptionAccess?.mode !== "active" && (
+                        <span
+                          aria-label={t("schoolSubscription.expiredIndicator")}
+                          className="ms-auto h-2.5 w-2.5 shrink-0 rounded-full bg-red-500"
+                        />
+                      )}
                       {item.href === "/statistics" && financeDueCount > 0 && (
                         <span
                           aria-label={t("finance.expensesNeedAction", { n: String(financeDueCount) })}

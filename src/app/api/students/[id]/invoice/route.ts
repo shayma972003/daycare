@@ -4,9 +4,10 @@ import { logAction } from "@/lib/activity-logger";
 import { VAT_RATE } from "@/lib/finance";
 import { findInvoiceThisMonth, duplicateInvoiceResponse } from "@/lib/invoice-duplicates";
 import { astDateInputValue } from "@/lib/datetime";
-import { money, moneyString } from "@/lib/money";
+import { money, moneyAdd, moneyString } from "@/lib/money";
 import { claimInvoice, completeInvoiceClaim, failInvoiceClaim, idempotencyConflictResponse, invoiceRequestHash, missingIdempotencyKeyResponse, readIdempotencyKey } from "@/lib/invoice-idempotency";
 import { resolveStudentCycleFee } from "@/lib/student-cycle-fee";
+import { studentLatenessForInvoice } from "@/lib/invoice-lateness";
 
 export async function POST(
   request: Request,
@@ -61,6 +62,8 @@ export async function POST(
   }
 
   const issueDate = astDateInputValue();
+  const lateness = await studentLatenessForInvoice(schoolId, id);
+  const invoiceAmount = moneyAdd(subscriptionFee, lateness.lateFee);
 
   /**
    * VAT is computed and stored, not left at the column default.
@@ -73,7 +76,7 @@ export async function POST(
    * rather than added on top, which would silently raise everybody's bill.
    */
   const vatAmount = school?.vatRegistered
-    ? money(subscriptionFee).mul(VAT_RATE).div(1 + VAT_RATE).toDecimalPlaces(2)
+    ? money(invoiceAmount).mul(VAT_RATE).div(1 + VAT_RATE).toDecimalPlaces(2)
     : money(0);
 
   const invoiceData = {
@@ -83,6 +86,10 @@ export async function POST(
     class: student.class?.name ?? "",
     period: student.period,
     monthlyFee: moneyString(subscriptionFee),
+    lateHours: lateness.lateHours,
+    lateFee: moneyString(lateness.lateFee),
+    periodFrom: lateness.from.toISOString().slice(0, 10),
+    periodTo: lateness.to.toISOString().slice(0, 10),
     vatAmount: moneyString(vatAmount),
     issueDate,
   };
@@ -92,7 +99,7 @@ export async function POST(
       schoolId,
       type: "STUDENT",
       studentId: id,
-      amount: subscriptionFee,
+      amount: invoiceAmount,
       vat_amount: vatAmount,
       data: invoiceData,
     });

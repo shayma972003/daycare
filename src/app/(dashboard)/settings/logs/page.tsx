@@ -107,8 +107,8 @@ export default function ActivityLogsPage() {
   return (
     <div dir="rtl" className="min-h-screen bg-brand-bg">
       <Topbar title={t("logs.title")} />
-      <div className="p-6">
-        <div className="bg-white rounded-xl p-6 shadow-card">
+      <div className="p-3 sm:p-6">
+        <div className="rounded-xl bg-white p-4 shadow-card sm:p-6">
           {/* Header */}
           <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-100">
             <button onClick={() => router.push("/settings")} className="text-sm text-gray-400 hover:text-gray-600">
@@ -118,7 +118,7 @@ export default function ActivityLogsPage() {
           </div>
 
           {/* Filter bar */}
-          <div className="flex gap-3 mb-6">
+          <div className="mb-6 flex flex-col gap-3 sm:flex-row">
             <input
               value={search}
               onChange={(e) => applyFilter(() => setSearch(e.target.value))}
@@ -161,7 +161,7 @@ export default function ActivityLogsPage() {
                     index % 2 === 0 ? "bg-white" : "bg-gray-50/30"
                   }`}
                 >
-                  <div className="flex items-start justify-between gap-4">
+                  <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:gap-4">
                     <div className="flex-1">
                       <p className="text-gray-900 font-medium text-sm">{log.action}</p>
                       {log.entity_name && (
@@ -171,7 +171,7 @@ export default function ActivityLogsPage() {
                       )}
                     </div>
 
-                    <div className="text-left flex-shrink-0">
+                    <div className="w-full flex-shrink-0 text-start sm:w-auto sm:text-left">
                       <p className="text-gray-400 text-xs">
                         {formatAst(new Date(log.created_at), { year: "numeric", month: "2-digit", day: "2-digit" }, locale)}{" "}
                         {formatAst(new Date(log.created_at), { hour: "2-digit", minute: "2-digit" }, locale)}

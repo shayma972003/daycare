@@ -87,14 +87,16 @@ export function ShiftsPanel({ teacherId }: { teacherId?: string }) {
   return <>
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-gray-100 bg-white p-3">
-        <button type="button" onClick={() => shiftWeek(-7)} className="rounded-lg border px-3 py-2 text-sm">{t("attendance.previousWeek")}</button>
-        <button type="button" onClick={() => { setLoading(true); if (weekStart === null) void load(null); else setWeekStart(null); }} className="rounded-lg border px-3 py-2 text-sm">{t("attendance.thisWeek")}</button>
-        <button type="button" onClick={() => shiftWeek(7)} className="rounded-lg border px-3 py-2 text-sm">{t("common.next")}</button>
-        {data && <span className="text-sm text-gray-500">{t("attendance.weekFrom", { date: data.weekStart })}</span>}
+        <div className="grid w-full grid-cols-3 gap-2 sm:flex sm:w-auto">
+          <button type="button" onClick={() => shiftWeek(-7)} className="min-w-0 whitespace-nowrap rounded-lg border px-3 py-2 text-xs sm:text-sm">{t("attendance.previousWeek")}</button>
+          <button type="button" onClick={() => { setLoading(true); if (weekStart === null) void load(null); else setWeekStart(null); }} className="min-w-0 whitespace-nowrap rounded-lg border px-3 py-2 text-xs sm:text-sm">{t("attendance.thisWeek")}</button>
+          <button type="button" onClick={() => shiftWeek(7)} className="min-w-0 whitespace-nowrap rounded-lg border px-3 py-2 text-xs sm:text-sm">{t("common.next")}</button>
+        </div>
+        {data && <span className="w-full text-sm text-gray-500 sm:ms-auto sm:w-auto">{t("attendance.weekFrom", { date: data.weekStart })}</span>}
       </div>
       {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error} <button type="button" onClick={() => { setLoading(true); void load(data?.weekStart); }} className="underline">{t("common.retry")}</button></div>}
       {loading && !data ? <p className="py-8 text-center text-sm text-gray-400">{t("common.loading")}</p> :
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
           {data?.days.map((date) => {
             const shifts = data.shifts.filter((shift) => shift.date === date);
             const eligibleTeacherIds = new Set(data.teachers.map((teacher) => teacher.id));

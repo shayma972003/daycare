@@ -104,6 +104,11 @@ export async function POST(request: Request) {
     data: {
       school_id: schoolId,
       token: generateEnrollmentToken(),
+      // OTP activation was removed from the public enrollment flow. A newly
+      // delivered link is therefore usable immediately; leaving the default
+      // `pending` value here made verification succeed while the atomic submit
+      // reservation rejected the exact same token.
+      status: "active",
       sent_to_phone: normalizedPhone,
       sent_to_email: email,
       expires_at: new Date(now.getTime() + ENROLLMENT_TOKEN_TTL_MS),

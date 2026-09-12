@@ -261,7 +261,7 @@ export function SchoolDashboard() {
         <header className="flex flex-col gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-sm font-medium text-[#4f00c1]">{t("dashboard.eyebrow")}</p>
-            <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">{t("dashboard.greeting", { name: displayName })}</h1>
+            <h1 className="mt-1 text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">{t("dashboard.greeting", { name: displayName })}</h1>
             <p className="mt-2 text-sm text-slate-500">{today} · {schoolName}</p>
           </div>
           <p className="text-sm text-slate-500">{t("dashboard.todayHint")}</p>

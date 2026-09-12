@@ -36,7 +36,7 @@ function AlertModal({
   );
 }
 
-export function AlertsProvider({ children }: { children: React.ReactNode }) {
+export function AlertsProvider({ children, disabled = false }: { children: React.ReactNode; disabled?: boolean }) {
   const t = useT();
   const router = useRouter();
   const { status } = useSession();
@@ -44,7 +44,7 @@ export function AlertsProvider({ children }: { children: React.ReactNode }) {
   const [suspendedAlert, setSuspendedAlert] = useState<SuspendedStudent[]>([]);
 
   useEffect(() => {
-    if (status !== "authenticated") return;
+    if (disabled || status !== "authenticated") return;
     const alreadyChecked = sessionStorage.getItem("alerts_checked");
     if (alreadyChecked) return;
 
@@ -71,7 +71,7 @@ export function AlertsProvider({ children }: { children: React.ReactNode }) {
       active = false;
       controller.abort();
     };
-  }, [status]);
+  }, [disabled, status]);
 
   return (
     <>

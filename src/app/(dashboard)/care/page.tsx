@@ -123,7 +123,7 @@ export default function CarePage() {
       <main className="mx-auto max-w-[1180px] space-y-5 px-4 py-6 sm:px-6 lg:py-8">
         <section className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-[#2D2238] sm:text-3xl">{t("care.oneReportTitle")}</h2>
+            <h2 className="text-xl font-bold text-[#2D2238] sm:text-2xl">{t("care.oneReportTitle")}</h2>
             <p className="mt-1 text-sm text-[#8B8095]">{t("care.oneReportSubtitle")}</p>
           </div>
           <div className="flex items-center gap-2 text-xs text-[#8B8095]">

@@ -296,32 +296,38 @@ export default function TeachersPage() {
       <Topbar title={t("teachers.title")} />
 
       {/* The whole-week grid, opened from the staff list it belongs to. */}
-      <Drawer open={rota.isOpen} onClose={rota.close} title={t("shifts.title")}>
+      <Drawer
+        open={rota.isOpen}
+        onClose={rota.close}
+        title={t("shifts.title")}
+        panelClassName="sm:max-w-[min(92vw,78rem)]"
+        contentClassName="p-4 sm:p-6"
+      >
         <ShiftsPanel />
       </Drawer>
 
       <div className="flex-1 space-y-5 p-3 sm:p-4 lg:p-6">
         {/* Top bar */}
-        <div className="flex flex-wrap gap-3 items-center justify-between">
-          <div className="relative">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+          <div className="relative w-full sm:w-auto">
             <input
               type="text"
               value={search}
               onChange={(e) => changeSearch(e.target.value)}
               placeholder={t("students.searchPlaceholder")}
-              className="w-64 px-4 py-2 ps-9 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#5B14D1] text-sm bg-white shadow-sm"
+              className="w-full rounded-xl border border-gray-200 bg-white px-4 py-2 ps-9 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#5B14D1] sm:w-64"
             />
             <span className="absolute start-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
           </div>
 
-          <div className="flex gap-2 items-center">
+          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center">
             {/* Bulk action */}
             <PermissionGate permission="attendance.staff">
-            <div className="flex items-center gap-2">
+            <div className="col-span-2 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:flex">
               <select
                 value={bulkAction}
                 onChange={(e) => setBulkAction(e.target.value)}
-                className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111111]"
+                className="min-w-0 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111111]"
               >
                 <option value="">{t("students.bulkAction")}</option>
                 <option value="checkin">{t("auth.login")}</option>
@@ -340,7 +346,7 @@ export default function TeachersPage() {
             <PermissionGate permission="schedule.manage">
               <button
                 onClick={rota.open}
-                className="px-4 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm hover:border-teal hover:text-teal transition-all"
+                className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-600 transition-all hover:border-teal hover:text-teal sm:w-auto sm:px-4"
               >
                 {t("shifts.manage")}
               </button>
@@ -351,7 +357,7 @@ export default function TeachersPage() {
             <div className="relative" ref={dropdownRef}>
               <button
                 onClick={() => setDropdownOpen(!dropdownOpen)}
-                className="flex items-center gap-1 px-4 py-2 bg-[#5B14D1] text-white rounded-xl text-sm font-bold hover:bg-[#490EA9] transition-all shadow-md"
+                className="flex w-full items-center justify-center gap-1 rounded-xl bg-[#5B14D1] px-3 py-2 text-sm font-bold text-white shadow-md transition-all hover:bg-[#490EA9] sm:w-auto sm:px-4"
               >
                 + {t("teachers.addTeacher")}
                 <span className="text-xs ms-1">▼</span>

@@ -156,6 +156,24 @@ describe("public enrollment handlers", () => {
     expect(mocks.rateLimit).toHaveBeenCalledOnce();
   });
 
+  it("does not render a pending token that the atomic submit path cannot reserve", async () => {
+    mocks.findUnique.mockResolvedValue({
+      expires_at: new Date(Date.now() + 60_000),
+      status: "pending",
+      submissions_count: 0,
+      max_submissions: 3,
+      school: { name: "Test school", logoUrl: null },
+    });
+
+    const response = await verifyToken(
+      new Request("http://localhost/api/enrollment/verify-token/pending-token"),
+      { params: Promise.resolve({ token: "pending-token" }) }
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({ error: "unavailable" });
+  });
+
   it("rejects a submission whose token does not exist", async () => {
     mocks.findUnique.mockResolvedValue(null);
 

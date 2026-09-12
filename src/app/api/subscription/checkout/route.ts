@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { moyasarEnabled } from "@/lib/env";
-import { createMoyasarInvoice } from "@/lib/moyasar";
+import { env, moyasarEnabled } from "@/lib/env";
+import { createMoyasarPaymentIntent } from "@/lib/moyasar";
 import { moneyNumber } from "@/lib/money";
 import { schoolPlanLabel } from "@/lib/school-subscription";
 
@@ -20,44 +20,31 @@ export async function POST(request: Request) {
     });
     if (!plan) return Response.json({ error: "الخطة غير متاحة" }, { status: 409 });
 
-    const recent = await prisma.schoolSubscriptionPayment.findFirst({
-      where: {
-        school_id: session.user.schoolId,
-        billing_interval: parsed.data.billingInterval,
-        status: "PENDING",
-        checkout_url: { not: null },
-        created_at: { gte: new Date(Date.now() - 15 * 60 * 1000) },
-      },
-      orderBy: { created_at: "desc" },
+    const amountHalalas = Math.round(moneyNumber(plan.price) * 100);
+    const authorization = createMoyasarPaymentIntent({
+      schoolId: session.user.schoolId,
+      planId: plan.id,
+      billingInterval: parsed.data.billingInterval,
+      amountHalalas,
+      createdById: session.user.id,
     });
-    if (recent?.checkout_url) return Response.json({ checkoutUrl: recent.checkout_url, reused: true });
 
-    const payment = await prisma.schoolSubscriptionPayment.create({
-      data: {
+    // No PENDING row is created here. If the user closes the embedded form,
+    // there is deliberately no local checkout to resume; pressing pay again
+    // starts a fresh authorised attempt.
+    return Response.json({
+      amountHalalas,
+      currency: "SAR",
+      description: `اشتراك ${schoolPlanLabel(parsed.data.billingInterval)} لنظام إدارة الحضانة`,
+      publishableKey: env.NEXT_PUBLIC_MOYASAR_PUBLISHABLE_KEY,
+      callbackUrl: `${env.APP_URL}/api/payments/moyasar/callback`,
+      metadata: {
         school_id: session.user.schoolId,
         plan_id: plan.id,
-        billing_interval: parsed.data.billingInterval,
-        amount: plan.price,
-        created_by_id: session.user.id,
+        subscription_intent: authorization.intent,
+        subscription_signature: authorization.signature,
       },
     });
-
-    try {
-      const invoice = await createMoyasarInvoice({
-        amountHalalas: Math.round(moneyNumber(plan.price) * 100),
-        description: `اشتراك ${schoolPlanLabel(parsed.data.billingInterval)} لنظام إدارة الحضانة`,
-        metadata: { payment_id: payment.id, school_id: session.user.schoolId, plan_id: plan.id },
-      });
-      if (!invoice.id || !invoice.url) throw new Error("INVALID_MOYASAR_RESPONSE");
-      await prisma.schoolSubscriptionPayment.update({
-        where: { id: payment.id },
-        data: { provider_invoice_id: invoice.id, checkout_url: invoice.url },
-      });
-      return Response.json({ checkoutUrl: invoice.url });
-    } catch {
-      await prisma.schoolSubscriptionPayment.updateMany({ where: { id: payment.id, status: "PENDING" }, data: { status: "FAILED", failure_reason: "invoice_creation_failed" } });
-      return Response.json({ error: "تعذر بدء الدفع عبر ميسر، حاولي لاحقًا" }, { status: 502 });
-    }
   } catch (error) {
     return sessionErrorResponse(error) ?? Response.json({ error: "تعذر بدء الدفع" }, { status: 500 });
   }

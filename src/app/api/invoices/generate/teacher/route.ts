@@ -11,6 +11,7 @@ import { Document, Page, Text, View, StyleSheet, Font } from "@react-pdf/rendere
 import { access } from "fs/promises";
 import { join } from "path";
 import { moneyMaxZero, moneyMultiply, moneyNumber, moneySubtract } from "@/lib/money";
+import { teacherLatenessForInvoice } from "@/lib/invoice-lateness";
 import { claimInvoice, completeInvoiceClaim, failInvoiceClaim, idempotencyConflictResponse, invoiceRequestHash, missingIdempotencyKeyResponse, readIdempotencyKey } from "@/lib/invoice-idempotency";
 
 Font.register({
@@ -152,7 +153,7 @@ export async function POST(request: Request) {
     const { teacherId, invoiceData: rawInv } = parsed.data;
     const teacher = await prisma.teacher.findFirst({
       where: { id: teacherId, schoolId, deletedAt: null },
-      select: { id: true, name: true, monthlySalary: true, lateDeductionRate: true, lateHours: true },
+      select: { id: true, name: true, monthlySalary: true, lateDeductionRate: true },
     });
     if (!teacher) return Response.json({ error: "Teacher not found" }, { status: 404 });
     const requestHash = invoiceRequestHash(parsed.data);
@@ -165,9 +166,14 @@ export async function POST(request: Request) {
     // client sent. It used to be written to Invoice.amount unverified, so a
     // salary document could be issued for any figure at all.
     // Base salary minus the late deduction, both from the teacher's record.
-    const lateDeduction = moneyMultiply(teacher.lateDeductionRate, teacher.lateHours);
+    const lateness = await teacherLatenessForInvoice(schoolId, teacher.id);
+    const lateDeduction = moneyMultiply(teacher.lateDeductionRate, lateness.lateHours);
     const netSalary = moneyMaxZero(moneySubtract(teacher.monthlySalary, lateDeduction));
-    const inv = { ...rawInv, netSalary: moneyNumber(netSalary) };
+    const inv = {
+      ...rawInv,
+      lateHours: lateness.lateHours,
+      netSalary: moneyNumber(netSalary),
+    };
 
     // Mirror EXACTLY the same structure as the working student invoice route:
     // - Document, null (not {})

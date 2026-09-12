@@ -21,6 +21,7 @@ export async function GET(request: Request) {
       },
     }),
   ]);
+  const expiredRule = rules.find((rule) => rule.trigger_type === "expired");
 
   // Subscription state must not depend on whether an "expired" message rule is
   // enabled. Access already derives from the date; this persists the same state
@@ -41,6 +42,7 @@ export async function GET(request: Request) {
           data: { subscription_status: "expired" },
         });
         if (changed.count === 1) {
+          const access = schoolSubscriptionAccess(school, now);
           await tx.adminActivityLog.create({
             data: {
               school_id: school.id,
@@ -49,6 +51,30 @@ export async function GET(request: Request) {
               metadata: { renewalDate: schoolSubscriptionAccess(school, now).renewalDate },
             },
           });
+          {
+            const subject = expiredRule?.message_subject ?? "انتهى اشتراك نظام الحضانة";
+            const template = expiredRule?.message_template
+              ?? "انتهى اشتراك <school_name> بتاريخ <renewal_date>.";
+            const messageBody = template
+              .replace(/<school_name>/g, school.name)
+              .replace(/<plan_name>/g, school.subscription_plan?.name ?? "التجريبية")
+              .replace(/<renewal_date>/g, school.renewal_date ? formatDate(school.renewal_date) : "")
+              .replace(/<threshold_days>/g, String(expiredRule?.threshold_days ?? 0))
+              + (access.mode === "grace"
+                ? `\n\nبقي ${access.graceDaysRemaining} يوم قبل إيقاف أقسام النظام. يمكنك التجديد من صفحة اشتراك النظام.`
+                : "\n\nتوقفت أقسام النظام الآن، وصفحة اشتراك النظام متاحة للتجديد.");
+            await tx.adminMessage.create({
+              data: {
+                subject,
+                body: messageBody,
+                is_automated: true,
+                template_key: "expired",
+                target_type: "system",
+                sent_at: now,
+                recipients: { create: { school_id: school.id, delivered_at: now } },
+              },
+            });
+          }
         }
       });
     }
@@ -60,7 +86,7 @@ export async function GET(request: Request) {
   for (const rule of rules) {
     for (const school of schools) {
       let shouldSend = false;
-      let messageBody = rule.message_template
+      const messageBody = rule.message_template
         .replace(/<school_name>/g, school.name)
         .replace(
           /<plan_name>/g,
@@ -85,13 +111,10 @@ export async function GET(request: Request) {
       } else if (rule.trigger_type === "renewal_tomorrow") {
         shouldSend = !!(school.renewal_date && school.renewal_date <= oneDayAhead && school.renewal_date >= now);
       } else if (rule.trigger_type === "expired") {
-        shouldSend = !!(school.renewal_date && school.renewal_date < now && school.subscription_status !== "suspended");
-        if (shouldSend) {
-          const access = schoolSubscriptionAccess(school, now);
-          messageBody += access.mode === "grace"
-            ? `\n\nبقي ${access.graceDaysRemaining} يوم قبل انتقال الحساب إلى وضع القراءة فقط. يمكنك التجديد من صفحة اشتراك النظام.`
-            : "\n\nالحساب الآن في وضع القراءة فقط حتى يتم تجديد الاشتراك.";
-        }
+        // Expiry is emitted atomically with the active/trial -> expired state
+        // transition above. Re-running the daily cron must not create a new
+        // manager message for the same expiry cycle.
+        continue;
       } else if (rule.trigger_type === "plan_limit") {
         shouldSend = !!(
           school.subscription_plan &&

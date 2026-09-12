@@ -26,6 +26,7 @@ export async function GET(request: Request) {
           body: true,
           createdAt: true,
           activity: { select: { id: true, name: true } },
+          calendarEvent: { select: { id: true, title: true, type: true } },
         },
       },
     },
@@ -39,6 +40,7 @@ export async function GET(request: Request) {
       body: recipient.message.body,
       createdAt: recipient.message.createdAt,
       activity: recipient.message.activity,
+      calendarEvent: recipient.message.calendarEvent,
     })),
   }, { headers: { "Cache-Control": "private, no-store" } });
 }

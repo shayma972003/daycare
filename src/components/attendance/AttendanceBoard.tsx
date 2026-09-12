@@ -35,6 +35,7 @@ export function AttendanceBoard({ schoolName }: AttendanceBoardProps) {
   const [loading, setLoading] = useState(true);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [classSearch, setClassSearch] = useState("");
 
   const [error, setError] = useState<string | null>(null);
   const dataRequest = useRef<AbortController | null>(null);
@@ -107,6 +108,13 @@ export function AttendanceBoard({ schoolName }: AttendanceBoardProps) {
     );
   }, [currentTab, search, selectedClass, students, teachers]);
 
+  const filteredClasses = useMemo(() => {
+    const query = classSearch.trim().toLocaleLowerCase();
+    return query
+      ? classes.filter((item) => item.name.toLocaleLowerCase().includes(query))
+      : classes;
+  }, [classSearch, classes]);
+
   /** Session-checked routes only — there is no unauthenticated path left. */
   async function submitAttendance(personId: string, action: "checkin" | "checkout") {
     const isStudent = currentTab === "students";
@@ -139,46 +147,40 @@ export function AttendanceBoard({ schoolName }: AttendanceBoardProps) {
   return (
     <div
       data-attendance-board
-      className="flex min-h-[calc(100dvh-6rem)] min-w-0 flex-col overflow-x-clip bg-gray-50 lg:h-[calc(100dvh-6rem)] lg:flex-row"
+      className="flex min-h-[calc(100dvh-9rem)] min-w-0 flex-col overflow-x-clip bg-gray-50 lg:h-[calc(100dvh-9rem)] lg:flex-row"
     >
       {/* Sidebar */}
       <aside
         aria-label={t("fields.filter")}
         role="region"
         tabIndex={0}
-        className="w-full shrink-0 overflow-x-auto border-b border-gray-100 bg-white p-3 lg:w-56 lg:overflow-y-auto lg:border-b-0 lg:border-e lg:p-4"
+        className="w-full shrink-0 border-b border-gray-100 bg-white p-3 lg:w-72 lg:overflow-y-auto lg:border-b-0 lg:border-e lg:p-4"
       >
         {schoolName && <p className="text-sm font-bold text-navy mb-3 text-end truncate">{schoolName}</p>}
         <p className="mb-2 text-start text-xs font-bold text-gray-400">{t("fields.filter")}</p>
 
-        <div
-          data-attendance-class-filter
-          className="flex min-w-max gap-2 pb-1 lg:min-w-0 lg:flex-col lg:gap-1 lg:pb-0"
-        >
-
-        <button
-          onClick={() => setSelectedClass("all")}
-          className={cn(
-            "shrink-0 rounded-lg px-3 py-2 text-start text-sm font-medium transition-all lg:w-full",
-            selectedClass === "all" ? "bg-coral text-white" : "text-gray-600 hover:bg-gray-50"
-          )}
-        >
-          {t("common.all")}
-        </button>
-
-        {classes.map((cls) => (
-          <button
-            key={cls.id}
-            onClick={() => setSelectedClass(cls.id)}
-            className={cn(
-              "shrink-0 rounded-lg px-3 py-2 text-start text-sm transition-all lg:w-full",
-              selectedClass === cls.id ? "bg-coral text-white font-medium" : "text-gray-600 hover:bg-gray-50"
-            )}
+        <div data-attendance-class-filter className="grid gap-2">
+          <label className="sr-only" htmlFor="attendance-class-search">{t("common.allClasses")}</label>
+          <input
+            id="attendance-class-search"
+            type="search"
+            value={classSearch}
+            onChange={(event) => setClassSearch(event.target.value)}
+            placeholder={t("students.searchPlaceholder")}
+            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
+          />
+          <select
+            value={selectedClass}
+            onChange={(event) => setSelectedClass(event.target.value)}
+            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
           >
-            {cls.name}
-            <span className="text-xs opacity-60 ms-1">{cls.period === "MORNING" ? "☀" : "🌙"}</span>
-          </button>
-        ))}
+            <option value="all">{t("common.allClasses")}</option>
+            {filteredClasses.map((cls) => (
+              <option key={cls.id} value={cls.id}>
+                {cls.name} {cls.period === "MORNING" ? "☀" : "🌙"}
+              </option>
+            ))}
+          </select>
         </div>
       </aside>
 

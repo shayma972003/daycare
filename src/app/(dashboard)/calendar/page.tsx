@@ -322,7 +322,7 @@ export default function CalendarPage() {
     <div className="min-h-screen bg-brand-bg">
       <Topbar title={t("calendar.title")} />
 
-      <div className="p-6 space-y-4">
+      <div className="space-y-4 p-3 sm:p-6">
         {error && (
           <div role="alert" className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">
             <span>{error}</span>
@@ -332,8 +332,8 @@ export default function CalendarPage() {
           </div>
         )}
 
-        <div className="bg-white rounded-2xl shadow-sm p-4 flex flex-wrap items-center gap-3">
-          <div className="inline-flex bg-gray-100 rounded-xl p-1">
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-white p-3 shadow-sm sm:p-4">
+          <div className="inline-flex w-full rounded-xl bg-gray-100 p-1 sm:w-auto">
             {(["day", "week", "month"] as CalendarView[]).map((option) => (
               <button
                 key={option}
@@ -342,7 +342,7 @@ export default function CalendarPage() {
                   setLoading(true);
                   setView(option);
                 }}
-                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                className={`flex-1 rounded-lg px-3 py-1.5 text-sm font-medium transition-all sm:flex-none sm:px-4 ${
                   view === option ? "bg-white shadow text-[#111111]" : "text-gray-500"
                 }`}
               >
@@ -372,16 +372,16 @@ export default function CalendarPage() {
             </button>
           </div>
 
-          <span className="text-sm font-medium text-[#111111]">{periodLabel}</span>
+          <span className="min-w-0 flex-1 text-sm font-medium text-[#111111]">{periodLabel}</span>
 
-          <div className="flex items-center gap-2 ms-auto">
+          <div className="grid w-full grid-cols-2 gap-2 sm:ms-auto sm:flex sm:w-auto sm:items-center">
             <select
               value={classFilter}
               onChange={(e) => {
                 setLoading(true);
                 setClassFilter(e.target.value);
               }}
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
+              className="min-w-0 rounded-lg border border-gray-200 px-3 py-2 text-sm"
             >
               <option value="">{t("common.allClasses")}</option>
               {classes.map((item) => (
@@ -394,7 +394,7 @@ export default function CalendarPage() {
                 setLoading(true);
                 setTypeFilter(e.target.value);
               }}
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
+              className="min-w-0 rounded-lg border border-gray-200 px-3 py-2 text-sm"
               aria-label={t("finance.type")}
             >
               <option value="">{t("calendar.allTypes")}</option>
@@ -408,7 +408,7 @@ export default function CalendarPage() {
                 setLoading(true);
                 setTeacherFilter(e.target.value);
               }}
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
+              className="min-w-0 rounded-lg border border-gray-200 px-3 py-2 text-sm"
             >
               <option value="">{t("common.allTeachers")}</option>
               {teachers.map((item) => (
@@ -418,7 +418,7 @@ export default function CalendarPage() {
             <PermissionGate permission="schedule.manage">
               <button
                 onClick={() => setCreating(anchor)}
-                className="px-4 py-2 bg-[#5B14D1] text-white rounded-xl text-sm font-medium hover:bg-[#490EA9]"
+                className="w-full rounded-xl bg-[#5B14D1] px-4 py-2 text-sm font-medium text-white hover:bg-[#490EA9] sm:w-auto"
               >
                 {t("common.add")}
               </button>

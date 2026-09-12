@@ -72,6 +72,7 @@ describe("public enrollment form contract", () => {
     const students = source("src/app/(dashboard)/students/page.tsx");
     expect(createToken).toContain('env.NODE_ENV === "development"');
     expect(createToken).toContain("localPreview ? { previewUrl: enrollUrl } : {}");
+    expect(createToken).toContain('status: "active"');
     expect(students).toContain("openLocalRegistrationForm");
   });
 });

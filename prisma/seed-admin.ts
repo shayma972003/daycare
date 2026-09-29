@@ -1,8 +1,11 @@
-import "dotenv/config";
+import { config as loadEnv } from "dotenv";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
 import bcrypt from "bcryptjs";
+
+loadEnv({ path: ".env.local" });
+loadEnv({ path: ".env" });
 
 const { Pool } = pg;
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -41,6 +44,10 @@ async function main() {
     create: { email, password_hash },
   });
   console.log(`super admin ready: ${email}`);
+
+  if (process.env.SEED_ADMIN_ONLY === "true") {
+    return;
+  }
 
   const plans = [
     { name: "تجريبي", price: 0, max_students: 20, max_classes: 2 },

@@ -1,5 +1,11 @@
-import "dotenv/config";
+import { config as loadEnv } from "dotenv";
 import { defineConfig } from "prisma/config";
+
+// Keep local development isolated from Neon without rewriting `.env`, which
+// may still contain the production/staging connection. Next.js already gives
+// `.env.local` precedence; Prisma CLI needs the same explicit loading order.
+loadEnv({ path: ".env.local" });
+loadEnv({ path: ".env" });
 
 /**
  * Migrations run against a *direct* connection, not the pooled one.

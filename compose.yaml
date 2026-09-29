@@ -1,0 +1,24 @@
+name: daycare-local
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: daycare-postgres-local
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: daycare
+      POSTGRES_PASSWORD: daycare_local_dev
+      POSTGRES_DB: daycare_local
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - daycare_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U daycare -d daycare_local"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  daycare_postgres_data:
+    name: daycare-postgres-data

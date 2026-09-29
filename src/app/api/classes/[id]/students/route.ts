@@ -2,6 +2,7 @@ import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { withNoStore } from "@/lib/auth-response";
 import { logAction } from "@/lib/activity-logger";
+import { classIdWhere, studentClassWhere } from "@/lib/student-access-scope";
 
 export async function GET(
   _request: Request,
@@ -20,13 +21,15 @@ export async function GET(
   const schoolId = (session.user as { schoolId: string }).schoolId;
   const { id } = await params;
 
-  const cls = await prisma.class.findFirst({ where: { id, schoolId, deletedAt: null } });
+  const cls = await prisma.class.findFirst({
+    where: { id, schoolId, deletedAt: null, ...classIdWhere(session) },
+  });
   if (!cls) {
     return Response.json({ error: "Not found" }, { status: 404 });
   }
 
   const students = await prisma.student.findMany({
-    where: { classId: id, schoolId, deletedAt: null },
+    where: { classId: id, schoolId, deletedAt: null, ...studentClassWhere(session) },
     select: { id: true, name: true },
   });
 
@@ -51,12 +54,15 @@ export async function DELETE(
   if (!studentId) return Response.json({ error: "studentId is required" }, { status: 400 });
 
   const result = await prisma.$transaction(async (tx) => {
-    const cls = await tx.class.findFirst({ where: { id: classId, schoolId, deletedAt: null }, select: { id: true, name: true } });
+    const cls = await tx.class.findFirst({
+      where: { id: classId, schoolId, deletedAt: null, ...classIdWhere(session) },
+      select: { id: true, name: true },
+    });
     if (!cls) return { kind: "not_found" as const };
     // CAS: the child must still belong to this exact class. A stale page cannot
     // detach a child that has since moved to another class.
     const removed = await tx.student.updateMany({
-      where: { id: studentId, schoolId, classId, deletedAt: null },
+      where: { id: studentId, schoolId, classId, deletedAt: null, ...studentClassWhere(session) },
       data: { classId: null, needsClassWarning: true },
     });
     if (removed.count !== 1) return { kind: "stale" as const };

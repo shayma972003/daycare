@@ -49,6 +49,7 @@ async function lockAttendanceSubject(
 export async function checkInStudent(input: {
   studentId: string;
   schoolId: string;
+  classIds: readonly string[] | null;
   date: Date;
   now: Date;
 }) {
@@ -59,6 +60,7 @@ export async function checkInStudent(input: {
       where: {
         id: input.studentId,
         schoolId: input.schoolId,
+        ...(input.classIds === null ? {} : { classId: { in: [...input.classIds] } }),
         deletedAt: null,
         anonymizedAt: null,
         isActive: true,
@@ -219,6 +221,7 @@ export async function checkInTeacher(input: {
 export async function checkoutStudent(input: {
   studentId: string;
   schoolId: string;
+  classIds: readonly string[] | null;
   now: Date;
   timeZone: string;
 }) {
@@ -228,6 +231,7 @@ export async function checkoutStudent(input: {
       where: {
         id: input.studentId,
         schoolId: input.schoolId,
+        ...(input.classIds === null ? {} : { classId: { in: [...input.classIds] } }),
         deletedAt: null,
         anonymizedAt: null,
       },

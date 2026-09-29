@@ -64,6 +64,9 @@ export const teacherDetailSelect = {
   name: true,
   period: true,
   classes: { select: { id: true, name: true } },
+  classAssignments: {
+    select: { class: { select: { id: true, name: true, deletedAt: true } } },
+  },
   idNumber: true,
   encryptedIdNumber: true,
   dateOfBirth: true,
@@ -198,7 +201,10 @@ export function studentDetailDto(
     status: student.status,
     leftAt: student.leftAt,
     retentionUntil: student.retentionUntil,
-    evaluationFileUrl: student.evaluationFileUrl,
+    // Never expose the durable object path in the student payload. The profile
+    // only needs to know whether a file exists; bytes are served by the
+    // authorised evaluation endpoint.
+    hasEvaluationFile: Boolean(student.evaluationFileUrl),
     evaluationFileName: student.evaluationFileName,
     avatarUrl: student.avatarUrl,
     guardianId: student.guardianId,
@@ -252,8 +258,13 @@ export function teacherListDto(teacher: {
   status: unknown;
   enrollmentEndDate: Date | null;
   classes: Array<{ id: string; name: string }>;
+  classAssignments?: Array<{ class: { id: string; name: string; deletedAt: Date | null } }>;
 }) {
-  return { ...teacher };
+  const { classAssignments, ...data } = teacher;
+  const assigned = (classAssignments ?? [])
+    .filter((assignment) => assignment.class.deletedAt === null)
+    .map((assignment) => ({ id: assignment.class.id, name: assignment.class.name }));
+  return { ...data, classes: assigned.length > 0 ? assigned : teacher.classes };
 }
 
 export function teacherDetailDto(
@@ -261,12 +272,18 @@ export function teacherDetailDto(
   access: Pick<RosterDtoAccess, "contact" | "financial" | "revealIdentity">,
   lateCountThisMonth: number
 ) {
+  const classAssignments = teacher.classAssignments as
+    | Array<{ class: { id: string; name: string; deletedAt: Date | null } }>
+    | undefined;
+  const assignedClasses = classAssignments
+    ?.filter((assignment) => assignment.class.deletedAt === null)
+    .map((assignment) => ({ id: assignment.class.id, name: assignment.class.name }));
   return {
     id: teacher.id,
     updatedAt: teacher.updatedAt,
     name: teacher.name,
     period: teacher.period,
-    classes: teacher.classes,
+    classes: assignedClasses?.length ? assignedClasses : teacher.classes,
     dateOfBirth: teacher.dateOfBirth,
     nationality: teacher.nationality,
     joinDate: teacher.joinDate,

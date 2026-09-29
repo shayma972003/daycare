@@ -1,6 +1,7 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { requestTimeZone } from "@/lib/device-date";
 import { AttendanceOperationError, checkoutStudent } from "@/lib/attendance-operations";
+import { scopedClassIds } from "@/lib/student-access-scope";
 import { z } from "zod";
 
 const schema = z.object({ student_id: z.string().min(1) });
@@ -31,6 +32,7 @@ export async function POST(request: Request) {
       schoolId,
       now: new Date(),
       timeZone,
+      classIds: scopedClassIds(session),
     });
     return Response.json({
       checkout_time: result.checkoutAt,

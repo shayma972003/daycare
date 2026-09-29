@@ -1,8 +1,11 @@
-import "dotenv/config";
+import { config as loadEnv } from "dotenv";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import bcrypt from "bcryptjs";
 import { ROLE_TEMPLATES } from "../src/lib/permissions";
+
+loadEnv({ path: ".env.local" });
+loadEnv({ path: ".env" });
 
 function assertLocalDevelopmentSeed() {
   if (process.env.ALLOW_DEVELOPMENT_SEED !== "true") {
@@ -95,13 +98,18 @@ async function main() {
 
   const user = await prisma.user.upsert({
     where: { email: SCHOOL_EMAIL },
-    update: { roleId: managerRole.id },
+    update: {
+      roleId: managerRole.id,
+      password: await bcrypt.hash(SCHOOL_PASSWORD, 12),
+      acceptedAt: new Date(),
+    },
     create: {
       name: "مدير الروضة",
       email: SCHOOL_EMAIL,
       password: await bcrypt.hash(SCHOOL_PASSWORD, 12),
       schoolId: school.id,
       roleId: managerRole.id,
+      acceptedAt: new Date(),
     },
   });
   console.log(`admin user: ${user.email}`);
@@ -159,9 +167,19 @@ async function main() {
     const existing = await prisma.class.findFirst({
       where: { schoolId: school.id, name: seed.name },
     });
-    classes.push(
-      existing ?? (await prisma.class.create({ data: { ...seed, schoolId: school.id } }))
-    );
+    const classroom = existing ?? (await prisma.class.create({ data: { ...seed, schoolId: school.id } }));
+    await prisma.classTeacher.upsert({
+      where: {
+        schoolId_classId_teacherId: {
+          schoolId: school.id,
+          classId: classroom.id,
+          teacherId: seed.teacherId,
+        },
+      },
+      create: { schoolId: school.id, classId: classroom.id, teacherId: seed.teacherId },
+      update: {},
+    });
+    classes.push(classroom);
   }
   console.log(`classes: ${classes.length}`);
 
@@ -182,6 +200,14 @@ async function main() {
     {
       guardian: { name: "إبراهيم العتيبي", phone1: "+966568765432" },
       child: { name: "نورة إبراهيم", gender: "FEMALE" as const, classId: classes[1].id },
+    },
+    {
+      guardian: { name: "فهد القحطاني", phone1: "+966571234567" },
+      child: { name: "يوسف فهد", gender: "MALE" as const, classId: classes[0].id },
+    },
+    {
+      guardian: { name: "ماجد الحربي", phone1: "+966579876543" },
+      child: { name: "ريم ماجد", gender: "FEMALE" as const, classId: classes[1].id },
     },
   ];
 

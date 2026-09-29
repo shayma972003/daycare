@@ -43,6 +43,7 @@ export async function GET(request: Request) {
       // the most privacy-sensitive row in the product.
       schoolId: context.schoolId,
       deletedAt: null,
+      reviewStatus: "APPROVED",
       ...(validDay
         ? { occurredAt: { gte: astDayStart(validDay), lt: astDayEnd(validDay) } }
         : {}),

@@ -15,7 +15,7 @@ import { CARE_TYPE_COLORS, CARE_TYPE_LABEL_KEYS } from "@/lib/care-reports";
 import { Icon, CARE_TYPE_ICON_NAMES } from "@/components/ui/Icon";
 import { formatAst, astDayStart } from "@/lib/datetime";
 import type { CareReportType } from "@/generated/prisma/enums";
-import { useT } from "@/lib/i18n-provider";
+import { useLocale } from "@/lib/i18n-provider";
 
 interface ReportRow {
   id: string;
@@ -28,7 +28,7 @@ interface ReportRow {
 }
 
 export function StudentCareFeed({ studentId }: { studentId: string }) {
-  const t = useT();
+  const { t, locale } = useLocale();
   const [reports, setReports] = useState<ReportRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -86,7 +86,7 @@ export function StudentCareFeed({ studentId }: { studentId: string }) {
               year: "numeric",
               month: "long",
               day: "numeric",
-            })}
+            }, locale)}
           </h4>
           <ul className="space-y-2">
             {entries
@@ -129,7 +129,7 @@ export function StudentCareFeed({ studentId }: { studentId: string }) {
                       {formatAst(new Date(report.occurredAt), {
                         hour: "2-digit",
                         minute: "2-digit",
-                      })}
+                      }, locale)}
                       {" · "}
                       {report.reportedByName}
                     </p>

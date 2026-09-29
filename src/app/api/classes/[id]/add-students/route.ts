@@ -2,6 +2,7 @@ import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
 import { z } from "zod";
+import { classIdWhere, scopedClassIds } from "@/lib/student-access-scope";
 
 const schema = z.object({
   studentIds: z.array(z.string()).min(1),
@@ -24,6 +25,10 @@ export async function POST(
   const schoolId = (session.user as { schoolId: string }).schoolId;
   const { id } = await params;
 
+  if (scopedClassIds(session) !== null) {
+    return Response.json({ error: "تعيين الأطفال للفصول متاح للإدارة فقط", code: "CLASS_SCOPE_FORBIDDEN" }, { status: 403 });
+  }
+
   let body: unknown;
   try {
     body = await request.json();
@@ -37,7 +42,7 @@ export async function POST(
   }
 
   const cls = await prisma.class.findFirst({
-    where: { id, schoolId, deletedAt: null },
+    where: { id, schoolId, deletedAt: null, ...classIdWhere(session) },
   });
   if (!cls) {
     return Response.json({ error: "Not found" }, { status: 404 });

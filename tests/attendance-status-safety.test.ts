@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   create: vi.fn(),
   deleteMany: vi.fn(),
   log: vi.fn(),
+  notifyAbsence: vi.fn(),
 }));
 
 vi.mock("@/lib/session", () => ({
@@ -19,6 +20,8 @@ vi.mock("@/lib/prisma", () => ({
   prisma: { $transaction: mocks.transaction },
 }));
 vi.mock("@/lib/activity-logger", () => ({ logAction: mocks.log }));
+vi.mock("@/lib/absence-notifications", () => ({ createAbsenceNotification: mocks.notifyAbsence }));
+vi.mock("@/lib/safe-logger", () => ({ logSafeError: vi.fn() }));
 
 import { POST } from "@/app/api/attendance/students/status/route";
 
@@ -49,7 +52,7 @@ beforeEach(() => {
   vi.setSystemTime(new Date("2026-08-30T01:00:00.000Z"));
   vi.resetAllMocks();
   mocks.session.mockResolvedValue({
-    user: { schoolId: "school-1", name: "Manager" },
+    user: { id: "user-1", schoolId: "school-1", name: "Manager" },
     can: (permission: string) => permission === "attendance.students",
   });
   mocks.transaction.mockImplementation(async (callback: (client: typeof tx) => unknown) => callback(tx));
@@ -58,6 +61,7 @@ beforeEach(() => {
   mocks.deleteMany.mockResolvedValue({ count: 1 });
   mocks.create.mockResolvedValue({});
   mocks.update.mockResolvedValue({});
+  mocks.notifyAbsence.mockResolvedValue({ created: true, messageId: "message-1", guardians: 1 });
 });
 
 afterEach(() => vi.useRealTimers());
@@ -112,5 +116,36 @@ describe("weekly attendance status safety", () => {
     const response = await POST(request("ABSENT"));
     expect(response.status).toBe(403);
     expect(mocks.transaction).not.toHaveBeenCalled();
+  });
+
+  it("requests an idempotent durable notification for every explicit ABSENT mark", async () => {
+    const response = await POST(request("ABSENT"));
+    expect(response.status).toBe(200);
+    expect(mocks.notifyAbsence).toHaveBeenCalledWith(expect.objectContaining({
+      schoolId: "school-1",
+      studentId: "student-1",
+      createdById: "user-1",
+    }));
+
+    vi.clearAllMocks();
+    mocks.session.mockResolvedValue({
+      user: { id: "user-1", schoolId: "school-1", name: "Manager" },
+      can: () => true,
+    });
+    mocks.transaction.mockImplementation(async (callback: (client: typeof tx) => unknown) => callback(tx));
+    mocks.students.mockResolvedValue([{ id: "student-1", classId: "class-1" }]);
+    mocks.records.mockResolvedValue([{
+      id: "attendance-1",
+      studentId: "student-1",
+      status: "ABSENT",
+      checkinAt: null,
+      checkoutAt: null,
+    }]);
+    mocks.update.mockResolvedValue({});
+    mocks.log.mockResolvedValue(undefined);
+
+    const replay = await POST(request("ABSENT"));
+    expect(replay.status).toBe(200);
+    expect(mocks.notifyAbsence).toHaveBeenCalledTimes(1);
   });
 });

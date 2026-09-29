@@ -1,15 +1,18 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
-import { assertTeacherOwned, crossTenantResponse } from "@/lib/tenant-guard";
+import { assertTeachersOwned, crossTenantResponse } from "@/lib/tenant-guard";
 import { parseClassGroup } from "@/lib/enum-labels";
 import { resolveStageId, foreignStageResponse } from "@/lib/academic-stage";
 import { capacityState } from "@/lib/attendance-schedule";
 import { z } from "zod";
+import { classIdWhere } from "@/lib/student-access-scope";
 
 const updateClassSchema = z.object({
   expectedUpdatedAt: z.iso.datetime(),
   name: z.string().min(1).optional(),
+  teacherIds: z.array(z.string().min(1)).max(50).optional(),
+  /** DEPRECATED — accepted for older clients and promoted to `teacherIds`. */
   teacherId: z.string().nullish(),
   /** DEPRECATED — still accepted so older clients keep working. */
   group: z.string().nullish(),
@@ -46,9 +49,13 @@ export async function GET(
   const { id } = await params;
 
   const cls = await prisma.class.findFirst({
-    where: { id, schoolId, deletedAt: null },
+    where: { id, schoolId, deletedAt: null, ...classIdWhere(session) },
     include: {
       teacher: { select: { id: true, name: true } },
+      teacherAssignments: {
+        select: { teacher: { select: { id: true, name: true } } },
+        orderBy: { createdAt: "asc" },
+      },
       stage: { select: { id: true, nameAr: true, nameEn: true } },
       students: {
         where: { deletedAt: null, isActive: true },
@@ -74,9 +81,14 @@ export async function GET(
   }
 
   // Capacity resolved server-side so every screen reports "over" the same way.
-  const { imageUrl: _legacyImageUrl, ...classData } = cls;
+  const { imageUrl: _legacyImageUrl, teacherAssignments, ...classData } = cls;
   void _legacyImageUrl;
-  return Response.json({ ...classData, capacityState: capacityState(cls._count.students, cls.capacity) }, { status: 200 });
+  return Response.json({
+    ...classData,
+    teachers: teacherAssignments.map((assignment) => assignment.teacher),
+    needsTeacherWarning: teacherAssignments.length === 0,
+    capacityState: capacityState(cls._count.students, cls.capacity),
+  }, { status: 200 });
 }
 
 export async function PUT(
@@ -110,17 +122,22 @@ export async function PUT(
 
   const data = parsed.data;
   const updateData: Record<string, unknown> = {};
+  let assignmentTeacherIds: string[] | null = null;
 
   if (data.name !== undefined) updateData.name = data.name;
-  if ("teacherId" in data) {
+  if ("teacherIds" in data || "teacherId" in data) {
     try {
-      updateData.teacherId = await assertTeacherOwned(data.teacherId, schoolId);
+      assignmentTeacherIds = await assertTeachersOwned(
+        data.teacherIds ?? (data.teacherId ? [data.teacherId] : []),
+        schoolId
+      );
     } catch (error) {
       const denied = crossTenantResponse(error);
       if (denied) return denied;
       throw error;
     }
-    if (updateData.teacherId) updateData.needsTeacherWarning = false;
+    updateData.teacherId = assignmentTeacherIds[0] ?? null;
+    updateData.needsTeacherWarning = assignmentTeacherIds.length === 0;
   }
   if ("group" in data) updateData.group = parseClassGroup(data.group) ?? "KG1";
   if ("stageId" in data) {
@@ -145,7 +162,9 @@ export async function PUT(
   }
   if ("notes" in data) updateData.notes = data.notes ?? null;
 
-  const existing = await prisma.class.findFirst({ where: { id, schoolId, deletedAt: null } });
+  const existing = await prisma.class.findFirst({
+    where: { id, schoolId, deletedAt: null, ...classIdWhere(session) },
+  });
   if (!existing) {
     return Response.json({ error: "Not found" }, { status: 404 });
   }
@@ -158,15 +177,28 @@ export async function PUT(
           id,
           schoolId,
           deletedAt: null,
+          ...classIdWhere(session),
           updatedAt: new Date(data.expectedUpdatedAt),
         },
         data: updateData,
       });
       if (claimed.count !== 1) throw new Error("STALE_RECORD");
+      if (assignmentTeacherIds) {
+        await tx.classTeacher.deleteMany({ where: { classId: id, schoolId } });
+        if (assignmentTeacherIds.length > 0) {
+          await tx.classTeacher.createMany({
+            data: assignmentTeacherIds.map((teacherId) => ({ classId: id, schoolId, teacherId })),
+          });
+        }
+      }
       return tx.class.findFirstOrThrow({
-        where: { id, schoolId, deletedAt: null },
+        where: { id, schoolId, deletedAt: null, ...classIdWhere(session) },
         include: {
           teacher: { select: { id: true, name: true } },
+          teacherAssignments: {
+            select: { teacher: { select: { id: true, name: true } } },
+            orderBy: { createdAt: "asc" },
+          },
           students: {
             where: { deletedAt: null, isActive: true },
             select: {
@@ -204,9 +236,13 @@ export async function PUT(
     request,
   });
 
-  const { imageUrl: _legacyImageUrl, ...classData } = cls;
+  const { imageUrl: _legacyImageUrl, teacherAssignments, ...classData } = cls;
   void _legacyImageUrl;
-  return Response.json(classData, { status: 200 });
+  return Response.json({
+    ...classData,
+    teachers: teacherAssignments.map((assignment) => assignment.teacher),
+    needsTeacherWarning: teacherAssignments.length === 0,
+  }, { status: 200 });
 }
 
 export async function DELETE(
@@ -226,7 +262,9 @@ export async function DELETE(
   const schoolId = (session.user as { schoolId: string }).schoolId;
   const { id } = await params;
 
-  const existing = await prisma.class.findFirst({ where: { id, schoolId, deletedAt: null } });
+  const existing = await prisma.class.findFirst({
+    where: { id, schoolId, deletedAt: null, ...classIdWhere(session) },
+  });
   if (!existing) {
     return Response.json({ error: "Not found" }, { status: 404 });
   }

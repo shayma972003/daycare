@@ -4,6 +4,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import axios from "axios";
 import { describeApiError } from "@/lib/api-error";
 import { useT } from "@/lib/i18n-provider";
+import { LocalizedDateTimeInput } from "@/components/ui/LocalizedDateTimeInput";
 
 type MealAmount = "ALL" | "HALF" | "LITTLE" | "REFUSED";
 type NapStatus = "NO_RECORD" | "SLEPT" | "DID_NOT_SLEEP";
@@ -16,6 +17,39 @@ interface ExtraEvent {
   kind: ExtraEventKind;
   time: string;
   details: string;
+}
+
+export interface ReturnedDailyCareDraft {
+  batchId: string;
+  reviewNote: string | null;
+  meal: {
+    source: "CENTER" | "HOME";
+    name: string | null;
+    occurredAt: string;
+  };
+  entries: Array<{
+    studentId: string;
+    mealAmount: MealAmount | null;
+    napStatus: NapStatus;
+    napStartAt: string | null;
+    napEndAt: string | null;
+    toilet: ToiletValue;
+    toiletOccurredAt: string | null;
+    mood: Mood | null;
+    note: string | null;
+    extraEvents: Array<{
+      kind: ExtraEventKind;
+      occurredAt: string;
+      details: string;
+    }>;
+    supplies: string | null;
+    health: string | null;
+    medication: {
+      name: string;
+      dose: string;
+      occurredAt: string;
+    } | null;
+  }>;
 }
 
 export interface DailyCareStudent {
@@ -71,24 +105,62 @@ function localIso(date: string, time: string) {
   return new Date(`${date}T${time}:00`).toISOString();
 }
 
+function localTime(value: string | null | undefined) {
+  if (!value) return "";
+  const at = new Date(value);
+  if (Number.isNaN(at.getTime())) return "";
+  return `${String(at.getHours()).padStart(2, "0")}:${String(at.getMinutes()).padStart(2, "0")}`;
+}
+
+function returnedEntry(draft: ReturnedDailyCareDraft["entries"][number]): EntryState {
+  return {
+    mealAmount: draft.mealAmount ?? "",
+    napStatus: draft.napStatus,
+    napStart: localTime(draft.napStartAt),
+    napEnd: localTime(draft.napEndAt),
+    toilet: draft.toilet,
+    toiletTime: localTime(draft.toiletOccurredAt),
+    mood: draft.mood ?? "",
+    note: draft.note ?? "",
+    extraEvents: draft.extraEvents.map((event, index) => ({
+      id: `${draft.studentId}-returned-${index}`,
+      kind: event.kind,
+      time: localTime(event.occurredAt),
+      details: event.details,
+    })),
+    supplies: draft.supplies ?? "",
+    health: draft.health ?? "",
+    medicationName: draft.medication?.name ?? "",
+    medicationDose: draft.medication?.dose ?? "",
+    medicationTime: localTime(draft.medication?.occurredAt),
+  };
+}
+
 export function UnifiedDailyCareForm({
   students,
   date,
   onSaved,
+  initialDraft,
 }: {
   students: DailyCareStudent[];
   date: string;
   onSaved: (message: string) => void;
+  initialDraft?: ReturnedDailyCareDraft;
 }) {
   const t = useT();
+  const returnedMode = Boolean(initialDraft);
   const [selected, setSelected] = useState(() => new Set(students.map((student) => student.id)));
-  const [entries, setEntries] = useState<Record<string, EntryState>>(() =>
-    Object.fromEntries(students.map((student) => [student.id, blankEntry()]))
-  );
-  const [mealSource, setMealSource] = useState<"CENTER" | "HOME">("CENTER");
-  const [mealName, setMealName] = useState("");
-  const [mealTime, setMealTime] = useState(currentTime);
-  const [idempotencyKey, setIdempotencyKey] = useState(batchKey);
+  const [entries, setEntries] = useState<Record<string, EntryState>>(() => {
+    const returnedByStudent = new Map(initialDraft?.entries.map((entry) => [entry.studentId, entry]));
+    return Object.fromEntries(students.map((student) => {
+      const draft = returnedByStudent.get(student.id);
+      return [student.id, draft ? returnedEntry(draft) : blankEntry()];
+    }));
+  });
+  const [mealSource, setMealSource] = useState<"CENTER" | "HOME">(initialDraft?.meal.source ?? "CENTER");
+  const [mealName, setMealName] = useState(initialDraft?.meal.name ?? "");
+  const [mealTime, setMealTime] = useState(() => localTime(initialDraft?.meal.occurredAt) || currentTime());
+  const [idempotencyKey, setIdempotencyKey] = useState(() => initialDraft?.batchId ?? batchKey());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editingStudentId, setEditingStudentId] = useState<string | null>(null);
@@ -141,6 +213,7 @@ export function UnifiedDailyCareForm({
   }
 
   function toggleStudent(studentId: string) {
+    if (returnedMode) return;
     setSelected((current) => {
       const next = new Set(current);
       if (next.has(studentId)) next.delete(studentId);
@@ -223,7 +296,11 @@ export function UnifiedDailyCareForm({
     setSaving(true);
     setError(null);
     try {
-      const response = await axios.post<{ created: number }>("/api/care-reports/daily", {
+      const response = await axios.post<{ created: number }>(
+        initialDraft
+          ? `/api/care-reports/returned/${encodeURIComponent(initialDraft.batchId)}/resubmit`
+          : "/api/care-reports/daily",
+        {
         idempotencyKey,
         meal: {
           source: mealSource,
@@ -264,9 +341,10 @@ export function UnifiedDailyCareForm({
               : null,
           };
         }),
-      });
-      setIdempotencyKey(batchKey());
-      onSaved(t("care.dailySaved", { n: String(response.data.created) }));
+        }
+      );
+      if (!initialDraft) setIdempotencyKey(batchKey());
+      onSaved(t(initialDraft ? "care.returnedDailyResubmitted" : "care.dailySaved", { n: String(response.data.created) }));
     } catch (saveError) {
       setError(describeApiError(saveError, t("care.dailySaveFailed")));
     } finally {
@@ -299,6 +377,14 @@ export function UnifiedDailyCareForm({
 
   return (
     <div className="space-y-5">
+      {initialDraft && (
+        <section className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-950 sm:px-5">
+          <h2 className="font-bold">{t("care.returnedReportTitle")}</h2>
+          <p className="mt-1 text-xs leading-5 text-amber-800">
+            {initialDraft.reviewNote || t("care.returnedWithoutNote")}
+          </p>
+        </section>
+      )}
       <section className="rounded-2xl border border-[#E8E3EF] bg-white p-4 shadow-[0_1px_2px_rgba(36,20,53,0.03)] sm:p-5">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -335,8 +421,8 @@ export function UnifiedDailyCareForm({
           )}
           <label className="space-y-1.5">
             <span className="text-xs text-[#766B80]">{t("care.mealTime")}</span>
-            <input
-              type="time"
+            <LocalizedDateTimeInput
+              nativeType="time"
               value={mealTime}
               onChange={(event) => setMealTime(event.target.value)}
               className="h-11 w-full rounded-xl border border-[#E6E0EB] bg-white px-3 text-sm outline-none focus:border-[#8B5CF6] focus:ring-2 focus:ring-[#EDE4FF]"
@@ -351,6 +437,7 @@ export function UnifiedDailyCareForm({
             <input
               type="checkbox"
               checked={allSelected}
+              disabled={returnedMode}
               onChange={() => setSelected(allSelected ? new Set() : new Set(students.map((student) => student.id)))}
               className="h-4 w-4 accent-[#5B14D1]"
             />
@@ -382,6 +469,7 @@ export function UnifiedDailyCareForm({
                         <input
                           type="checkbox"
                           checked={active}
+                          disabled={returnedMode}
                           onChange={() => toggleStudent(student.id)}
                           className="h-4 w-4 accent-[#5B14D1]"
                         />
@@ -427,16 +515,16 @@ export function UnifiedDailyCareForm({
                         />
                         {entry.napStatus === "SLEPT" && active && (
                           <div className="grid grid-cols-2 gap-1.5">
-                            <input
+                            <LocalizedDateTimeInput
                               aria-label={t("care.napStart")}
-                              type="time"
+                              nativeType="time"
                               value={entry.napStart}
                               onChange={(event) => updateEntry(student.id, { napStart: event.target.value })}
                               className="h-9 min-w-0 rounded-lg border border-[#E6E0EB] px-2 text-xs outline-none focus:border-[#8B5CF6]"
                             />
-                            <input
+                            <LocalizedDateTimeInput
                               aria-label={t("care.napEnd")}
-                              type="time"
+                              nativeType="time"
                               value={entry.napEnd}
                               onChange={(event) => updateEntry(student.id, { napEnd: event.target.value })}
                               className="h-9 min-w-0 rounded-lg border border-[#E6E0EB] px-2 text-xs outline-none focus:border-[#8B5CF6]"
@@ -495,7 +583,7 @@ export function UnifiedDailyCareForm({
         <div className="flex flex-col gap-3 border-t border-[#EEEAF2] bg-white px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
           <div>
             {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
-            {!error && <p className="text-xs text-[#8B8095]">{t("care.sendToFamiliesHint")}</p>}
+            {!error && <p className="text-xs text-[#8B8095]">{t(returnedMode ? "care.resubmitHint" : "care.sendToFamiliesHint")}</p>}
           </div>
           <button
             type="button"
@@ -503,7 +591,9 @@ export function UnifiedDailyCareForm({
             disabled={saving || selectedCount === 0}
             className="min-h-11 rounded-xl bg-[#5B14D1] px-7 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-[#490EA9] disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {saving ? t("care.sendingDaily") : t("care.sendDaily", { n: String(selectedCount) })}
+            {saving
+              ? t("care.sendingDaily")
+              : t(returnedMode ? "care.resubmitDaily" : "care.sendDaily", { n: String(selectedCount) })}
           </button>
         </div>
       </section>
@@ -739,14 +829,24 @@ function DetailInput({
   return (
     <label className="space-y-1.5">
       <span className="text-xs text-[#766B80]">{label}</span>
-      <input
-        aria-label={label}
-        type={type}
-        value={value}
-        maxLength={maxLength}
-        onChange={(event) => onChange(event.target.value)}
-        className="h-11 w-full rounded-xl border border-[#E6E0EB] bg-white px-3 text-sm outline-none focus:border-[#8B5CF6] focus:ring-2 focus:ring-[#EDE4FF]"
-      />
+      {type === "time" ? (
+        <LocalizedDateTimeInput
+          aria-label={label}
+          nativeType="time"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          className="h-11 w-full rounded-xl border border-[#E6E0EB] bg-white px-3 text-sm outline-none focus:border-[#8B5CF6] focus:ring-2 focus:ring-[#EDE4FF]"
+        />
+      ) : (
+        <input
+          aria-label={label}
+          type="text"
+          value={value}
+          maxLength={maxLength}
+          onChange={(event) => onChange(event.target.value)}
+          className="h-11 w-full rounded-xl border border-[#E6E0EB] bg-white px-3 text-sm outline-none focus:border-[#8B5CF6] focus:ring-2 focus:ring-[#EDE4FF]"
+        />
+      )}
     </label>
   );
 }

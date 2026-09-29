@@ -2,6 +2,7 @@ import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { getAttendancePageData } from "@/lib/attendance-data";
 import { withNoStore } from "@/lib/auth-response";
 import { calendarToday, requestTimeZone } from "@/lib/device-date";
+import { scopedClassIds } from "@/lib/student-access-scope";
 
 export async function GET(request: Request) {
   let session;
@@ -27,6 +28,11 @@ export async function GET(request: Request) {
   let today: Date;
   try { today = calendarToday(new Date(), requestTimeZone(request)); }
   catch { return withNoStore(Response.json({ error: "Invalid time zone" }, { status: 422 })); }
-  const data = await getAttendancePageData(schoolId, visibility, today);
+  const data = await getAttendancePageData(
+    schoolId,
+    visibility,
+    today,
+    scopedClassIds(session)
+  );
   return withNoStore(Response.json(data));
 }

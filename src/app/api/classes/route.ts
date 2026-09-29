@@ -1,13 +1,16 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
-import { assertTeacherOwned, crossTenantResponse } from "@/lib/tenant-guard";
+import { assertTeachersOwned, crossTenantResponse } from "@/lib/tenant-guard";
 import { assertClassCapacity, planLimitResponse } from "@/lib/plan-limits";
 import { parseClassGroup } from "@/lib/enum-labels";
 import { z } from "zod";
+import { classIdWhere } from "@/lib/student-access-scope";
 
 const createClassSchema = z.object({
   name: z.string().min(1),
+  teacherIds: z.array(z.string().min(1)).max(50).optional(),
+  /** DEPRECATED — accepted for older clients and promoted to `teacherIds`. */
   teacherId: z.string().optional(),
   /** DEPRECATED — still accepted so older clients keep working. */
   group: z.string().optional(),
@@ -36,7 +39,11 @@ export async function GET(request: Request) {
   const group = searchParams.get("group");
   const stageId = searchParams.get("stageId");
 
-  const where: Record<string, unknown> = { schoolId, deletedAt: null };
+  const where: Record<string, unknown> = {
+    schoolId,
+    deletedAt: null,
+    ...classIdWhere(session),
+  };
 
   if (period) {
     where.period = period;
@@ -62,6 +69,10 @@ export async function GET(request: Request) {
       notes: true,
       teacherId: true,
       teacher: { select: { id: true, name: true } },
+      teacherAssignments: {
+        select: { teacher: { select: { id: true, name: true } } },
+        orderBy: { createdAt: "asc" },
+      },
       needsTeacherWarning: true,
       // Only ids are needed for the list's student count — full student rows
       // (with base64 avatar/evaluation blobs) are never needed here.
@@ -70,7 +81,11 @@ export async function GET(request: Request) {
     orderBy: { name: "asc" },
   });
 
-  return Response.json(classes, { status: 200 });
+  return Response.json(classes.map(({ teacherAssignments, ...room }) => ({
+    ...room,
+    teachers: teacherAssignments.map((assignment) => assignment.teacher),
+    needsTeacherWarning: teacherAssignments.length === 0,
+  })), { status: 200 });
 }
 
 export async function POST(request: Request) {
@@ -98,7 +113,7 @@ export async function POST(request: Request) {
     return Response.json({ error: parsed.error.flatten() }, { status: 422 });
   }
 
-  const { name, teacherId, group, stageId, period, registrationDate, notes } = parsed.data;
+  const { name, teacherId, teacherIds, group, stageId, period, registrationDate, notes } = parsed.data;
 
   // Proven to belong to this school before it is stored: the id comes from the
   // client, and a room pointing at another tenant's stage would render that
@@ -117,10 +132,13 @@ export async function POST(request: Request) {
 
   // Unchecked, this let a class be assigned another school's teacher — and the
   // list query includes `teacher: { name }`, leaking it straight back out.
-  let ownedTeacherId: string | null;
+  let ownedTeacherIds: string[];
   try {
     await assertClassCapacity(schoolId);
-    ownedTeacherId = await assertTeacherOwned(teacherId, schoolId);
+    ownedTeacherIds = await assertTeachersOwned(
+      teacherIds ?? (teacherId ? [teacherId] : []),
+      schoolId
+    );
   } catch (error) {
     const overLimit = planLimitResponse(error);
     if (overLimit) return overLimit;
@@ -129,21 +147,48 @@ export async function POST(request: Request) {
     throw error;
   }
 
-  const cls = await prisma.class.create({
-    data: {
-      schoolId,
-      name,
-      ...(ownedTeacherId !== null && { teacherId: ownedTeacherId }),
-      ...(group !== undefined && { group: parseClassGroup(group) ?? "KG1" }),
-      ...(ownedStageId !== null && { stageId: ownedStageId }),
-      ...(period !== undefined && { period }),
-      ...(registrationDate !== undefined && { registrationDate: new Date(registrationDate) }),
-      ...(notes !== undefined && { notes }),
-    },
-    include: {
-      teacher: { select: { id: true, name: true } },
-      students: true,
-    },
+  // Create the room first, then its tenant-scoped assignment rows. Mixing
+  // scalar relation ids (`schoolId`, `teacherId`) with a nested relation create
+  // makes Prisma select the checked input shape, where those scalar ids are not
+  // accepted at runtime. Keeping both writes in one transaction also prevents a
+  // room from being committed without the teachers the manager selected.
+  const cls = await prisma.$transaction(async (tx) => {
+    const created = await tx.class.create({
+      data: {
+        schoolId,
+        name,
+        teacherId: ownedTeacherIds[0] ?? null,
+        needsTeacherWarning: ownedTeacherIds.length === 0,
+        ...(group !== undefined && { group: parseClassGroup(group) ?? "KG1" }),
+        ...(ownedStageId !== null && { stageId: ownedStageId }),
+        ...(period !== undefined && { period }),
+        ...(registrationDate !== undefined && { registrationDate: new Date(registrationDate) }),
+        ...(notes !== undefined && { notes }),
+      },
+      select: { id: true },
+    });
+
+    if (ownedTeacherIds.length > 0) {
+      await tx.classTeacher.createMany({
+        data: ownedTeacherIds.map((teacherId) => ({
+          classId: created.id,
+          schoolId,
+          teacherId,
+        })),
+      });
+    }
+
+    return tx.class.findFirstOrThrow({
+      where: { id: created.id, schoolId },
+      include: {
+        teacher: { select: { id: true, name: true } },
+        teacherAssignments: {
+          select: { teacher: { select: { id: true, name: true } } },
+          orderBy: { createdAt: "asc" },
+        },
+        students: true,
+      },
+    });
   });
 
   await logAction({
@@ -156,5 +201,9 @@ export async function POST(request: Request) {
     request,
   });
 
-  return Response.json(cls, { status: 201 });
+  const { teacherAssignments, ...classData } = cls;
+  return Response.json({
+    ...classData,
+    teachers: teacherAssignments.map((assignment) => assignment.teacher),
+  }, { status: 201 });
 }

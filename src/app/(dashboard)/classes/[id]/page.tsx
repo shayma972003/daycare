@@ -1,5 +1,7 @@
 "use client";
 
+import { LocalizedDateTimeInput } from "@/components/ui/LocalizedDateTimeInput";
+
 import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
@@ -11,6 +13,7 @@ import { useT, useLocale } from "@/lib/i18n-provider";
 import { useAcademicStages, useStageName } from "@/lib/use-academic-stages";
 import { formatAst } from "@/lib/datetime";
 import { describeApiError } from "@/lib/api-error";
+import { TeacherMultiSelect } from "@/components/classes/TeacherMultiSelect";
 
 
 type Teacher = { id: string; name: string };
@@ -36,6 +39,7 @@ type ClassData = {
   name: string;
   teacherId: string | null;
   teacher: Teacher | null;
+  teachers: Teacher[];
   stage: { id: string; nameAr: string; nameEn: string | null } | null;
   period: "MORNING" | "EVENING" | null;
   registrationDate: string | null;
@@ -70,7 +74,7 @@ export default function ClassProfilePage({
 
   const [form, setForm] = useState({
     name: "",
-    teacherId: "",
+    teacherIds: [] as string[],
     stageId: "",
     period: "" as "" | "MORNING" | "EVENING",
     registrationDate: "",
@@ -93,7 +97,7 @@ export default function ClassProfilePage({
   function fillForm(c: ClassData) {
     setForm({
       name: c.name,
-      teacherId: c.teacherId ?? "",
+      teacherIds: c.teachers.map((teacher) => teacher.id),
       stageId: c.stage?.id ?? "",
       period: (c.period as "MORNING" | "EVENING") ?? "",
       registrationDate: c.registrationDate ? c.registrationDate.slice(0, 10) : "",
@@ -213,7 +217,7 @@ export default function ClassProfilePage({
       const res = await axios.put<ClassData>(`/api/classes/${id}`, {
         expectedUpdatedAt: cls.updatedAt,
         name: form.name,
-        teacherId: form.teacherId || null,
+        teacherIds: form.teacherIds,
         stageId: form.stageId || null,
         period: form.period || null,
         registrationDate: form.registrationDate || null,
@@ -359,20 +363,23 @@ export default function ClassProfilePage({
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">{t("classes.form.teacher")}</label>
+              <label className="block text-xs font-medium text-gray-500 mb-1">{t("classes.form.teachers")}</label>
               {editing ? (
-                <select
-                  value={form.teacherId}
-                  onChange={(e) => setForm((f) => ({ ...f, teacherId: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#111111]"
-                >
-                  <option value="">{t("common.select")}</option>
-                  {teachers.map((tch) => (
-                    <option key={tch.id} value={tch.id}>{tch.name}</option>
-                  ))}
-                </select>
+                <TeacherMultiSelect
+                  teachers={teachers}
+                  selectedIds={form.teacherIds}
+                  onChange={(teacherIds) => setForm((current) => ({ ...current, teacherIds }))}
+                />
               ) : (
-                <p className="text-sm text-gray-700">{cls.teacher?.name ?? "—"}</p>
+                <div className="flex flex-wrap gap-2">
+                  {cls.teachers.length > 0
+                    ? cls.teachers.map((teacher) => (
+                        <span key={teacher.id} className="rounded-full bg-violet-50 px-2.5 py-1 text-xs text-[#5B14D1]">
+                          {teacher.name}
+                        </span>
+                      ))
+                    : <p className="text-sm text-gray-700">—</p>}
+                </div>
               )}
             </div>
 
@@ -408,7 +415,7 @@ export default function ClassProfilePage({
               {editing ? (
                 <select
                   value={form.period}
-                  onChange={(e) => setForm((f) => ({ ...f, period: e.target.value as "" | "MORNING" | "EVENING", teacherId: "" }))}
+                  onChange={(e) => setForm((f) => ({ ...f, period: e.target.value as "" | "MORNING" | "EVENING", teacherIds: [] }))}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#111111]"
                 >
                   <option value="">{t("common.select")}</option>
@@ -425,8 +432,8 @@ export default function ClassProfilePage({
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">{t("classes.form.registrationDate")}</label>
               {editing ? (
-                <input
-                  type="date"
+                <LocalizedDateTimeInput
+                  nativeType="date"
                   dir="ltr"
                   value={form.registrationDate}
                   onChange={(e) => setForm((f) => ({ ...f, registrationDate: e.target.value }))}
@@ -530,7 +537,7 @@ export default function ClassProfilePage({
                     </button>
                   </PermissionGate>
 
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 bg-white border border-gray-200 rounded-xl shadow-lg p-3 hidden group-hover:block z-10 text-right">
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 bg-white border border-gray-200 rounded-xl shadow-lg p-3 hidden group-hover:block z-10 text-start">
                     <div className="flex items-center gap-3">
                       <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-100 flex-shrink-0">
                         {student.avatarUrl ? (
@@ -575,7 +582,7 @@ export default function ClassProfilePage({
               <h3 className="font-bold text-[#111111]">{t("classes.addStudents")}</h3>
             </div>
 
-            <p className="text-xs text-gray-400 text-right px-5 pt-3">
+            <p className="text-xs text-gray-400 text-start px-5 pt-3">
               {t("classes.availableFilterHint")}
               {cls.period && ` (${t(`periods.${cls.period}`)})`}
             </p>
@@ -610,7 +617,7 @@ export default function ClassProfilePage({
                         </div>
                       )}
                     </div>
-                    <div className="flex-1 text-right">
+                    <div className="flex-1 text-start">
                       <p className="text-sm font-medium text-[#111111]">{s.name}</p>
                       <p className="text-xs text-gray-400">{t(`periods.${s.period}`)}</p>
                     </div>

@@ -8,6 +8,7 @@ import {
   MAX_IMAGE_BYTES,
 } from "@/lib/file-upload";
 import { STORED_FILE_OWNER } from "@/lib/stored-file-ownership";
+import { studentClassWhere } from "@/lib/student-access-scope";
 
 /**
  * The photo attached to a care report (task 2.5).
@@ -51,7 +52,7 @@ export async function POST(request: Request) {
   // the client, and a photo filed against another school's child would be
   // deleted by that school's anonymisation and visible to that school's staff.
   const student = await prisma.student.findFirst({
-    where: { id: studentId, schoolId, deletedAt: null },
+    where: { id: studentId, schoolId, deletedAt: null, ...studentClassWhere(session) },
     select: { id: true, anonymizedAt: true },
   });
   if (!student) {

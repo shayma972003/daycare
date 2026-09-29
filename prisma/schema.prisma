@@ -198,6 +198,13 @@ enum MealAmount {
   REFUSED
 }
 
+/// A care report is private to staff until an authorised manager reviews it.
+enum CareReportReviewStatus {
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+}
+
 enum CareMealSource {
   CENTER
   HOME
@@ -504,11 +511,22 @@ model CareReport {
   /// events of the same type while keeping concurrent retries idempotent.
   dailyItemKey   String?
 
+  /// Newly filed reports stay inside the nursery until a manager approves the
+  /// observation. Historical rows are backfilled as approved by the migration
+  /// because they were already visible to guardians before this workflow.
+  reviewStatus       CareReportReviewStatus @default(PENDING_REVIEW)
+  reviewedAt         DateTime?
+  reviewedById       String?
+  reviewedByName     String?
+  reviewNote         String?
+  guardianNotifiedAt DateTime?
+
   @@index([studentId, occurredAt])
   @@index([schoolId, occurredAt])
   @@index([schoolId, type, occurredAt])
   @@unique([schoolId, dailyBatchId, studentId, dailyItemKey])
   @@index([schoolId, dailyBatchId])
+  @@index([schoolId, reviewStatus, occurredAt])
   /// Drives the nightly digest: unsent reports for a given day.
   @@index([schoolId, summarizedAt])
 }
@@ -1018,6 +1036,7 @@ model School {
   users            User[]
   teachers         Teacher[]
   classes          Class[]
+  classTeachers    ClassTeacher[]
   students         Student[]
   guardians        Guardian[]
   activities       Activity[]
@@ -1466,6 +1485,10 @@ model Class {
   school           School   @relation(fields: [schoolId], references: [id])
   teacherId        String?
   teacher          Teacher? @relation(fields: [teacherId, schoolId], references: [id, schoolId], onDelete: Restrict)
+  /// All staff assigned to this room. `teacherId` above is retained as the
+  /// compatibility primary teacher during the rollout; new authorization and
+  /// audience code reads this relation instead.
+  teacherAssignments ClassTeacher[]
   /// DEPRECATED — read `stage` instead. Kept until the last reader is gone.
   group            ClassGroup @default(KG1)
   /// The school's own academic stage. Nullable because a room need not have one
@@ -1518,6 +1541,26 @@ model Class {
   @@index([schoolId, archivedAt])
   @@index([teacherId])
   @@index([stageId])
+}
+
+/// A room can be shared by several teachers. Keeping the tenant id on the join
+/// row lets PostgreSQL enforce that both ends belong to the same school rather
+/// than relying on every caller to remember that condition.
+model ClassTeacher {
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  classId String
+  class   Class @relation(fields: [classId, schoolId], references: [id, schoolId], onDelete: Cascade)
+
+  teacherId String
+  teacher   Teacher @relation(fields: [teacherId, schoolId], references: [id, schoolId], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+
+  @@id([schoolId, classId, teacherId])
+  @@index([classId])
+  @@index([schoolId, teacherId])
 }
 
 model Teacher {
@@ -1601,6 +1644,7 @@ model Teacher {
   leftYear        Int?
 
   classes            Class[]
+  classAssignments   ClassTeacher[]
   activities         Activity[]
   calendarEvents     CalendarEvent[]
   users              User[]
@@ -1807,6 +1851,7 @@ model Student {
   payment_cycles  PaymentCycle[]
   care_reports    CareReport[]
   guardianLinks   StudentGuardian[]
+  activityMessages ActivityMessage[]
 
   @@unique([id, schoolId])
   @@index([schoolId, idNumberHash])
@@ -1861,6 +1906,8 @@ model ActivityMessage {
   schoolId       String
   activityId     String?
   calendarEventId String?
+  studentId       String?
+  absenceDate     DateTime? @db.Date
   body           String
   idempotencyKey String
   requestHash    String
@@ -1876,13 +1923,16 @@ model ActivityMessage {
   school     School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   activity   Activity? @relation(fields: [activityId, schoolId], references: [id, schoolId], onDelete: Cascade)
   calendarEvent CalendarEvent? @relation(fields: [calendarEventId, schoolId], references: [id, schoolId], onDelete: Cascade)
+  student    Student? @relation(fields: [studentId, schoolId], references: [id, schoolId], onDelete: Cascade)
   recipients ActivityMessageRecipient[]
 
   @@unique([id, schoolId])
   @@unique([schoolId, activityId, idempotencyKey])
   @@unique([schoolId, calendarEventId, idempotencyKey])
+  @@unique([schoolId, studentId, absenceDate])
   @@index([activityId, createdAt])
   @@index([calendarEventId, createdAt])
+  @@index([studentId, createdAt])
   @@index([schoolId, createdAt])
 }
 

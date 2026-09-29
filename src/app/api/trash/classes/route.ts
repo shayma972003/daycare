@@ -1,5 +1,6 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { classIdWhere } from "@/lib/student-access-scope";
 
 export async function GET() {
   let session;
@@ -15,7 +16,7 @@ export async function GET() {
   const schoolId = (session.user as { schoolId: string }).schoolId;
 
   const items = await prisma.class.findMany({
-    where: { schoolId, deletedAt: { not: null } },
+    where: { schoolId, deletedAt: { not: null }, ...classIdWhere(session) },
     select: { id: true, name: true, deletedAt: true },
     orderBy: { deletedAt: "desc" },
   });

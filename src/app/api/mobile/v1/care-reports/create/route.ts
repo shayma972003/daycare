@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { buildReportFields, careReportInputSchema, type CareReportInput } from "@/lib/care-reports";
 import { keyFromUrl, schoolIdFromKey } from "@/lib/r2";
 import { z } from "zod";
+import { studentClassWhere } from "@/lib/student-access-scope";
 
 /**
  * Filing a care report from the app.
@@ -71,12 +72,18 @@ export async function POST(request: Request) {
 
   // The list comes from a client. A report filed against another tenant's child
   // would be visible to that family.
+  const requestedStudentIds = [...new Set(parsed.data.studentIds)];
   const students = await prisma.student.findMany({
-    where: { id: { in: parsed.data.studentIds }, schoolId, deletedAt: null },
+    where: {
+      id: { in: requestedStudentIds },
+      schoolId,
+      deletedAt: null,
+      ...studentClassWhere(context),
+    },
     select: { id: true, classId: true, anonymizedAt: true },
   });
-  if (students.length === 0) {
-    return Response.json({ error: "لا يوجد أطفال صالحون" }, { status: 404 });
+  if (students.length !== requestedStudentIds.length) {
+    return Response.json({ error: "تتضمن القائمة طفلاً غير متاح" }, { status: 404 });
   }
 
   // A record whose personal data has already been destroyed must not gain new

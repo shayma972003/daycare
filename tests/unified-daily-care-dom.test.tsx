@@ -44,7 +44,7 @@ describe("unified daily care form", () => {
     await user.selectOptions(screen.getByRole("combobox", { name: "Sleep - Yousef" }), "DID_NOT_SLEEP");
     await user.selectOptions(screen.getByRole("combobox", { name: "Toilet - Noura" }), "DIAPER_WET");
     await user.selectOptions(screen.getByRole("combobox", { name: "Mood - Noura" }), "HAPPY");
-    await user.click(screen.getByRole("button", { name: "Send report for 2 children" }));
+    await user.click(screen.getByRole("button", { name: "Submit 2 children’s report for review" }));
 
     await waitFor(() => expect(mocks.post).toHaveBeenCalledTimes(1));
     const [url, payload] = mocks.post.mock.calls[0];
@@ -64,7 +64,7 @@ describe("unified daily care form", () => {
         napStatus: "DID_NOT_SLEEP",
       }),
     ]);
-    expect(onSaved).toHaveBeenCalledWith("Saved and sent 7 care entries");
+    expect(onSaved).toHaveBeenCalledWith("Saved 7 care entries and submitted them for review");
   });
 
   it("hides the centre meal name for home meals", async () => {
@@ -82,7 +82,7 @@ describe("unified daily care form", () => {
     await user.click(screen.getByRole("button", { name: "Meal from home" }));
     expect(screen.queryByPlaceholderText("For example: rice and vegetables")).toBeNull();
     await user.selectOptions(screen.getByRole("combobox", { name: "Food - Noura" }), "LITTLE");
-    await user.click(screen.getByRole("button", { name: "Send report for 1 children" }));
+    await user.click(screen.getByRole("button", { name: "Submit 1 children’s report for review" }));
     await waitFor(() => expect(mocks.post).toHaveBeenCalledTimes(1));
     expect(mocks.post.mock.calls[0][1].meal).toEqual(expect.objectContaining({ source: "HOME", name: null }));
   });
@@ -124,7 +124,7 @@ describe("unified daily care form", () => {
     await user.click(screen.getByRole("button", { name: "Save and return to class" }));
     expect(screen.getByRole("button", { name: "Details (2)" })).toBeTruthy();
 
-    await user.click(screen.getByRole("button", { name: "Send report for 1 children" }));
+    await user.click(screen.getByRole("button", { name: "Submit 1 children’s report for review" }));
     await waitFor(() => expect(mocks.post).toHaveBeenCalledTimes(1));
     expect(mocks.post.mock.calls[0][1].entries[0]).toEqual(expect.objectContaining({
       studentId: "student-1",
@@ -132,5 +132,77 @@ describe("unified daily care form", () => {
       supplies: "Spare clothes",
       extraEvents: [expect.objectContaining({ kind: "TOILET", details: "Used the toilet" })],
     }));
+  });
+
+  it("opens a returned batch with its previous values and resubmits the whole batch", async () => {
+    const user = userEvent.setup();
+    const onSaved = vi.fn();
+    render(
+      <LocaleProvider initialLocale="en">
+        <UnifiedDailyCareForm
+          date="2026-09-08"
+          students={[
+            { id: "student-1", name: "Noura" },
+            { id: "student-2", name: "Yousef" },
+          ]}
+          initialDraft={{
+            batchId: "returned-batch-123456",
+            reviewNote: "Please correct the nap time",
+            meal: { source: "CENTER", name: "Rice", occurredAt: "2026-09-08T09:00:00.000Z" },
+            entries: [
+              {
+                studentId: "student-1",
+                mealAmount: "ALL",
+                napStatus: "SLEPT",
+                napStartAt: "2026-09-08T10:00:00.000Z",
+                napEndAt: "2026-09-08T11:00:00.000Z",
+                toilet: "DIAPER_WET",
+                toiletOccurredAt: "2026-09-08T11:30:00.000Z",
+                mood: "HAPPY",
+                note: "Good day",
+                extraEvents: [],
+                supplies: null,
+                health: null,
+                medication: null,
+              },
+              {
+                studentId: "student-2",
+                mealAmount: "HALF",
+                napStatus: "DID_NOT_SLEEP",
+                napStartAt: null,
+                napEndAt: null,
+                toilet: "NO_RECORD",
+                toiletOccurredAt: null,
+                mood: "CALM",
+                note: null,
+                extraEvents: [],
+                supplies: null,
+                health: null,
+                medication: null,
+              },
+            ],
+          }}
+          onSaved={onSaved}
+        />
+      </LocaleProvider>
+    );
+
+    expect(screen.getByText("Please correct the nap time")).toBeTruthy();
+    expect(screen.getByDisplayValue("Rice")).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: "Food - Noura" })).toHaveProperty("value", "ALL");
+    expect(screen.getByRole("combobox", { name: "Food - Yousef" })).toHaveProperty("value", "HALF");
+    expect(screen.getAllByRole("checkbox").every((checkbox) => checkbox.hasAttribute("disabled"))).toBe(true);
+
+    await user.click(screen.getByRole("button", { name: "Resubmit 2 children’s report for review" }));
+    await waitFor(() => expect(mocks.post).toHaveBeenCalledTimes(1));
+    expect(mocks.post.mock.calls[0][0]).toBe("/api/care-reports/returned/returned-batch-123456/resubmit");
+    expect(mocks.post.mock.calls[0][1]).toEqual(expect.objectContaining({
+      idempotencyKey: "returned-batch-123456",
+      entries: [
+        expect.objectContaining({ studentId: "student-1", mealAmount: "ALL", mood: "HAPPY" }),
+        expect.objectContaining({ studentId: "student-2", mealAmount: "HALF", mood: "CALM" }),
+      ],
+    }));
+    expect(onSaved).toHaveBeenCalledWith("Updated 7 entries and resubmitted the report for review");
   });
 });

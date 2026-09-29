@@ -1,5 +1,7 @@
 "use client";
 
+import { LocalizedDateTimeInput } from "@/components/ui/LocalizedDateTimeInput";
+
 /**
  * The quick-report form (tasks 2.3–2.5).
  *
@@ -212,8 +214,8 @@ function CareReportModalContent({
 
           {type !== "NAP" && (
             <Field label={t("careForm.time")}>
-              <input
-                type="datetime-local"
+              <LocalizedDateTimeInput
+                nativeType="datetime-local"
                 value={occurredAt}
                 onChange={(e) => setOccurredAt(e.target.value)}
                 className={inputCls}
@@ -245,8 +247,8 @@ function CareReportModalContent({
           {type === "NAP" && (
             <>
               <Field label={t("common.from")}>
-                <input
-                  type="datetime-local"
+                <LocalizedDateTimeInput
+                  nativeType="datetime-local"
                   value={fields.napStartAt ?? ""}
                   onChange={(e) => set("napStartAt", e.target.value)}
                   className={inputCls}
@@ -254,8 +256,8 @@ function CareReportModalContent({
                 />
               </Field>
               <Field label={t("common.to")}>
-                <input
-                  type="datetime-local"
+                <LocalizedDateTimeInput
+                  nativeType="datetime-local"
                   value={fields.napEndAt ?? ""}
                   onChange={(e) => set("napEndAt", e.target.value)}
                   className={inputCls}

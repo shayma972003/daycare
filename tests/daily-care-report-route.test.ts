@@ -13,6 +13,8 @@ vi.mock("@/lib/session", () => ({
   requireSession: vi.fn(async () => ({
     user: { schoolId: "school-1", name: "Teacher One" },
     teacherId: "teacher-1",
+    teacherClassIds: ["class-1"],
+    permissions: ["attendance.students"],
   })),
   sessionErrorResponse: vi.fn(() => null),
 }));
@@ -97,6 +99,9 @@ describe("unified daily care report route", () => {
     expect(response.status).toBe(201);
     expect(json.created).toBe(9);
     expect(mocks.transaction).toHaveBeenCalledTimes(1);
+    expect(mocks.studentFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ classId: { in: ["class-1"] } }),
+    }));
 
     const writes = mocks.create.mock.calls.map(([argument]) => argument.data);
     expect(writes.filter((row) => row.type === "MEAL")).toEqual([
@@ -113,7 +118,18 @@ describe("unified daily care report route", () => {
       type: "NAP",
       napQuality: "DID_NOT_SLEEP",
     }));
-    expect(mocks.notify).toHaveBeenCalledWith("school-1", expect.arrayContaining(["report-1", "report-9"]));
+    expect(mocks.notify).not.toHaveBeenCalled();
+  });
+
+  it("rejects the whole batch when one child is outside the teacher's classes", async () => {
+    mocks.studentFindMany.mockResolvedValue([{ id: "student-1", classId: "class-1" }]);
+
+    const response = await POST(request(basePayload));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({ code: "INVALID_STUDENT_SET" });
+    expect(mocks.create).not.toHaveBeenCalled();
+    expect(mocks.notify).not.toHaveBeenCalled();
   });
 
   it("does not request a name for a home meal", async () => {

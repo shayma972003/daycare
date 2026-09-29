@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { enqueuePush } from "@/lib/push";
 import { CARE_TYPE_LABELS, describeReport } from "@/lib/care-reports";
+import { logSafeError } from "@/lib/safe-logger";
 
 /**
  * Immediate push when a report is filed (task 2.8).
@@ -21,7 +22,13 @@ export async function notifyGuardiansOfReport(
   if (reportIds.length === 0) return 0;
 
   const reports = await prisma.careReport.findMany({
-    where: { id: { in: reportIds }, schoolId },
+    where: {
+      id: { in: reportIds },
+      schoolId,
+      deletedAt: null,
+      reviewStatus: "APPROVED",
+      guardianNotifiedAt: null,
+    },
     select: {
       id: true,
       type: true,
@@ -29,34 +36,68 @@ export async function notifyGuardiansOfReport(
       student: {
         select: {
           name: true,
-          guardian: { select: { account: { select: { id: true } } } },
+          guardianId: true,
+          guardianLinks: { select: { guardianId: true } },
         },
       },
     },
   });
 
   let queued = 0;
-
+  const byStudent = new Map<string, typeof reports>();
   for (const report of reports) {
-    const accountId = report.student.guardian?.account?.id;
-    // No portal account yet — the nursery has not invited this family. The
-    // report is still filed and still appears in the daily email digest.
-    if (!accountId) continue;
+    const bucket = byStudent.get(report.studentId) ?? [];
+    bucket.push(report);
+    byStudent.set(report.studentId, bucket);
+  }
 
-    queued += await enqueuePush(
-      { schoolId, guardianAccountId: accountId },
-      {
-        title: report.student.name,
-        // The type only. Deliberately not `describeReport` — that includes the
-        // medication name and the temperature.
-        body: `تقرير جديد: ${CARE_TYPE_LABELS[report.type]}`,
-        data: {
-          kind: "care_report",
-          reportId: report.id,
-          studentId: report.studentId,
-        },
+  for (const studentReports of byStudent.values()) {
+    const first = studentReports[0];
+    const guardianIds = new Set<string>();
+    if (first.student.guardianId) guardianIds.add(first.student.guardianId);
+    for (const link of first.student.guardianLinks) guardianIds.add(link.guardianId);
+    const accounts = guardianIds.size === 0 ? [] : await prisma.guardianAccount.findMany({
+      where: {
+        schoolId,
+        guardianId: { in: [...guardianIds] },
+        acceptedAt: { not: null },
+        disabledAt: null,
+        guardian: { is: { schoolId, deletedAt: null, anonymizedAt: null } },
+      },
+      select: { id: true },
+    });
+
+    for (const account of accounts) {
+      try {
+        queued += await enqueuePush(
+          { schoolId, guardianAccountId: account.id },
+          {
+            title: first.student.name,
+            body: studentReports.length === 1
+              ? `تقرير جديد: ${CARE_TYPE_LABELS[first.type]}`
+              : `تم اعتماد تقرير الرعاية اليومي (${studentReports.length} بنود)`,
+            data: {
+              kind: "care_report",
+              reportId: first.id,
+              studentId: first.studentId,
+            },
+          }
+        );
+      } catch (error) {
+        logSafeError("care-report-approved-push", error);
       }
-    );
+    }
+
+    if (accounts.length > 0) {
+      await prisma.careReport.updateMany({
+        where: {
+          id: { in: studentReports.map((report) => report.id) },
+          schoolId,
+          guardianNotifiedAt: null,
+        },
+        data: { guardianNotifiedAt: new Date() },
+      });
+    }
   }
 
   return queued;

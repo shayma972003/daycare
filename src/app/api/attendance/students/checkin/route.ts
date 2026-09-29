@@ -1,6 +1,7 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { calendarToday, requestTimeZone } from "@/lib/device-date";
 import { AttendanceOperationError, checkInStudent } from "@/lib/attendance-operations";
+import { scopedClassIds } from "@/lib/student-access-scope";
 import { z } from "zod";
 
 const schema = z.object({ student_id: z.string().min(1) });
@@ -43,6 +44,7 @@ export async function POST(request: Request) {
       schoolId,
       date,
       now,
+      classIds: scopedClassIds(session),
     });
     return Response.json({
       attendance_id: attendance.id,

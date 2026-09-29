@@ -191,7 +191,7 @@ export function WeeklyAttendanceGrid({ classId, search = "" }: { classId?: strin
         <table className="w-full text-sm min-w-[760px] border-separate border-spacing-0">
           <thead>
             <tr>
-              <th className="sticky right-0 bg-white px-3 py-2 text-right text-gray-500 font-medium border-b border-gray-100">
+              <th className="sticky start-0 bg-white px-3 py-2 text-start text-gray-500 font-medium border-b border-gray-100">
                 {t("fields.child")}
               </th>
               {data.days.map((day, index) => (
@@ -212,7 +212,7 @@ export function WeeklyAttendanceGrid({ classId, search = "" }: { classId?: strin
           <tbody>
             {data.rows.map((row) => (
               <tr key={row.studentId}>
-                <td className="sticky right-0 bg-white px-3 py-2 border-b border-gray-50 text-[#111111] whitespace-nowrap">
+                <td className="sticky start-0 bg-white px-3 py-2 border-b border-gray-50 text-[#111111] whitespace-nowrap">
                   {row.name}
                 </td>
                 {row.cells.map((cell) => {

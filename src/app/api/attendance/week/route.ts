@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { astDateOnly, astParts } from "@/lib/datetime";
 import { calendarToday, requestTimeZone } from "@/lib/device-date";
 import { withNoStore } from "@/lib/auth-response";
+import { classIdWhere, studentClassWhere } from "@/lib/student-access-scope";
 import {
   expectedDays,
   capacityState,
@@ -65,6 +66,7 @@ export async function GET(request: Request) {
     prisma.student.findMany({
       where: {
         schoolId,
+        ...studentClassWhere(session),
         ...(search ? { name: { contains: search, mode: "insensitive" as const } } : {}),
         OR: [
           // Actual records survive expiry, departure, trash and a class move.
@@ -87,6 +89,7 @@ export async function GET(request: Request) {
         schoolId,
         date: { gte: weekStart, lt: weekEnd },
         ...(classId ? { classId } : {}),
+        student: studentClassWhere(session),
       },
       select: {
         studentId: true,
@@ -99,7 +102,7 @@ export async function GET(request: Request) {
     }),
     classId
       ? prisma.class.findFirst({
-          where: { id: classId, schoolId, deletedAt: null },
+          where: { id: classId, schoolId, deletedAt: null, ...classIdWhere(session) },
           select: {
             id: true,
             name: true,

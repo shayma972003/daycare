@@ -11,9 +11,8 @@ import {
   type CareReportInput,
 } from "@/lib/care-reports";
 import { keyFromUrl, schoolIdFromKey } from "@/lib/r2";
-import { notifyGuardiansOfReport } from "@/lib/care-report-notify";
 import { z } from "zod";
-import { logSafeError } from "@/lib/safe-logger";
+import { studentClassWhere } from "@/lib/student-access-scope";
 
 /**
  * Daily care reports (tasks 2.1–2.4).
@@ -61,6 +60,7 @@ export async function GET(request: Request) {
     where: {
       schoolId,
       deletedAt: null,
+      student: studentClassWhere(session),
       ...(studentId ? { studentId } : {}),
       ...(classId ? { classId } : {}),
       ...(type && (CARE_REPORT_TYPES as string[]).includes(type)
@@ -127,7 +127,7 @@ export async function POST(request: Request) {
   // not carry a discriminant check through an intermediate variable.
   const payload = parsed.data;
   const isBatch = "studentIds" in payload;
-  const studentIds = "studentIds" in payload ? payload.studentIds : [payload.studentId];
+  const studentIds = [...new Set("studentIds" in payload ? payload.studentIds : [payload.studentId])];
   const template: CareReportInput =
     "studentIds" in payload ? { ...payload.report, studentId: "" } : payload;
 
@@ -135,12 +135,17 @@ export async function POST(request: Request) {
   // list comes from the client, and a report filed against another tenant's
   // child would be visible to that family.
   const students = await prisma.student.findMany({
-    where: { id: { in: studentIds }, schoolId, deletedAt: null },
+    where: {
+      id: { in: studentIds },
+      schoolId,
+      deletedAt: null,
+      ...studentClassWhere(session),
+    },
     select: { id: true, name: true, classId: true, anonymizedAt: true },
   });
 
-  if (students.length === 0) {
-    return Response.json({ error: "لا يوجد أطفال صالحون" }, { status: 404 });
+  if (students.length !== studentIds.length) {
+    return Response.json({ error: "تتضمن القائمة طفلاً غير متاح" }, { status: 404 });
   }
 
   // A record whose personal data has already been destroyed must not gain new
@@ -205,18 +210,11 @@ export async function POST(request: Request) {
     return Response.json({ error: "لم يتم إدخال أي بيانات" }, { status: 422 });
   }
 
-  // Fire-and-forget. A push provider outage must not fail the teacher's tap —
-  // the report is already saved, and the queue retries on its own schedule.
-  void notifyGuardiansOfReport(
-    schoolId,
-    created.map((report) => report.id)
-  ).catch((error) => logSafeError("care-reports-notify", error));
-
   await logAction({
     school_id: schoolId,
     action: isBatch
-      ? `تسجيل ${CARE_TYPE_LABELS[template.type]} لـ${created.length} طفل`
-      : `تسجيل ${CARE_TYPE_LABELS[template.type]}: ${writable[0].name}`,
+      ? `إرسال ${CARE_TYPE_LABELS[template.type]} للمراجعة لـ${created.length} طفل`
+      : `إرسال ${CARE_TYPE_LABELS[template.type]} للمراجعة: ${writable[0].name}`,
     entity_type: "care_report",
     entity_id: created[0].id,
     entity_name: writable[0].name,

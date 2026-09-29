@@ -1,11 +1,14 @@
 "use client";
 
+import { LocalizedDateTimeInput } from "@/components/ui/LocalizedDateTimeInput";
+
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
 import { Topbar } from "@/components/layout/Topbar";
 import { useT } from "@/lib/i18n-provider";
 import { useAcademicStages, useStageName } from "@/lib/use-academic-stages";
+import { TeacherMultiSelect } from "@/components/classes/TeacherMultiSelect";
 
 
 type Teacher = { id: string; name: string };
@@ -22,7 +25,7 @@ export default function NewClassPage() {
 
   const [form, setForm] = useState({
     name: "",
-    teacherId: "",
+    teacherIds: [] as string[],
     stageId: "",
     period: "" as "" | "MORNING" | "EVENING",
     registrationDate: "",
@@ -46,7 +49,7 @@ export default function NewClassPage() {
     try {
       const res = await axios.post<{ id: string }>("/api/classes", {
         name: form.name,
-        ...(form.teacherId && { teacherId: form.teacherId }),
+        teacherIds: form.teacherIds,
         ...(form.stageId && { stageId: form.stageId }),
         ...(form.period && { period: form.period }),
         ...(form.registrationDate && { registrationDate: form.registrationDate }),
@@ -83,17 +86,12 @@ export default function NewClassPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">{t("classes.form.teacher")}</label>
-            <select
-              value={form.teacherId}
-              onChange={(e) => setForm((f) => ({ ...f, teacherId: e.target.value }))}
-              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#5B14D1] text-sm bg-white"
-            >
-              <option value="">{t("common.select")}</option>
-              {teachers.map((tch) => (
-                <option key={tch.id} value={tch.id}>{tch.name}</option>
-              ))}
-            </select>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">{t("classes.form.teachers")}</label>
+            <TeacherMultiSelect
+              teachers={teachers}
+              selectedIds={form.teacherIds}
+              onChange={(teacherIds) => setForm((current) => ({ ...current, teacherIds }))}
+            />
           </div>
 
           <div>
@@ -116,7 +114,7 @@ export default function NewClassPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1.5">{t("classes.form.period")}</label>
             <select
               value={form.period}
-              onChange={(e) => setForm((f) => ({ ...f, period: e.target.value as "" | "MORNING" | "EVENING", teacherId: "" }))}
+              onChange={(e) => setForm((f) => ({ ...f, period: e.target.value as "" | "MORNING" | "EVENING", teacherIds: [] }))}
               className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#5B14D1] text-sm bg-white"
             >
               <option value="">{t("common.select")}</option>
@@ -127,8 +125,8 @@ export default function NewClassPage() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">{t("classes.form.registrationDate")}</label>
-            <input
-              type="date"
+            <LocalizedDateTimeInput
+              nativeType="date"
               dir="ltr"
               value={form.registrationDate}
               onChange={(e) => setForm((f) => ({ ...f, registrationDate: e.target.value }))}

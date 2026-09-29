@@ -24,7 +24,11 @@ export async function GET(
   }
 
   const assignedClasses = await prisma.class.findMany({
-    where: { teacherId: id, schoolId, deletedAt: null },
+    where: {
+      schoolId,
+      deletedAt: null,
+      teacherAssignments: { some: { teacherId: id, schoolId } },
+    },
     select: { id: true, name: true, group: true },
   });
 

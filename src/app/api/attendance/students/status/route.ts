@@ -3,7 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
 import { calendarToday, requestTimeZone, storedDate } from "@/lib/device-date";
 import { ATTENDANCE_STATUS_LABELS } from "@/lib/attendance-schedule";
+import { studentClassWhere } from "@/lib/student-access-scope";
 import { z } from "zod";
+import { createAbsenceNotification } from "@/lib/absence-notifications";
+import { logSafeError } from "@/lib/safe-logger";
 
 const schema = z.object({
   studentIds: z.array(z.string().min(1)).min(1).max(200),
@@ -57,17 +60,19 @@ export async function POST(request: Request) {
   }
 
   const note = parsed.data.note?.trim() || null;
+  const requestedStudentIds = [...new Set(parsed.data.studentIds)];
   const outcome = await prisma.$transaction(async (tx) => {
     const students = await tx.student.findMany({
       where: {
-        id: { in: parsed.data.studentIds },
+        id: { in: requestedStudentIds },
         schoolId,
         deletedAt: null,
         anonymizedAt: null,
+        ...studentClassWhere(session),
       },
       select: { id: true, classId: true },
     });
-    if (students.length === 0) return { kind: "missing" as const };
+    if (students.length !== requestedStudentIds.length) return { kind: "missing" as const };
 
     const ids = students.map((student) => student.id);
     const existing = await tx.attendance.findMany({
@@ -100,11 +105,16 @@ export async function POST(request: Request) {
           checkoutAt: null,
         },
       });
-      return { kind: "success" as const, updated: deleted.count };
+      return { kind: "success" as const, updated: deleted.count, absenceNotificationIds: [] as string[] };
     }
 
+    // The notification writer is database-idempotent. Calling it for every
+    // explicit ABSENT mark also repairs a previous transient write failure
+    // without ever creating a second message for the same child/day.
+    const absenceNotificationIds: string[] = [];
     for (const student of students) {
       const record = byStudent.get(student.id);
+      if (parsed.data.status === "ABSENT") absenceNotificationIds.push(student.id);
       if (record) {
         await tx.attendance.update({
           where: { id: record.id },
@@ -128,7 +138,7 @@ export async function POST(request: Request) {
       }
       updated++;
     }
-    return { kind: "success" as const, updated };
+    return { kind: "success" as const, updated, absenceNotificationIds };
   });
 
   if (outcome.kind === "missing") {
@@ -150,6 +160,22 @@ export async function POST(request: Request) {
     performed_by: session.user.name ?? "الطاقم",
     request,
   });
+
+  if (outcome.absenceNotificationIds.length > 0) {
+    const results = await Promise.allSettled(outcome.absenceNotificationIds.map((studentId) =>
+      createAbsenceNotification({
+        schoolId,
+        studentId,
+        date,
+        createdById: session.user.id,
+      })
+    ));
+    for (const result of results) {
+      if (result.status === "rejected") {
+        logSafeError("attendance-absence-notification", result.reason);
+      }
+    }
+  }
 
   return Response.json({ updated: outcome.updated });
 }

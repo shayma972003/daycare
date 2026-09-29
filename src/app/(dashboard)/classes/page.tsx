@@ -26,6 +26,7 @@ interface ClassItem {
   notes?: string | null;
   teacherId?: string | null;
   teacher?: { id: string; name: string } | null;
+  teachers: { id: string; name: string }[];
   students: { id: string }[];
   needsTeacherWarning?: boolean;
 }
@@ -209,10 +210,10 @@ export default function ClassesPage() {
                     {cls.name}
                   </p>
 
-                  {cls.teacher && (
+                  {cls.teachers.length > 0 && (
                     <p className="text-xs text-gray-500">
-                      <span className="text-gray-400">{t("classes.teacher")}: </span>
-                      {cls.teacher.name}
+                      <span className="text-gray-400">{t("classes.teachers")}: </span>
+                      {cls.teachers.map((teacher) => teacher.name).join("، ")}
                     </p>
                   )}
 

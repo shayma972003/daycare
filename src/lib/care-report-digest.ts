@@ -34,6 +34,7 @@ export async function sendDailyDigests(now: Date = new Date()): Promise<DigestRe
   const reports = await prisma.careReport.findMany({
     where: {
       deletedAt: null,
+      reviewStatus: "APPROVED",
       summarizedAt: null,
       occurredAt: { gte: dayStart, lt: dayEnd },
       // A supplies request is addressed to the parent already and is not part of

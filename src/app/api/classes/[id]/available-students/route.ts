@@ -1,5 +1,6 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { classIdWhere, scopedClassIds } from "@/lib/student-access-scope";
 
 export async function GET(
   _request: Request,
@@ -18,8 +19,13 @@ export async function GET(
   const schoolId = (session.user as { schoolId: string }).schoolId;
   const { id } = await params;
 
+  // Unassigned children are outside a classroom account's roster. Assignment
+  // stays an office workflow even if an older/custom role still carries the
+  // broad `classes.assign` permission.
+  if (scopedClassIds(session) !== null) return Response.json([], { status: 200 });
+
   const cls = await prisma.class.findFirst({
-    where: { id, schoolId, deletedAt: null },
+    where: { id, schoolId, deletedAt: null, ...classIdWhere(session) },
     select: { id: true, period: true },
   });
   if (!cls) {

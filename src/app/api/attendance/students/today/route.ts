@@ -2,6 +2,7 @@ import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { withNoStore } from "@/lib/auth-response";
 import { calendarToday, requestTimeZone } from "@/lib/device-date";
+import { studentClassWhere } from "@/lib/student-access-scope";
 
 export async function GET(request: Request) {
   let session;
@@ -34,6 +35,7 @@ export async function GET(request: Request) {
       student: {
         deletedAt: null,
         anonymizedAt: null,
+        ...studentClassWhere(session),
       },
     },
     select: {

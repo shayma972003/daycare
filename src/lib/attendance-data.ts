@@ -45,7 +45,8 @@ export interface AttendancePageVisibility {
 export async function getAttendancePageData(
   schoolId: string,
   visibility: AttendancePageVisibility = { students: true, teachers: true },
-  today: Date = astDateOnly()
+  today: Date = astDateOnly(),
+  classIds: readonly string[] | null = null
 ): Promise<AttendancePageData> {
   // `Attendance.date` is a bare calendar date, so it is matched by equality
   // against the AST business day. Host-local midnight put the board a day out
@@ -56,6 +57,7 @@ export async function getAttendancePageData(
       ? prisma.student.findMany({
       where: {
         schoolId,
+        ...(classIds === null ? {} : { classId: { in: [...classIds] } }),
         deletedAt: null,
         anonymizedAt: null,
         OR: [
@@ -124,13 +126,18 @@ export async function getAttendancePageData(
         isActive: true,
         status: true,
         period: true,
-        // A deleted class still showed as the teacher's class here, unlike the
-        // sibling class query below which filters it. `orderBy` makes the pick
-        // deterministic when a teacher owns several.
+        // Keep the legacy relation as a read fallback until the compatibility
+        // column is removed in a later migration.
         classes: {
           where: { deletedAt: null },
           select: { id: true, name: true },
           orderBy: { name: "asc" },
+          take: 1,
+        },
+        classAssignments: {
+          where: { class: { deletedAt: null } },
+          select: { class: { select: { id: true, name: true } } },
+          orderBy: [{ createdAt: "asc" }, { classId: "asc" }],
           take: 1,
         },
         teacherAttendances: {
@@ -147,7 +154,11 @@ export async function getAttendancePageData(
       : Promise.resolve(null),
     visibility.students || visibility.teachers
       ? prisma.class.findMany({
-          where: { schoolId, deletedAt: null },
+          where: {
+            schoolId,
+            deletedAt: null,
+            ...(classIds === null ? {} : { id: { in: [...classIds] } }),
+          },
           select: { id: true, name: true, period: true },
           orderBy: { name: "asc" },
         })
@@ -192,16 +203,19 @@ export async function getAttendancePageData(
       eligible_for_attendance:
         s.isActive && s.status === "ACTIVE" && (!s.enrollmentEndDate || s.enrollmentEndDate >= today),
     })) ?? null,
-    teachers: teachers?.map((t) => ({
-      id: t.id,
-      full_name: t.name,
-      avatar_url: null,
-      class_id: t.classes[0]?.id ?? null,
-      class_name: t.classes[0]?.name ?? null,
-      period: t.period,
-      ...attendanceView(t.teacherAttendances),
-      eligible_for_attendance: t.isActive && t.status === "ACTIVE",
-    })) ?? null,
+    teachers: teachers?.map((t) => {
+      const assignedClass = t.classAssignments?.[0]?.class ?? t.classes[0] ?? null;
+      return {
+        id: t.id,
+        full_name: t.name,
+        avatar_url: null,
+        class_id: assignedClass?.id ?? null,
+        class_name: assignedClass?.name ?? null,
+        period: t.period,
+        ...attendanceView(t.teacherAttendances),
+        eligible_for_attendance: t.isActive && t.status === "ACTIVE",
+      };
+    }) ?? null,
     classes,
   };
 }

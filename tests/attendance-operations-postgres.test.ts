@@ -58,7 +58,7 @@ suite("attendance operations on isolated PostgreSQL", () => {
     const date = new Date("2026-08-28T00:00:00.000Z");
     const checkinAt = new Date("2026-08-28T08:00:00.000Z");
     const attempts = await Promise.allSettled(Array.from({ length: 4 }, () =>
-      operations.checkInStudent({ studentId, schoolId, date, now: checkinAt })
+      operations.checkInStudent({ studentId, schoolId, date, now: checkinAt, classIds: null })
     ));
     expect(
       attempts.filter((result) => result.status === "fulfilled"),
@@ -70,7 +70,7 @@ suite("attendance operations on isolated PostgreSQL", () => {
 
     const checkoutAt = new Date("2026-08-28T10:00:00.000Z");
     const closes = await Promise.allSettled(Array.from({ length: 4 }, () =>
-      operations.checkoutStudent({ studentId, schoolId, now: checkoutAt, timeZone: "UTC" })
+      operations.checkoutStudent({ studentId, schoolId, now: checkoutAt, timeZone: "UTC", classIds: null })
     ));
     expect(closes.filter((result) => result.status === "fulfilled")).toHaveLength(1);
     const student = await prisma.student.findUniqueOrThrow({ where: { id: studentId } });

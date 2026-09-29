@@ -13,7 +13,7 @@
  * optional and editable afterwards, so the fast path stays fast.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import axios from "axios";
 import { describeApiError } from "@/lib/api-error";
 import { useT } from "@/lib/i18n-provider";
@@ -28,6 +28,7 @@ import {
   DialogTitle,
   closeDialogOnOpenChange,
 } from "@/components/ui/Dialog";
+import { TeacherMultiSelect, type ClassTeacherOption } from "@/components/classes/TeacherMultiSelect";
 
 const inputCls =
   "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#5B14D1]";
@@ -50,8 +51,22 @@ export function QuickAddClass({
   const [name, setName] = useState("");
   const [stageId, setStageId] = useState("");
   const [period, setPeriod] = useState<"" | "MORNING" | "EVENING">("");
+  const [teachers, setTeachers] = useState<ClassTeacherOption[]>([]);
+  const [teacherIds, setTeacherIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const controller = new AbortController();
+    axios.get<ClassTeacherOption[]>("/api/teachers", {
+      params: period ? { period } : {},
+      signal: controller.signal,
+    }).then((response) => setTeachers(response.data)).catch((requestError: unknown) => {
+      if (!axios.isCancel(requestError)) setTeachers([]);
+    });
+    return () => controller.abort();
+  }, [open, period]);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -63,12 +78,14 @@ export function QuickAddClass({
         name: name.trim(),
         ...(stageId && { stageId }),
         ...(period && { period }),
+        teacherIds,
       });
       // Cleared so the drawer is ready for the next room — the case this exists
       // for is adding several in a row.
       setName("");
       setStageId("");
       setPeriod("");
+      setTeacherIds([]);
       onCreated();
     } catch (err) {
       setError(describeApiError(err, t("classes.createFailed")));
@@ -132,13 +149,21 @@ export function QuickAddClass({
           <label className="block text-xs text-gray-500 mb-1.5">{t("fields.period")}</label>
           <select
             value={period}
-            onChange={(event) => setPeriod(event.target.value as "" | "MORNING" | "EVENING")}
+            onChange={(event) => {
+              setPeriod(event.target.value as "" | "MORNING" | "EVENING");
+              setTeacherIds([]);
+            }}
             className={inputCls}
           >
             <option value="">—</option>
             <option value="MORNING">{t("fields.morning")}</option>
             <option value="EVENING">{t("fields.evening")}</option>
           </select>
+        </div>
+
+        <div>
+          <label className="block text-xs text-gray-500 mb-1.5">{t("classes.form.teachers")}</label>
+          <TeacherMultiSelect teachers={teachers} selectedIds={teacherIds} onChange={setTeacherIds} />
         </div>
 
         <DialogFooter className="pt-4">

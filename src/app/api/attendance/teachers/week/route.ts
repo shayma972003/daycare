@@ -30,7 +30,7 @@ export async function GET(request: Request) {
     return { date: date.toISOString().slice(0, 10), weekday: date.getUTCDay() };
   });
   const teachers = await prisma.teacher.findMany({
-    where: { schoolId, deletedAt: null, anonymizedAt: null, ...(search ? { name: { contains: search, mode: "insensitive" } } : {}), ...(classId ? { classes: { some: { id: classId, schoolId, deletedAt: null } } } : {}) },
+    where: { schoolId, deletedAt: null, anonymizedAt: null, ...(search ? { name: { contains: search, mode: "insensitive" } } : {}), ...(classId ? { classAssignments: { some: { classId, schoolId, class: { deletedAt: null } } } } : {}) },
     orderBy: { name: "asc" },
     select: { id: true, name: true, teacherAttendances: { where: { schoolId, date: { gte: weekStart, lt: weekEnd } }, select: { date: true, checkinAt: true, checkoutAt: true } } },
   });

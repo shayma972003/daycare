@@ -74,6 +74,23 @@ beforeEach(() => {
   });
 });
 describe("shared attendance operations", () => {
+  it("fails closed when a child is outside the teacher's assigned classes", async () => {
+    mocks.studentFind.mockResolvedValue(null);
+
+    await expect(checkInStudent({
+      studentId: "person-1",
+      schoolId: "school-1",
+      classIds: ["class-allowed"],
+      date: new Date("2026-09-01T00:00:00.000Z"),
+      now: new Date("2026-09-01T08:00:00.000Z"),
+    })).rejects.toMatchObject({ code: "NOT_ELIGIBLE", status: 409 });
+
+    expect(mocks.studentFind).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ classId: { in: ["class-allowed"] } }),
+    }));
+    expect(mocks.attendanceCreate).not.toHaveBeenCalled();
+  });
+
   it("calculates teacher lateness at manual check-in from her own period", async () => {
     mocks.teacherFind.mockResolvedValue({ id: "person-1", name: "Teacher", period: "EVENING" });
     mocks.teacherAttendanceCreate.mockResolvedValue({ id: "teacher-attendance-1" });
@@ -150,6 +167,7 @@ describe("shared attendance operations", () => {
       // 22:30 in Tokyo. The same instant is not late against a fixed Riyadh cutoff.
       now: new Date("2026-09-01T13:30:00.000Z"),
       timeZone: "Asia/Tokyo",
+      classIds: null,
     });
 
     expect(result.lateHours).toBe(0.5);
@@ -166,6 +184,7 @@ describe("shared attendance operations", () => {
       schoolId: "school-1",
       date: new Date("2026-08-28T00:00:00.000Z"),
       now: new Date("2026-08-28T01:00:00.000Z"),
+      classIds: null,
     })).rejects.toMatchObject({ code: "ALREADY_CHECKED_IN", status: 409 });
     expect(mocks.attendanceCreate).not.toHaveBeenCalled();
     expect(mocks.queryRaw).toHaveBeenCalledTimes(1);
@@ -178,6 +197,7 @@ describe("shared attendance operations", () => {
       schoolId: "school-1",
       date: new Date("2026-08-28T00:00:00.000Z"),
       now: new Date("2026-08-28T01:00:00.000Z"),
+      classIds: null,
     })).rejects.toMatchObject({ code: "OVERLAPPING_OPEN_ATTENDANCE" });
   });
 
@@ -195,6 +215,7 @@ describe("shared attendance operations", () => {
       schoolId: "school-1",
       now: new Date("2026-08-28T02:30:00.000Z"),
       timeZone: "UTC",
+      classIds: null,
     });
 
     expect(result.totalHours).toBe(3.5);
@@ -219,6 +240,7 @@ describe("shared attendance operations", () => {
       schoolId: "school-1",
       now: new Date("2026-08-28T02:00:00.000Z"),
       timeZone: "UTC",
+      classIds: null,
     })).rejects.toBeInstanceOf(AttendanceOperationError);
     expect(mocks.studentUpdate).not.toHaveBeenCalled();
   });
@@ -258,6 +280,7 @@ describe("shared attendance operations", () => {
       schoolId: "school-1",
       now: new Date("2026-08-28T02:00:00.000Z"),
       timeZone: "UTC",
+      classIds: null,
     })).rejects.toThrow("synthetic totals failure");
   });
 });

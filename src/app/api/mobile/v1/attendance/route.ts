@@ -6,6 +6,7 @@ import {
   checkoutStudent,
 } from "@/lib/attendance-operations";
 import { logAction } from "@/lib/activity-logger";
+import { scopedClassIds } from "@/lib/student-access-scope";
 import { z } from "zod";
 
 /**
@@ -69,6 +70,7 @@ export async function POST(request: Request) {
         schoolId,
         date: calendarToday(now, timeZone),
         now,
+        classIds: scopedClassIds(context),
       });
       await logAction({
         school_id: schoolId,
@@ -87,7 +89,13 @@ export async function POST(request: Request) {
       });
     }
 
-    const attendance = await checkoutStudent({ studentId, schoolId, now, timeZone });
+    const attendance = await checkoutStudent({
+      studentId,
+      schoolId,
+      now,
+      timeZone,
+      classIds: scopedClassIds(context),
+    });
     await logAction({
       school_id: schoolId,
       action: `تسجيل خروج الطالب من التطبيق: ${attendance.personName}`,

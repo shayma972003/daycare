@@ -6,6 +6,7 @@ import {
   updateImportRowPayload,
 } from '@/lib/import-row-payload';
 import { validateImportRow, type ImportMappingEntry } from '@/lib/import-row-validation';
+import { scopedClassIds } from '@/lib/student-access-scope';
 
 export async function POST(_req: Request, { params }: { params: Promise<{ session_id: string }> }) {
   let session;
@@ -14,6 +15,12 @@ export async function POST(_req: Request, { params }: { params: Promise<{ sessio
   }
   if (!session.can('students.manage')) {
     return Response.json({ error: 'Forbidden' }, { status: 403 });
+  }
+  if (scopedClassIds(session) !== null) {
+    return Response.json(
+      { error: 'الاستيراد الجماعي متاح لإدارة الحضانة فقط', code: 'CLASS_SCOPE_FORBIDDEN' },
+      { status: 403 }
+    );
   }
   const schoolId = session.user.schoolId;
   const { session_id: sessionId } = await params;

@@ -1,5 +1,7 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@/generated/prisma/client";
+import { scopedClassIds, studentClassWhere } from "@/lib/student-access-scope";
 
 export async function GET(
   _request: Request,
@@ -17,9 +19,23 @@ export async function GET(
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
   const { id } = await params;
+  const classIds = scopedClassIds(session);
+  const where: Prisma.InvoiceWhereInput = {
+    id,
+    schoolId,
+    generationStatus: "COMPLETED",
+    ...(classIds !== null
+      ? {
+          OR: [
+            { student: { is: { schoolId, ...studentClassWhere(session) } } },
+            { teacherId: session.teacherId ?? "" },
+          ],
+        }
+      : {}),
+  };
 
   const invoice = await prisma.invoice.findFirst({
-    where: { id, schoolId, generationStatus: "COMPLETED" },
+    where,
     include: { student: true, teacher: true },
   });
 

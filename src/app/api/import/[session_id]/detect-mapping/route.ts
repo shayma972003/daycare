@@ -1,6 +1,7 @@
 import { requireSession, sessionErrorResponse } from '@/lib/session';
 import { prisma } from '@/lib/prisma';
 import { detectMapping } from '@/lib/import-mapper';
+import { scopedClassIds } from '@/lib/student-access-scope';
 
 export async function POST(_req: Request, { params }: { params: Promise<{ session_id: string }> }) {
   let session;
@@ -13,6 +14,12 @@ export async function POST(_req: Request, { params }: { params: Promise<{ sessio
   }
   if (!session.can('students.manage')) {
     return Response.json({ error: 'Forbidden' }, { status: 403 });
+  }
+  if (scopedClassIds(session) !== null) {
+    return Response.json(
+      { error: 'الاستيراد الجماعي متاح لإدارة الحضانة فقط', code: 'CLASS_SCOPE_FORBIDDEN' },
+      { status: 403 }
+    );
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
   const { session_id } = await params;

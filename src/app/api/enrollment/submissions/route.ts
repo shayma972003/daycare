@@ -2,6 +2,7 @@ import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { ENROLLMENT_MANAGE_PERMISSION } from "@/lib/enrollment-access";
 import { revealEnrollmentSubmissionIdNumber } from "@/lib/enrollment-submission-pii";
+import { scopedClassIds } from "@/lib/student-access-scope";
 
 export async function GET() {
   let session;
@@ -16,6 +17,12 @@ export async function GET() {
   }
   if (!session.can(ENROLLMENT_MANAGE_PERMISSION)) {
     return Response.json({ error: "Forbidden", code: "FORBIDDEN" }, { status: 403 });
+  }
+  if (scopedClassIds(session) !== null) {
+    return Response.json(
+      { error: "مراجعة طلبات التسجيل متاحة لإدارة الحضانة فقط", code: "CLASS_SCOPE_FORBIDDEN" },
+      { status: 403 }
+    );
   }
   const schoolId = session.user.schoolId;
 

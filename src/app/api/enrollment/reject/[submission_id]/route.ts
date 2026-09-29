@@ -11,6 +11,7 @@ import {
   type ExactStoredFileOwner,
 } from "@/lib/stored-files";
 import { STORED_FILE_OWNER } from "@/lib/stored-file-ownership";
+import { scopedClassIds } from "@/lib/student-access-scope";
 
 class EnrollmentReviewConflict extends Error {}
 class EnrollmentReviewNotFound extends Error {}
@@ -27,6 +28,12 @@ export async function POST(
   }
   if (!session.can(ENROLLMENT_MANAGE_PERMISSION)) {
     return Response.json({ error: "Forbidden", code: "FORBIDDEN" }, { status: 403 });
+  }
+  if (scopedClassIds(session) !== null) {
+    return Response.json(
+      { error: "مراجعة طلبات التسجيل متاحة لإدارة الحضانة فقط", code: "CLASS_SCOPE_FORBIDDEN" },
+      { status: 403 }
+    );
   }
 
   const schoolId = session.user.schoolId;

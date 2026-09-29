@@ -117,10 +117,17 @@ export const studentFormSchema = z
     guardianPhone2: optionalPhone,
     guardianEmail: optionalEmail,
     guardianName2: z.string().trim().max(120).optional().nullable(),
-    guardianPhone3: optionalPhone,
-    guardianPhone4: optionalPhone,
     guardianEmail2: optionalEmail,
   })
+  .refine(
+    (data) =>
+      data.billingCycle !== "CUSTOM" ||
+      (data.cycleFee !== undefined && data.cycleFee !== null && data.cycleFee !== ""),
+    {
+      message: "رسوم الدورة المخصصة مطلوبة",
+      path: ["cycleFee"],
+    }
+  )
   .refine(
     (data) =>
       !data.enrollmentDate ||

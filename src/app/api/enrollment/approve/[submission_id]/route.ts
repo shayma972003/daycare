@@ -16,6 +16,7 @@ import {
 } from "@/lib/stored-files";
 import { STORED_FILE_OWNER } from "@/lib/stored-file-ownership";
 import { revealEnrollmentSubmissionIdNumber } from "@/lib/enrollment-submission-pii";
+import { mayAccessClass, scopedClassIds } from "@/lib/student-access-scope";
 
 class EnrollmentReviewConflict extends Error {}
 class EnrollmentReviewNotFound extends Error {}
@@ -93,6 +94,12 @@ export async function POST(
     const foreignStage = foreignStageResponse(error);
     if (foreignStage) return foreignStage;
     throw error;
+  }
+  if (scopedClassIds(session) !== null && !mayAccessClass(session, ownedClassId)) {
+    return Response.json(
+      { error: "الفصل غير متاح لهذا الحساب", code: "CLASS_SCOPE_FORBIDDEN" },
+      { status: 403 }
+    );
   }
 
   try {

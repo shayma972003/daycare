@@ -1,6 +1,7 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { revealIdNumber } from "@/lib/pii-crypto";
+import { studentClassWhere } from "@/lib/student-access-scope";
 
 export async function GET(
   _request: Request,
@@ -22,7 +23,7 @@ export async function GET(
   const [school, student, invoiceCount] = await Promise.all([
     prisma.school.findUnique({ where: { id: schoolId } }),
     prisma.student.findFirst({
-      where: { id: student_id, schoolId, deletedAt: null },
+      where: { id: student_id, schoolId, deletedAt: null, ...studentClassWhere(session) },
       include: { class: true, guardian: true },
     }),
     prisma.invoice.count({ where: { schoolId, generationStatus: "COMPLETED" } }),

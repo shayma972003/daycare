@@ -29,7 +29,6 @@ describe("safe error logging", () => {
       "src/lib/export-audit.ts",
       "src/lib/trash-cleanup.ts",
       "src/lib/r2.ts",
-      "src/app/api/care-reports/route.ts",
       "src/app/api/statistics/dashboard/route.ts",
       "src/app/api/expenses/route.ts",
       "src/app/api/health/route.ts",

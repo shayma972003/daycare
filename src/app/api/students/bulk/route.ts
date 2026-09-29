@@ -5,6 +5,7 @@ import { parseAcademicStage } from "@/lib/enum-labels";
 import { protectIdNumber } from "@/lib/pii-crypto";
 import { z } from "zod";
 import * as XLSX from "xlsx";
+import { scopedClassIds } from "@/lib/student-access-scope";
 
 // Expected Excel column headers (Arabic):
 // الاسم | الحالة الصحية | المرحلة الدراسية | الفترة | رقم الهوية | تاريخ الميلاد | الجنسية | الجنس
@@ -65,6 +66,12 @@ export async function POST(request: Request) {
     );
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
+  if (scopedClassIds(session) !== null) {
+    return Response.json(
+      { error: "استيراد الأطفال متاح لإدارة الحضانة فقط", code: "CLASS_SCOPE_FORBIDDEN" },
+      { status: 403 }
+    );
+  }
 
   const formData = await request.formData();
   const file = formData.get("file") as File | null;

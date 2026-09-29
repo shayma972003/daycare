@@ -1,6 +1,7 @@
 import { requireSession, sessionErrorResponse } from '@/lib/session';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
+import { scopedClassIds } from '@/lib/student-access-scope';
 
 const mappingEntrySchema = z.object({
   uploadedColumn: z.string(),
@@ -22,6 +23,12 @@ export async function PUT(request: Request, { params }: { params: Promise<{ sess
   }
   if (!session.can('students.manage')) {
     return Response.json({ error: 'Forbidden' }, { status: 403 });
+  }
+  if (scopedClassIds(session) !== null) {
+    return Response.json(
+      { error: 'الاستيراد الجماعي متاح لإدارة الحضانة فقط', code: 'CLASS_SCOPE_FORBIDDEN' },
+      { status: 403 }
+    );
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
   const { session_id } = await params;

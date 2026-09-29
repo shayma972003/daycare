@@ -471,7 +471,6 @@ export default function TeachersPage() {
                     const att = todayAtt[teacher.id];
                     const checkedIn = !!att?.checkinAt;
                     const checkedOut = !!att?.checkoutAt;
-                    const primaryClass = teacher.classes?.[0];
                     const operational = isTeacherOperational(teacher, new Date(), deviceTimeZone());
 
                     return (
@@ -493,7 +492,9 @@ export default function TeachersPage() {
                         </td>
 
                         <td className="px-4 py-3 text-gray-600">
-                          {primaryClass?.name ?? <span className="text-gray-400">—</span>}
+                          {teacher.classes?.length
+                            ? teacher.classes.map((room) => room.name).join("، ")
+                            : <span className="text-gray-400">—</span>}
                         </td>
 
                         <td className="px-4 py-3">

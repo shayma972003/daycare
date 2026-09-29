@@ -1,5 +1,7 @@
 "use client";
 
+import { LocalizedDateTimeInput } from "@/components/ui/LocalizedDateTimeInput";
+
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, type Resolver } from "react-hook-form";
@@ -18,7 +20,7 @@ import { usePermissions } from "@/lib/use-permissions";
 import { BILLING_CYCLES, BILLING_CYCLE_LABEL_KEYS } from "@/lib/billing-cycles";
 
 type Class = { id: string; name: string };
-type GuardianSuggestion = { id: string; name: string; phone1?: string | null; phone2?: string | null; email?: string | null; name_2?: string | null; phone_3?: string | null; phone_4?: string | null; email_2?: string | null };
+type GuardianSuggestion = { id: string; name: string; phone1?: string | null; phone2?: string | null; email?: string | null; name_2?: string | null; email_2?: string | null };
 
 type StudentFormData = {
   name: string;
@@ -36,11 +38,10 @@ type StudentFormData = {
   guardianPhone2: string;
   guardianEmail: string;
   guardianName2: string;
-  guardianPhone3: string;
-  guardianPhone4: string;
   guardianEmail2: string;
   registrationFee: string;
-  billingCycle: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
+  billingCycle: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY" | "CUSTOM";
+  cycleFee: string;
   paymentMethod: "CASH" | "TRANSFER" | "CARD";
   paymentStatus: string;
   enrollmentDate: string;
@@ -57,8 +58,6 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 const inputCls = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111111]";
-const readonlyCls = "w-full border border-gray-100 bg-gray-50 rounded-lg px-3 py-2 text-sm text-gray-600";
-
 export default function NewStudentPage() {
   // Locale-aware translation — see src/lib/i18n.tsx.
   const t = useT();
@@ -99,6 +98,7 @@ export default function NewStudentPage() {
       gender: "MALE",
       period: "MORNING",
       billingCycle: "MONTHLY",
+      cycleFee: "",
       paymentMethod: "CASH",
       paymentStatus: "PENDING",
     },
@@ -205,8 +205,6 @@ export default function NewStudentPage() {
     setValue("guardianPhone2", g.phone2 ?? "");
     setValue("guardianEmail", g.email ?? "");
     setValue("guardianName2", g.name_2 ?? "");
-    setValue("guardianPhone3", g.phone_3 ?? "");
-    setValue("guardianPhone4", g.phone_4 ?? "");
     setValue("guardianEmail2", g.email_2 ?? "");
     setSuggestions([]);
     setShowSuggestions(false);
@@ -228,6 +226,9 @@ export default function NewStudentPage() {
         gender: data.gender,
         allergies: data.allergies || undefined,
         billingCycle: data.billingCycle,
+        ...(data.billingCycle === "CUSTOM" && canManageFinance
+          ? { cycleFee: Number(data.cycleFee) }
+          : {}),
         ...(canManageFinance
           ? {
               paymentMethod: data.paymentMethod,
@@ -242,8 +243,6 @@ export default function NewStudentPage() {
         guardianPhone2: data.guardianPhone2 || undefined,
         guardianEmail: data.guardianEmail || undefined,
         guardianName2: data.guardianName2 || undefined,
-        guardianPhone3: data.guardianPhone3 || undefined,
-        guardianPhone4: data.guardianPhone4 || undefined,
         guardianEmail2: data.guardianEmail2 || undefined,
         // Omitted rather than sent as 0 when the school default is in force.
         //
@@ -269,7 +268,7 @@ export default function NewStudentPage() {
   const guardianName = watch("guardianName");
 
   return (
-    <div dir="rtl" className="min-h-screen bg-brand-bg">
+    <div className="min-h-screen bg-brand-bg">
       <Topbar title={t("studentProfile.addStudentTitle")} />
       <div className="p-6">
         <button
@@ -300,7 +299,7 @@ export default function NewStudentPage() {
                 </select>
               </Field>
               <Field label={t("students.profile.dateOfBirth")}>
-                <input {...register("dateOfBirth")} type="date" dir="ltr" className={inputCls} />
+                <LocalizedDateTimeInput {...register("dateOfBirth")} nativeType="date" dir="ltr" className={inputCls} />
               </Field>
               <Field label={t("students.profile.nationality")}>
                 <input {...register("nationality")} type="text" className={inputCls} />
@@ -366,6 +365,7 @@ export default function NewStudentPage() {
                 </span>
               )}
             </div>
+            <p className="mb-3 text-sm font-semibold text-gray-700">{t("studentProfile.firstGuardian")}</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="relative">
                 <Field label={t("students.profile.guardianName")}>
@@ -390,7 +390,7 @@ export default function NewStudentPage() {
                         key={g.id}
                         type="button"
                         onClick={() => selectGuardian(g)}
-                        className="w-full text-right px-4 py-2.5 text-sm hover:bg-gray-50 border-b border-gray-50 last:border-0"
+                        className="w-full text-start px-4 py-2.5 text-sm hover:bg-gray-50 border-b border-gray-50 last:border-0"
                       >
                         <div className="font-medium text-[#111111]">{g.name}</div>
                         <div className="text-xs text-gray-400">{[g.phone1, g.email].filter(Boolean).join(" · ")}</div>
@@ -399,7 +399,7 @@ export default function NewStudentPage() {
                   </div>
                 )}
               </div>
-              <Field label={t("students.profile.phone1")}>
+              <Field label={t("studentProfile.guardianPhone")}>
                 <input
                   {...register("guardianPhone1")}
                   type="tel"
@@ -410,9 +410,6 @@ export default function NewStudentPage() {
                     if (!guardianName) handleGuardianFieldChange(e.target.value);
                   }}
                 />
-              </Field>
-              <Field label={t("students.profile.phone2")}>
-                <input {...register("guardianPhone2")} type="tel" dir="ltr" className={inputCls} />
               </Field>
               <Field label={t("students.profile.email")}>
                 <input
@@ -426,19 +423,19 @@ export default function NewStudentPage() {
                   }}
                 />
               </Field>
+            </div>
+            <div className="my-5 border-t border-gray-200" />
+            <p className="mb-3 text-sm font-semibold text-gray-700">{t("studentProfile.secondGuardian")}</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label={t("fields.guardianName2")}>
                 <input {...register("guardianName2")} type="text" className={inputCls}
                   onChange={(e) => { register("guardianName2").onChange(e); handleGuardian2FieldChange(e.target.value); }} />
               </Field>
-              <Field label={t("studentProfile.phone3")}>
-                <input {...register("guardianPhone3")} type="tel" dir="ltr" className={inputCls}
-                  onChange={(e) => { register("guardianPhone3").onChange(e); handleGuardian2FieldChange(e.target.value); }} />
+              <Field label={t("studentProfile.guardianPhone")}>
+                <input {...register("guardianPhone2")} type="tel" dir="ltr" className={inputCls}
+                  onChange={(e) => { register("guardianPhone2").onChange(e); handleGuardian2FieldChange(e.target.value); }} />
               </Field>
-              <Field label={t("studentProfile.phone4")}>
-                <input {...register("guardianPhone4")} type="tel" dir="ltr" className={inputCls}
-                  onChange={(e) => { register("guardianPhone4").onChange(e); handleGuardian2FieldChange(e.target.value); }} />
-              </Field>
-              <Field label={t("fields.email2")}>
+              <Field label={t("students.profile.email")}>
                 <input {...register("guardianEmail2")} type="email" dir="ltr" className={inputCls}
                   onChange={(e) => { register("guardianEmail2").onChange(e); handleGuardian2FieldChange(e.target.value); }} />
               </Field>
@@ -458,12 +455,19 @@ export default function NewStudentPage() {
               </Field>
               <Field label={t("students.profile.billingCycle")}>
                 <select {...register("billingCycle")} className={inputCls}>
-                  {BILLING_CYCLES.filter((cycle) => ["DAILY", "WEEKLY", "MONTHLY", "YEARLY"].includes(cycle)).map((cycle) => <option key={cycle} value={cycle}>{t(BILLING_CYCLE_LABEL_KEYS[cycle])}</option>)}
+                  {BILLING_CYCLES.filter((cycle) => cycle !== "CUSTOM" || canManageFinance).map((cycle) => <option key={cycle} value={cycle}>{t(BILLING_CYCLE_LABEL_KEYS[cycle])}</option>)}
                 </select>
-              </Field>
-              <Field label={t("students.profile.cycleFee")}>
-                <input value={studentFees?.[billingCycle] ?? ""} readOnly aria-readonly="true" dir="ltr" className={readonlyCls} />
-                <p className="mt-1 text-xs text-gray-500">{t("students.cycleFeeSettingsHint")}</p>
+                {billingCycle === "CUSTOM" ? (
+                  <div className="mt-3">
+                    <label className="mb-1 block text-xs font-medium text-gray-500">{t("students.profile.cycleFee")}</label>
+                    <input {...register("cycleFee")} type="number" min="0" step="0.01" dir="ltr" className={inputCls} />
+                    <p className="mt-1 text-xs text-gray-500">{t("students.customCycleFeeHint")}</p>
+                  </div>
+                ) : (
+                  <p className="mt-2 text-xs text-gray-500">
+                    {t("students.configuredCycleFee", { amount: studentFees?.[billingCycle] ?? "—" })}
+                  </p>
+                )}
               </Field>
               <Field label={t("studentProfile.paymentStatusLabel")}>
                 {/* Options generated from the enum. Hand-written lists here were
@@ -478,10 +482,10 @@ export default function NewStudentPage() {
                 </select>
               </Field>
               <Field label={t("fields.joinDate")}>
-                <input {...register("enrollmentDate")} type="date" dir="ltr" className={inputCls} />
+                <LocalizedDateTimeInput {...register("enrollmentDate")} nativeType="date" dir="ltr" className={inputCls} />
               </Field>
               <Field label={t("students.profile.enrollmentEndDate")}>
-                <input {...register("enrollmentEndDate")} type="date" dir="ltr" className={inputCls} />
+                <LocalizedDateTimeInput {...register("enrollmentEndDate")} nativeType="date" dir="ltr" className={inputCls} />
               </Field>
               {settingsError && (
                 <DataErrorState message={settingsError} retryLabel={t("common.retry")} onRetry={() => setSettingsRetry((value) => value + 1)} />

@@ -2,6 +2,7 @@ import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { logAction } from "@/lib/activity-logger";
 import { calendarToday, requestTimeZone } from "@/lib/device-date";
 import { AttendanceOperationError, checkInStudent } from "@/lib/attendance-operations";
+import { scopedClassIds } from "@/lib/student-access-scope";
 
 export async function POST(
   request: Request,
@@ -23,7 +24,13 @@ export async function POST(
   catch { return Response.json({ error: "Invalid time zone" }, { status: 422 }); }
 
   try {
-    const { personName, ...attendance } = await checkInStudent({ studentId: id, schoolId, date, now });
+    const { personName, ...attendance } = await checkInStudent({
+      studentId: id,
+      schoolId,
+      date,
+      now,
+      classIds: scopedClassIds(session),
+    });
     await logAction({
       school_id: schoolId,
       action: "تسجيل وصول الطالب: " + personName,

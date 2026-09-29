@@ -76,6 +76,7 @@ export async function GET(request: Request) {
       where: {
         studentId: { in: childIds },
         deletedAt: null,
+        reviewStatus: "APPROVED",
         occurredAt: { gte: dayStart, lt: dayEnd },
       },
       orderBy: { occurredAt: "desc" },

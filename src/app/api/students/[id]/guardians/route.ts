@@ -1,5 +1,6 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { studentClassWhere } from "@/lib/student-access-scope";
 import { logAction } from "@/lib/activity-logger";
 import { assertGuardianOwned, crossTenantResponse } from "@/lib/tenant-guard";
 import { normalizePhone } from "@/lib/phone-normalizer";
@@ -30,7 +31,7 @@ export async function GET(
   const { id } = await params;
 
   const student = await prisma.student.findFirst({
-    where: { id, schoolId, deletedAt: null },
+    where: { id, schoolId, deletedAt: null, ...studentClassWhere(session) },
     select: {
       id: true,
       guardianId: true,
@@ -129,7 +130,7 @@ export async function POST(
   }
 
   const student = await prisma.student.findFirst({
-    where: { id, schoolId, deletedAt: null },
+    where: { id, schoolId, deletedAt: null, ...studentClassWhere(session) },
     select: { id: true, name: true, guardianId: true, anonymizedAt: true },
   });
   if (!student) return Response.json({ error: "Not found" }, { status: 404 });
@@ -274,7 +275,7 @@ export async function DELETE(
   }
 
   const student = await prisma.student.findFirst({
-    where: { id, schoolId, deletedAt: null },
+    where: { id, schoolId, deletedAt: null, ...studentClassWhere(session) },
     select: { id: true, name: true, guardianId: true },
   });
   if (!student) return Response.json({ error: "Not found" }, { status: 404 });

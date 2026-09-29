@@ -1,6 +1,7 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { renewalFields, renewStudentSubscription, RenewalError } from "@/lib/student-renewal";
 import { withNoStore } from "@/lib/auth-response";
+import { scopedClassIds } from "@/lib/student-access-scope";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   let session;
@@ -14,7 +15,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!parsed.success) return Response.json({ error: "Invalid renewal data" }, { status: 422 });
   try {
     const { id } = await params;
-    const student = await renewStudentSubscription(parsed.data, { id, schoolId: session.user.schoolId, actor: session.user.name ?? "admin", request });
+    const student = await renewStudentSubscription(parsed.data, {
+      id,
+      schoolId: session.user.schoolId,
+      actor: session.user.name ?? "admin",
+      request,
+      classIds: scopedClassIds(session),
+    });
     const financial = session.can("finance.view") || session.can("finance.manage");
     return withNoStore(Response.json({ student: { ...student, cycleFee: financial ? student.cycleFee : undefined } }));
   } catch (error) {

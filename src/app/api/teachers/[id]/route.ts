@@ -15,6 +15,7 @@ import {
   getRetentionPolicy,
 } from "@/lib/data-retention";
 import { z } from "zod";
+import { detachTeacherFromClasses } from "@/lib/class-teacher-assignments";
 
 const updateTeacherSchema = z.object({
   expectedUpdatedAt: z.iso.datetime(),
@@ -253,9 +254,8 @@ export async function PUT(
     if (data.isActive !== undefined) updateData.isActive = data.isActive;
   }
 
-  // Class assignment lives on Class.teacherId, not on Teacher, so it is applied
-  // as a separate step: detach whatever this teacher currently owns, then
-  // attach the chosen class. Both sides are verified against the school first.
+  // Legacy clients still submit one class from the teacher profile. Translate
+  // that into the join table without evicting any other teacher from the room.
   let classReassignment: { detachFrom: string; attachTo: string | null } | null = null;
   if ("classId" in data) {
     try {
@@ -283,16 +283,23 @@ export async function PUT(
       if (claimed.count !== 1) throw new Error("STALE_RECORD");
 
       if (classReassignment) {
-        await tx.class.updateMany({
-          where: { teacherId: classReassignment.detachFrom, schoolId },
-          data: { teacherId: null, needsTeacherWarning: true },
+        await detachTeacherFromClasses(tx, {
+          teacherId: classReassignment.detachFrom,
+          schoolId,
         });
         if (classReassignment.attachTo) {
+          await tx.classTeacher.create({
+            data: { schoolId, classId: classReassignment.attachTo, teacherId: id },
+          });
           const attached = await tx.class.updateMany({
             where: { id: classReassignment.attachTo, schoolId, deletedAt: null },
-            data: { teacherId: id, needsTeacherWarning: false },
+            data: { needsTeacherWarning: false },
           });
           if (attached.count !== 1) throw new Error("CLASS_NOT_FOUND");
+          await tx.class.updateMany({
+            where: { id: classReassignment.attachTo, schoolId, teacherId: null },
+            data: { teacherId: id },
+          });
         }
       }
 
@@ -367,18 +374,11 @@ export async function DELETE(
 
   // `schoolId` on both secondary queries — see the matching note in the class
   // route for why the redundant filter is deliberate.
-  const assignedClasses = await prisma.class.findMany({
-    where: { teacherId: id, schoolId, deletedAt: null },
-    select: { id: true, name: true, group: true },
+  const assignedClasses = await prisma.$transaction(async (tx) => {
+    const rooms = await detachTeacherFromClasses(tx, { teacherId: id, schoolId });
+    await tx.teacher.update({ where: { id }, data: { deletedAt: new Date() } });
+    return rooms;
   });
-
-  await prisma.$transaction([
-    prisma.teacher.update({ where: { id }, data: { deletedAt: new Date() } }),
-    prisma.class.updateMany({
-      where: { teacherId: id, schoolId, deletedAt: null },
-      data: { teacherId: null, needsTeacherWarning: true },
-    }),
-  ]);
 
   await logAction({
     school_id: schoolId,

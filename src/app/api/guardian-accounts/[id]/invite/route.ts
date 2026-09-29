@@ -6,6 +6,7 @@ import { sendEmail } from "@/lib/notifications";
 import { mintInvite } from "@/lib/invitations";
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { env } from "@/lib/env";
+import { scopedClassIds, studentClassWhere } from "@/lib/student-access-scope";
 
 class GuardianInviteNotFoundError extends Error {}
 class GuardianInviteDisabledError extends Error {}
@@ -30,6 +31,7 @@ export async function POST(
   }
 
   const schoolId = session.user.schoolId;
+  const classIds = scopedClassIds(session);
   const { id } = await params;
   const limited = await rateLimit({
     key: `guardian-invite:${schoolId}:${id}`,
@@ -53,7 +55,22 @@ export async function POST(
   try {
     target = await prisma.$transaction(async (tx) => {
       const account = await tx.guardianAccount.findFirst({
-        where: { id, schoolId },
+        where: {
+          id,
+          schoolId,
+          ...(classIds === null
+            ? {}
+            : {
+                guardian: {
+                  is: {
+                    OR: [
+                      { students: { some: { schoolId, ...studentClassWhere(session) } } },
+                      { links: { some: { student: { is: { schoolId, ...studentClassWhere(session) } } } } },
+                    ],
+                  },
+                },
+              }),
+        },
         select: {
           id: true,
           schoolId: true,
@@ -76,6 +93,7 @@ export async function POST(
                   status: "ACTIVE",
                   deletedAt: null,
                   anonymizedAt: null,
+                  ...studentClassWhere(session),
                 },
                 take: 1,
                 select: { id: true },
@@ -88,6 +106,7 @@ export async function POST(
                       status: "ACTIVE",
                       deletedAt: null,
                       anonymizedAt: null,
+                      ...studentClassWhere(session),
                     },
                   },
                 },

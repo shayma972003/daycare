@@ -29,8 +29,12 @@ export class StudentCycleFeeError extends Error {
   constructor() { super("Student subscription fee is not configured"); }
 }
 
-export function requireStudentCycleFee(cycle: BillingCycle, settings: Parameters<typeof resolveStudentCycleFee>[2]) {
-  const fee = resolveStudentCycleFee(cycle, null, settings);
+export function requireStudentCycleFee(
+  cycle: BillingCycle,
+  settings: Parameters<typeof resolveStudentCycleFee>[2],
+  explicitFee: MoneyInput = null
+) {
+  const fee = resolveStudentCycleFee(cycle, explicitFee, settings);
   if (fee === null || !fee.isFinite() || fee.isNegative()) throw new StudentCycleFeeError();
   return fee;
 }

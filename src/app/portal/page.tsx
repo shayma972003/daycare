@@ -18,10 +18,11 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import axios from "axios";
 import { formatAst } from "@/lib/datetime";
-import { CARE_TYPE_COLORS } from "@/lib/care-reports";
+import { CARE_TYPE_COLORS, CARE_TYPE_LABEL_KEYS } from "@/lib/care-reports";
 import { Icon, CARE_TYPE_ICON_NAMES } from "@/components/ui/Icon";
-import { ATTENDANCE_STATUS_LABELS } from "@/lib/attendance-schedule";
+import { ATTENDANCE_STATUS_LABEL_KEYS } from "@/lib/attendance-schedule";
 import type { CareReportType } from "@/generated/prisma/enums";
+import { useLocale } from "@/lib/i18n-provider";
 
 const TOKEN_KEY = "portal_access_token";
 
@@ -85,7 +86,7 @@ interface Child {
   enrollmentEndDate: string | null;
   class: { id: string; name: string } | null;
   todayAttendance: {
-    status: keyof typeof ATTENDANCE_STATUS_LABELS;
+    status: keyof typeof ATTENDANCE_STATUS_LABEL_KEYS;
     checkinAt: string | null;
     checkoutAt: string | null;
   } | null;
@@ -100,6 +101,7 @@ interface PortalData {
 }
 
 export default function PortalPage() {
+  const { t, locale } = useLocale();
   const token = useSyncExternalStore(subscribeToken, readToken, readTokenOnServer);
   const [data, setData] = useState<PortalData | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -153,18 +155,18 @@ export default function PortalPage() {
   }
 
   return (
-    <div dir="rtl" className="min-h-screen bg-[#f4f6fb]">
+    <div className="min-h-screen bg-[#f4f6fb]">
       <header className="bg-white border-b border-gray-100 px-5 py-4 flex items-center gap-3 sticky top-0 z-10">
         <div className="flex-1 min-w-0">
           <h1 className="font-bold text-[#111111] truncate">
-            {data?.school?.name ?? "البوابة"}
+            {data?.school?.name ?? t("portal.title")}
           </h1>
           {data?.guardianName && (
-            <p className="text-xs text-gray-500 truncate">مرحباً {data.guardianName}</p>
+            <p className="text-xs text-gray-500 truncate">{t("portal.hello", { name: data.guardianName })}</p>
           )}
         </div>
         <button onClick={signOut} className="text-xs text-gray-500 hover:text-gray-700">
-          خروج
+          {t("portal.logout")}
         </button>
       </header>
 
@@ -176,10 +178,10 @@ export default function PortalPage() {
         )}
 
         {!data ? (
-          <p className="text-sm text-gray-400 py-10 text-center">جارٍ التحميل…</p>
+          <p className="text-sm text-gray-400 py-10 text-center">{t("common.loading")}</p>
         ) : data.children.length === 0 ? (
           <p className="text-sm text-gray-500 py-10 text-center">
-            لا يوجد أطفال مرتبطون بحسابك. تواصلي مع الحضانة.
+            {t("portal.noChildren")}
           </p>
         ) : (
           <>
@@ -191,29 +193,29 @@ export default function PortalPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <h2 className="font-bold text-[#111111] truncate">{child.name}</h2>
-                    <p className="text-xs text-gray-500">{child.class?.name ?? "بدون فصل"}</p>
+                    <p className="text-xs text-gray-500">{child.class?.name ?? t("portal.noClass")}</p>
                   </div>
                   {child.todayAttendance && (
                     <span className="text-xs px-3 py-1.5 rounded-full bg-gray-50 text-gray-700">
-                      {ATTENDANCE_STATUS_LABELS[child.todayAttendance.status]}
+                      {t(ATTENDANCE_STATUS_LABEL_KEYS[child.todayAttendance.status])}
                     </span>
                   )}
                 </div>
 
                 {child.todayAttendance?.checkinAt && (
                   <p className="text-xs text-gray-500">
-                    الحضور:{" "}
+                    {t("portal.checkin")}: {" "}
                     {formatAst(new Date(child.todayAttendance.checkinAt), {
                       hour: "2-digit",
                       minute: "2-digit",
-                    })}
+                    }, locale)}
                     {child.todayAttendance.checkoutAt && (
                       <>
-                        {" · الانصراف: "}
+                        {` · ${t("portal.checkout")}: `}
                         {formatAst(new Date(child.todayAttendance.checkoutAt), {
                           hour: "2-digit",
                           minute: "2-digit",
-                        })}
+                        }, locale)}
                       </>
                     )}
                   </p>
@@ -221,15 +223,15 @@ export default function PortalPage() {
 
                 {(child.allergies || child.healthCondition) && (
                   <div className="text-xs bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-0.5">
-                    {child.allergies && <p>الحساسية: {child.allergies}</p>}
-                    {child.healthCondition && <p>الحالة الصحية: {child.healthCondition}</p>}
+                    {child.allergies && <p>{t("portal.allergies")}: {child.allergies}</p>}
+                    {child.healthCondition && <p>{t("portal.healthCondition")}: {child.healthCondition}</p>}
                   </div>
                 )}
 
                 <div>
-                  <h3 className="text-sm font-bold text-[#111111] mb-2">تقارير اليوم</h3>
+                  <h3 className="text-sm font-bold text-[#111111] mb-2">{t("portal.todayReports")}</h3>
                   {child.todayReports.length === 0 ? (
-                    <p className="text-xs text-gray-400">لا توجد تقارير بعد</p>
+                    <p className="text-xs text-gray-400">{t("portal.noReports")}</p>
                   ) : (
                     <ul className="space-y-2">
                       {child.todayReports.map((report) => (
@@ -241,7 +243,7 @@ export default function PortalPage() {
                           />
                           <div className="flex-1 min-w-0">
                             <p className="text-sm text-[#111111]">
-                              <span className="text-gray-500">{report.typeLabel}: </span>
+                              <span className="text-gray-500">{t(CARE_TYPE_LABEL_KEYS[report.type])}: </span>
                               {report.summary}
                             </p>
                             {report.note && (
@@ -262,7 +264,7 @@ export default function PortalPage() {
                               {formatAst(new Date(report.occurredAt), {
                                 hour: "2-digit",
                                 minute: "2-digit",
-                              })}
+                              }, locale)}
                             </p>
                           </div>
                         </li>
@@ -275,12 +277,12 @@ export default function PortalPage() {
 
             {data.events.length > 0 && (
               <section className="bg-white rounded-2xl shadow-sm p-5">
-                <h2 className="font-bold text-[#111111] mb-3">القادم</h2>
+                <h2 className="font-bold text-[#111111] mb-3">{t("portal.upcoming")}</h2>
                 <ul className="space-y-2">
                   {data.events.map((event) => (
                     <li key={event.id} className="flex items-center gap-3 text-sm">
                       <span className="text-xs text-gray-400 shrink-0 w-24">
-                        {formatAst(new Date(event.startAt), { month: "short", day: "numeric" })}
+                        {formatAst(new Date(event.startAt), { month: "short", day: "numeric" }, locale)}
                       </span>
                       <span className="text-[#111111]">{event.title}</span>
                     </li>
@@ -304,6 +306,7 @@ export default function PortalPage() {
  * two-step dance to establish.
  */
 function PortalSignIn({ onSignedIn }: { onSignedIn: (token: string) => void }) {
+  const { t } = useLocale();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -323,17 +326,17 @@ function PortalSignIn({ onSignedIn }: { onSignedIn: (token: string) => void }) {
     } catch (err) {
       setError(
         axios.isAxiosError(err) && err.response?.status === 401
-          ? "البريد أو كلمة المرور غير صحيحة"
-          : "تعذّر تسجيل الدخول، حاولي مجدداً"
+          ? t("portal.invalidCredentials")
+          : t("portal.signInFailed")
       );
       setBusy(false);
     }
   }
 
   return (
-    <div dir="rtl" className="min-h-screen bg-[#f4f6fb] flex items-center justify-center p-5">
+    <div className="min-h-screen bg-[#f4f6fb] flex items-center justify-center p-5">
       <div className="bg-white rounded-2xl shadow-sm p-6 w-full max-w-sm space-y-4">
-        <h1 className="font-bold text-[#111111] text-lg">بوابة ولي الأمر</h1>
+        <h1 className="font-bold text-[#111111] text-lg">{t("portal.title")}</h1>
 
         {error && (
           <div role="alert" className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">
@@ -342,7 +345,7 @@ function PortalSignIn({ onSignedIn }: { onSignedIn: (token: string) => void }) {
         )}
 
         <div>
-          <label className="block text-xs text-gray-500 mb-1.5">البريد الإلكتروني</label>
+          <label className="block text-xs text-gray-500 mb-1.5">{t("portal.email")}</label>
           <input
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -354,7 +357,7 @@ function PortalSignIn({ onSignedIn }: { onSignedIn: (token: string) => void }) {
         </div>
 
         <div>
-          <label className="block text-xs text-gray-500 mb-1.5">كلمة المرور</label>
+          <label className="block text-xs text-gray-500 mb-1.5">{t("portal.password")}</label>
           <input
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -373,11 +376,11 @@ function PortalSignIn({ onSignedIn }: { onSignedIn: (token: string) => void }) {
           disabled={busy || !email.trim() || !password}
           className="w-full py-3 bg-[#5B14D1] text-white rounded-xl text-sm font-bold hover:bg-[#490EA9] disabled:opacity-60"
         >
-          {busy ? "..." : "دخول"}
+          {busy ? "..." : t("portal.signIn")}
         </button>
 
         <p className="text-xs text-gray-400 leading-relaxed">
-          إن لم يكن لديك حساب بعد، ستصلك دعوة من الحضانة على بريدك لتعيين كلمة المرور.
+          {t("portal.inviteHint")}
         </p>
       </div>
     </div>

@@ -5,6 +5,7 @@ import {
   lockActivitiesForClassTargetChange,
   touchActivityTargetRevisions,
 } from "@/lib/activity-lock";
+import { classIdWhere } from "@/lib/student-access-scope";
 
 export async function DELETE(
   request: Request,
@@ -24,7 +25,7 @@ export async function DELETE(
   const { id } = await params;
 
   const cls = await prisma.class.findFirst({
-    where: { id, schoolId, deletedAt: { not: null } },
+    where: { id, schoolId, deletedAt: { not: null }, ...classIdWhere(session) },
   });
   if (!cls) {
     return Response.json({ error: "Not found" }, { status: 404 });

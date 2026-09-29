@@ -1,5 +1,6 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { studentClassWhere } from "@/lib/student-access-scope";
 import { logAction } from "@/lib/activity-logger";
 import { WEEKDAY_LABELS, expectedDays } from "@/lib/attendance-schedule";
 import { z } from "zod";
@@ -45,7 +46,7 @@ export async function PUT(
   }
 
   const student = await prisma.student.findFirst({
-    where: { id, schoolId, deletedAt: null },
+    where: { id, schoolId, deletedAt: null, ...studentClassWhere(session) },
     select: { id: true, name: true, anonymizedAt: true },
   });
   if (!student) return Response.json({ error: "Not found" }, { status: 404 });

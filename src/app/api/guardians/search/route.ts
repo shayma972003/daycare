@@ -1,6 +1,7 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { scopedClassIds, studentClassWhere } from "@/lib/student-access-scope";
 
 const searchSchema = z.object({
   query: z.string().min(1),
@@ -29,20 +30,33 @@ export async function POST(request: Request) {
     return Response.json({ error: parsed.error.flatten() }, { status: 422 });
 
   const { query } = parsed.data;
+  const classIds = scopedClassIds(session);
 
   const guardians = await prisma.guardian.findMany({
     where: {
       schoolId,
       deletedAt: null,
-      OR: [
-        { name:    { contains: query, mode: "insensitive" } },
-        { phone1:  { contains: query, mode: "insensitive" } },
-        { phone2:  { contains: query, mode: "insensitive" } },
-        { email:   { contains: query, mode: "insensitive" } },
-        { name_2:  { contains: query, mode: "insensitive" } },
-        { phone_3: { contains: query, mode: "insensitive" } },
-        { phone_4: { contains: query, mode: "insensitive" } },
-        { email_2: { contains: query, mode: "insensitive" } },
+      AND: [
+        {
+          OR: [
+            { name:    { contains: query, mode: "insensitive" } },
+            { phone1:  { contains: query, mode: "insensitive" } },
+            { phone2:  { contains: query, mode: "insensitive" } },
+            { email:   { contains: query, mode: "insensitive" } },
+            { name_2:  { contains: query, mode: "insensitive" } },
+            { phone_3: { contains: query, mode: "insensitive" } },
+            { phone_4: { contains: query, mode: "insensitive" } },
+            { email_2: { contains: query, mode: "insensitive" } },
+          ],
+        },
+        ...(classIds === null
+          ? []
+          : [{
+              OR: [
+                { students: { some: { schoolId, ...studentClassWhere(session) } } },
+                { links: { some: { student: { is: { schoolId, ...studentClassWhere(session) } } } } },
+              ],
+            }]),
       ],
     },
     select: {
@@ -50,7 +64,7 @@ export async function POST(request: Request) {
       name: true, phone1: true, phone2: true, email: true,
       name_2: true, phone_3: true, phone_4: true, email_2: true,
       students: {
-        where: { deletedAt: null, isActive: true },
+        where: { deletedAt: null, isActive: true, ...studentClassWhere(session) },
         select: { id: true, name: true, avatarUrl: true },
       },
     },

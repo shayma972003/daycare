@@ -1,6 +1,8 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { studentClassWhere } from "@/lib/student-access-scope";
 import { logAction } from "@/lib/activity-logger";
+import { invoiceMonthRange } from "@/lib/invoice-lateness";
 
 export async function DELETE(
   request: Request,
@@ -19,29 +21,30 @@ export async function DELETE(
   const schoolId = (session.user as { schoolId: string }).schoolId;
   const { id } = await params;
 
-  const student = await prisma.student.findFirst({ where: { id, schoolId, deletedAt: null } });
+  const student = await prisma.student.findFirst({
+    where: { id, schoolId, deletedAt: null, ...studentClassWhere(session) },
+  });
   if (!student) {
     return Response.json({ error: "Not found" }, { status: 404 });
   }
 
-  // `Student.lateHours` is a lifetime total, but only *today's* attendance rows
-  // were being cleared, so the two drifted permanently apart: the student showed
-  // zero late hours while historical rows still carried fees. Both are cleared
-  // together, in one transaction.
-  await prisma.$transaction([
-    prisma.student.update({
-      where: { id },
-      data: { lateHours: 0 },
-    }),
-    prisma.attendance.updateMany({
-      where: { studentId: id, schoolId },
-      data: { lateFee: 0, lateMinutes: 0 },
-    }),
-  ]);
+  const period = invoiceMonthRange(new Date());
+  // This is a financial waiver for the current invoice month. Keep the
+  // attendance minutes and the student's lifetime late-hours total intact so
+  // attendance history remains accurate and auditable.
+  const waived = await prisma.attendance.updateMany({
+    where: {
+      studentId: id,
+      schoolId,
+      date: { gte: period.from, lte: period.to },
+      lateFee: { gt: 0 },
+    },
+    data: { lateFee: 0 },
+  });
 
   await logAction({
     school_id: schoolId,
-    action: `حذف رسوم التأخير للطالب: ${student.name}`,
+    action: `إعفاء رسوم تأخير الشهر الحالي للطالب: ${student.name}`,
     entity_type: "student",
     entity_id: student.id,
     entity_name: student.name,
@@ -49,5 +52,10 @@ export async function DELETE(
     request,
   });
 
-  return Response.json({ success: true });
+  return Response.json({
+    success: true,
+    waivedAttendanceCount: waived.count,
+    periodFrom: period.from,
+    periodTo: period.to,
+  });
 }

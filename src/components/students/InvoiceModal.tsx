@@ -1,5 +1,7 @@
 "use client";
 
+import { LocalizedDateTimeInput } from "@/components/ui/LocalizedDateTimeInput";
+
 import { useState, useEffect } from "react";
 import {
   Dialog,
@@ -360,8 +362,8 @@ function InvoiceModalContent({ studentId, onClose, onIssued }: Omit<InvoiceModal
                   </div>
                   <div>
                     <label className="text-xs text-gray-500 block mb-1">{t("invoiceForm.dueDate")}</label>
-                    <input
-                      type="date"
+                    <LocalizedDateTimeInput
+                      nativeType="date"
                       value={dueDate}
                       onChange={(e) => setDueDate(e.target.value)}
                       className={inputCls}

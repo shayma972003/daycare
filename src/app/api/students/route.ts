@@ -22,6 +22,7 @@ import { moneyNumber } from "@/lib/money";
 import { logSafeError } from "@/lib/safe-logger";
 import { requireStudentCycleFee, StudentCycleFeeError, studentFeeSettingsSelect } from "@/lib/student-cycle-fee";
 import { z } from "zod";
+import { mayAccessClass, studentClassWhere } from "@/lib/student-access-scope";
 
 const createStudentSchema = z.object({
   name: z.string().min(1),
@@ -37,7 +38,8 @@ const createStudentSchema = z.object({
   nationality: z.string().optional(),
   gender: z.enum(["MALE", "FEMALE"]).optional(),
   allergies: z.string().optional(),
-  billingCycle: z.enum(["DAILY", "WEEKLY", "MONTHLY", "YEARLY"]).optional(),
+  billingCycle: z.enum(["DAILY", "WEEKLY", "MONTHLY", "YEARLY", "CUSTOM"]).optional(),
+  cycleFee: z.number().finite().min(0).optional(),
   paymentMethod: z.enum(["CASH", "TRANSFER", "CARD"]).optional(),
   enrollmentDate: z.string().optional(),
   enrollmentEndDate: z.string().optional(),
@@ -80,7 +82,11 @@ export async function GET(request: Request) {
   const gender = searchParams.get("gender");
   const subscription = searchParams.get("subscription");
 
-  const where: Record<string, unknown> = { schoolId, deletedAt: null };
+  const where: Record<string, unknown> = {
+    schoolId,
+    deletedAt: null,
+    ...studentClassWhere(session),
+  };
 
   if (search) {
     where.name = { contains: search, mode: "insensitive" };
@@ -188,6 +194,7 @@ export async function POST(request: Request) {
     gender,
     allergies,
     billingCycle,
+    cycleFee,
     paymentMethod,
     enrollmentDate,
     enrollmentEndDate,
@@ -205,7 +212,7 @@ export async function POST(request: Request) {
   } = parsed.data;
 
   if (
-    [paymentMethod, enrollmentDate, enrollmentEndDate, paymentStatus, registration_fee].some(
+    [paymentMethod, enrollmentDate, enrollmentEndDate, paymentStatus, registration_fee, cycleFee].some(
       (value) => value !== undefined
     ) &&
     !session.can("finance.manage")
@@ -236,11 +243,19 @@ export async function POST(request: Request) {
     throw error;
   }
 
+  if (!mayAccessClass(session, ownedClassId)) {
+    return Response.json({ error: "الفصل غير مسموح لهذا الحساب", code: "CLASS_SCOPE_FORBIDDEN" }, { status: 403 });
+  }
+
   try {
   const student = await prisma.$transaction(async (tx) => {
     const effectiveBillingCycle = billingCycle ?? "MONTHLY";
     const settings = await tx.settings.findUnique({ where: { schoolId }, select: studentFeeSettingsSelect });
-    const effectiveCycleFee = requireStudentCycleFee(effectiveBillingCycle, settings);
+    const effectiveCycleFee = requireStudentCycleFee(
+      effectiveBillingCycle,
+      settings,
+      effectiveBillingCycle === "CUSTOM" ? cycleFee : null
+    );
     let resolvedGuardianId = guardianId;
     if (!resolvedGuardianId && guardianName) {
       // Contact values are not proof of identity. Sharing an existing family
@@ -277,7 +292,10 @@ export async function POST(request: Request) {
       ...(gender !== undefined && { gender }),
       ...(allergies !== undefined && { allergies }),
       billingCycle: effectiveBillingCycle,
-      billingIntervalDays: null,
+      // The current custom product is a custom-priced 30-day cycle. Keeping the
+      // interval explicit lets renewals and payment schedules remain usable
+      // without asking the child form for a second, unrelated custom field.
+      billingIntervalDays: effectiveBillingCycle === "CUSTOM" ? 30 : null,
       cycleFee: effectiveCycleFee,
       ...(paymentMethod !== undefined && { paymentMethod }),
       ...(enrollmentDate !== undefined && {
@@ -342,4 +360,5 @@ export async function POST(request: Request) {
     }
     throw error;
   }
+
 }

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@/generated/prisma/client";
 
 /**
  * Ownership checks for foreign keys that arrive from the client.
@@ -62,6 +63,32 @@ export async function assertTeacherOwned(
   if (!found) throw new CrossTenantError("teacherId", "المعلم غير موجود");
 
   return found.id;
+}
+
+/**
+ * Resolves a set of teacher ids while preserving the caller's order.
+ *
+ * A single `findMany` keeps class create/edit bounded even when a room has many
+ * teachers. Duplicates are collapsed before persistence so the composite key is
+ * never used as application-level validation.
+ */
+export async function assertTeachersOwned(
+  teacherIds: readonly string[],
+  schoolId: string,
+  db: Pick<Prisma.TransactionClient, "teacher"> = prisma
+): Promise<string[]> {
+  const uniqueIds = [...new Set(teacherIds.filter(Boolean))];
+  if (uniqueIds.length === 0) return [];
+
+  const found = await db.teacher.findMany({
+    where: { id: { in: uniqueIds }, schoolId, deletedAt: null },
+    select: { id: true },
+  });
+  const owned = new Set(found.map((teacher) => teacher.id));
+  const foreignId = uniqueIds.find((id) => !owned.has(id));
+  if (foreignId) throw new CrossTenantError("teacherIds", "المعلم غير موجود");
+
+  return uniqueIds;
 }
 
 export async function assertStudentOwned(

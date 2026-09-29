@@ -177,8 +177,9 @@ describe("roster scoping", () => {
   const roster = () => source("src/app/api/mobile/v1/attendance/today/route.ts");
 
   it("narrows a linked teacher to her own classes", () => {
-    expect(roster()).toContain("teacherId");
+    expect(roster()).toContain("scopedClassIds(context)");
     expect(roster()).toContain("ownClassIds");
+    expect(roster()).toContain("classId: { in: [...ownClassIds] }");
   });
 
   it("refuses a class she does not hold instead of widening", () => {

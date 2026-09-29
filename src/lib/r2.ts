@@ -176,6 +176,28 @@ export function signedReadUrl(key: string, expiresInSeconds = 300): Promise<stri
 }
 
 /**
+ * Reads a private object on the server.
+ *
+ * Most images should keep using `signedReadUrl` so their bytes do not pass
+ * through the application. Sensitive documents are different: proxying their
+ * small response keeps the signed R2 URL out of the browser and makes a copied
+ * address useless without an authorised application session.
+ */
+export async function readPrivateObject(key: string): Promise<{
+  bytes: Uint8Array;
+  contentType: string;
+}> {
+  const result = await s3().send(
+    new GetObjectCommand({ Bucket: env.R2_BUCKET!, Key: key })
+  );
+  if (!result.Body) throw new Error("Stored object has no body");
+  return {
+    bytes: await result.Body.transformToByteArray(),
+    contentType: result.ContentType ?? "application/octet-stream",
+  };
+}
+
+/**
  * Deletes objects, never throwing.
  *
  * Callers are cleanup paths — replacing an avatar, anonymising a child, deleting

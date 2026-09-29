@@ -1,5 +1,6 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { studentClassWhere } from "@/lib/student-access-scope";
 import { logAction } from "@/lib/activity-logger";
 import { VAT_RATE } from "@/lib/finance";
 import { findInvoiceThisMonth, duplicateInvoiceResponse } from "@/lib/invoice-duplicates";
@@ -29,7 +30,7 @@ export async function POST(
   if (!idempotencyKey) return missingIdempotencyKeyResponse();
 
   const student = await prisma.student.findFirst({
-    where: { id, schoolId, deletedAt: null },
+    where: { id, schoolId, deletedAt: null, ...studentClassWhere(session) },
     include: { class: true, guardian: true },
   });
 

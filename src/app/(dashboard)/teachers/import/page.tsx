@@ -267,7 +267,7 @@ export default function TeachersImportPage() {
   }
 
   return (
-    <div dir="rtl" className="min-h-screen bg-brand-bg">
+    <div className="min-h-screen bg-brand-bg">
       <Topbar title={t("importer.teachersTitle")} />
       <div className="p-6 max-w-5xl mx-auto">
         <StepIndicator currentStep={step} />
@@ -352,7 +352,7 @@ export default function TeachersImportPage() {
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-100">
                     {previewData.headers.map((h) => (
-                      <th key={h} className="px-3 py-2 text-right font-medium text-gray-500 whitespace-nowrap">
+                      <th key={h} className="px-3 py-2 text-start font-medium text-gray-500 whitespace-nowrap">
                         {h}
                       </th>
                     ))}
@@ -400,10 +400,10 @@ export default function TeachersImportPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-200">
-                    <th className="px-4 py-3 text-right font-medium text-gray-600">{t("importer.fileColumn")}</th>
-                    <th className="px-4 py-3 text-right font-medium text-gray-600">{t("importer.mappedField")}</th>
-                    <th className="px-4 py-3 text-right font-medium text-gray-600">{t("importer.confidence")}</th>
-                    <th className="px-4 py-3 text-right font-medium text-gray-600">{t("finance.status")}</th>
+                    <th className="px-4 py-3 text-start font-medium text-gray-600">{t("importer.fileColumn")}</th>
+                    <th className="px-4 py-3 text-start font-medium text-gray-600">{t("importer.mappedField")}</th>
+                    <th className="px-4 py-3 text-start font-medium text-gray-600">{t("importer.confidence")}</th>
+                    <th className="px-4 py-3 text-start font-medium text-gray-600">{t("finance.status")}</th>
                   </tr>
                 </thead>
                 <tbody>

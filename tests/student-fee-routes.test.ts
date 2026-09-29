@@ -112,6 +112,30 @@ describe("student subscription fee snapshots", () => {
     expect(mocks.studentCreate).not.toHaveBeenCalled();
   });
 
+  it("accepts an explicit custom fee and stores a renewable 30-day cycle", async () => {
+    const response = await createStudent(new Request("http://localhost/api/students", {
+      method: "POST",
+      body: JSON.stringify({ name: "Custom student", billingCycle: "CUSTOM", cycleFee: 315.5 }),
+    }));
+
+    expect(response.status).toBe(201);
+    const data = mocks.studentCreate.mock.calls[0][0].data;
+    expect(data.billingCycle).toBe("CUSTOM");
+    expect(data.billingIntervalDays).toBe(30);
+    expect(String(data.cycleFee)).toBe("315.5");
+  });
+
+  it("requires a fee when the custom option is selected", async () => {
+    const response = await createStudent(new Request("http://localhost/api/students", {
+      method: "POST",
+      body: JSON.stringify({ name: "Custom student", billingCycle: "CUSTOM" }),
+    }));
+
+    expect(response.status).toBe(422);
+    expect(await response.json()).toMatchObject({ code: "CYCLE_FEE_REQUIRED" });
+    expect(mocks.studentCreate).not.toHaveBeenCalled();
+  });
+
   it("snapshots the current yearly setting when the subscription type changes", async () => {
     const response = await updateStudent(new Request("http://localhost/api/students/student-1", {
       method: "PUT",
@@ -145,6 +169,25 @@ describe("student subscription fee snapshots", () => {
     expect(mocks.transaction).not.toHaveBeenCalled();
     expect(mocks.settingsFind).not.toHaveBeenCalled();
     expect(mocks.generateCycles).not.toHaveBeenCalled();
+  });
+
+  it("stores a custom fee when changing an inactive student to custom", async () => {
+    const response = await updateStudent(new Request("http://localhost/api/students/student-1", {
+      method: "PUT",
+      headers: { "X-Time-Zone": "UTC" },
+      body: JSON.stringify({
+        expectedUpdatedAt: existingStudent.updatedAt.toISOString(),
+        billingCycle: "CUSTOM",
+        cycleFee: 425,
+      }),
+    }), { params: Promise.resolve({ id: "student-1" }) });
+
+    expect(response.status).toBe(200);
+    const update = mocks.studentUpdateMany.mock.calls[0][0].data;
+    expect(update.billingCycle).toBe("CUSTOM");
+    expect(update.billingIntervalDays).toBe(30);
+    expect(String(update.cycleFee)).toBe("425");
+    expect(mocks.generateCycles).toHaveBeenCalledOnce();
   });
 
   it("does not reprice or regenerate the current subscription when the same billing cycle is saved", async () => {

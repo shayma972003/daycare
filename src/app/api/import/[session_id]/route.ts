@@ -2,6 +2,7 @@ import { requireSession, sessionErrorResponse } from '@/lib/session';
 import { prisma } from '@/lib/prisma';
 import { logAction } from '@/lib/activity-logger';
 import { importRowPayloadForResponse } from '@/lib/import-row-payload';
+import { scopedClassIds } from '@/lib/student-access-scope';
 
 export async function GET(_req: Request, { params }: { params: Promise<{ session_id: string }> }) {
   let session;
@@ -14,6 +15,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ session
   }
   if (!session.can('students.manage')) {
     return Response.json({ error: 'Forbidden' }, { status: 403 });
+  }
+  if (scopedClassIds(session) !== null) {
+    return Response.json(
+      { error: 'الاستيراد الجماعي متاح لإدارة الحضانة فقط', code: 'CLASS_SCOPE_FORBIDDEN' },
+      { status: 403 }
+    );
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
   const { session_id } = await params;
@@ -52,6 +59,12 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ sessi
   }
   if (!session.can('students.manage')) {
     return Response.json({ error: 'Forbidden' }, { status: 403 });
+  }
+  if (scopedClassIds(session) !== null) {
+    return Response.json(
+      { error: 'الاستيراد الجماعي متاح لإدارة الحضانة فقط', code: 'CLASS_SCOPE_FORBIDDEN' },
+      { status: 403 }
+    );
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
   const { session_id } = await params;

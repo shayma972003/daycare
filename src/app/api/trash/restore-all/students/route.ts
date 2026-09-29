@@ -1,6 +1,7 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
+import { studentClassWhere } from "@/lib/student-access-scope";
 
 export async function POST(request: Request) {
   let session;
@@ -16,7 +17,7 @@ export async function POST(request: Request) {
   const schoolId = (session.user as { schoolId: string }).schoolId;
 
   const students = await prisma.student.findMany({
-    where: { schoolId, deletedAt: { not: null } },
+    where: { schoolId, deletedAt: { not: null }, ...studentClassWhere(session) },
   });
 
   let restored = 0;

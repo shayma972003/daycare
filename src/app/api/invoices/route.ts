@@ -1,5 +1,7 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@/generated/prisma/client";
+import { scopedClassIds, studentClassWhere } from "@/lib/student-access-scope";
 
 export async function GET(request: Request) {
   let session;
@@ -19,14 +21,35 @@ export async function GET(request: Request) {
   const teacherId = searchParams.get("teacherId");
   const type = searchParams.get("type");
 
-  const where: Record<string, unknown> = { schoolId, generationStatus: "COMPLETED" };
+  const classIds = scopedClassIds(session);
+  const where: Prisma.InvoiceWhereInput = {
+    schoolId,
+    generationStatus: "COMPLETED",
+    ...(classIds === null
+      ? {}
+      : {
+          OR: [
+            { student: { is: { schoolId, ...studentClassWhere(session) } } },
+            { teacherId: session.teacherId ?? "" },
+          ],
+        }),
+  };
   if (studentId) where.studentId = studentId;
   if (teacherId) where.teacherId = teacherId;
   if (type === "STUDENT" || type === "TEACHER") where.type = type;
 
   const invoices = await prisma.invoice.findMany({
     where,
-    include: { student: true, teacher: true },
+    // PDF data URIs are intentionally excluded. Returning every stored PDF in a
+    // list response made opening a profile scale with the total invoice archive.
+    // The dedicated PDF route streams a stored or regenerated document only
+    // when the user asks for it.
+    select: {
+      id: true,
+      type: true,
+      amount: true,
+      createdAt: true,
+    },
     orderBy: { createdAt: "desc" },
   });
 

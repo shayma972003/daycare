@@ -1,5 +1,7 @@
 "use client";
 
+import { LocalizedDateTimeInput } from "@/components/ui/LocalizedDateTimeInput";
+
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import axios from "axios";
@@ -263,7 +265,7 @@ function EnrollmentForm({
           </Field>
         </div>
         <Field label="تاريخ الميلاد" required>
-          <input type="date" className={inputCls} value={form.date_of_birth} onChange={(e) => set("date_of_birth", e.target.value)} />
+          <LocalizedDateTimeInput nativeType="date" className={inputCls} value={form.date_of_birth} onChange={(e) => set("date_of_birth", e.target.value)} />
         </Field>
         <div className="flex flex-col gap-1">
           <label className="text-sm font-medium text-gray-700 mb-1.5 block">
@@ -365,8 +367,8 @@ function EnrollmentForm({
 
       <Card title="معلومات التسجيل">
         <Field label="تاريخ الانضمام" required>
-          <input
-            type="date"
+          <LocalizedDateTimeInput
+            nativeType="date"
             // LTR because a date input's own segments read left to right in
             // every locale; the label beside it stays right-aligned.
             dir="ltr"

@@ -24,7 +24,11 @@ export class RenewalError extends Error {
 
 /** Both single and bulk renewals use this transaction and the same rules. */
 export async function renewStudentSubscription(input: RenewalInput, context: {
-  id: string; schoolId: string; actor: string; request: Request;
+  id: string;
+  schoolId: string;
+  actor: string;
+  request: Request;
+  classIds?: readonly string[] | null;
 }) {
   let timeZone: string;
   try { timeZone = requestTimeZone(context.request); }
@@ -35,7 +39,12 @@ export async function renewStudentSubscription(input: RenewalInput, context: {
   return prisma.$transaction(async (tx) => {
     // Serialize retries/overlapping renewals before reading the previous end.
     await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "Student" WHERE "id" = ${context.id} AND "schoolId" = ${context.schoolId} FOR UPDATE`);
-    const current = await tx.student.findFirst({ where: { id: context.id, schoolId: context.schoolId, deletedAt: null } });
+    const classScope = context.classIds == null
+      ? {}
+      : { classId: { in: [...context.classIds] } };
+    const current = await tx.student.findFirst({
+      where: { id: context.id, schoolId: context.schoolId, deletedAt: null, ...classScope },
+    });
     if (!current) throw new RenewalError("NOT_FOUND", 404);
     if (current.anonymizedAt) throw new RenewalError("ANONYMIZED_STUDENT", 409);
     if (automatic && current.billingCycle === "CUSTOM" && !current.billingIntervalDays) throw new RenewalError("BILLING_INTERVAL_REQUIRED");
@@ -90,7 +99,13 @@ export async function renewStudentSubscription(input: RenewalInput, context: {
     if (!samePeriod && (effectiveFee === null || !effectiveFee.isFinite() || effectiveFee.isNegative())) throw new RenewalError("CYCLE_FEE_REQUIRED");
     if (billingCycle === "CUSTOM" && !interval) throw new RenewalError("BILLING_INTERVAL_REQUIRED");
     const updated = await tx.student.update({
-      where: { id: context.id, schoolId: context.schoolId, deletedAt: null, anonymizedAt: null },
+      where: {
+        id: context.id,
+        schoolId: context.schoolId,
+        deletedAt: null,
+        anonymizedAt: null,
+        ...classScope,
+      },
       data: {
         enrollmentEndDate: end,
         ...(newPeriod || !current.enrollment_date ? { enrollment_date: start } : {}),

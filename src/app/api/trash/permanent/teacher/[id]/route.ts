@@ -5,6 +5,7 @@ import {
   lockActivitiesForTeacherTargetChange,
   touchActivityTargetRevisions,
 } from "@/lib/activity-lock";
+import { detachTeacherFromClasses } from "@/lib/class-teacher-assignments";
 
 export async function DELETE(
   request: Request,
@@ -37,7 +38,7 @@ export async function DELETE(
       where: { teacherId: id, schoolId },
       data: { teacherId: null },
     });
-    await tx.class.updateMany({ where: { teacherId: id }, data: { teacherId: null } });
+    await detachTeacherFromClasses(tx, { teacherId: id, schoolId });
     await tx.activity.updateMany({ where: { teacherId: id }, data: { teacherId: null } });
     await touchActivityTargetRevisions(tx, { activityIds, schoolId });
     await tx.invoice.updateMany({ where: { teacherId: id }, data: { teacherId: null } });

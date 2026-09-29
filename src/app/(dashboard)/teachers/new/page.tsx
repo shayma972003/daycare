@@ -1,5 +1,7 @@
 "use client";
 
+import { LocalizedDateTimeInput } from "@/components/ui/LocalizedDateTimeInput";
+
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, type Resolver } from "react-hook-form";
@@ -110,7 +112,7 @@ export default function NewTeacherPage() {
   }
 
   return (
-    <div dir="rtl" className="min-h-screen bg-brand-bg">
+    <div className="min-h-screen bg-brand-bg">
       <Topbar title={t("teachers.addNew")} />
       <div className="p-6">
         <button
@@ -159,7 +161,7 @@ export default function NewTeacherPage() {
               </Field>
 
               <Field label={t("fields.dateOfBirth")}>
-                <input {...register("dateOfBirth")} type="date" dir="ltr" className={inputCls} />
+                <LocalizedDateTimeInput {...register("dateOfBirth")} nativeType="date" dir="ltr" className={inputCls} />
               </Field>
 
               <Field label={t("fields.nationality")}>
@@ -199,11 +201,11 @@ export default function NewTeacherPage() {
               </Field>
 
               <Field label={t("teachers.joinDate")}>
-                <input {...register("joinDate")} type="date" dir="ltr" className={inputCls} />
+                <LocalizedDateTimeInput {...register("joinDate")} nativeType="date" dir="ltr" className={inputCls} />
               </Field>
 
               <Field label={t("teachers.contractEnd")}>
-                <input {...register("enrollmentEndDate")} type="date" dir="ltr" className={inputCls} />
+                <LocalizedDateTimeInput {...register("enrollmentEndDate")} nativeType="date" dir="ltr" className={inputCls} />
               </Field>
 
               <Field label={t("fields.salarySar")}>

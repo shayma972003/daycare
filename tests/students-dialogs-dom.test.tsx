@@ -213,7 +213,7 @@ describe("student page shared dialogs", () => {
     ({ dialog } = await openExtendDialog(user));
     expect((within(dialog).getByRole("checkbox") as HTMLInputElement).checked).toBe(false);
     await user.click(within(dialog).getByRole("checkbox"));
-    fireEvent.change(dialog.querySelector('input[type="date"]')!, { target: { value: "2026-09-30" } });
+    fireEvent.change(dialog.querySelector('input[data-localized-native-type="date"]')!, { target: { value: "2026-09-30" } });
     await user.click(within(dialog).getByRole("button", { name: "Confirm" }));
     expect(axiosMocks.post).toHaveBeenCalledWith("/api/students/bulk-extend", { ids: ["student-1"], enrollmentEndDate: "2026-09-30", mode: "manual", reactivate: true }, { headers: { "X-Time-Zone": expect.any(String) } });
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
@@ -236,7 +236,7 @@ describe("student page shared dialogs", () => {
     expect(axiosMocks.post).not.toHaveBeenCalled();
 
     ({ apply, dialog } = await openExtendDialog(user));
-    const date = dialog.querySelector<HTMLInputElement>('input[type="date"]');
+    const date = dialog.querySelector<HTMLInputElement>('input[data-localized-native-type="date"]');
     fireEvent.change(date!, { target: { value: "2026-09-30" } });
     await user.click(screen.getByRole("button", { name: "Confirm" }));
 

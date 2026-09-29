@@ -8,10 +8,12 @@ import { logSafeError } from "@/lib/safe-logger";
 import { optionalPhone } from "@/lib/form-schemas";
 import { normalizePhone } from "@/lib/phone-normalizer";
 import { z } from "zod";
+import { assertClassOwned, crossTenantResponse } from "@/lib/tenant-guard";
 
 const createTeacherSchema = z.object({
   name: z.string().min(1),
   period: z.enum(["MORNING", "EVENING"]).optional(),
+  classId: z.string().optional(),
   idNumber: z.string().optional(),
   dateOfBirth: z.string().optional(),
   nationality: z.string().optional(),
@@ -75,6 +77,9 @@ export async function GET(request: Request) {
         status: true,
         enrollmentEndDate: true,
         classes: { select: { id: true, name: true } },
+        classAssignments: {
+          select: { class: { select: { id: true, name: true, deletedAt: true } } },
+        },
       },
       orderBy: { name: "asc" },
     });
@@ -113,6 +118,7 @@ export async function POST(request: Request) {
   const {
     name,
     period,
+    classId,
     idNumber,
     dateOfBirth,
     nationality,
@@ -138,29 +144,57 @@ export async function POST(request: Request) {
     return Response.json({ error: "Forbidden", code: "FORBIDDEN" }, { status: 403 });
   }
 
-  const teacher = await prisma.teacher.create({
-    data: {
-      schoolId,
-      name,
-      ...(period !== undefined && { period }),
-      ...(idNumber !== undefined && protectIdNumber(idNumber)),
-      ...(dateOfBirth !== undefined && { dateOfBirth: new Date(dateOfBirth) }),
-      ...(nationality !== undefined && { nationality }),
-      ...(email !== undefined && { email }),
-      ...(phone1 !== undefined && { phone1: normalizePhone(phone1) }),
-      ...(phone2 !== undefined && { phone2: normalizePhone(phone2) }),
-      ...(paymentMethod !== undefined && { paymentMethod }),
-      ...(joinDate !== undefined && { joinDate: new Date(joinDate) }),
-      ...(monthlySalary !== undefined && { monthlySalary }),
-      ...(lateDeductionRate !== undefined && { lateDeductionRate }),
-      ...(qualification1 !== undefined && { qualification1 }),
-      ...(qualification2 !== undefined && { qualification2 }),
-      ...(qualification3 !== undefined && { qualification3 }),
-      ...(enrollmentEndDate !== undefined && {
-        enrollmentEndDate: new Date(enrollmentEndDate),
-      }),
-    },
-    select: teacherDetailSelect,
+  let ownedClassId: string | null = null;
+  try {
+    ownedClassId = await assertClassOwned(classId, schoolId);
+  } catch (error) {
+    const denied = crossTenantResponse(error);
+    if (denied) return denied;
+    throw error;
+  }
+
+  const teacher = await prisma.$transaction(async (tx) => {
+    const created = await tx.teacher.create({
+      data: {
+        schoolId,
+        name,
+        ...(period !== undefined && { period }),
+        ...(idNumber !== undefined && protectIdNumber(idNumber)),
+        ...(dateOfBirth !== undefined && { dateOfBirth: new Date(dateOfBirth) }),
+        ...(nationality !== undefined && { nationality }),
+        ...(email !== undefined && { email }),
+        ...(phone1 !== undefined && { phone1: normalizePhone(phone1) }),
+        ...(phone2 !== undefined && { phone2: normalizePhone(phone2) }),
+        ...(paymentMethod !== undefined && { paymentMethod }),
+        ...(joinDate !== undefined && { joinDate: new Date(joinDate) }),
+        ...(monthlySalary !== undefined && { monthlySalary }),
+        ...(lateDeductionRate !== undefined && { lateDeductionRate }),
+        ...(qualification1 !== undefined && { qualification1 }),
+        ...(qualification2 !== undefined && { qualification2 }),
+        ...(qualification3 !== undefined && { qualification3 }),
+        ...(enrollmentEndDate !== undefined && {
+          enrollmentEndDate: new Date(enrollmentEndDate),
+        }),
+      },
+      select: { id: true },
+    });
+    if (ownedClassId) {
+      await tx.classTeacher.create({
+        data: { schoolId, classId: ownedClassId, teacherId: created.id },
+      });
+      await tx.class.update({
+        where: { id: ownedClassId },
+        data: { needsTeacherWarning: false },
+      });
+      await tx.class.updateMany({
+        where: { id: ownedClassId, schoolId, teacherId: null },
+        data: { teacherId: created.id },
+      });
+    }
+    return tx.teacher.findFirstOrThrow({
+      where: { id: created.id, schoolId },
+      select: teacherDetailSelect,
+    });
   });
 
   await logAction({

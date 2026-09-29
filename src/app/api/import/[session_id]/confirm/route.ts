@@ -12,6 +12,7 @@ import {
   revealImportRowPayload,
   updateImportRowPayload,
 } from '@/lib/import-row-payload';
+import { scopedClassIds } from '@/lib/student-access-scope';
 
 function parseDate(value: unknown): Date | null {
   if (value === null || value === undefined || value === '') return null;
@@ -36,6 +37,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ session
     return Response.json({ error: 'Forbidden' }, { status: 403 });
   }
   const schoolId = session.user.schoolId;
+  if (scopedClassIds(session) !== null) {
+    return Response.json(
+      { error: 'تأكيد الاستيراد متاح لإدارة الحضانة فقط', code: 'CLASS_SCOPE_FORBIDDEN' },
+      { status: 403 }
+    );
+  }
   const { session_id: sessionId } = await params;
 
   const claimed = await prisma.importSession.updateMany({

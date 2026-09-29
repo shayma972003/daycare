@@ -25,7 +25,15 @@ export async function GET(
     prisma.school.findUnique({ where: { id: schoolId } }),
     prisma.teacher.findFirst({
       where: { id: teacher_id, schoolId, deletedAt: null },
-      include: { classes: { take: 1 } },
+      include: {
+        classes: { take: 1 },
+        classAssignments: {
+          where: { class: { deletedAt: null } },
+          take: 1,
+          orderBy: { createdAt: "asc" },
+          select: { class: { select: { name: true } } },
+        },
+      },
     }),
     prisma.invoice.count({ where: { schoolId, generationStatus: "COMPLETED" } }),
     teacherLatenessForInvoice(schoolId, teacher_id, now),
@@ -63,7 +71,7 @@ export async function GET(
       monthly_salary: teacher.monthlySalary ?? 0,
       late_deduction_rate: teacher.lateDeductionRate ?? 0,
       total_late_hours_this_month: totalLateHoursThisMonth,
-      class_name: teacher.classes?.[0]?.name ?? null,
+      class_name: teacher.classAssignments[0]?.class.name ?? teacher.classes?.[0]?.name ?? null,
     },
     invoiceNumber,
     issueDate,

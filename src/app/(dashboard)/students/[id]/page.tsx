@@ -1,5 +1,7 @@
 "use client";
 
+import { LocalizedDateTimeInput } from "@/components/ui/LocalizedDateTimeInput";
+
 import { useEffect, useState, use, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
@@ -41,10 +43,9 @@ type Invoice = {
   id: string;
   type: string;
   amount: number;
-  pdfUrl?: string | null;
   createdAt: string;
 };
-type GuardianSuggestion = { id: string; name: string; phone1?: string | null; phone2?: string | null; email?: string | null; name_2?: string | null; phone_3?: string | null; phone_4?: string | null; email_2?: string | null; students?: { id: string; name: string; avatarUrl?: string | null }[] };
+type GuardianSuggestion = { id: string; name: string; phone1?: string | null; phone2?: string | null; email?: string | null; name_2?: string | null; email_2?: string | null; students?: { id: string; name: string; avatarUrl?: string | null }[] };
 type Sibling = { id: string; name: string; avatarUrl?: string | null };
 
 type StudentData = {
@@ -63,7 +64,7 @@ type StudentData = {
   registrationDate: string;
   allergies: string | null;
   guardianId: string | null;
-  guardian: { id: string; name: string; phone1?: string | null; phone2?: string | null; email?: string | null; name_2?: string | null; phone_3?: string | null; phone_4?: string | null; email_2?: string | null } | null;
+  guardian: { id: string; name: string; phone1?: string | null; phone2?: string | null; email?: string | null; name_2?: string | null; email_2?: string | null } | null;
   registration_fee: number;
   registration_fee_is_default?: boolean;
   billingCycle: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY" | "CUSTOM";
@@ -78,7 +79,7 @@ type StudentData = {
   isActive: boolean;
   status: string;
   siblings: Sibling[];
-  evaluationFileUrl?: string | null;
+  hasEvaluationFile: boolean;
   evaluationFileName?: string | null;
   avatarUrl?: string | null;
 };
@@ -99,8 +100,6 @@ type FormData = {
   guardianPhone2: string;
   guardianEmail: string;
   guardianName2: string;
-  guardianPhone3: string;
-  guardianPhone4: string;
   guardianEmail2: string;
   registrationFee: string;
   billingCycle: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY" | "CUSTOM";
@@ -163,7 +162,7 @@ export default function StudentProfilePage({
   const [departureDate, setDepartureDate] = useState(() => astDateInputValue());
   const [departing, setDeparting] = useState(false);
   const [showLateFeeConfirm, setShowLateFeeConfirm] = useState(false);
-  const [evalFileUrl, setEvalFileUrl] = useState<string | null>(null);
+  const [hasEvaluationFile, setHasEvaluationFile] = useState(false);
   const [evalFileName, setEvalFileName] = useState<string | null>(null);
   const [evalUploading, setEvalUploading] = useState(false);
   const [pendingEvalFile, setPendingEvalFile] = useState<File | null>(null);
@@ -197,7 +196,7 @@ export default function StudentProfilePage({
     setInvalidFields(collectMessages(fieldErrors));
   }
 
-  const { register, handleSubmit, reset, resetField, getValues, watch, formState: { dirtyFields } } =
+  const { register, handleSubmit, reset, resetField, getValues, setValue, watch, formState: { dirtyFields } } =
     useForm<FormData>({
       resolver: zodResolver(studentFormSchema) as Resolver<FormData>,
     });
@@ -227,7 +226,7 @@ export default function StudentProfilePage({
           setGuardianLinked(true);
         }
         initialGuardianId.current = s.guardianId ?? null;
-        setEvalFileUrl(s.evaluationFileUrl ?? null);
+        setHasEvaluationFile(s.hasEvaluationFile);
         setEvalFileName(s.evaluationFileName ?? null);
         setAvatarUrl(s.avatarUrl ?? null);
         setRegistrationFeeIsDefault(!!s.registration_fee_is_default);
@@ -247,8 +246,6 @@ export default function StudentProfilePage({
           guardianPhone2: s.guardian?.phone2 ?? "",
           guardianEmail: s.guardian?.email ?? "",
           guardianName2: s.guardian?.name_2 ?? "",
-          guardianPhone3: s.guardian?.phone_3 ?? "",
-          guardianPhone4: s.guardian?.phone_4 ?? "",
           guardianEmail2: s.guardian?.email_2 ?? "",
           registrationFee: String(s.registration_fee ?? 0),
           billingCycle: s.billingCycle ?? "MONTHLY",
@@ -273,11 +270,9 @@ export default function StudentProfilePage({
 
   const periodVal = watch("period");
   const selectedBillingCycle = watch("billingCycle");
-  const displayedCycleFee = selectedBillingCycle === "CUSTOM"
-    ? student?.cycleFee ?? null
-    : dirtyFields.billingCycle
-      ? studentFees?.[selectedBillingCycle] ?? null
-      : student?.cycleFee ?? studentFees?.[selectedBillingCycle] ?? null;
+  const displayedCycleFee = dirtyFields.billingCycle
+    ? studentFees?.[selectedBillingCycle as keyof StudentFeeSettings] ?? null
+    : student?.cycleFee ?? studentFees?.[selectedBillingCycle as keyof StudentFeeSettings] ?? null;
 
   useEffect(() => {
     if (loading) return;
@@ -366,8 +361,6 @@ export default function StudentProfilePage({
       guardianPhone2: g.phone2 ?? "",
       guardianEmail: g.email ?? "",
       guardianName2: g.name_2 ?? "",
-      guardianPhone3: g.phone_3 ?? "",
-      guardianPhone4: g.phone_4 ?? "",
       guardianEmail2: g.email_2 ?? "",
     }));
     setSuggestions([]);
@@ -416,6 +409,9 @@ export default function StudentProfilePage({
         allergies: data.allergies || null,
         ...(data.billingCycle && { billingCycle: data.billingCycle }),
         ...(data.billingIntervalDays !== undefined && { billingIntervalDays: data.billingIntervalDays }),
+        ...(canViewFinance && data.billingCycle === "CUSTOM"
+          ? { cycleFee: Number(data.cycleFee) }
+          : {}),
         ...(canViewFinance
           ? {
               paymentMethod: data.paymentMethod,
@@ -432,8 +428,6 @@ export default function StudentProfilePage({
               guardianPhone2: data.guardianPhone2 || null,
               guardianEmail: data.guardianEmail || null,
               guardianName2: data.guardianName2 || null,
-              guardianPhone3: data.guardianPhone3 || null,
-              guardianPhone4: data.guardianPhone4 || null,
               guardianEmail2: data.guardianEmail2 || null,
             }
           : {}),
@@ -449,9 +443,10 @@ export default function StudentProfilePage({
             }
           : {}),
       };
-      const guardianKeys = new Set(["guardianId", "guardianName", "guardianPhone1", "guardianPhone2", "guardianEmail", "guardianName2", "guardianPhone3", "guardianPhone4", "guardianEmail2"]);
+      const guardianKeys = new Set(["guardianId", "guardianName", "guardianPhone1", "guardianPhone2", "guardianEmail", "guardianName2", "guardianEmail2"]);
       const payload = Object.fromEntries(Object.entries(payloadDraft).filter(([key]) => {
         if (key === "expectedUpdatedAt") return true;
+        if (key === "cycleFee" && data.billingCycle === "CUSTOM" && dirtyFields.billingCycle) return true;
         if (guardianKeys.has(key)) {
           const guardianChanged = guardianId !== initialGuardianId.current || Object.keys(dirtyFields).some((field) => guardianKeys.has(field));
           return guardianChanged;
@@ -531,11 +526,11 @@ export default function StudentProfilePage({
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const res = await axios.post<{ evaluationFileUrl: string; evaluationFileName: string }>(
+      const res = await axios.post<{ hasEvaluationFile: boolean; evaluationFileName: string }>(
         `/api/students/${id}/evaluation`,
         fd
       );
-      setEvalFileUrl(res.data.evaluationFileUrl);
+      setHasEvaluationFile(res.data.hasEvaluationFile);
       setEvalFileName(res.data.evaluationFileName);
     } catch {
       alert(t("common.error"));
@@ -554,7 +549,7 @@ export default function StudentProfilePage({
       return;
     }
     setEvaluationError("");
-    if (evalFileUrl) {
+    if (hasEvaluationFile) {
       setPendingEvalFile(file);
       setShowReplaceEvalConfirm(true);
     } else {
@@ -577,12 +572,34 @@ export default function StudentProfilePage({
   async function deleteEvalFile() {
     try {
       await axios.delete(`/api/students/${id}/evaluation`);
-      setEvalFileUrl(null);
+      setHasEvaluationFile(false);
       setEvalFileName(null);
     } catch {
       alert(t("common.error"));
     } finally {
       setShowDeleteEvalConfirm(false);
+    }
+  }
+
+  async function viewEvaluationFile() {
+    try {
+      // The API streams the authorised bytes. The browser only receives a
+      // tab-local blob URL, so copying the address cannot share the child's
+      // document with someone who is not signed in and authorised.
+      const response = await axios.get<Blob>(`/api/students/${id}/evaluation`, {
+        responseType: "blob",
+      });
+      const objectUrl = URL.createObjectURL(response.data);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+    } catch {
+      alert(t("common.error"));
     }
   }
 
@@ -669,7 +686,7 @@ export default function StudentProfilePage({
 
   if (loading) {
     return (
-      <div dir="rtl" className="min-h-screen bg-brand-bg">
+      <div className="min-h-screen bg-brand-bg">
         <Topbar title={t("students.profile.title")} />
         <div className="flex justify-center items-center h-64">
           <div className="w-7 h-7 border-2 border-gray-200 border-t-[#5B14D1] rounded-full animate-spin" />
@@ -690,7 +707,7 @@ export default function StudentProfilePage({
   }
 
   return (
-    <div dir="rtl" className="min-h-screen bg-brand-bg">
+    <div className="min-h-screen bg-brand-bg">
       <Topbar title={t("students.profile.title")} />
       {showRenewal && student && renewalStart && renewalEnd && (
         <RenewalConfirmation startDate={dateLabel(renewalStart, locale)} endDate={dateLabel(renewalEnd, locale)} cycle={student.billingCycle} needsReactivation={renewalNeedsReactivation(student)} pending={renewing} error={renewalError}
@@ -761,7 +778,7 @@ export default function StudentProfilePage({
                     onChange={handleAvatarUpload}
                   />
                   {avatarError && (
-                    <p className="text-xs mt-1 text-right" style={{ color: "#5B14D1" }}>
+                    <p className="text-xs mt-1 text-start" style={{ color: "#5B14D1" }}>
                       {avatarError}
                     </p>
                   )}
@@ -832,7 +849,7 @@ export default function StudentProfilePage({
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">{t("students.profile.dateOfBirth")}</label>
-                    <input {...register("dateOfBirth")} type="date" dir="ltr" className={inputCls} />
+                    <LocalizedDateTimeInput {...register("dateOfBirth")} nativeType="date" dir="ltr" className={inputCls} />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">{t("students.profile.attendanceHours")}</label>
@@ -855,29 +872,16 @@ export default function StudentProfilePage({
                     onChange={handleEvalFileChange}
                   />
                   {evaluationError && (
-                    <p className="text-xs mt-1 mb-2 text-right" style={{ color: "#5B14D1" }}>
+                    <p className="text-xs mt-1 mb-2 text-start" style={{ color: "#5B14D1" }}>
                       {evaluationError}
                     </p>
                   )}
-                  {evalFileUrl ? (
+                  {hasEvaluationFile ? (
                     <div className="flex items-center gap-2 flex-wrap text-sm">
                       <span className="text-gray-700">📄 {evalFileName}</span>
                       <button
                         type="button"
-                        onClick={() => {
-                          // A stored file is now a URL the browser can open: the
-                          // route checks the session cookie and redirects to a
-                          // signed link. Only a legacy base64 value still has to
-                          // be decoded into a blob by hand.
-                          if (evalFileUrl.startsWith("data:")) {
-                            const base64 = evalFileUrl.split(",")[1];
-                            const mime = evalFileUrl.slice(5, evalFileUrl.indexOf(";"));
-                            const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
-                            window.open(URL.createObjectURL(new Blob([bytes], { type: mime })), "_blank");
-                            return;
-                          }
-                          window.open(evalFileUrl, "_blank");
-                        }}
+                        onClick={viewEvaluationFile}
                         className="px-2.5 py-1 text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
                       >
                         {t("common.view")}
@@ -936,6 +940,7 @@ export default function StudentProfilePage({
                     </span>
                   )}
                 </div>
+                <p className="mb-3 text-sm font-semibold text-gray-700">{t("studentProfile.firstGuardian")}</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="relative">
                     <label className="block text-xs font-medium text-gray-500 mb-1">{t("students.profile.guardianName")}</label>
@@ -959,7 +964,7 @@ export default function StudentProfilePage({
                             key={g.id}
                             type="button"
                             onClick={() => selectGuardian(g)}
-                            className="w-full text-right px-4 py-2.5 text-sm hover:bg-gray-50 border-b border-gray-50 last:border-0"
+                            className="w-full text-start px-4 py-2.5 text-sm hover:bg-gray-50 border-b border-gray-50 last:border-0"
                           >
                             <div className="flex items-center justify-between gap-2">
                               <div>
@@ -988,7 +993,7 @@ export default function StudentProfilePage({
                     )}
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">{t("students.profile.phone1")}</label>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">{t("studentProfile.guardianPhone")}</label>
                     <input
                       {...register("guardianPhone1")}
                       type="tel"
@@ -999,10 +1004,6 @@ export default function StudentProfilePage({
                         if (!guardianNameVal) handleGuardianFieldChange(e.target.value);
                       }}
                     />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">{t("students.profile.phone2")}</label>
-                    <input {...register("guardianPhone2")} type="tel" dir="ltr" className={inputCls} />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">{t("students.profile.email")}</label>
@@ -1017,23 +1018,22 @@ export default function StudentProfilePage({
                       }}
                     />
                   </div>
+                </div>
+                <div className="my-5 border-t border-gray-200" />
+                <p className="mb-3 text-sm font-semibold text-gray-700">{t("studentProfile.secondGuardian")}</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">{t("fields.guardianName2")}</label>
                     <input {...register("guardianName2")} type="text" className={inputCls}
                       onChange={(e) => { register("guardianName2").onChange(e); handleGuardian2FieldChange(e.target.value); }} />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">{t("studentProfile.phone3")}</label>
-                    <input {...register("guardianPhone3")} type="tel" dir="ltr" className={inputCls}
-                      onChange={(e) => { register("guardianPhone3").onChange(e); handleGuardian2FieldChange(e.target.value); }} />
+                    <label className="block text-xs font-medium text-gray-500 mb-1">{t("studentProfile.guardianPhone")}</label>
+                    <input {...register("guardianPhone2")} type="tel" dir="ltr" className={inputCls}
+                      onChange={(e) => { register("guardianPhone2").onChange(e); handleGuardian2FieldChange(e.target.value); }} />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">{t("studentProfile.phone4")}</label>
-                    <input {...register("guardianPhone4")} type="tel" dir="ltr" className={inputCls}
-                      onChange={(e) => { register("guardianPhone4").onChange(e); handleGuardian2FieldChange(e.target.value); }} />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">{t("fields.email2")}</label>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">{t("students.profile.email")}</label>
                     <input {...register("guardianEmail2")} type="email" dir="ltr" className={inputCls}
                       onChange={(e) => { register("guardianEmail2").onChange(e); handleGuardian2FieldChange(e.target.value); }} />
                   </div>
@@ -1046,15 +1046,31 @@ export default function StudentProfilePage({
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   <div>
                     <label htmlFor="student-billing-cycle" className="block text-xs font-medium text-gray-500 mb-1">{t("students.profile.billingCycle")}</label>
-                    <select id="student-billing-cycle" {...register("billingCycle")} className={inputCls}>
-                      {BILLING_CYCLES.filter((cycle) => cycle !== "CUSTOM" || student?.billingCycle === "CUSTOM").map((cycle) => <option key={cycle} value={cycle}>{t(BILLING_CYCLE_LABEL_KEYS[cycle])}</option>)}
+                    <select
+                      id="student-billing-cycle"
+                      {...register("billingCycle")}
+                      className={inputCls}
+                      onChange={(event) => {
+                        register("billingCycle").onChange(event);
+                        if (event.target.value === "CUSTOM" && student?.billingCycle !== "CUSTOM") {
+                          setValue("cycleFee", "", { shouldDirty: true });
+                        }
+                      }}
+                    >
+                      {BILLING_CYCLES.map((cycle) => <option key={cycle} value={cycle}>{t(BILLING_CYCLE_LABEL_KEYS[cycle])}</option>)}
                     </select>
+                    {canViewFinance && selectedBillingCycle === "CUSTOM" ? (
+                      <div className="mt-3">
+                        <label htmlFor="student-cycle-fee" className="block text-xs font-medium text-gray-500 mb-1">{t("students.profile.cycleFee")}</label>
+                        <input id="student-cycle-fee" {...register("cycleFee")} type="number" min="0" step="0.01" dir="ltr" className={inputCls} />
+                        <p className="mt-1 text-xs text-gray-500">{t("students.customCycleFeeHint")}</p>
+                      </div>
+                    ) : canViewFinance ? (
+                      <p className="mt-2 text-xs text-gray-500">
+                        {t("students.configuredCycleFee", { amount: displayedCycleFee ?? "—" })}
+                      </p>
+                    ) : null}
                   </div>
-                  {canViewFinance && <div>
-                    <label htmlFor="student-cycle-fee" className="block text-xs font-medium text-gray-500 mb-1">{t("students.profile.cycleFee")}</label>
-                    <input id="student-cycle-fee" value={displayedCycleFee ?? ""} readOnly aria-readonly="true" dir="ltr" className={readonlyCls} />
-                    <p className="mt-1 text-xs text-gray-500">{t("students.cycleFeeSettingsHint")}</p>
-                  </div>}
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">{t("students.profile.paymentMethod")}</label>
                     <select {...register("paymentMethod")} className={inputCls}>
@@ -1076,11 +1092,11 @@ export default function StudentProfilePage({
                   </div>
                   <div>
                     <label htmlFor="student-subscription-start" className="block text-xs font-medium text-gray-500 mb-1">{t("students.subscriptionStartDate")}</label>
-                    <input id="student-subscription-start" {...register("enrollmentDate")} type="date" dir="ltr" className={inputCls} />
+                    <LocalizedDateTimeInput id="student-subscription-start" {...register("enrollmentDate")} nativeType="date" dir="ltr" className={inputCls} />
                   </div>
                   <div>
                     <label htmlFor="student-subscription-end" className="block text-xs font-medium text-gray-500 mb-1">{t("students.profile.enrollmentEndDate")}</label>
-                    <input id="student-subscription-end" {...register("enrollmentEndDate")} type="date" dir="ltr" className={inputCls} />
+                    <LocalizedDateTimeInput id="student-subscription-end" {...register("enrollmentEndDate")} nativeType="date" dir="ltr" className={inputCls} />
                   </div>
                   <div>
                     <div className="flex items-center justify-between mb-1">
@@ -1227,7 +1243,7 @@ export default function StudentProfilePage({
 
         {showDepartureModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-            <div className="bg-white rounded-2xl shadow-xl p-6 w-96 space-y-4" dir="rtl">
+            <div className="bg-white rounded-2xl shadow-xl p-6 w-96 space-y-4">
               <p className="text-base font-bold text-[#111111] text-center">{t("studentProfile.endEnrollment")}</p>
 
               <div>
@@ -1247,8 +1263,8 @@ export default function StudentProfilePage({
 
               <div>
                 <label className="block text-sm text-gray-600 mb-1">{t("studentProfile.departureDate")}</label>
-                <input
-                  type="date"
+                <LocalizedDateTimeInput
+                  nativeType="date"
                   value={departureDate}
                   onChange={(e) => setDepartureDate(e.target.value)}
                   className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm"
@@ -1316,9 +1332,9 @@ export default function StudentProfilePage({
               <div className="flex gap-3 justify-center">
                 <button
                   onClick={confirmDeleteLateFee}
-                  className="px-5 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600"
+                  className="px-5 py-2 bg-[#5B14D1] text-white rounded-xl text-sm font-medium hover:bg-[#490EA9]"
                 >
-                  {t("common.delete")}
+                  {t("common.confirm")}
                 </button>
                 <button
                   onClick={() => setShowLateFeeConfirm(false)}
@@ -1401,10 +1417,10 @@ export default function StudentProfilePage({
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-gray-500 border-b border-gray-100">
-                  <th className="py-2 text-right">#</th>
-                  <th className="py-2 text-right">{t("invoices.issuedAt")}</th>
-                  <th className="py-2 text-right">{t("finance.amount")}</th>
-                  <th className="py-2 text-right">{t("fields.action")}</th>
+                  <th className="py-2 text-start">#</th>
+                  <th className="py-2 text-start">{t("invoices.issuedAt")}</th>
+                  <th className="py-2 text-start">{t("finance.amount")}</th>
+                  <th className="py-2 text-start">{t("fields.action")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -1415,30 +1431,16 @@ export default function StudentProfilePage({
                     <td className="py-2">{formatCurrency(inv.amount, locale)}</td>
                     <td className="py-2">
                       <div className="flex gap-2">
-                        {inv.pdfUrl && (
-                          <>
-                            <button
-                              onClick={() => {
-                                const base64 = inv.pdfUrl!.split(",")[1];
-                                const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
-                                const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
-                                window.open(url, "_blank");
-                              }}
-                              className="px-2.5 py-1 text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
-                            >{t("finance.view")}</button>
-                            <button
-                              onClick={() => {
-                                const link = document.createElement("a");
-                                link.href = inv.pdfUrl!;
-                                link.download = t("studentProfile.invoiceFilename", { n: String(i + 1) });
-                                document.body.appendChild(link);
-                                link.click();
-                                document.body.removeChild(link);
-                              }}
-                              className="px-2.5 py-1 text-xs bg-gray-50 text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors"
-                            >{t("finance.download")}</button>
-                          </>
-                        )}
+                        <a
+                          href={`/api/invoices/${inv.id}/pdf?disposition=inline`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-2.5 py-1 text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
+                        >{t("finance.view")}</a>
+                        <a
+                          href={`/api/invoices/${inv.id}/pdf?disposition=attachment`}
+                          className="px-2.5 py-1 text-xs bg-gray-50 text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors"
+                        >{t("finance.download")}</a>
                       </div>
                     </td>
                   </tr>

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { logAction } from '@/lib/activity-logger';
 import { MAX_SPREADSHEET_BYTES } from '@/lib/file-upload';
 import { protectedImportRowPayload } from '@/lib/import-row-payload';
+import { scopedClassIds } from '@/lib/student-access-scope';
 
 /** Upper bound on rows accepted from one uploaded file. */
 const MAX_IMPORT_ROWS = 2000;
@@ -36,6 +37,12 @@ export async function POST(request: Request) {
   }
   if (!session.can('students.manage')) {
     return Response.json({ error: 'Forbidden' }, { status: 403 });
+  }
+  if (scopedClassIds(session) !== null) {
+    return Response.json(
+      { error: 'الاستيراد الجماعي متاح لإدارة الحضانة فقط', code: 'CLASS_SCOPE_FORBIDDEN' },
+      { status: 403 }
+    );
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
 

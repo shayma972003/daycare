@@ -1,5 +1,6 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { studentClassWhere } from "@/lib/student-access-scope";
 import { logAction } from "@/lib/activity-logger";
 import { buildStudentDeparture, getRetentionPolicy } from "@/lib/data-retention";
 import { STUDENT_STATUS_LABELS } from "@/lib/enum-labels";
@@ -50,7 +51,9 @@ export async function POST(
     return Response.json({ error: parsed.error.flatten() }, { status: 422 });
   }
 
-  const student = await prisma.student.findFirst({ where: { id, schoolId, deletedAt: null } });
+  const student = await prisma.student.findFirst({
+    where: { id, schoolId, deletedAt: null, ...studentClassWhere(session) },
+  });
   if (!student) {
     return Response.json({ error: "Not found" }, { status: 404 });
   }

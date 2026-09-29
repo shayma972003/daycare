@@ -1,6 +1,7 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { withNoStore } from "@/lib/auth-response";
+import { classIdWhere } from "@/lib/student-access-scope";
 
 /** Minimal tenant-scoped options for student forms; not the full class API. */
 export async function GET(request: Request) {
@@ -17,7 +18,12 @@ export async function GET(request: Request) {
   const period = searchParams.get("period");
   const validPeriod = period === "MORNING" || period === "EVENING" ? period : null;
   const classes = await prisma.class.findMany({
-    where: { schoolId: session.user.schoolId, deletedAt: null, ...(validPeriod ? { period: validPeriod } : {}) },
+    where: {
+      schoolId: session.user.schoolId,
+      deletedAt: null,
+      ...classIdWhere(session),
+      ...(validPeriod ? { period: validPeriod } : {}),
+    },
     select: { id: true, name: true, period: true },
     orderBy: { name: "asc" },
   });

@@ -1,6 +1,7 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
+import { invoiceMonthRange } from "@/lib/invoice-lateness";
 
 export async function DELETE(
   request: Request,
@@ -24,23 +25,23 @@ export async function DELETE(
     return Response.json({ error: "Not found" }, { status: 404 });
   }
 
-  // Clearing `lateHours` without touching the attendance rows left the two
-  // permanently inconsistent — the teacher showed zero while the records that
-  // produced the figure still carried it.
-  await prisma.$transaction([
-    prisma.teacher.update({
-      where: { id },
-      data: { lateHours: 0 },
-    }),
-    prisma.teacherAttendance.updateMany({
-      where: { teacherId: id, schoolId },
-      data: { lateMinutes: 0, compensated: true },
-    }),
-  ]);
+  const period = invoiceMonthRange(new Date());
+  // Mark the current month's delay as financially compensated/waived without
+  // deleting the recorded minutes or changing the lifetime late-hours total.
+  const waived = await prisma.teacherAttendance.updateMany({
+    where: {
+      teacherId: id,
+      schoolId,
+      date: { gte: period.from, lte: period.to },
+      compensated: false,
+      lateMinutes: { gt: 0 },
+    },
+    data: { compensated: true },
+  });
 
   await logAction({
     school_id: schoolId,
-    action: `حذف رسوم التأخير للمعلم: ${teacher.name}`,
+    action: `إعفاء خصم تأخير الشهر الحالي للمعلم: ${teacher.name}`,
     entity_type: "teacher",
     entity_id: teacher.id,
     entity_name: teacher.name,
@@ -48,5 +49,10 @@ export async function DELETE(
     request,
   });
 
-  return Response.json({ success: true });
+  return Response.json({
+    success: true,
+    waivedAttendanceCount: waived.count,
+    periodFrom: period.from,
+    periodTo: period.to,
+  });
 }

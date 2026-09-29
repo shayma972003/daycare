@@ -1,5 +1,6 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { studentClassWhere } from "@/lib/student-access-scope";
 import { sendNotification } from "@/lib/notifications";
 import { buildMessageVars } from "@/lib/message-variables";
 import { logAction } from "@/lib/activity-logger";
@@ -34,7 +35,7 @@ export async function POST(
   if (limitedResponse) return limitedResponse;
 
   const student = await prisma.student.findFirst({
-    where: { id, schoolId, deletedAt: null },
+    where: { id, schoolId, deletedAt: null, ...studentClassWhere(session) },
     include: { class: true, guardian: true },
   });
 

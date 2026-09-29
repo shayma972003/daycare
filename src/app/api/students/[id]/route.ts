@@ -20,6 +20,7 @@ import {
   getRetentionPolicy,
 } from "@/lib/data-retention";
 import { z } from "zod";
+import { mayAccessClass, studentClassWhere } from "@/lib/student-access-scope";
 import { calendarToday, requestTimeZone, storedDate } from "@/lib/device-date";
 import { requireStudentCycleFee, StudentCycleFeeError, studentFeeSettingsSelect } from "@/lib/student-cycle-fee";
 
@@ -40,6 +41,7 @@ const updateStudentSchema = z.object({
   allergies: z.string().nullish(),
   billingCycle: z.enum(["DAILY", "WEEKLY", "MONTHLY", "YEARLY", "CUSTOM"]).nullish(),
   billingIntervalDays: z.number().int().positive().nullish(),
+  cycleFee: z.number().finite().min(0).nullish(),
   paymentMethod: z.enum(["CASH", "TRANSFER", "CARD"]).nullish(),
   enrollmentDate: z.string().nullish(),
   enrollmentEndDate: z.string().nullish(),
@@ -84,7 +86,7 @@ export async function GET(
 
   try {
     const student = await prisma.student.findFirst({
-      where: { id, schoolId, deletedAt: null },
+      where: { id, schoolId, deletedAt: null, ...studentClassWhere(session) },
       select: studentDetailSelect,
     });
 
@@ -99,6 +101,7 @@ export async function GET(
             schoolId,
             guardianId: student.guardianId,
             id: { not: id },
+            ...studentClassWhere(session),
             isActive: true,
             deletedAt: null,
           },
@@ -180,7 +183,9 @@ export async function PUT(
     return Response.json({ error: parsed.error.flatten() }, { status: 422 });
   }
 
-  const existing = await prisma.student.findFirst({ where: { id, schoolId, deletedAt: null } });
+  const existing = await prisma.student.findFirst({
+    where: { id, schoolId, deletedAt: null, ...studentClassWhere(session) },
+  });
   if (!existing) {
     return Response.json({ error: "Not found" }, { status: 404 });
   }
@@ -200,6 +205,7 @@ export async function PUT(
   const financialFields = [
     "billingCycle",
     "billingIntervalDays",
+    "cycleFee",
     "paymentMethod",
     "enrollmentDate",
     "enrollmentEndDate",
@@ -218,10 +224,17 @@ export async function PUT(
     ? data.billingCycle ?? "MONTHLY"
     : existing.billingCycle;
   const billingCycleChanged = "billingCycle" in data && requestedCycle !== existing.billingCycle;
+  const customFeeChanged = requestedCycle === "CUSTOM" && "cycleFee" in data && (
+    data.cycleFee === null ||
+    existing.cycleFee === null ||
+    Number(existing.cycleFee) !== data.cycleFee
+  );
+  const intervalChanged = "billingIntervalDays" in data &&
+    (data.billingIntervalDays ?? null) !== existing.billingIntervalDays;
   const currentSubscriptionEnd = existing.enrollmentEndDate
     ? storedDate(existing.enrollmentEndDate)
     : null;
-  if (billingCycleChanged && currentSubscriptionEnd && currentSubscriptionEnd >= calendarToday(new Date(), timeZone)) {
+  if ((billingCycleChanged || customFeeChanged || intervalChanged) && currentSubscriptionEnd && currentSubscriptionEnd >= calendarToday(new Date(), timeZone)) {
     return Response.json(
       {
         error: "Subscription terms cannot change during an active period",
@@ -244,6 +257,9 @@ export async function PUT(
       throw error;
     }
     if (updateData.classId) updateData.needsClassWarning = false;
+    if (!mayAccessClass(session, updateData.classId as string | null)) {
+      return Response.json({ error: "الفصل غير مسموح لهذا الحساب", code: "CLASS_SCOPE_FORBIDDEN" }, { status: 403 });
+    }
   }
   if ("healthCondition" in data) updateData.healthCondition = data.healthCondition ?? null;
   if ("academicStage" in data) updateData.academicStage = parseAcademicStage(data.academicStage);
@@ -423,11 +439,13 @@ export async function PUT(
 
   try {
   const student = await prisma.$transaction(async (tx) => {
-    if (billingCycleChanged) {
-      if (requestedCycle === "CUSTOM") {
-        if (existing.billingCycle !== "CUSTOM") throw new StudentCycleFeeError();
-        updateData.cycleFee = existing.cycleFee;
-      } else {
+    if (requestedCycle === "CUSTOM" && (billingCycleChanged || "cycleFee" in data)) {
+      updateData.cycleFee = requireStudentCycleFee("CUSTOM", null, data.cycleFee);
+      if (billingCycleChanged && !("billingIntervalDays" in data)) {
+        updateData.billingIntervalDays = 30;
+      }
+    } else if (billingCycleChanged) {
+      if (requestedCycle !== "CUSTOM") {
         const settings = await tx.settings.findUnique({ where: { schoolId }, select: studentFeeSettingsSelect });
         updateData.cycleFee = requireStudentCycleFee(requestedCycle, settings);
         updateData.billingIntervalDays = null;
@@ -445,13 +463,14 @@ export async function PUT(
         id,
         schoolId,
         deletedAt: null,
+        ...studentClassWhere(session),
         updatedAt: new Date(data.expectedUpdatedAt),
       },
       data: updateData,
     });
     if (claimed.count !== 1) throw new Error("STALE_RECORD");
     const updated = await tx.student.findFirstOrThrow({
-      where: { id, schoolId, deletedAt: null },
+      where: { id, schoolId, deletedAt: null, ...studentClassWhere(session) },
       select: studentDetailSelect,
     });
     if (
@@ -459,6 +478,7 @@ export async function PUT(
       "enrollmentEndDate" in data ||
       data.registration_fee !== undefined ||
       billingCycleChanged ||
+      "cycleFee" in data ||
       "billingIntervalDays" in data
     ) {
       await generatePaymentCycles(updated.id, tx);
@@ -535,12 +555,18 @@ export async function DELETE(
   const schoolId = (session.user as { schoolId: string }).schoolId;
   const { id } = await params;
 
-  const existing = await prisma.student.findFirst({ where: { id, schoolId, deletedAt: null } });
+  const existing = await prisma.student.findFirst({
+    where: { id, schoolId, deletedAt: null, ...studentClassWhere(session) },
+  });
   if (!existing) {
     return Response.json({ error: "Not found" }, { status: 404 });
   }
 
-  await prisma.student.update({ where: { id }, data: { deletedAt: new Date() } });
+  const deleted = await prisma.student.updateMany({
+    where: { id, schoolId, deletedAt: null, ...studentClassWhere(session) },
+    data: { deletedAt: new Date() },
+  });
+  if (deleted.count !== 1) return Response.json({ error: "Not found" }, { status: 404 });
 
   await logAction({
     school_id: schoolId,

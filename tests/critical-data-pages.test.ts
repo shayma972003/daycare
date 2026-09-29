@@ -46,7 +46,7 @@ describe("critical data page request contracts", () => {
     expect(dashboardComponent).toContain('"/api/dashboard/tasks"');
     expect(dashboardComponent).toContain('"/api/attendance/page-data"');
     expect(dashboardComponent).toContain("/api/calendar?");
-    expect(dashboardComponent).toContain("/api/notifications?source=activity");
+    expect(dashboardComponent).toContain('"/api/settings/logs?skip=0"');
     expect(dashboardComponent.match(/return \(\) => controller\.abort\(\);/g)).toHaveLength(4);
     expect(dashboardComponent).not.toContain("catch(() => {})");
     expect(dashboardComponent).toContain('headers: deviceHeaders()');

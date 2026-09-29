@@ -1,5 +1,7 @@
 "use client";
 
+import { LocalizedDateTimeInput } from "@/components/ui/LocalizedDateTimeInput";
+
 import { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -1119,8 +1121,8 @@ export default function StudentsPage() {
                 </span>
               </DialogDescription>
             </DialogHeader>
-            {!automaticBulk && <input
-              type="date"
+            {!automaticBulk && <LocalizedDateTimeInput
+              nativeType="date"
               dir="ltr"
               value={newEndDate}
               onChange={(e) => setNewEndDate(e.target.value)}
@@ -1336,7 +1338,7 @@ export default function StudentsPage() {
                 </div>
                 <div className="sm:col-span-2">
                   <label className="block text-xs text-gray-500 mb-1">{t("fields.dateOfBirth")}</label>
-                  <input type="date" dir="ltr" className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#5B14D1]" value={(reviewEdit as Record<string, string>).date_of_birth_str ?? ""} onChange={(e) => setRE("date_of_birth_str", e.target.value)} />
+                  <LocalizedDateTimeInput nativeType="date" dir="ltr" className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#5B14D1]" value={(reviewEdit as Record<string, string>).date_of_birth_str ?? ""} onChange={(e) => setRE("date_of_birth_str", e.target.value)} />
                 </div>
               </div>
             </div>

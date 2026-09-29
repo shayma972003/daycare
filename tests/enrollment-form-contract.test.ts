@@ -92,7 +92,8 @@ describe("admin plan-limit alerts", () => {
     expect(overview).toContain('students: { where: { isActive: true, deletedAt: null } }');
     expect(source("src/app/api/admin/cron/alerts/route.ts")).toContain("isPlanLimitExceeded(");
     expect(notifications).toContain("const planLimitActive = Boolean(");
-    expect(notifications).toContain('NOT: { message: { template_key: "plan_limit" } }');
+    expect(notifications).toContain('{ message: { template_key: null } }');
+    expect(notifications).toContain('{ message: { template_key: { not: "plan_limit" } } }');
     expect(notifications).toContain("where: { ...recipientWhere, read_at: null");
     expect(source("src/app/admin/(protected)/schools/[id]/page.tsx")).toContain("إعادة المحاولة");
   });

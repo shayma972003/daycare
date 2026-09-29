@@ -5,6 +5,7 @@ import {
   lockActivitiesForTeacherTargetChange,
   touchActivityTargetRevisions,
 } from "@/lib/activity-lock";
+import { detachTeacherFromClasses } from "@/lib/class-teacher-assignments";
 
 const RETENTION_DAYS = 30;
 
@@ -88,9 +89,9 @@ export async function cleanupExpiredTrash(): Promise<TrashCleanupResult> {
           where: { teacherId: teacher.id, schoolId: teacher.schoolId },
           data: { teacherId: null },
         });
-        await tx.class.updateMany({
-          where: { teacherId: teacher.id },
-          data: { teacherId: null },
+        await detachTeacherFromClasses(tx, {
+          teacherId: teacher.id,
+          schoolId: teacher.schoolId,
         });
         await tx.activity.updateMany({
           where: { teacherId: teacher.id },

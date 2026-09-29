@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { grants } from "@/lib/permissions";
 import { requireSession } from "@/lib/session";
 import { STORED_FILE_OWNER, type StoredFileOwner } from "@/lib/stored-file-ownership";
+import { ALL_PERMISSIONS } from "@/lib/permissions";
+import { mayAccessStudent, scopedClassIds } from "@/lib/student-access-scope";
 
 export interface StoredFileAccessRecord {
   key: string;
@@ -115,7 +117,41 @@ export async function mayReadStoredFile(
     if (file.ownerType === STORED_FILE_OWNER.SCHOOL) return true;
 
     const permission = requiredStaffPermission(file.ownerType);
-    return permission !== null && grants(freshClaims.permissions ?? [], permission);
+    if (permission === null || !grants(freshClaims.permissions ?? [], permission)) return false;
+    const classroomSensitive =
+      file.ownerType === STORED_FILE_OWNER.STUDENT ||
+      file.ownerType === STORED_FILE_OWNER.ENROLLMENT_TOKEN ||
+      file.ownerType === STORED_FILE_OWNER.ENROLLMENT_SUBMISSION;
+    if (!classroomSensitive) return true;
+
+    const user = await prisma.user.findFirst({
+      where: { id: freshClaims.sub, schoolId: file.schoolId },
+      select: {
+        teacherId: true,
+        teacher: {
+          select: {
+            classAssignments: {
+              where: { class: { deletedAt: null, archivedAt: null } },
+              select: { classId: true },
+            },
+          },
+        },
+      },
+    });
+    if (!user) return false;
+    const permissions = freshClaims.permissions ?? [];
+    const access = {
+      teacherId: user.teacherId,
+      teacherClassIds:
+        user.teacherId && !permissions.includes(ALL_PERMISSIONS)
+          ? (user.teacher?.classAssignments ?? []).map((assignment) => assignment.classId)
+          : null,
+      permissions,
+    };
+    if (file.ownerType !== STORED_FILE_OWNER.STUDENT) {
+      return scopedClassIds(access) === null;
+    }
+    return mayAccessStudent(access, file.ownerId, file.schoolId);
   }
 
   try {
@@ -124,7 +160,15 @@ export async function mayReadStoredFile(
     const permission = requiredStaffPermission(file.ownerType);
     // Non-child explicit owner types can retain dashboard compatibility here;
     // LEGACY returned above and is never inferred from ownerId.
-    return permission ? session.can(permission) : true;
+    if (!permission || !session.can(permission)) return !permission;
+    if (
+      file.ownerType === STORED_FILE_OWNER.ENROLLMENT_TOKEN ||
+      file.ownerType === STORED_FILE_OWNER.ENROLLMENT_SUBMISSION
+    ) {
+      return scopedClassIds(session) === null;
+    }
+    if (file.ownerType !== STORED_FILE_OWNER.STUDENT) return true;
+    return mayAccessStudent(session, file.ownerId, file.schoolId);
   } catch {
     return false;
   }

@@ -1,5 +1,7 @@
 "use client";
 
+import { LocalizedDateTimeInput } from "@/components/ui/LocalizedDateTimeInput";
+
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useForm, type Resolver } from "react-hook-form";
@@ -29,7 +31,7 @@ const DEPARTURE_OPTIONS: TeacherDepartureStatus[] = [
 ];
 
 interface ClassItem { id: string; name: string }
-interface Invoice { id: string; createdAt: string; type: string; amount?: number | null; pdfUrl?: string | null }
+interface Invoice { id: string; createdAt: string; type: string; amount?: number | null }
 
 interface Teacher {
   id: string; name: string;
@@ -51,7 +53,7 @@ interface Teacher {
 }
 
 interface FormValues {
-  name: string; period: "MORNING" | "EVENING" | ""; classId: string;
+  name: string; period: "MORNING" | "EVENING" | "";
   idNumber: string; dateOfBirth: string; nationality: string;
   email: string; phone1: string; phone2: string;
   paymentMethod: "CASH" | "TRANSFER" | "";
@@ -73,7 +75,6 @@ export default function TeacherProfilePage() {
   const canManageFinance = can("finance.manage");
 
   const [teacher, setTeacher] = useState<Teacher | null>(null);
-  const [classes, setClasses] = useState<ClassItem[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -107,10 +108,10 @@ export default function TeacherProfilePage() {
     setInvalidFields(collectMessages(fieldErrors));
   }
 
-  const { register, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<FormValues>({
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(teacherFormSchema) as Resolver<FormValues>,
     defaultValues: {
-      name: "", period: "", classId: "", idNumber: "", dateOfBirth: "",
+      name: "", period: "", idNumber: "", dateOfBirth: "",
       nationality: "", email: "", phone1: "", phone2: "",
       paymentMethod: "", joinDate: "", enrollmentEndDate: "",
       monthlySalary: 0, lateDeductionRate: 0,
@@ -132,7 +133,7 @@ export default function TeacherProfilePage() {
       }
       reset({
         name: data.name ?? "", period: (data.period as "MORNING" | "EVENING") ?? "",
-        classId: data.classes?.[0]?.id ?? "", idNumber: data.idNumber ?? "",
+        idNumber: data.idNumber ?? "",
         dateOfBirth: data.dateOfBirth ? data.dateOfBirth.slice(0, 10) : "",
         nationality: data.nationality ?? "", email: data.email ?? "",
         phone1: data.phone1 ?? "", phone2: data.phone2 ?? "",
@@ -158,17 +159,14 @@ export default function TeacherProfilePage() {
     }
   }, [canViewFinance, id, reset, t]);
 
-  useEffect(() => { if (id && permissionStatus === "ready") void loadTeacher(); }, [id, loadTeacher, permissionStatus]);
-
-  const watchedPeriod = watch("period");
-
   useEffect(() => {
-    if (loading) return;
-    axios
-      .get<ClassItem[]>("/api/classes", { params: watchedPeriod ? { period: watchedPeriod } : {} })
-      .then((r) => setClasses(r.data))
-      .catch(() => {});
-  }, [watchedPeriod, loading]);
+    if (!id || permissionStatus !== "ready") return;
+    let cancelled = false;
+    void Promise.resolve().then(() => {
+      if (!cancelled) return loadTeacher();
+    });
+    return () => { cancelled = true; };
+  }, [id, loadTeacher, permissionStatus]);
 
   async function onSubmit(values: FormValues) {
     if (saving || !teacher) return;
@@ -196,9 +194,6 @@ export default function TeacherProfilePage() {
         qualification1: values.qualification1 || null,
         qualification2: values.qualification2 || null,
         qualification3: values.qualification3 || null,
-        // The class select was registered and rendered, but its value was never
-        // included in the payload — picking a class and saving did nothing.
-        classId: values.classId || null,
         ...extraPayload,
       });
       setSaveSuccess(true);
@@ -361,7 +356,7 @@ export default function TeacherProfilePage() {
                   </div>
                   <div>
                     <label className={labelCls}>{t("fields.dateOfBirth")}</label>
-                    <input type="date" {...register("dateOfBirth")} className={inputCls} dir="ltr" />
+                    <LocalizedDateTimeInput nativeType="date" {...register("dateOfBirth")} className={inputCls} dir="ltr" />
                   </div>
                   <div>
                     <label className={labelCls}>{t("fields.nationality")}</label>
@@ -388,7 +383,6 @@ export default function TeacherProfilePage() {
                       className={selectCls}
                       onChange={(e) => {
                         register("period").onChange(e);
-                        setValue("classId", "");
                       }}
                     >
                       <option value="">{t("common.select")}</option>
@@ -397,11 +391,16 @@ export default function TeacherProfilePage() {
                     </select>
                   </div>
                   <div>
-                    <label className={labelCls}>{t("fields.classroom")}</label>
-                    <select {...register("classId")} className={selectCls}>
-                      <option value="">{t("common.select")}</option>
-                      {classes.map((cls) => <option key={cls.id} value={cls.id}>{cls.name}</option>)}
-                    </select>
+                    <label className={labelCls}>{t("classes.title")}</label>
+                    <div className="flex min-h-10 flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+                      {(teacher.classes ?? []).length > 0
+                        ? teacher.classes?.map((room) => (
+                            <span key={room.id} className="rounded-full bg-violet-50 px-2.5 py-1 text-xs text-[#5B14D1]">
+                              {room.name}
+                            </span>
+                          ))
+                        : <span className="text-sm text-gray-400">—</span>}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -413,7 +412,7 @@ export default function TeacherProfilePage() {
                   {(teacher?.lateCountThisMonth ?? 0) >= 5 && (
                     <div className="relative inline-block group">
                       <span className="text-yellow text-lg cursor-default">⚠</span>
-                      <div className="absolute bottom-full right-0 mb-1 px-2 py-1 bg-gray-800 text-white text-xs rounded whitespace-nowrap hidden group-hover:block z-10">
+                      <div className="absolute bottom-full end-0 mb-1 px-2 py-1 bg-gray-800 text-white text-xs rounded whitespace-nowrap hidden group-hover:block z-10">
                         {t("teacherProfile.repeatedLateness")}
                       </div>
                     </div>
@@ -422,11 +421,11 @@ export default function TeacherProfilePage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className={labelCls}>{t("fields.joinDate")}</label>
-                    <input type="date" {...register("joinDate")} className={inputCls} dir="ltr" />
+                    <LocalizedDateTimeInput nativeType="date" {...register("joinDate")} className={inputCls} dir="ltr" />
                   </div>
                   <div>
                     <label className={labelCls}>{t("fields.contractEnd")}</label>
-                    <input type="date" {...register("enrollmentEndDate")} className={inputCls} dir="ltr" />
+                    <LocalizedDateTimeInput nativeType="date" {...register("enrollmentEndDate")} className={inputCls} dir="ltr" />
                   </div>
                   {canViewFinance && <div>
                     <label className={labelCls}>{t("fields.lateDeduction")}</label>
@@ -637,10 +636,10 @@ export default function TeacherProfilePage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50">
-                  <th className="px-6 py-3 text-right font-medium text-gray-600">{t("teacherProfile.invoice")}</th>
-                  <th className="px-6 py-3 text-right font-medium text-gray-600">{t("teacherProfile.netSalary")}</th>
-                  <th className="px-6 py-3 text-right font-medium text-gray-600">{t("finance.issuedOn")}</th>
-                  <th className="px-6 py-3 text-right font-medium text-gray-600">{t("common.actions")}</th>
+                  <th className="px-6 py-3 text-start font-medium text-gray-600">{t("teacherProfile.invoice")}</th>
+                  <th className="px-6 py-3 text-start font-medium text-gray-600">{t("teacherProfile.netSalary")}</th>
+                  <th className="px-6 py-3 text-start font-medium text-gray-600">{t("finance.issuedOn")}</th>
+                  <th className="px-6 py-3 text-start font-medium text-gray-600">{t("common.actions")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -651,12 +650,16 @@ export default function TeacherProfilePage() {
                     <td className="px-6 py-3 text-gray-500">{formatDate(inv.createdAt, locale)}</td>
                     <td className="px-6 py-3">
                       <div className="flex gap-2">
-                        {inv.pdfUrl && (
-                          <>
-                            <button onClick={() => { const b64 = inv.pdfUrl!.split(",")[1]; const bytes = Uint8Array.from(atob(b64),(c)=>c.charCodeAt(0)); window.open(URL.createObjectURL(new Blob([bytes],{type:"application/pdf"})),"_blank"); }} className="px-2.5 py-1 text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100">{t("finance.view")}</button>
-                            <button onClick={() => { const a=document.createElement("a"); a.href=inv.pdfUrl!; a.download=`invoice-${inv.id.slice(0,8)}.pdf`; document.body.appendChild(a); a.click(); document.body.removeChild(a); }} className="px-2.5 py-1 text-xs bg-gray-50 text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-100">{t("finance.download")}</button>
-                          </>
-                        )}
+                        <a
+                          href={`/api/invoices/${inv.id}/pdf?disposition=inline`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-2.5 py-1 text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100"
+                        >{t("finance.view")}</a>
+                        <a
+                          href={`/api/invoices/${inv.id}/pdf?disposition=attachment`}
+                          className="px-2.5 py-1 text-xs bg-gray-50 text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-100"
+                        >{t("finance.download")}</a>
                       </div>
                     </td>
                   </tr>
@@ -691,8 +694,8 @@ export default function TeacherProfilePage() {
 
             <div>
               <label className="block text-sm text-gray-600 mb-1">{t("teacherProfile.lastWorkingDay")}</label>
-              <input
-                type="date"
+              <LocalizedDateTimeInput
+                nativeType="date"
                 value={departureDate}
                 onChange={(e) => setDepartureDate(e.target.value)}
                 className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm"
@@ -736,13 +739,13 @@ export default function TeacherProfilePage() {
               </>
             ) : (
               <>
-                <p className="text-base font-bold text-[#111111] text-right">{t("teacherProfile.isLeadTeacherOf")}</p>
-                <ul className="text-sm text-gray-700 text-right space-y-1 max-h-40 overflow-y-auto">
+                <p className="text-base font-bold text-[#111111] text-start">{t("teacherProfile.isLeadTeacherOf")}</p>
+                <ul className="text-sm text-gray-700 text-start space-y-1 max-h-40 overflow-y-auto">
                   {trashClasses.map((c) => (
                     <li key={c.id}>- {c.name} ({c.group})</li>
                   ))}
                 </ul>
-                <p className="text-sm text-gray-600 whitespace-pre-line text-right">
+                <p className="text-sm text-gray-600 whitespace-pre-line text-start">
                   {t("teachers.deleteWarning")}
                 </p>
               </>
@@ -777,9 +780,9 @@ export default function TeacherProfilePage() {
               <button
                 onClick={confirmDeleteLateFee}
                 disabled={actionLoading === "lateFee"}
-                className="px-5 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 disabled:opacity-60"
+                className="px-5 py-2 bg-[#5B14D1] text-white rounded-xl text-sm font-medium hover:bg-[#490EA9] disabled:opacity-60"
               >
-                {actionLoading === "lateFee" ? "..." : t("common.delete")}
+                {actionLoading === "lateFee" ? "..." : t("common.confirm")}
               </button>
               <button
                 onClick={() => setShowLateFeeConfirm(false)}

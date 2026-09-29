@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   tokenCount: vi.fn(),
   submissionCount: vi.fn(),
   guardianAccountFindFirst: vi.fn(),
+  userFindFirst: vi.fn(),
   verifyAccessToken: vi.fn(),
   claimsForSubject: vi.fn(),
   verifyFileToken: vi.fn(),
@@ -25,6 +26,7 @@ vi.mock("@/lib/prisma", () => ({
     enrollmentToken: { count: mocks.tokenCount },
     enrollmentSubmission: { count: mocks.submissionCount },
     guardianAccount: { findFirst: mocks.guardianAccountFindFirst },
+    user: { findFirst: mocks.userFindFirst },
   },
 }));
 vi.mock("@/lib/mobile-auth", () => ({
@@ -60,6 +62,7 @@ beforeEach(() => {
   mocks.verifyFileToken.mockReturnValue(false);
   mocks.studentCount.mockResolvedValue(1);
   mocks.schoolCount.mockResolvedValue(1);
+  mocks.userFindFirst.mockResolvedValue({ teacherId: null, teacher: null });
   mocks.verifyAccessToken.mockResolvedValue({
     sub: "account-1",
     kind: "staff",
@@ -206,6 +209,13 @@ describe("StoredFile read authorization", () => {
     });
     await expect(mayReadStoredFile(bearerRequest(pendingFile.key), pendingFile))
       .resolves.toBe(true);
+
+    mocks.userFindFirst.mockResolvedValue({
+      teacherId: "teacher-1",
+      teacher: { classAssignments: [{ classId: "class-1" }] },
+    });
+    await expect(mayReadStoredFile(bearerRequest(pendingFile.key), pendingFile))
+      .resolves.toBe(false);
   });
 
   it("lets a guardian read only a currently linked child", async () => {

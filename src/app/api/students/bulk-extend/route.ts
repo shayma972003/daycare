@@ -3,6 +3,7 @@ import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { renewalFields, renewStudentSubscription, RenewalError } from "@/lib/student-renewal";
 import { bulkSummary, type BulkItemResult } from "@/lib/bulk-result";
 import { withNoStore } from "@/lib/auth-response";
+import { scopedClassIds } from "@/lib/student-access-scope";
 
 const schema = renewalFields.pick({ mode: true, enrollmentEndDate: true, reactivate: true }).extend({ ids: z.array(z.string().min(1)).min(1).max(500) });
 
@@ -17,9 +18,16 @@ export async function POST(request: Request) {
   const parsed = schema.safeParse(body);
   if (!parsed.success) return Response.json({ error: "Invalid renewal data" }, { status: 422 });
   const results: BulkItemResult[] = [];
+  const classIds = scopedClassIds(session);
   for (const id of new Set(parsed.data.ids)) {
     try {
-      await renewStudentSubscription(parsed.data, { id, schoolId: session.user.schoolId, actor: session.user.name ?? "admin", request });
+      await renewStudentSubscription(parsed.data, {
+        id,
+        schoolId: session.user.schoolId,
+        actor: session.user.name ?? "admin",
+        request,
+        classIds,
+      });
       results.push({ id, status: "succeeded" });
     } catch (error) {
       results.push({ id, status: "failed", code: error instanceof RenewalError ? error.code : "RENEWAL_FAILED" });

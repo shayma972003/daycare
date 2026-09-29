@@ -8,6 +8,7 @@ import { normalizePhone } from "@/lib/phone-normalizer";
 import { env } from "@/lib/env";
 import { mintInvite, accountState } from "@/lib/invitations";
 import { clientIp, rateLimit, rateLimitResponse } from "@/lib/rate-limit";
+import { scopedClassIds, studentClassWhere } from "@/lib/student-access-scope";
 
 const createSchema = z
   .object({
@@ -62,9 +63,22 @@ export async function GET() {
     );
   }
   const schoolId = session.user.schoolId;
+  const classIds = scopedClassIds(session);
 
   const guardians = await prisma.guardian.findMany({
-    where: { schoolId, deletedAt: null, anonymizedAt: null },
+    where: {
+      schoolId,
+      deletedAt: null,
+      anonymizedAt: null,
+      ...(classIds === null
+        ? {}
+        : {
+            OR: [
+              { students: { some: { schoolId, ...studentClassWhere(session) } } },
+              { links: { some: { student: { is: { schoolId, ...studentClassWhere(session) } } } } },
+            ],
+          }),
+    },
     orderBy: { name: "asc" },
     select: {
       id: true,
@@ -72,7 +86,12 @@ export async function GET() {
       email: true,
       phone1: true,
       students: {
-        where: { schoolId, deletedAt: null, anonymizedAt: null },
+        where: {
+          schoolId,
+          deletedAt: null,
+          anonymizedAt: null,
+          ...studentClassWhere(session),
+        },
         select: { id: true, name: true },
       },
     },
@@ -135,6 +154,7 @@ export async function POST(request: Request) {
     );
   }
   const schoolId = session.user.schoolId;
+  const classIds = scopedClassIds(session);
 
   let body: unknown;
   try {
@@ -174,6 +194,14 @@ export async function POST(request: Request) {
           schoolId,
           deletedAt: null,
           anonymizedAt: null,
+          ...(classIds === null
+            ? {}
+            : {
+                OR: [
+                  { students: { some: { schoolId, ...studentClassWhere(session) } } },
+                  { links: { some: { student: { is: { schoolId, ...studentClassWhere(session) } } } } },
+                ],
+              }),
         },
         select: {
           id: true,
@@ -187,6 +215,7 @@ export async function POST(request: Request) {
               status: "ACTIVE",
               deletedAt: null,
               anonymizedAt: null,
+              ...studentClassWhere(session),
             },
             take: 1,
             select: { id: true },
@@ -199,6 +228,7 @@ export async function POST(request: Request) {
                   status: "ACTIVE",
                   deletedAt: null,
                   anonymizedAt: null,
+                  ...studentClassWhere(session),
                 },
               },
             },

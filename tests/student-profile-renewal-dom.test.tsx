@@ -20,7 +20,7 @@ function fixture() {
     guardian: { id: "guardian-1", name: "Parent", email: "parent@example.invalid" },
     registrationDate: "2025-01-01T00:00:00.000Z", registration_fee: 0, billingCycle: "MONTHLY", billingIntervalDays: null,
     cycleFee: null as number | null, paymentMethod: "CASH", paymentStatus: "PAID", isActive: true, status: "ACTIVE",
-    enrollmentDate: "2026-08-01T00:00:00.000Z", enrollmentEndDate: "2026-08-26T00:00:00.000Z", attendanceHours: 1, lateHours: 0, siblings: [] };
+    enrollmentDate: "2026-08-01T00:00:00.000Z", enrollmentEndDate: "2026-08-26T00:00:00.000Z", attendanceHours: 1, lateHours: 0, siblings: [], hasEvaluationFile: false };
 }
 let saved = fixture();
 beforeEach(() => {
@@ -35,7 +35,11 @@ beforeEach(() => {
     return { data: [] };
   });
   api.put.mockImplementation(async (_url: string, data: Partial<typeof saved>) => {
-    saved = { ...saved, ...data }; return { data: { ...saved } };
+    const settingsFee = data.billingCycle === "YEARLY" ? 1200
+      : data.billingCycle === "MONTHLY" ? 500
+        : saved.cycleFee;
+    saved = { ...saved, ...data, cycleFee: settingsFee };
+    return { data: { ...saved } };
   });
   api.post.mockImplementation(async () => {
     saved = { ...saved, enrollmentDate: "2026-08-27T00:00:00.000Z", enrollmentEndDate: saved.billingCycle === "YEARLY" ? "2027-08-26T00:00:00.000Z" : "2026-09-26T00:00:00.000Z", paymentStatus: "PENDING" };
@@ -77,7 +81,8 @@ describe("profile subscription state after renewal and save", () => {
   it("requires saving changed terms, then uses the saved type in the next renewal and updates all fields", async () => {
     await open();
     fireEvent.change(screen.getByLabelText("Subscription type"), { target: { value: "YEARLY" } });
-    fireEvent.change(screen.getByLabelText("Fee per cycle"), { target: { value: "1200" } });
+    expect(screen.queryByLabelText("Fee per cycle")).toBeNull();
+    expect(screen.getByText("Fee from settings: SAR 1200")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Renew subscription" }));
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.getByRole("alert").textContent).toContain("Save changes");
@@ -89,7 +94,7 @@ describe("profile subscription state after renewal and save", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Renew subscription" }));
     await waitFor(() => expect(input("Enrollment End Date").value).toBe("2027-08-26"));
     expect((screen.getByLabelText("Subscription type") as HTMLSelectElement).value).toBe("YEARLY");
-    expect(input("Fee per cycle").value).toBe("1200");
+    expect(screen.getByText("Fee from settings: SAR 1200")).toBeTruthy();
   });
   it("does not replace stored dates or hide the error when renewal fails", async () => {
     await open();

@@ -1,5 +1,6 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { studentClassWhere } from "@/lib/student-access-scope";
 import { logAction } from "@/lib/activity-logger";
 import { PAYMENT_STATUSES } from "@/lib/payment-status";
 import { z } from "zod";
@@ -39,7 +40,18 @@ export async function PUT(request: Request) {
 
   const { ids, paymentStatus } = parsed.data;
   const uniqueIds = [...new Set(ids)];
-  const owned = await prisma.student.findMany({ where: { id: { in: uniqueIds }, schoolId, deletedAt: null }, select: { id: true } });
+  const owned = await prisma.student.findMany({
+    where: {
+      id: { in: uniqueIds },
+      schoolId,
+      deletedAt: null,
+      ...studentClassWhere(session),
+    },
+    select: { id: true },
+  });
+  if (owned.length !== uniqueIds.length) {
+    return Response.json({ error: "One or more students are not available" }, { status: 404 });
+  }
   const ownedIds = new Set(owned.map((item) => item.id));
 
   const { count } = await prisma.student.updateMany({

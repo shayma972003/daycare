@@ -26,6 +26,7 @@ import { money, moneyAdd, moneyMaxZero, moneyMultiply, moneyNumber, moneySubtrac
 import { claimInvoice, completeInvoiceClaim, failInvoiceClaim, idempotencyConflictResponse, invoiceRequestHash, missingIdempotencyKeyResponse, readIdempotencyKey } from "@/lib/invoice-idempotency";
 import { resolveStudentCycleFee } from "@/lib/student-cycle-fee";
 import { studentLatenessForInvoice, teacherLatenessForInvoice } from "@/lib/invoice-lateness";
+import { studentClassWhere } from "@/lib/student-access-scope";
 
 Font.register({
   family: "Arabic",
@@ -207,7 +208,9 @@ export async function POST(request: Request) {
   if (fullParsed.success) {
     const { studentId, invoiceData: rawInv } = fullParsed.data;
 
-    const student = await prisma.student.findFirst({ where: { id: studentId, schoolId, deletedAt: null } });
+    const student = await prisma.student.findFirst({
+      where: { id: studentId, schoolId, deletedAt: null, ...studentClassWhere(session) },
+    });
     if (!student) return Response.json({ error: "Student not found" }, { status: 404 });
 
     // Every money figure is recomputed from the line items rather than trusted.
@@ -501,7 +504,7 @@ export async function POST(request: Request) {
   if (studentId) {
     invoiceType = "STUDENT";
     const student = await prisma.student.findFirst({
-      where: { id: studentId, schoolId, deletedAt: null },
+      where: { id: studentId, schoolId, deletedAt: null, ...studentClassWhere(session) },
       include: { class: true, guardian: true },
     });
     if (!student) {
@@ -628,7 +631,14 @@ export async function POST(request: Request) {
     invoiceType = "TEACHER";
     const teacher = await prisma.teacher.findFirst({
       where: { id: teacherId!, schoolId, deletedAt: null },
-      include: { classes: true },
+      include: {
+        classes: true,
+        classAssignments: {
+          where: { class: { deletedAt: null } },
+          orderBy: { createdAt: "asc" },
+          select: { class: { select: { name: true } } },
+        },
+      },
     });
     if (!teacher) {
       await failInvoiceClaim(claim.id, claim.leaseExpiresAt);
@@ -643,12 +653,13 @@ export async function POST(request: Request) {
     invoiceData = {
       type: "TEACHER",
       teacherName: teacher.name,
-      className: teacher.classes?.[0]?.name,
+      className: teacher.classAssignments[0]?.class.name ?? teacher.classes?.[0]?.name,
       baseSalary: teacher.monthlySalary,
       lateHours: lateness.lateHours,
       deduction,
       netSalary,
     };
+    const teacherClassName = teacher.classAssignments[0]?.class.name ?? teacher.classes?.[0]?.name;
 
     pdfDoc = createElement(
       Document,
@@ -682,7 +693,7 @@ export async function POST(request: Request) {
           ...[
             createElement(Text, { style: styles.sectionTitle }, "بيانات المعلم"),
             createElement(View, { style: styles.row }, createElement(Text, { style: styles.label }, "الاسم"), createElement(Text, { style: styles.value }, teacher.name ?? "")),
-            teacher.classes?.[0]?.name ? createElement(View, { style: styles.row }, createElement(Text, { style: styles.label }, "الفصل"), createElement(Text, { style: styles.value }, teacher.classes[0].name)) : undefined,
+            teacherClassName ? createElement(View, { style: styles.row }, createElement(Text, { style: styles.label }, "الفصل"), createElement(Text, { style: styles.value }, teacherClassName)) : undefined,
           ].filter(Boolean)
         ),
         createElement(

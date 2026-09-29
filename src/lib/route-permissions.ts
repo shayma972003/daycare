@@ -289,6 +289,7 @@ export const ROUTE_PERMISSIONS: Record<string, RouteRule> = {
   // GET is open: the dashboard reads fee settings and school hours on almost
   // every screen, and a teacher who cannot read them sees an empty timetable.
   "/api/settings": { methods: { GET: null, PUT: "settings.manage" } },
+  "/api/settings/arrival-recipients": { default: "settings.manage" },
   /**
    * Academic stages (task 2.44).
    *

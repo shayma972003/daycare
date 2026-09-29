@@ -1068,6 +1068,9 @@ model School {
   activity_messages         ActivityMessage[]
   activity_message_recipients ActivityMessageRecipient[]
   subscription_payments       SchoolSubscriptionPayment[]
+  arrival_recipient_settings  ArrivalRecipientSetting[]
+  arrival_notices             ArrivalNotice[]
+  arrival_notice_recipients   ArrivalNoticeRecipient[]
 }
 
 model PaymentCycle {
@@ -1277,6 +1280,8 @@ model User {
   schoolAdminInvitations SchoolAdminInvitation[]
   devices DeviceToken[]
   activityMessageRecipients ActivityMessageRecipient[]
+  arrivalRecipientSettings ArrivalRecipientSetting[]
+  arrivalNoticeRecipients ArrivalNoticeRecipient[]
 
   @@unique([id, schoolId])
   @@index([schoolId])
@@ -1334,17 +1339,73 @@ model GuardianAccount {
 
   disabledAt DateTime?
   lastLoginAt DateTime?
+  /// Server-authoritative rolling cooldown for the parent arrival button.
+  lastArrivalNoticeAt DateTime?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
   devices DeviceToken[]
   resetTokens PasswordResetToken[]
   activityMessageRecipients ActivityMessageRecipient[]
+  arrivalNotices ArrivalNotice[]
 
   @@unique([guardianId, schoolId])
   @@unique([id, schoolId])
   @@index([schoolId])
   @@index([phone])
+}
+
+/// Staff accounts selected by the director to receive parent arrival notices.
+model ArrivalRecipientSetting {
+  schoolId String
+  userId   String
+  createdAt DateTime @default(now())
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId, schoolId], references: [id, schoolId], onDelete: Cascade)
+
+  @@id([schoolId, userId])
+  @@index([userId])
+}
+
+/// One press of the guardian's "I will arrive in 5 minutes" button.
+/// It intentionally has no child relation: the notice identifies the sender,
+/// exactly as the product flow does, and never asks the parent to pick a child.
+model ArrivalNotice {
+  id                String   @id @default(cuid())
+  schoolId          String
+  guardianAccountId String
+  senderName        String
+  expectedAt        DateTime
+  pushQueuedCount   Int      @default(0)
+  pushFailureCount  Int      @default(0)
+  pushProcessedAt   DateTime?
+  createdAt         DateTime @default(now())
+
+  school          School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  guardianAccount GuardianAccount @relation(fields: [guardianAccountId, schoolId], references: [id, schoolId], onDelete: Cascade)
+  recipients      ArrivalNoticeRecipient[]
+
+  @@unique([id, schoolId])
+  @@index([schoolId, createdAt])
+  @@index([guardianAccountId, createdAt])
+}
+
+/// Recipient snapshot captured when the parent presses the button. Changing
+/// the setting later does not rewrite who received an existing notice.
+model ArrivalNoticeRecipient {
+  noticeId  String
+  schoolId  String
+  userId    String
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+
+  notice ArrivalNotice @relation(fields: [noticeId, schoolId], references: [id, schoolId], onDelete: Cascade)
+  school School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  user   User          @relation(fields: [userId, schoolId], references: [id, schoolId], onDelete: Cascade)
+
+  @@id([noticeId, userId])
+  @@index([schoolId, userId, createdAt])
 }
 
 /// Where to deliver a push notification.

@@ -75,6 +75,13 @@ interface NotificationLog {
   sentAt: string;
 }
 
+interface ArrivalRecipientAccount {
+  id: string;
+  name: string;
+  email: string;
+  roleName: string | null;
+}
+
 // ── Section wrapper ─────────────────────────────────────────────────────────
 
 function SettingsSection({
@@ -93,6 +100,7 @@ function SettingsSection({
     "academic-stages": 40,
     password: 50,
     security: 51,
+    "arrival-notifications": 60,
     "message-template": 70,
     "notification-log": 80,
     trash: 90,
@@ -241,6 +249,14 @@ export default function SettingsPage() {
   const [confirmBulkDeleteLog, setConfirmBulkDeleteLog] = useState(false);
   const [deletingLogId, setDeletingLogId] = useState<string | null>(null);
   const [deletingBulkLog, setDeletingBulkLog] = useState(false);
+  const [arrivalRecipientAccounts, setArrivalRecipientAccounts] = useState<ArrivalRecipientAccount[]>([]);
+  const [arrivalRecipientIds, setArrivalRecipientIds] = useState<string[]>([]);
+  const [loadingArrivalRecipients, setLoadingArrivalRecipients] = useState(canManageSettings);
+  const [savingArrivalRecipients, setSavingArrivalRecipients] = useState(false);
+  const [arrivalRecipientsFeedback, setArrivalRecipientsFeedback] = useState<{
+    ok: boolean;
+    text: string;
+  } | null>(null);
   const PAGE_SIZE = 20;
 
   /**
@@ -303,6 +319,59 @@ export default function SettingsPage() {
       .catch(() => {})
       .finally(() => setLoadingLogs(false));
   }, []);
+
+  useEffect(() => {
+    if (!canManageSettings) return;
+    axios
+      .get<{
+        accounts: ArrivalRecipientAccount[];
+        selectedUserIds: string[];
+      }>("/api/settings/arrival-recipients")
+      .then((res) => {
+        setArrivalRecipientAccounts(
+          Array.isArray(res.data.accounts) ? res.data.accounts : []
+        );
+        setArrivalRecipientIds(
+          Array.isArray(res.data.selectedUserIds) ? res.data.selectedUserIds : []
+        );
+      })
+      .catch(() => {
+        setArrivalRecipientsFeedback({ ok: false, text: t("settings.arrivalNotifications.loadFailed") });
+      })
+      .finally(() => setLoadingArrivalRecipients(false));
+  }, [canManageSettings, t]);
+
+  function toggleArrivalRecipient(userId: string) {
+    setArrivalRecipientsFeedback(null);
+    setArrivalRecipientIds((current) =>
+      current.includes(userId)
+        ? current.filter((id) => id !== userId)
+        : [...current, userId]
+    );
+  }
+
+  async function saveArrivalRecipients() {
+    setSavingArrivalRecipients(true);
+    setArrivalRecipientsFeedback(null);
+    try {
+      const response = await axios.put<{ selectedUserIds: string[] }>(
+        "/api/settings/arrival-recipients",
+        { userIds: arrivalRecipientIds }
+      );
+      setArrivalRecipientIds(response.data.selectedUserIds);
+      setArrivalRecipientsFeedback({
+        ok: true,
+        text: t("settings.arrivalNotifications.saved"),
+      });
+    } catch {
+      setArrivalRecipientsFeedback({
+        ok: false,
+        text: t("settings.arrivalNotifications.saveFailed"),
+      });
+    } finally {
+      setSavingArrivalRecipients(false);
+    }
+  }
 
   async function handleDeleteOneLog(id: string) {
     setDeletingLogId(id);
@@ -736,7 +805,7 @@ export default function SettingsPage() {
       { id: "fees", title: t("settings.fees.title"), sections: ["fees"] },
       { id: "stages", title: t("settings.stages.title"), sections: ["academic-stages"] },
       { id: "security", title: t("settings.accountSecurity"), sections: ["password", "security"] },
-      { id: "notifications", title: t("settings.notificationsSection"), sections: ["message-template", "notification-log"] },
+      { id: "notifications", title: t("settings.notificationsSection"), sections: ["arrival-notifications", "message-template", "notification-log"] },
       { id: "data", title: t("settings.dataSection"), sections: ["trash"] },
     ],
     [t]
@@ -1410,6 +1479,83 @@ export default function SettingsPage() {
             {showSection("academic-stages") && (
               <SettingsSection id="academic-stages" title={t("settings.stages.title")}>
                 <AcademicStagesPanel />
+              </SettingsSection>
+            )}
+
+            {/* ── Parent arrival notification recipients ─────────── */}
+            {showSection("arrival-notifications") && canManageSettings && (
+              <SettingsSection
+                id="arrival-notifications"
+                title={t("settings.arrivalNotifications.title")}
+              >
+                <p className="text-sm text-gray-500">
+                  {t("settings.arrivalNotifications.hint")}
+                </p>
+
+                {loadingArrivalRecipients ? (
+                  <div className="text-sm text-gray-400">{t("common.loading")}</div>
+                ) : arrivalRecipientAccounts.length === 0 ? (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                    {t("settings.arrivalNotifications.noAccounts")}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {arrivalRecipientAccounts.map((account) => {
+                      const checked = arrivalRecipientIds.includes(account.id);
+                      return (
+                        <label
+                          key={account.id}
+                          className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition-colors ${
+                            checked
+                              ? "border-[#4f00c1] bg-[#f7f2ff]"
+                              : "border-gray-200 bg-white hover:bg-gray-50"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleArrivalRecipient(account.id)}
+                            className="mt-1 h-4 w-4 accent-[#4f00c1]"
+                          />
+                          <span className="min-w-0">
+                            <span className="block text-sm font-semibold text-gray-900">
+                              {account.name}
+                            </span>
+                            <span className="block truncate text-xs text-gray-500" dir="ltr">
+                              {account.email}
+                            </span>
+                            {account.roleName && (
+                              <span className="mt-1 block text-xs text-[#4f00c1]">
+                                {account.roleName}
+                              </span>
+                            )}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {arrivalRecipientIds.length === 0 && !loadingArrivalRecipients && (
+                  <p className="text-xs text-amber-700">
+                    {t("settings.arrivalNotifications.emptyWarning")}
+                  </p>
+                )}
+                {arrivalRecipientsFeedback && (
+                  <p className={`text-sm ${arrivalRecipientsFeedback.ok ? "text-green-700" : "text-red-600"}`}>
+                    {arrivalRecipientsFeedback.text}
+                  </p>
+                )}
+                <button
+                  type="button"
+                  onClick={saveArrivalRecipients}
+                  disabled={savingArrivalRecipients || loadingArrivalRecipients}
+                  className="rounded-xl bg-[#4f00c1] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#3f009b] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {savingArrivalRecipients
+                    ? t("common.working")
+                    : t("settings.arrivalNotifications.save")}
+                </button>
               </SettingsSection>
             )}
 

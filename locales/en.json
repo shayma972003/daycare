@@ -606,6 +606,16 @@
       "sentAt": "Sent At",
       "status": "Status"
     },
+    "arrivalNotifications": {
+      "title": "Arrival notification recipients",
+      "hint": "Choose the staff accounts that receive a notification when a parent taps “I’ll arrive in 5 minutes”.",
+      "noAccounts": "There are no active staff accounts. Create and activate an account first under Permissions and staff accounts.",
+      "emptyWarning": "No recipient is selected. The parent’s tap will be recorded, but no staff member will receive a notification.",
+      "save": "Save recipients",
+      "saved": "Arrival notification recipients saved",
+      "loadFailed": "Could not load arrival notification recipients",
+      "saveFailed": "Could not save arrival notification recipients"
+    },
     "save": "Save Settings",
     "stages": {
       "title": "Academic stages",

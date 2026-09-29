@@ -50,10 +50,18 @@ export async function GET(request: Request) {
   );
   const recipientWhere: Prisma.AdminMessageRecipientWhereInput = {
     school_id: schoolId,
+    delivered_at: { not: null },
     // A plan-limit message is a snapshot from the time it was generated. Do
     // not keep presenting it as a current warning after the school is back
     // within its cap or has moved to an unlimited plan.
-    ...(planLimitActive ? {} : { NOT: { message: { template_key: "plan_limit" } } }),
+    ...(planLimitActive
+      ? {}
+      : {
+          OR: [
+            { message: { template_key: null } },
+            { message: { template_key: { not: "plan_limit" } } },
+          ],
+        }),
   };
 
   const recipients = await prisma.adminMessageRecipient.findMany({
@@ -64,7 +72,7 @@ export async function GET(request: Request) {
   });
 
   const unreadCount = await prisma.adminMessageRecipient.count({
-    where: { ...recipientWhere, read_at: null, delivered_at: { not: null } },
+    where: { ...recipientWhere, read_at: null },
   });
 
   const messages = recipients.map((r) => ({

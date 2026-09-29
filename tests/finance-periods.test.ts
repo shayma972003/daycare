@@ -146,3 +146,57 @@ describe("getPreviousPeriodRange", () => {
     }
   });
 });
+
+describe("expenseAccrualsInPeriod", () => {
+  it("counts every elapsed monthly expense from its selected start date", async () => {
+    const { expenseAccrualsInPeriod, expenseAmountInPeriod } = await import("@/lib/finance");
+    const expense = {
+      amount: 500,
+      type: "monthly",
+      start_date: new Date("2026-03-22T00:00:00.000Z"),
+      end_date: null,
+      stopped_at: null,
+    };
+    const from = new Date("2025-12-31T21:00:00.000Z");
+    const to = new Date("2026-09-28T20:59:59.999Z");
+
+    const entries = expenseAccrualsInPeriod(expense, from, to);
+
+    expect(entries).toHaveLength(7);
+    expect(entries.map((entry) => entry.date.toISOString().slice(0, 10))).toEqual([
+      "2026-03-22",
+      "2026-04-22",
+      "2026-05-22",
+      "2026-06-22",
+      "2026-07-22",
+      "2026-08-22",
+      "2026-09-22",
+    ]);
+    expect(expenseAmountInPeriod(expense, from, to).toString()).toBe("3500");
+  });
+
+  it("does not count the current month before its due day and clamps month-end dates", async () => {
+    const { expenseAccrualsInPeriod } = await import("@/lib/finance");
+    const expense = {
+      amount: 125,
+      type: "monthly",
+      start_date: new Date("2026-01-31T00:00:00.000Z"),
+      end_date: null,
+      stopped_at: null,
+    };
+
+    const beforeDue = expenseAccrualsInPeriod(
+      expense,
+      new Date("2026-01-31T00:00:00.000Z"),
+      new Date("2026-02-27T20:59:59.999Z")
+    );
+    const afterDue = expenseAccrualsInPeriod(
+      expense,
+      new Date("2026-01-31T00:00:00.000Z"),
+      new Date("2026-02-28T20:59:59.999Z")
+    );
+
+    expect(beforeDue.map((entry) => entry.date.toISOString().slice(0, 10))).toEqual(["2026-01-31"]);
+    expect(afterDue.map((entry) => entry.date.toISOString().slice(0, 10))).toEqual(["2026-01-31", "2026-02-28"]);
+  });
+});

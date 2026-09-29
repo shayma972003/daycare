@@ -65,6 +65,10 @@ export async function POST(request: Request) {
     });
   }
 
+  if (targetSchools.length === 0) {
+    return Response.json({ error: "لا توجد حضانات مطابقة لاستلام الرسالة" }, { status: 422 });
+  }
+
   const isScheduled = !!scheduled_at;
   const sentAt = isScheduled ? null : new Date();
 

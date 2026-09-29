@@ -1,5 +1,7 @@
 "use client";
 
+import { LocalizedDateTimeInput } from "@/components/ui/LocalizedDateTimeInput";
+
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { describeApiError } from "@/lib/api-error";
@@ -54,6 +56,8 @@ export default function CommunicationsPage() {
   const [statusFilter, setStatusFilter] = useState("active");
   const [scheduledAt, setScheduledAt] = useState("");
   const [sending, setSending] = useState(false);
+  const [selectedTemplateKey, setSelectedTemplateKey] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   // Alert rule editing
   const [editingRule, setEditingRule] = useState<AlertRule | null>(null);
@@ -81,6 +85,8 @@ export default function CommunicationsPage() {
   function fillTemplate(t: typeof TEMPLATES[0]) {
     setSubject(t.subject);
     setBody(t.body);
+    setSelectedTemplateKey(t.key);
+    setSuccess(null);
   }
 
   /** These all awaited with no catch, so a failure looked like nothing happened. */
@@ -95,8 +101,9 @@ export default function CommunicationsPage() {
 
   async function sendMessage() {
     setSending(true);
+    setSuccess(null);
     await run(async () => {
-      await axios.post("/api/admin/messages", {
+      const response = await axios.post<{ recipientCount: number }>("/api/admin/messages", {
         subject,
         body,
         target_type: targetType,
@@ -107,6 +114,8 @@ export default function CommunicationsPage() {
       setSubject("");
       setBody("");
       setScheduledAt("");
+      setSelectedTemplateKey(null);
+      setSuccess(`تم ${scheduledAt ? "جدولة" : "إرسال"} «${subject}» إلى ${response.data.recipientCount} حضانة`);
       setSentMessages((await axios.get<SentMessage[]>("/api/admin/messages")).data);
     }, "تعذر إرسال الرسالة");
     setSending(false);
@@ -141,6 +150,11 @@ export default function CommunicationsPage() {
           {error}
         </div>
       )}
+      {success && (
+        <div role="status" className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-300">
+          {success}
+        </div>
+      )}
 
       <Tabs.Root defaultValue="manual">
         <Tabs.List className="flex gap-1 bg-[#1e1e2e] p-1 rounded-xl w-fit border border-white/5 mb-6">
@@ -157,12 +171,12 @@ export default function CommunicationsPage() {
 
               <div>
                 <label className="text-gray-400 text-xs block mb-1">الموضوع</label>
-                <input value={subject} onChange={(e) => setSubject(e.target.value)} className="input-admin w-full" placeholder="موضوع الرسالة" />
+                <input value={subject} onChange={(e) => { setSubject(e.target.value); setSelectedTemplateKey(null); }} className="input-admin w-full" placeholder="موضوع الرسالة" />
               </div>
 
               <div>
                 <label className="text-gray-400 text-xs block mb-1">نص الرسالة</label>
-                <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={5} className="input-admin w-full resize-none" placeholder="نص الرسالة..." />
+                <textarea value={body} onChange={(e) => { setBody(e.target.value); setSelectedTemplateKey(null); }} rows={5} className="input-admin w-full resize-none" placeholder="نص الرسالة..." />
                 <div className="mt-2 flex flex-wrap gap-2">
                   {["<school_name>", "<renewal_date>", "<plan_name>", "<amount_due>"].map((v) => (
                     <button key={v} onClick={() => setBody((b) => b + v)} className="text-xs bg-indigo-600/20 text-indigo-400 px-2 py-0.5 rounded font-mono hover:bg-indigo-600/40">
@@ -213,7 +227,7 @@ export default function CommunicationsPage() {
 
               <div>
                 <label className="text-gray-400 text-xs block mb-1">جدولة (اختياري)</label>
-                <input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} className="input-admin" />
+                <LocalizedDateTimeInput nativeType="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} className="input-admin" />
               </div>
 
               <button
@@ -232,7 +246,7 @@ export default function CommunicationsPage() {
                 <button
                   key={t.key}
                   onClick={() => fillTemplate(t)}
-                  className="w-full text-right px-3 py-2.5 bg-white/3 hover:bg-white/8 rounded-xl text-gray-300 text-sm transition-colors"
+                  className={`w-full rounded-xl px-3 py-2.5 text-right text-sm transition-colors ${selectedTemplateKey === t.key ? "bg-indigo-600 text-white" : "bg-white/3 text-gray-300 hover:bg-white/8"}`}
                 >
                   {t.label}
                 </button>

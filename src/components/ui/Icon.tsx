@@ -37,7 +37,8 @@ export type IconName =
   | "storage"
   | "bell"
   | "check"
-  | "alert";
+  | "alert"
+  | "chevron";
 
 /**
  * Path data only — the wrapper below supplies size, stroke and colour, so a new
@@ -155,6 +156,7 @@ const PATHS: Record<IconName, React.ReactNode> = {
     </>
   ),
   check: <path d="M20 6L9 17l-5-5" />,
+  chevron: <path d="M6 9l6 6 6-6" />,
   alert: (
     <>
       <circle cx="12" cy="12" r="9" />

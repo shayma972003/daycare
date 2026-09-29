@@ -3,15 +3,18 @@ import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import {
   addSchoolBillingPeriod,
+  schoolSubscriptionAccess,
   type SchoolSubscriptionType,
 } from "@/lib/school-subscription";
+import { formatDate } from "@/lib/utils";
 import { Prisma } from "@/generated/prisma/client";
 
 const schema = z.object({
-  action: z.enum(["extend", "change_type", "change_plan", "mark_paid"]),
+  action: z.enum(["extend", "change_type", "change_plan", "mark_paid", "set_end_date"]),
   subscription_type: z.enum(["TRIAL", "MONTHLY", "YEARLY"]).optional(),
   plan_id: z.string().optional(),
   note: z.string().optional(),
+  renewal_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
 function paidInterval(type: SchoolSubscriptionType): "MONTHLY" | "YEARLY" | null {
@@ -33,12 +36,27 @@ export async function PUT(
   const parsed = schema.safeParse(body);
   if (!parsed.success) return Response.json({ error: "Invalid data" }, { status: 400 });
 
-  const { action, plan_id, subscription_type } = parsed.data;
+  const { action, plan_id, subscription_type, renewal_date } = parsed.data;
   if (action === "change_type" && !subscription_type) {
     return Response.json({ error: "نوع الاشتراك مطلوب" }, { status: 422 });
   }
   if (action === "change_plan" && !plan_id) {
     return Response.json({ error: "الخطة مطلوبة" }, { status: 422 });
+  }
+  if (action === "set_end_date" && !renewal_date) {
+    return Response.json({ error: "تاريخ نهاية الاشتراك مطلوب" }, { status: 422 });
+  }
+
+  const manualRenewalDate = renewal_date
+    // End of the selected Riyadh calendar day (UTC+3), stored as an instant.
+    ? new Date(`${renewal_date}T20:59:59.999Z`)
+    : null;
+  if (
+    manualRenewalDate &&
+    (Number.isNaN(manualRenewalDate.getTime()) ||
+      manualRenewalDate.toISOString().slice(0, 10) !== renewal_date)
+  ) {
+    return Response.json({ error: "تاريخ نهاية الاشتراك غير صالح" }, { status: 422 });
   }
 
   const now = new Date();
@@ -135,6 +153,87 @@ export async function PUT(
             performed_by: "super_admin",
           },
         });
+        return result;
+      }
+
+      if (action === "set_end_date") {
+        const nextRenewalDate = manualRenewalDate!;
+        const nextStatus = nextRenewalDate <= now
+          ? "expired"
+          : school.subscription_status === "suspended"
+            ? "suspended"
+            : school.plan_id
+              ? "active"
+              : "trial";
+        const result = await tx.school.update({
+          where: { id: schoolId },
+          data: {
+            renewal_date: nextRenewalDate,
+            subscription_status: nextStatus,
+            ...(nextStatus === "suspended"
+              ? {}
+              : { suspended_at: null, suspension_reason: null }),
+          },
+          include: { subscription_plan: true },
+        });
+        await tx.adminActivityLog.create({
+          data: {
+            school_id: schoolId,
+            action: "subscription_end_date_changed",
+            metadata: {
+              previousRenewalDate: school.renewal_date,
+              renewalDate: nextRenewalDate,
+              previousStatus: school.subscription_status,
+              status: nextStatus,
+            },
+            performed_by: "super_admin",
+          },
+        });
+        const access = schoolSubscriptionAccess(
+          {
+            subscription_status: nextStatus,
+            renewal_date: nextRenewalDate,
+          },
+          now
+        );
+        const warning = access.mode === "active" && access.showRenewalWarning
+          ? {
+              templateKey: "renewal_soon",
+              subject: "اشتراكك ينتهي قريبًا",
+              body: `تنبيه: ينتهي اشتراك ${school.name} بتاريخ ${formatDate(nextRenewalDate)}. متبقي ${access.daysUntilRenewal ?? 0} يوم على نهاية الاشتراك. يرجى التجديد للاستمرار.`,
+            }
+          : access.mode !== "active"
+            ? {
+                templateKey: "expired",
+                subject: "انتهى اشتراكك",
+                body: access.mode === "grace"
+                  ? `انتهى اشتراك ${school.name} بتاريخ ${formatDate(nextRenewalDate)}. بقي ${access.graceDaysRemaining} يوم قبل إيقاف أقسام النظام. يمكنك التجديد من صفحة اشتراك النظام.`
+                  : `انتهى اشتراك ${school.name} بتاريخ ${formatDate(nextRenewalDate)}. توقفت أقسام النظام الآن، وصفحة اشتراك النظام متاحة للتجديد.`,
+              }
+            : null;
+
+        if (warning) {
+          const existingWarning = await tx.adminMessageRecipient.findFirst({
+            where: {
+              school_id: schoolId,
+              message: { template_key: warning.templateKey, body: warning.body },
+            },
+            select: { id: true },
+          });
+          if (!existingWarning) {
+            await tx.adminMessage.create({
+              data: {
+                subject: warning.subject,
+                body: warning.body,
+                is_automated: true,
+                template_key: warning.templateKey,
+                target_type: "system",
+                sent_at: now,
+                recipients: { create: { school_id: schoolId, delivered_at: now } },
+              },
+            });
+          }
+        }
         return result;
       }
 

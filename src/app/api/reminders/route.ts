@@ -8,6 +8,7 @@ import { z } from "zod";
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { moneyNumber } from "@/lib/money";
 import { scheduleFor } from "@/lib/school-schedule";
+import { studentClassWhere } from "@/lib/student-access-scope";
 
 /**
  * Payment and renewal reminders, as two separate lists (task 2.38).
@@ -48,6 +49,7 @@ export async function GET(request: Request) {
         // Only children still enrolled: someone who has already left does not
         // need to be asked whether they are renewing.
         status: "ACTIVE",
+        ...studentClassWhere(session),
         enrollmentEndDate: { gte: today, lte: horizon },
       },
       orderBy: { enrollmentEndDate: "asc" },
@@ -83,6 +85,7 @@ export async function GET(request: Request) {
       schoolId,
       deletedAt: null,
       status: "ACTIVE",
+      ...studentClassWhere(session),
       paymentStatus: { in: ["PENDING", "LATE"] },
     },
     orderBy: { name: "asc" },
@@ -160,6 +163,7 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return Response.json({ error: parsed.error.flatten() }, { status: 422 });
   }
+  const requestedStudentIds = [...new Set(parsed.data.studentIds)];
 
   const [school, settings, students] = await Promise.all([
     prisma.school.findUnique({
@@ -178,7 +182,12 @@ export async function POST(request: Request) {
       select: { reminderTemplate: true },
     }),
     prisma.student.findMany({
-      where: { id: { in: parsed.data.studentIds }, schoolId, deletedAt: null },
+      where: {
+        id: { in: requestedStudentIds },
+        schoolId,
+        deletedAt: null,
+        ...studentClassWhere(session),
+      },
       select: {
         id: true,
         name: true,
@@ -192,6 +201,9 @@ export async function POST(request: Request) {
       },
     }),
   ]);
+  if (students.length !== requestedStudentIds.length) {
+    return Response.json({ error: "One or more students are not available" }, { status: 404 });
+  }
 
   const template =
     parsed.data.kind === "renewal"

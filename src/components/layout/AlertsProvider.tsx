@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import axios from "axios";
-import { useT } from "@/lib/i18n-provider";
+import { useLocale } from "@/lib/i18n-provider";
+import { formatDate } from "@/lib/utils";
 
 interface ExpiredStudent {
   id: string;
@@ -19,17 +20,15 @@ interface SuspendedStudent {
 
 function AlertModal({
   title,
-  onClose,
   children,
 }: {
   title: string;
-  onClose: () => void;
   children: React.ReactNode;
 }) {
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40" dir="rtl">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40">
       <div className="bg-white rounded-2xl shadow-modal p-6 w-full max-w-md animate-scale-in">
-        <h3 className="text-base font-bold text-gray-900 mb-4 text-right">{title}</h3>
+        <h3 className="text-base font-bold text-gray-900 mb-4 text-start">{title}</h3>
         {children}
       </div>
     </div>
@@ -37,7 +36,7 @@ function AlertModal({
 }
 
 export function AlertsProvider({ children, disabled = false }: { children: React.ReactNode; disabled?: boolean }) {
-  const t = useT();
+  const { t, locale } = useLocale();
   const router = useRouter();
   const { status } = useSession();
   const [expiredAlert, setExpiredAlert] = useState<ExpiredStudent[]>([]);
@@ -78,12 +77,12 @@ export function AlertsProvider({ children, disabled = false }: { children: React
       {children}
 
       {expiredAlert.length > 0 && (
-        <AlertModal title={t("alerts.subscriptionEnding")} onClose={() => setExpiredAlert([])}>
+        <AlertModal title={t("alerts.subscriptionEnding")}>
           <div className="space-y-2 max-h-60 overflow-y-auto">
             {expiredAlert.map((s) => (
               <div key={s.id} className="flex items-center justify-between py-2 border-b border-gray-100">
                 <span className="text-sm text-gray-500">
-                  {new Date(s.enrollment_end_date).toLocaleDateString("ar-SA")}
+                  {formatDate(s.enrollment_end_date, locale)}
                 </span>
                 <span className="text-sm font-medium text-gray-900">
                   {t("alerts.subscriptionExpiredOn", { name: s.full_name })}
@@ -114,7 +113,7 @@ export function AlertsProvider({ children, disabled = false }: { children: React
       )}
 
       {suspendedAlert.length > 0 && (
-        <AlertModal title={t("alerts.suspendedStudents")} onClose={() => setSuspendedAlert([])}>
+        <AlertModal title={t("alerts.suspendedStudents")}>
           <div className="space-y-1 max-h-60 overflow-y-auto">
             {suspendedAlert.map((s) => (
               <p key={s.id} className="text-sm text-gray-700 py-1 border-b border-gray-50">

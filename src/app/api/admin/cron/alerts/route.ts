@@ -22,6 +22,23 @@ export async function GET(request: Request) {
     }),
   ]);
   const expiredRule = rules.find((rule) => rule.trigger_type === "expired");
+  // Renewal warnings are an essential subscription safeguard, not optional
+  // seed data. Keep a built-in rule so a fresh or restored database still
+  // warns schools even when AutomatedAlertRule has not been populated yet.
+  const effectiveRules = rules.some((rule) => rule.trigger_type === "renewal_soon")
+    ? rules
+    : [
+        ...rules,
+        {
+          id: "builtin-renewal-soon",
+          trigger_type: "renewal_soon",
+          threshold_days: 7,
+          message_subject: "اشتراكك ينتهي قريبًا",
+          message_template: "عزيزي <school_name>، اشتراكك في خطة <plan_name> ينتهي بتاريخ <renewal_date>. يرجى التجديد للاستمرار.",
+          is_active: true,
+          created_at: new Date(0),
+        },
+      ];
 
   // Subscription state must not depend on whether an "expired" message rule is
   // enabled. Access already derives from the date; this persists the same state
@@ -83,7 +100,7 @@ export async function GET(request: Request) {
 
   const results: string[] = [];
 
-  for (const rule of rules) {
+  for (const rule of effectiveRules) {
     for (const school of schools) {
       let shouldSend = false;
       const messageBody = rule.message_template

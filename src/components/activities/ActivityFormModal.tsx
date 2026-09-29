@@ -1,5 +1,7 @@
 "use client";
 
+import { LocalizedDateTimeInput } from "@/components/ui/LocalizedDateTimeInput";
+
 import { useCallback, useEffect, useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import axios from "axios";
@@ -627,8 +629,8 @@ export function ActivityFormModal({
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     {t("home.activityForm.startDate")}
                   </label>
-                  <input
-                    type="date"
+                  <LocalizedDateTimeInput
+                    nativeType="date"
                     {...register("startDate", { required: true })}
                     className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#5B14D1] ${errors.startDate ? "border-red-400" : "border-gray-200"}`}
                     dir="ltr"
@@ -638,8 +640,8 @@ export function ActivityFormModal({
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     {t("home.activityForm.endDate")}
                   </label>
-                  <input
-                    type="date"
+                  <LocalizedDateTimeInput
+                    nativeType="date"
                     {...register("endDate", { required: true })}
                     className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#5B14D1] ${errors.endDate ? "border-red-400" : "border-gray-200"}`}
                     dir="ltr"
@@ -652,8 +654,8 @@ export function ActivityFormModal({
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       {t("activities.startTime")}
                     </label>
-                    <input
-                      type="time"
+                    <LocalizedDateTimeInput
+                      nativeType="time"
                       {...register("startTime", { required: !allDay })}
                       className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
                       dir="ltr"
@@ -663,8 +665,8 @@ export function ActivityFormModal({
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       {t("activities.endTime")}
                     </label>
-                    <input
-                      type="time"
+                    <LocalizedDateTimeInput
+                      nativeType="time"
                       {...register("endTime", { required: !allDay })}
                       className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
                       dir="ltr"

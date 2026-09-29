@@ -30,6 +30,7 @@ describe("critical web action and API permission parity", () => {
     ["POST", "/api/calendar", "schedule.manage"],
     ["PUT", "/api/calendar/opaque-event-id-123456789", "schedule.manage"],
     ["DELETE", "/api/calendar/opaque-event-id-123456789", "schedule.delete"],
+    ["GET", "/api/invoices/opaque-invoice-id-123456789/pdf", "finance.view"],
   ])("maps %s %s to %s", (method, pathname, permission) => {
     expect(requirementFor(pathname, method)).toBe(permission);
   });

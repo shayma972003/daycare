@@ -31,5 +31,6 @@ export async function GET() {
     role: session.user.role,
     schoolName: session.user.schoolName,
     permissions: session.permissions,
+    classroomScoped: Boolean(session.teacherId && session.teacherClassIds !== null),
   });
 }

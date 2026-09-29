@@ -1,5 +1,7 @@
 "use client";
 
+import { LocalizedDateTimeInput } from "@/components/ui/LocalizedDateTimeInput";
+
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { createIdempotencyKey } from "@/lib/client-idempotency";
@@ -292,8 +294,8 @@ function AdminInvoiceModalContent({ schoolId, onClose, onIssued }: Omit<AdminInv
               <div className="grid grid-cols-2 gap-3">
                 <Field label="رقم الفاتورة"><input value={invoiceNumber} readOnly className="input-admin opacity-60" dir="ltr" /></Field>
                 <Field label="نوع الاشتراك"><input value={subscriptionType} onChange={(e) => setSubscriptionType(e.target.value)} className="input-admin" /></Field>
-                <Field label="تاريخ الإصدار"><input type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} className="input-admin" dir="ltr" /></Field>
-                <Field label="تاريخ الاستحقاق"><input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="input-admin" dir="ltr" /></Field>
+                <Field label="تاريخ الإصدار"><LocalizedDateTimeInput nativeType="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} className="input-admin" dir="ltr" /></Field>
+                <Field label="تاريخ الاستحقاق"><LocalizedDateTimeInput nativeType="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="input-admin" dir="ltr" /></Field>
                 <Field label="حالة الفاتورة">
                   <select value={status} onChange={(e) => setStatus(e.target.value)} className="input-admin">
                     {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}

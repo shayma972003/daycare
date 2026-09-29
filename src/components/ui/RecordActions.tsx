@@ -83,8 +83,7 @@ export function RecordActions({
       {open && (
         <div
           role="menu"
-          className="absolute left-0 mt-1 min-w-[160px] bg-white rounded-xl shadow-lg border border-gray-100 py-1 z-20"
-          dir="rtl"
+          className="absolute end-0 mt-1 min-w-[160px] bg-white rounded-xl shadow-lg border border-gray-100 py-1 z-20"
         >
           {safe.map((action) => (
             <button
@@ -94,7 +93,7 @@ export function RecordActions({
                 setOpen(false);
                 action.onSelect();
               }}
-              className="w-full text-right px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              className="w-full text-start px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
             >
               {action.label}
             </button>
@@ -112,7 +111,7 @@ export function RecordActions({
                 setOpen(false);
                 action.onSelect();
               }}
-              className="w-full text-right px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+              className="w-full text-start px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
             >
               {action.label}
             </button>

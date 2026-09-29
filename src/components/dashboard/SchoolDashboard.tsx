@@ -45,7 +45,7 @@ interface CalendarRow {
     count: number | null;
   };
 }
-interface NotificationLog { id: string; recipientName: string; type: string; status: string; sentAt: string }
+interface ActivityLog { id: string; action: string; performed_by: string; created_at: string }
 interface Resource<T> { state: LoadState; data: T | null; error: string | null }
 
 const initialResource = <T,>(): Resource<T> => ({ state: "loading", data: null, error: null });
@@ -68,17 +68,6 @@ function ResourceState<T>({ resource, retry, retryLabel, children }: {
       {resource.data ? children(resource.data) : null}
       {resource.state === "error" && resource.data && <DataErrorState message={resource.error ?? retryLabel} retryLabel={retryLabel} onRetry={retry} />}
     </>
-  );
-}
-
-function SummaryMetric({ label, value, detail, tone = "purple" }: { label: string; value: string; detail?: string; tone?: "purple" | "pink" | "blue" }) {
-  const toneClass = { purple: "text-[#4f00c1]", pink: "text-[#e855b4]", blue: "text-[#0eb0ff]" }[tone];
-  return (
-    <div className="min-w-0 border-s border-slate-100 px-4 first:border-s-0 sm:px-5">
-      <p className="text-xs font-medium text-slate-500">{label}</p>
-      <p className={`mt-2 text-2xl font-semibold tracking-tight ${toneClass}`}>{value}</p>
-      {detail && <p className="mt-1 text-xs text-slate-500">{detail}</p>}
-    </div>
   );
 }
 
@@ -193,7 +182,7 @@ export function SchoolDashboard() {
   const [tasks, setTasks] = useState<Resource<TasksData>>(initialResource);
   const [attendance, setAttendance] = useState<Resource<AttendanceData>>(initialResource);
   const [events, setEvents] = useState<Resource<CalendarRow[]>>(initialResource);
-  const [logs, setLogs] = useState<Resource<NotificationLog[]>>(initialResource);
+  const [logs, setLogs] = useState<Resource<ActivityLog[]>>(initialResource);
   const [tasksRetry, setTasksRetry] = useState(0);
   const [attendanceRetry, setAttendanceRetry] = useState(0);
   const [eventsRetry, setEventsRetry] = useState(0);
@@ -240,8 +229,8 @@ export function SchoolDashboard() {
   useEffect(() => {
     if (!canViewLogs) return;
     const controller = new AbortController();
-    axios.get<{ logs: NotificationLog[] }>("/api/notifications?source=activity&skip=0&take=5", { signal: controller.signal }).then((response) => {
-      if (!controller.signal.aborted) setLogs({ state: "ready", data: response.data.logs, error: null });
+    axios.get<{ logs: ActivityLog[] }>("/api/settings/logs?skip=0", { signal: controller.signal }).then((response) => {
+      if (!controller.signal.aborted) setLogs({ state: "ready", data: response.data.logs.slice(0, 5), error: null });
     }).catch((error: unknown) => {
       if (!axios.isCancel(error) && !controller.signal.aborted) setLogs((previous) => ({ ...previous, state: "error", error: describeApiError(error, t("common.error")) }));
     });
@@ -267,34 +256,14 @@ export function SchoolDashboard() {
           <p className="text-sm text-slate-500">{t("dashboard.todayHint")}</p>
         </header>
 
-        <section aria-labelledby="dashboard-summary" className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6">
-          <div className="mb-5 flex items-center justify-between gap-3"><h2 id="dashboard-summary" className="text-base font-semibold text-slate-900">{t("dashboard.summaryTitle")}</h2><span className="text-xs text-slate-400">{today}</span></div>
-          <ResourceState resource={attendance} retry={retryAttendance} retryLabel={retryLabel}>{(data) => {
-            const students = data.students ?? [];
-            const teachers = data.teachers ?? [];
-            const studentPresent = students.filter((person) => Boolean(person.today_attendance?.checkin_time)).length;
-            const teacherPresent = teachers.filter((person) => Boolean(person.today_attendance?.checkin_time)).length;
-            const studentEligible = students.filter((person) => person.eligible_for_attendance !== false);
-            const teacherEligible = teachers.filter((person) => person.eligible_for_attendance !== false);
-            const studentAbsent = Math.max(studentEligible.length - studentEligible.filter((person) => Boolean(person.today_attendance?.checkin_time)).length, 0);
-            const teacherAbsent = Math.max(teacherEligible.length - teacherEligible.filter((person) => Boolean(person.today_attendance?.checkin_time)).length, 0);
-            return <div className="grid grid-cols-2 gap-y-5 sm:grid-cols-4 sm:gap-y-0">
-              <PermissionGate permission="attendance.students"><SummaryMetric label={t("dashboard.activeStudents")} value={String(studentEligible.length)} detail={t("dashboard.peopleActive")} /></PermissionGate>
-              <PermissionGate permission="attendance.students"><SummaryMetric label={t("dashboard.studentAttendance")} value={`${studentPresent} / ${studentAbsent}`} detail={t("dashboard.presentAbsent")} tone="pink" /></PermissionGate>
-              <PermissionGate permission="attendance.staff"><SummaryMetric label={t("dashboard.teacherAttendance")} value={`${teacherPresent} / ${teacherAbsent}`} detail={t("dashboard.presentAbsent")} tone="blue" /></PermissionGate>
-              <PermissionGate permission="attendance.staff"><SummaryMetric label={t("dashboard.staffCount")} value={String(data.teachers?.length ?? 0)} detail={t("dashboard.peopleActive")} /></PermissionGate>
-            </div>;
-          }}</ResourceState>
+        <section aria-labelledby="dashboard-attendance" className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6">
+          <div className="mb-5"><h2 id="dashboard-attendance" className="text-base font-semibold text-slate-900">{t("dashboard.attendanceTitle")}</h2><p className="mt-1 text-sm text-slate-500">{t("dashboard.attendanceHint")}</p></div>
+          <div className="grid gap-4 lg:grid-cols-2"><PermissionGate permission="attendance.students"><AttendanceSummaryCard kind="students" permission="attendance.students" resource={attendance} retry={retryAttendance} retryLabel={retryLabel} t={t} /></PermissionGate><PermissionGate permission="attendance.staff"><AttendanceSummaryCard kind="teachers" permission="attendance.staff" resource={attendance} retry={retryAttendance} retryLabel={retryLabel} t={t} /></PermissionGate></div>
         </section>
 
         <section aria-labelledby="dashboard-attention" className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6">
           <div className="mb-4 flex items-center justify-between gap-3"><h2 id="dashboard-attention" className="text-base font-semibold text-slate-900">{t("dashboard.attentionTitle")}</h2><span className="h-2 w-2 rounded-full bg-[#f2aa0a]" aria-hidden="true" /></div>
           <ResourceState resource={tasks} retry={retryTasks} retryLabel={retryLabel}>{(data) => data.tasks.filter((task) => task.count > 0).length === 0 ? <p className="rounded-xl bg-[#f4fbf6] px-4 py-3 text-sm text-[#2d7a4f]">{t("dashboard.allClear")}</p> : <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{data.tasks.filter((task) => task.count > 0).map((task) => <Link key={task.key} href={task.href} className="flex min-h-16 items-center gap-3 rounded-xl border border-slate-100 px-4 transition-colors hover:border-[#4f00c1]/30 hover:bg-[#4f00c1]/5"><span className="text-xl font-semibold text-[#4f00c1]">{task.count}</span><span className="text-sm text-slate-700">{t(`todo.${task.key}`, { count: task.count })}</span></Link>)}</div>}</ResourceState>
-        </section>
-
-        <section aria-labelledby="dashboard-attendance" className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6">
-          <div className="mb-5"><h2 id="dashboard-attendance" className="text-base font-semibold text-slate-900">{t("dashboard.attendanceTitle")}</h2><p className="mt-1 text-sm text-slate-500">{t("dashboard.attendanceHint")}</p></div>
-          <div className="grid gap-4 lg:grid-cols-2"><PermissionGate permission="attendance.students"><AttendanceSummaryCard kind="students" permission="attendance.students" resource={attendance} retry={retryAttendance} retryLabel={retryLabel} t={t} /></PermissionGate><PermissionGate permission="attendance.staff"><AttendanceSummaryCard kind="teachers" permission="attendance.staff" resource={attendance} retry={retryAttendance} retryLabel={retryLabel} t={t} /></PermissionGate></div>
         </section>
 
         <section aria-labelledby="dashboard-events" className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6">
@@ -315,7 +284,7 @@ export function SchoolDashboard() {
 
         <section aria-labelledby="dashboard-actions" className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6"><h2 id="dashboard-actions" className="mb-4 text-base font-semibold text-slate-900">{t("dashboard.quickActions")}</h2><div className="flex flex-wrap gap-2"><ActionLink href="/students/new" label={t("dashboard.addStudent")} permission="students.manage" /><ActionLink href="/attendance" label={t("dashboard.recordAttendance")} permission="attendance.students" /><ActionLink href="/calendar?create=1" label={t("dashboard.createEvent")} permission="schedule.manage" /><ActionLink href="/students" label={t("dashboard.sendReminder")} permission="finance.manage" /><ActionLink href="/students" label={t("dashboard.reviewEnrollments")} permission={ENROLLMENT_MANAGE_PERMISSION} /></div></section>
 
-        {canViewLogs && <section aria-labelledby="dashboard-recent" className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6"><div className="mb-4 flex items-center justify-between gap-3"><h2 id="dashboard-recent" className="text-base font-semibold text-slate-900">{t("dashboard.recentActivity")}</h2><Link href="/settings/logs" className="text-xs font-medium text-[#4f00c1] hover:underline">{t("dashboard.viewMore")}</Link></div><ResourceState resource={logs} retry={retryLogs} retryLabel={retryLabel}>{(data) => data.length === 0 ? <p className="rounded-xl bg-slate-50 px-4 py-4 text-sm text-slate-500">{t("dashboard.noRecentActivity")}</p> : <div className="space-y-2">{data.map((log) => <div key={log.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2 text-sm last:border-0 last:pb-0"><span className="text-slate-700">{log.recipientName}</span><span className="text-xs text-slate-400">{formatDeviceTime(new Date(log.sentAt), { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }, locale)}</span></div>)}</div>}</ResourceState></section>}
+        {canViewLogs && <section aria-labelledby="dashboard-recent" className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6"><div className="mb-4 flex items-center justify-between gap-3"><h2 id="dashboard-recent" className="text-base font-semibold text-slate-900">{t("dashboard.recentActivity")}</h2><Link href="/settings/logs" className="text-xs font-medium text-[#4f00c1] hover:underline">{t("dashboard.viewMore")}</Link></div><ResourceState resource={logs} retry={retryLogs} retryLabel={retryLabel}>{(data) => data.length === 0 ? <p className="rounded-xl bg-slate-50 px-4 py-4 text-sm text-slate-500">{t("dashboard.noRecentActivity")}</p> : <div className="space-y-2">{data.map((log) => <div key={log.id} className="flex flex-wrap items-start justify-between gap-2 border-b border-slate-100 pb-2 text-sm last:border-0 last:pb-0"><div className="min-w-0"><p className="text-slate-700">{log.action}</p><p className="mt-1 text-xs text-slate-400">{log.performed_by}</p></div><span className="shrink-0 text-xs text-slate-400">{formatDeviceTime(new Date(log.created_at), { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }, locale)}</span></div>)}</div>}</ResourceState></section>}
       </div>
     </div>
   );

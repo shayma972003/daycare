@@ -1,5 +1,7 @@
 "use client";
 
+import { LocalizedDateTimeInput } from "@/components/ui/LocalizedDateTimeInput";
+
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { describeApiError } from "@/lib/api-error";
@@ -22,6 +24,7 @@ export default function SubscriptionsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updatingSchoolId, setUpdatingSchoolId] = useState<string | null>(null);
+  const [renewalDrafts, setRenewalDrafts] = useState<Record<string, string>>({});
 
   async function load() {
     const [subscriptions, planResponse] = await Promise.all([
@@ -30,6 +33,10 @@ export default function SubscriptionsPage() {
     ]);
     setData(subscriptions.data);
     setPlans(planResponse.data);
+    setRenewalDrafts(Object.fromEntries(subscriptions.data.schools.map((school) => [
+      school.id,
+      school.renewal_date ? new Date(school.renewal_date).toISOString().slice(0, 10) : "",
+    ])));
   }
 
   useEffect(() => { void Promise.resolve().then(load).catch((cause) => setError(describeApiError(cause, "فشل تحميل الاشتراكات"))).finally(() => setLoading(false)); }, []);
@@ -51,6 +58,13 @@ export default function SubscriptionsPage() {
 
   const extend = (schoolId: string) => updateSchool(schoolId, async () => { await axios.put(`/api/admin/subscriptions/${schoolId}`, { action: "extend" }); await load(); }, "تعذر تجديد الاشتراك");
   const changeType = (schoolId: string, subscription_type: Exclude<SubscriptionType, "UNASSIGNED">) => updateSchool(schoolId, async () => { await axios.put(`/api/admin/subscriptions/${schoolId}`, { action: "change_type", subscription_type }); await load(); }, "تعذر تغيير نوع الاشتراك");
+  const changeEndDate = (schoolId: string) => updateSchool(schoolId, async () => {
+    await axios.put(`/api/admin/subscriptions/${schoolId}`, {
+      action: "set_end_date",
+      renewal_date: renewalDrafts[schoolId],
+    });
+    await load();
+  }, "تعذر تغيير تاريخ نهاية الاشتراك");
 
   if (loading) return <div className="p-8 text-sm text-gray-400">جاري التحميل...</div>;
 
@@ -74,10 +88,10 @@ export default function SubscriptionsPage() {
                 <td className="px-5 py-3 font-medium text-white">{school.name}</td>
                 <td className="px-5 py-3"><select aria-label={`نوع اشتراك ${school.name}`} value={school.subscription_type} disabled={updatingSchoolId !== null} onChange={(event) => void changeType(school.id, event.target.value as Exclude<SubscriptionType, "UNASSIGNED">)} className="rounded-lg border border-white/10 bg-[#0f0f1a] px-2 py-1 text-xs text-white disabled:cursor-wait disabled:opacity-50">{school.subscription_type === "UNASSIGNED" && <option value="UNASSIGNED" disabled>غير محدد — اختاري النوع</option>}<option value="TRIAL">تجريبي — شهر</option><option value="MONTHLY">شهري — 299 ر.س</option><option value="YEARLY">سنوي — 2990 ر.س</option></select></td>
                 <td className={`px-5 py-3 text-xs font-medium ${STATUS_CLS[school.subscription_status] ?? "text-gray-400"}`}>{STATUS_LABELS[school.subscription_status] ?? school.subscription_status}{school.access_mode === "grace" ? " — ضمن المهلة" : school.access_mode === "locked" && school.subscription_status === "expired" ? " — قراءة فقط" : ""}</td>
-                <td className="px-5 py-3 text-gray-300">{school.renewal_date ? new Date(school.renewal_date).toLocaleDateString("ar-SA-u-ca-gregory-nu-latn") : "—"}</td>
+                <td className="px-5 py-3 text-gray-300"><LocalizedDateTimeInput nativeType="date" aria-label={`تاريخ نهاية اشتراك ${school.name}`} value={renewalDrafts[school.id] ?? ""} disabled={updatingSchoolId !== null} onChange={(event) => setRenewalDrafts((current) => ({ ...current, [school.id]: event.target.value }))} className="rounded-lg border border-white/10 bg-[#0f0f1a] px-2 py-1 text-xs text-white disabled:cursor-wait disabled:opacity-50" /></td>
                 <td className="px-5 py-3 text-gray-300">{days === null ? "—" : days < 0 ? `منتهٍ منذ ${Math.abs(days)} يوم` : days}</td>
                 <td className="px-5 py-3 text-gray-300">{school.studentCount}</td>
-                <td className="px-5 py-3"><button type="button" onClick={() => void extend(school.id)} disabled={school.subscription_type === "UNASSIGNED" || updatingSchoolId !== null} className="rounded-lg bg-indigo-600/20 px-3 py-1 text-xs text-indigo-300 hover:bg-indigo-600/40 disabled:cursor-not-allowed disabled:opacity-40">{updatingSchoolId === school.id ? "جاري التحديث..." : "تجديد حسب النوع"}</button></td>
+                <td className="px-5 py-3"><div className="flex flex-wrap gap-2"><button type="button" onClick={() => void changeEndDate(school.id)} disabled={!renewalDrafts[school.id] || updatingSchoolId !== null} className="rounded-lg bg-emerald-600/20 px-3 py-1 text-xs text-emerald-300 hover:bg-emerald-600/40 disabled:cursor-not-allowed disabled:opacity-40">{updatingSchoolId === school.id ? "جاري التحديث..." : "حفظ التاريخ"}</button><button type="button" onClick={() => void extend(school.id)} disabled={school.subscription_type === "UNASSIGNED" || updatingSchoolId !== null} className="rounded-lg bg-indigo-600/20 px-3 py-1 text-xs text-indigo-300 hover:bg-indigo-600/40 disabled:cursor-not-allowed disabled:opacity-40">تجديد حسب النوع</button></div></td>
               </tr>;
             })}</tbody>
           </table>

@@ -6,6 +6,7 @@ import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { lockActivityForUpdate } from "@/lib/activity-lock";
 import { z } from "zod";
 import { createHash } from "node:crypto";
+import { scopedClassIds } from "@/lib/student-access-scope";
 
 const sendSchema = z.object({
   notifyGuardians: z.boolean().default(false),
@@ -134,6 +135,7 @@ export async function POST(
   }
 
   const requestHash = intentHash(parsed.data);
+  const permittedClassIds = scopedClassIds(session);
 
   let outcome: PersistOutcome;
   try {
@@ -163,7 +165,9 @@ export async function POST(
             select: {
               class: {
                 select: {
+                  id: true,
                   teacherId: true,
+                  teacherAssignments: { select: { teacherId: true } },
                   students: {
                     where: { schoolId, isActive: true, deletedAt: null },
                     select: {
@@ -191,9 +195,15 @@ export async function POST(
       }
       const classes = schoolWide
         ? await tx.class.findMany({
-            where: { schoolId, deletedAt: null },
+            where: {
+              schoolId,
+              deletedAt: null,
+              ...(permittedClassIds === null ? {} : { id: { in: [...permittedClassIds] } }),
+            },
             select: {
+              id: true,
               teacherId: true,
+              teacherAssignments: { select: { teacherId: true } },
               students: {
                 where: { schoolId, isActive: true, deletedAt: null },
                 select: {
@@ -203,7 +213,9 @@ export async function POST(
               },
             },
           })
-        : activity.activityInvites.map((invite) => invite.class);
+        : activity.activityInvites
+            .map((invite) => invite.class)
+            .filter((room) => permittedClassIds === null || permittedClassIds.includes(room.id));
 
       const guardianIds = new Set<string>();
       const teacherIds = new Set<string>();
@@ -214,7 +226,10 @@ export async function POST(
       }
       if (parsed.data.notifyStaff) {
         if (activity.teacherId) teacherIds.add(activity.teacherId);
-        for (const room of classes) if (room.teacherId) teacherIds.add(room.teacherId);
+        for (const room of classes) {
+          for (const assignment of room.teacherAssignments ?? []) teacherIds.add(assignment.teacherId);
+          if ((room.teacherAssignments?.length ?? 0) === 0 && room.teacherId) teacherIds.add(room.teacherId);
+        }
       }
 
       const guardianAccounts = guardianIds.size > 0

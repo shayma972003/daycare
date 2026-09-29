@@ -143,14 +143,14 @@ export default function AdminNotificationBell() {
       >
         <span className="text-lg text-gray-500">🔔</span>
         {data.unreadCount > 0 && (
-          <span className="absolute top-0.5 left-0.5 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+          <span className="absolute top-0.5 start-0.5 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
             {data.unreadCount > 9 ? "9+" : data.unreadCount}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute left-0 top-11 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 overflow-hidden" dir="rtl">
+        <div className="absolute end-0 top-11 w-80 max-w-[calc(100vw-1rem)] bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
             <span className="font-bold text-gray-800 text-sm">{t("notifications.adminMessages")}</span>
             {data.unreadCount > 0 && (
@@ -190,7 +190,7 @@ export default function AdminNotificationBell() {
         </div>
       )}
       <Dialog open={Boolean(selected)} onOpenChange={(next) => { if (!next) setSelected(null); }}>
-        <DialogContent dir="rtl" className="p-0 sm:max-w-xl">
+        <DialogContent className="p-0 sm:max-w-xl">
           <DialogHeader className="border-b border-gray-100 px-5 py-4">
             <div>
               <DialogTitle>{selected?.subject}</DialogTitle>

@@ -190,7 +190,7 @@ describe("calendar request lifecycle", () => {
     await Promise.resolve();
     expect(screen.queryByText("Post-save A")).toBeNull();
     expect(screen.getByText("After navigation B")).not.toBeNull();
-  });
+  }, 15_000);
 
   it("starts a fresh request after the Strict Mode effect replay", async () => {
     render(

@@ -99,16 +99,56 @@ interface ExpenseLike {
   end_date?: Date | null;
 }
 
-/** Portion of a (possibly recurring) Expense row that falls within [from, to]. */
-export function expenseAmountInPeriod(exp: ExpenseLike, from: Date, to: Date) {
+export interface ExpenseAccrual {
+  date: Date;
+  amount: ReturnType<typeof money>;
+}
+
+/**
+ * Scheduled expense entries that became due inside [from, to].
+ *
+ * ExpenseOccurrence is the settlement ledger: it deliberately creates only the
+ * currently due row so a legacy template never fabricates historical unpaid
+ * debt. Financial reports answer a different question — what expense accrued
+ * in every elapsed month — so they project the template without writing rows.
+ */
+export function expenseAccrualsInPeriod(exp: ExpenseLike, from: Date, to: Date): ExpenseAccrual[] {
   const startDate = new Date(exp.start_date);
   if (exp.type === "one_time") {
-    return startDate >= from && startDate <= to ? money(exp.amount) : money(0);
+    return startDate >= from && startDate <= to
+      ? [{ date: startDate, amount: money(exp.amount) }]
+      : [];
   }
+
   let effectiveEnd = to;
   if (exp.stopped_at) effectiveEnd = new Date(Math.min(new Date(exp.stopped_at).getTime(), effectiveEnd.getTime()));
   if (exp.end_date) effectiveEnd = new Date(Math.min(new Date(exp.end_date).getTime(), effectiveEnd.getTime()));
-  return calculateRecurringMoney(exp.amount, startDate, effectiveEnd, from, to);
+  if (effectiveEnd < from || effectiveEnd < startDate) return [];
+
+  const start = astParts(startDate);
+  const periodStart = astParts(from);
+  const periodEnd = astParts(effectiveEnd);
+  const firstMonth = Math.max(start.year * 12 + start.month, periodStart.year * 12 + periodStart.month);
+  const lastMonth = periodEnd.year * 12 + periodEnd.month;
+  const entries: ExpenseAccrual[] = [];
+
+  for (let monthIndex = firstMonth; monthIndex <= lastMonth; monthIndex += 1) {
+    const year = Math.floor(monthIndex / 12);
+    const month = monthIndex % 12;
+    const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+    const dueDate = new Date(Date.UTC(year, month, Math.min(start.day, lastDay)));
+    if (dueDate >= startDate && dueDate >= from && dueDate <= effectiveEnd) {
+      entries.push({ date: dueDate, amount: money(exp.amount) });
+    }
+  }
+
+  return entries;
+}
+
+/** Portion of a (possibly recurring) Expense row that falls within [from, to]. */
+export function expenseAmountInPeriod(exp: ExpenseLike, from: Date, to: Date) {
+  return expenseAccrualsInPeriod(exp, from, to)
+    .reduce((sum, entry) => moneyAdd(sum, entry.amount), money(0));
 }
 
 function pctChange(current: number, previous: number): number | null {
@@ -232,7 +272,7 @@ export async function getFinancialSummary(schoolId: string, type: ReportPeriodTy
   const range = getPeriodRange(type);
   const prevRange = getPreviousPeriodRange(type, range);
 
-  const [school, paymentCyclesInPeriod, teachersInScope, activitiesInPeriod, expenseOccurrences, registrationFeesResult, lateFeesResult] = await Promise.all([
+  const [school, paymentCyclesInPeriod, teachersInScope, activitiesInPeriod, expenseTemplates, registrationFeesResult, lateFeesResult] = await Promise.all([
     prisma.school.findUnique({ where: { id: schoolId }, select: { vatRegistered: true } }),
     prisma.paymentCycle.findMany({
       where: { school_id: schoolId, due_date: { gte: range.from, lte: range.to }, status: { not: "CANCELLED" } },
@@ -250,9 +290,9 @@ export async function getFinancialSummary(schoolId: string, type: ReportPeriodTy
       where: { schoolId, startDate: { gte: range.from, lte: range.to } },
       select: { name: true, activityFee: true, childrenCount: true },
     }),
-    prisma.expenseOccurrence.findMany({
-      where: { school_id: schoolId, due_date: { gte: range.from, lte: range.to }, status: { not: "CANCELLED" } },
-      select: { id: true, amount: true, due_date: true, expense: { select: { title: true } } },
+    prisma.expense.findMany({
+      where: { school_id: schoolId, start_date: { lte: range.to } },
+      select: { id: true, title: true, amount: true, type: true, start_date: true, end_date: true, stopped_at: true },
     }),
     prisma.student.aggregate({
       where: { schoolId, registrationDate: { gte: range.from, lte: range.to } },
@@ -299,10 +339,12 @@ export async function getFinancialSummary(schoolId: string, type: ReportPeriodTy
     .filter((item) => item.amount.greaterThan(0));
   const salariesExpense = salaryItems.reduce((s, item) => moneyAdd(s, item.amount), money(0));
   const manualExpenseMap = new Map<string, ReturnType<typeof money>>();
-  for (const occurrence of expenseOccurrences) {
+  for (const expense of expenseTemplates) {
+    const accrued = expenseAmountInPeriod(expense, range.from, range.to);
+    if (accrued.lessThanOrEqualTo(0)) continue;
     manualExpenseMap.set(
-      occurrence.expense.title,
-      moneyAdd(manualExpenseMap.get(occurrence.expense.title), occurrence.amount)
+      expense.title,
+      moneyAdd(manualExpenseMap.get(expense.title), accrued)
     );
   }
   const manualExpenseItems = [...manualExpenseMap].map(([title, amount]) => ({ title, amount }));
@@ -324,7 +366,7 @@ export async function getFinancialSummary(schoolId: string, type: ReportPeriodTy
   // current period used to include late fees and VAT while the previous one
   // included neither, so growth was overstated by construction — before even
   // accounting for the broken range this compared against.
-  const [prevActivities, prevRegFees, prevLateFees, prevPaymentCycles, prevTeachers, prevExpenseOccurrences] = await Promise.all([
+  const [prevActivities, prevRegFees, prevLateFees, prevPaymentCycles, prevTeachers] = await Promise.all([
     prisma.activity.findMany({
       where: { schoolId, startDate: { gte: prevRange.from, lte: prevRange.to } },
       select: { activityFee: true, childrenCount: true },
@@ -349,10 +391,6 @@ export async function getFinancialSummary(schoolId: string, type: ReportPeriodTy
       },
       select: { monthlySalary: true, joinDate: true, enrollmentEndDate: true },
     }),
-    prisma.expenseOccurrence.findMany({
-      where: { school_id: schoolId, due_date: { gte: prevRange.from, lte: prevRange.to }, status: { not: "CANCELLED" } },
-      select: { amount: true },
-    }),
   ]);
 
   const prevActivitiesTotal = prevActivities.reduce((s, a) => moneyAdd(s, moneyMultiply(a.activityFee, a.childrenCount)), money(0));
@@ -361,7 +399,10 @@ export async function getFinancialSummary(schoolId: string, type: ReportPeriodTy
     const effectiveEnd = t.enrollmentEndDate ?? prevRange.to;
     return moneyAdd(s, calculateRecurringMoney(t.monthlySalary, t.joinDate, effectiveEnd, prevRange.from, prevRange.to));
   }, money(0));
-  const prevManualExpensesTotal = prevExpenseOccurrences.reduce((sum, occurrence) => moneyAdd(sum, occurrence.amount), money(0));
+  const prevManualExpensesTotal = expenseTemplates.reduce(
+    (sum, expense) => moneyAdd(sum, expenseAmountInPeriod(expense, prevRange.from, prevRange.to)),
+    money(0)
+  );
 
   // Same four components as revenueTotal, VAT excluded from both.
   const prevRevenue = moneyAdd(prevMonthlyFeesRevenue, prevActivitiesTotal, prevRegFees._sum.registration_fee, prevLateFees._sum.lateFee);
@@ -407,12 +448,14 @@ export async function getFinancialSummary(schoolId: string, type: ReportPeriodTy
     amount: s.amount,
     label: `راتب — ${s.name}`,
   }));
-  const manualExpenseDetails = expenseOccurrences.map((occurrence) => ({
-    id: occurrence.id,
-    date: occurrence.due_date.toISOString(),
-    amount: money(occurrence.amount),
-    label: occurrence.expense.title,
-  }));
+  const manualExpenseDetails = expenseTemplates.flatMap((expense) =>
+    expenseAccrualsInPeriod(expense, range.from, range.to).map((entry) => ({
+      id: `${expense.id}-${entry.date.toISOString().slice(0, 10)}`,
+      date: entry.date.toISOString(),
+      amount: entry.amount,
+      label: expense.title,
+    }))
+  );
 
   const asNumber = moneyNumber;
 

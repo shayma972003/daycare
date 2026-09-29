@@ -13,11 +13,14 @@
 
 import { prisma } from "@/lib/prisma";
 import { bearerToken, verifyAccessToken, type AccessTokenClaims } from "@/lib/mobile-auth";
-import { grants } from "@/lib/permissions";
+import { ALL_PERMISSIONS, grants } from "@/lib/permissions";
 
 export interface MobileContext {
   claims: AccessTokenClaims;
   schoolId: string;
+  teacherId: string | null;
+  teacherClassIds: string[] | null;
+  permissions: string[];
   can: (permission: string) => boolean;
 }
 
@@ -58,6 +61,8 @@ export async function requireMobileAuth(
   }
 
   let currentSchoolId: string;
+  let teacherId: string | null = null;
+  let teacherClassIds: string[] | null = null;
   let permissions: string[] = [];
   if (claims.kind === "staff") {
     const current = await prisma.user.findUnique({
@@ -66,6 +71,16 @@ export async function requireMobileAuth(
         schoolId: true,
         disabledAt: true,
         acceptedAt: true,
+        teacherId: true,
+        teacher: {
+          select: {
+            classAssignments: {
+              where: { class: { deletedAt: null, archivedAt: null } },
+              select: { classId: true },
+              orderBy: [{ createdAt: "asc" }, { classId: "asc" }],
+            },
+          },
+        },
         roleRef: { select: { permissions: true } },
         school: { select: { subscription_status: true } },
       },
@@ -81,6 +96,10 @@ export async function requireMobileAuth(
     }
     currentSchoolId = current.schoolId;
     permissions = current.roleRef?.permissions ?? [];
+    teacherId = current.teacherId;
+    teacherClassIds = teacherId && !permissions.includes(ALL_PERMISSIONS)
+      ? (current.teacher?.classAssignments ?? []).map((assignment) => assignment.classId)
+      : null;
   } else {
     const current = await prisma.guardianAccount.findUnique({
       where: { id: claims.sub },
@@ -112,6 +131,9 @@ export async function requireMobileAuth(
   return {
     claims: { ...claims, ...(claims.kind === "staff" ? { permissions } : {}) },
     schoolId: currentSchoolId,
+    teacherId,
+    teacherClassIds,
+    permissions,
     can,
   };
 }

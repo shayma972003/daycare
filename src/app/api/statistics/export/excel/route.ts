@@ -3,6 +3,7 @@ import { getFinancialSummary, type ReportPeriodType } from "@/lib/finance";
 import { logExport } from "@/lib/export-audit";
 import * as XLSX from "xlsx";
 import { z } from "zod";
+import { scopedClassIds } from "@/lib/student-access-scope";
 
 const schema = z.object({ type: z.enum(["monthly", "semi_annual", "annual"]) });
 
@@ -18,6 +19,9 @@ export async function POST(request: Request) {
     );
   }
   const schoolId = session.user.schoolId;
+  if (scopedClassIds(session) !== null) {
+    return Response.json({ error: "لا تملكين صلاحية للتقارير المالية الشاملة" }, { status: 403 });
+  }
 
   let body: unknown;
   try {

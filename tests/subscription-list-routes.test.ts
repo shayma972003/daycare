@@ -1,12 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GET as list } from "@/app/api/students/route";
 import { GET as tasks } from "@/app/api/dashboard/tasks/route";
-const mocks = vi.hoisted(() => ({ list: vi.fn(), count: vi.fn(), session: vi.fn() }));
+const mocks = vi.hoisted(() => ({ list: vi.fn(), count: vi.fn(), expenseCount: vi.fn(async () => 2), session: vi.fn() }));
 vi.mock("@/lib/session", () => ({ requireSession: mocks.session, sessionErrorResponse: () => null }));
 vi.mock("@/lib/prisma", () => ({ prisma: {
   student: { findMany: mocks.list, count: mocks.count },
   attendance: { count: vi.fn(async () => 0) }, enrollmentSubmission: { count: vi.fn(async () => 0) },
   class: { count: vi.fn(async () => 0) }, careReport: { count: vi.fn(async () => 0) },
+  expenseOccurrence: { count: mocks.expenseCount },
   teacher: { count: vi.fn(async () => 0) }, enrollmentToken: { count: vi.fn(async () => 0) },
   school: { findUnique: vi.fn(async () => null) }, $transaction: (queries: Promise<unknown>[]) => Promise.all(queries),
 } }));
@@ -33,6 +34,8 @@ describe("subscription lists and dashboard alerts", () => {
     const body = await response.json();
     expect(body.tasks.find((t: { key: string }) => t.key === "expiringSoon").href).toBe("/students?subscription=expiring");
     expect(body.tasks.find((t: { key: string }) => t.key === "expiredSubscriptions").href).toBe("/students?subscription=expired");
+    expect(body.tasks.find((t: { key: string }) => t.key === "pendingExpenses")).toMatchObject({ count: 2, href: "/statistics?tab=expenses" });
+    expect(mocks.expenseCount).toHaveBeenCalledWith({ where: { school_id: "tenant-a", status: "PENDING", due_date: { lte: new Date("2026-08-28") } } });
     const weekWhere = mocks.count.mock.calls.map(([call]) => call.where).find((w) => w.enrollmentEndDate?.lt && w.enrollmentEndDate?.gte);
     expect(weekWhere).toEqual(listWhere);
     expect(weekWhere.enrollmentEndDate.lt).toEqual(new Date("2026-09-05"));

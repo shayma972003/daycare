@@ -124,9 +124,13 @@ export function formatAst(
  */
 export function formatHijri(
   at: Date,
-  options: Intl.DateTimeFormatOptions = { year: "numeric", month: "long", day: "numeric" }
+  options: Intl.DateTimeFormatOptions = { year: "numeric", month: "long", day: "numeric" },
+  locale: "ar" | "en" = "ar"
 ): string {
-  return new Intl.DateTimeFormat("ar-SA-u-ca-islamic-umalqura-nu-latn", {
+  const tag = locale === "en"
+    ? "en-GB-u-ca-islamic-umalqura-nu-latn"
+    : "ar-SA-u-ca-islamic-umalqura-nu-latn";
+  return new Intl.DateTimeFormat(tag, {
     timeZone: "Asia/Riyadh",
     ...options,
   }).format(at);

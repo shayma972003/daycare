@@ -5,12 +5,14 @@ import { subscriptionFilterWhere } from "@/lib/student-lifecycle";
 import { withNoStore } from "@/lib/auth-response";
 import { grants } from "@/lib/permissions";
 import { PaymentStatus } from "@/lib/payment-status";
+import { classIdWhere, scopedClassIds, studentClassWhere } from "@/lib/student-access-scope";
+import { ExpenseOccurrenceStatus } from "@/generated/prisma/enums";
 
 /**
  * Everything the home screen needs, in one round trip.
  *
- * The screen shows six counts and a setup checklist. Fetched separately that is
- * eleven requests on every dashboard open, each paying its own `requireSession()`
+ * The screen shows attention counters and a setup checklist. Fetched separately
+ * that is several requests on every dashboard open, each paying its own `requireSession()`
  * — which is an indexed user lookup plus a school lookup. The financial summary
  * next door already costs seventeen Prisma calls and needed `maxDuration` raised
  * to 120s in vercel.json, so this screen has no budget to waste.
@@ -48,12 +50,14 @@ export async function GET(request: Request) {
   const canClasses = grants(held, "classes.view");
   const canCare = grants(held, "students.files");
   const canSettings = grants(held, "settings.manage");
+  const classIds = scopedClassIds(session);
 
   const [
     activeStudents,
     presentToday,
     eligiblePresentToday,
     unpaidInvoices,
+    pendingExpenses,
     pendingEnrolments,
     classesWithoutTeacher,
     careReportsToday,
@@ -65,7 +69,7 @@ export async function GET(request: Request) {
     school,
   ] = await Promise.all([
     canStudents
-      ? prisma.student.count({ where: { schoolId, deletedAt: null, isActive: true, status: "ACTIVE", ...subscriptionFilterWhere("current", today) } })
+      ? prisma.student.count({ where: { schoolId, deletedAt: null, isActive: true, status: "ACTIVE", ...studentClassWhere(session), ...subscriptionFilterWhere("current", today) } })
       : prisma.student.count({ where: { id: "" } }),
 
     canStudents
@@ -73,6 +77,7 @@ export async function GET(request: Request) {
           where: {
             schoolId,
             checkinAt: { gte: dayStart, lt: dayEnd },
+            student: studentClassWhere(session),
           },
         })
       : prisma.attendance.count({ where: { id: "" } }),
@@ -88,6 +93,7 @@ export async function GET(request: Request) {
                 deletedAt: null,
                 isActive: true,
                 status: "ACTIVE",
+                ...studentClassWhere(session),
                 ...subscriptionFilterWhere("current", today),
               },
             },
@@ -102,13 +108,24 @@ export async function GET(request: Request) {
           where: {
             schoolId,
             isActive: true,
+            ...studentClassWhere(session),
             ...subscriptionFilterWhere("current", today),
             paymentStatus: { in: [PaymentStatus.PENDING, PaymentStatus.LATE] },
           },
         })
       : prisma.student.count({ where: { id: "" } }),
 
-    canStudents
+    canFinance
+      ? prisma.expenseOccurrence.count({
+          where: {
+            school_id: schoolId,
+            status: ExpenseOccurrenceStatus.PENDING,
+            due_date: { lte: today },
+          },
+        })
+      : prisma.expenseOccurrence.count({ where: { id: "" } }),
+
+    canStudents && classIds === null
       ? prisma.enrollmentSubmission.count({
           where: { school_id: schoolId, status: "pending_review" },
         })
@@ -116,13 +133,17 @@ export async function GET(request: Request) {
 
     canClasses
       ? prisma.class.count({
-          where: { schoolId, deletedAt: null, archivedAt: null, teacherId: null },
+          where: { schoolId, deletedAt: null, archivedAt: null, ...classIdWhere(session), teacherAssignments: { none: {} } },
         })
       : prisma.class.count({ where: { id: "" } }),
 
     canCare
       ? prisma.careReport.count({
-          where: { schoolId, createdAt: { gte: dayStart, lt: dayEnd } },
+          where: {
+            schoolId,
+            createdAt: { gte: dayStart, lt: dayEnd },
+            student: studentClassWhere(session),
+          },
         })
       : prisma.careReport.count({ where: { id: "" } }),
 
@@ -131,6 +152,7 @@ export async function GET(request: Request) {
           where: {
             schoolId,
             deletedAt: null,
+            ...studentClassWhere(session),
             ...subscriptionFilterWhere("expiring", today),
           },
         })
@@ -138,7 +160,7 @@ export async function GET(request: Request) {
 
     canStudents
       ? prisma.student.count({
-          where: { schoolId, deletedAt: null, ...subscriptionFilterWhere("expired", today) },
+          where: { schoolId, deletedAt: null, ...studentClassWhere(session), ...subscriptionFilterWhere("expired", today) },
         })
       : prisma.student.count({ where: { id: "" } }),
 
@@ -166,6 +188,7 @@ export async function GET(request: Request) {
   const tasks = [
     canStudents && { key: "absent", count: absent, href: "/attendance" },
     canFinance && { key: "unpaidInvoices", count: unpaidInvoices, href: "/statistics" },
+    canFinance && { key: "pendingExpenses", count: pendingExpenses, href: "/statistics?tab=expenses" },
     canStudents && { key: "pendingEnrolments", count: pendingEnrolments, href: "/students" },
     canClasses && { key: "classesWithoutTeacher", count: classesWithoutTeacher, href: "/classes" },
     canCare && { key: "careReports", count: careReportsToday, href: "/care" },

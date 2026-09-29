@@ -1,5 +1,6 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { scopedClassIds } from "@/lib/student-access-scope";
 
 export async function GET(
   _request: Request,
@@ -13,6 +14,9 @@ export async function GET(
   }
 
   const schoolId = (session.user as { schoolId: string }).schoolId;
+  if (scopedClassIds(session) !== null) {
+    return Response.json({ error: "لا تملكين صلاحية للتقارير المالية الشاملة" }, { status: 403 });
+  }
   const { id } = await params;
   const report = await prisma.financialReport.findFirst({
     where: { id, school_id: schoolId },

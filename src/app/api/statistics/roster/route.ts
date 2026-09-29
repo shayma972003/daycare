@@ -1,5 +1,6 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { classIdWhere, studentClassWhere } from "@/lib/student-access-scope";
 
 /**
  * Active versus archived counts (task 2.26).
@@ -48,24 +49,24 @@ export async function GET() {
     trashedTeachers,
     trashedClasses,
   ] = await Promise.all([
-    prisma.student.count({ where: { schoolId, deletedAt: null, status: "ACTIVE" } }),
+    prisma.student.count({ where: { schoolId, deletedAt: null, status: "ACTIVE", ...studentClassWhere(session) } }),
     prisma.student.count({
-      where: { schoolId, deletedAt: null, status: { not: "ACTIVE" }, anonymizedAt: null },
+      where: { schoolId, deletedAt: null, status: { not: "ACTIVE" }, anonymizedAt: null, ...studentClassWhere(session) },
     }),
     // Shown separately: these still exist and still count in the statistics, but
     // their personal data is gone and cannot be brought back.
-    prisma.student.count({ where: { schoolId, anonymizedAt: { not: null } } }),
+    prisma.student.count({ where: { schoolId, anonymizedAt: { not: null }, ...studentClassWhere(session) } }),
     prisma.teacher.count({ where: { schoolId, deletedAt: null, status: "ACTIVE" } }),
     prisma.teacher.count({
       where: { schoolId, deletedAt: null, status: { not: "ACTIVE" }, anonymizedAt: null },
     }),
-    prisma.class.count({ where: { schoolId, deletedAt: null, archivedAt: null } }),
-    prisma.class.count({ where: { schoolId, deletedAt: null, archivedAt: { not: null } } }),
+    prisma.class.count({ where: { schoolId, deletedAt: null, archivedAt: null, ...classIdWhere(session) } }),
+    prisma.class.count({ where: { schoolId, deletedAt: null, archivedAt: { not: null }, ...classIdWhere(session) } }),
     prisma.unit.count({ where: { schoolId, deletedAt: null, archivedAt: null } }),
     prisma.unit.count({ where: { schoolId, deletedAt: null, archivedAt: { not: null } } }),
-    prisma.student.count({ where: { schoolId, deletedAt: { not: null } } }),
+    prisma.student.count({ where: { schoolId, deletedAt: { not: null }, ...studentClassWhere(session) } }),
     prisma.teacher.count({ where: { schoolId, deletedAt: { not: null } } }),
-    prisma.class.count({ where: { schoolId, deletedAt: { not: null } } }),
+    prisma.class.count({ where: { schoolId, deletedAt: { not: null }, ...classIdWhere(session) } }),
   ]);
 
   return Response.json({

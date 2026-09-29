@@ -1,5 +1,6 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { studentClassWhere } from "@/lib/student-access-scope";
 
 /**
  * Returns the once-per-session popups **and marks them as shown**.
@@ -32,6 +33,7 @@ export async function POST(request: Request) {
         isActive: true,
         enrollmentEndDate: { lt: new Date() },
         payment_notified_at: null,
+        ...studentClassWhere(session),
       },
       select: { id: true, name: true, enrollmentEndDate: true },
     }),
@@ -41,6 +43,7 @@ export async function POST(request: Request) {
         deletedAt: null,
         paymentStatus: "SUSPENDED",
         suspension_notified_at: null,
+        ...studentClassWhere(session),
       },
       select: { id: true, name: true },
     }),
@@ -50,13 +53,13 @@ export async function POST(request: Request) {
   // of the tenant-scoped routes.
   if (expiredStudents.length > 0) {
     await prisma.student.updateMany({
-      where: { id: { in: expiredStudents.map((s) => s.id) }, schoolId },
+      where: { id: { in: expiredStudents.map((s) => s.id) }, schoolId, ...studentClassWhere(session) },
       data: { payment_notified_at: new Date() },
     });
   }
   if (suspendedStudents.length > 0) {
     await prisma.student.updateMany({
-      where: { id: { in: suspendedStudents.map((s) => s.id) }, schoolId },
+      where: { id: { in: suspendedStudents.map((s) => s.id) }, schoolId, ...studentClassWhere(session) },
       data: { suspension_notified_at: new Date() },
     });
   }

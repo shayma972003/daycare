@@ -1,6 +1,7 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { grants } from "@/lib/permissions";
+import { classIdWhere, studentClassWhere } from "@/lib/student-access-scope";
 
 /**
  * Search across the school, for the command palette.
@@ -49,7 +50,7 @@ export async function GET(request: Request) {
   const [students, teachers, classes] = await Promise.all([
     grants(held, "students.view")
       ? prisma.student.findMany({
-          where: { schoolId, isActive: true, name: contains },
+          where: { schoolId, isActive: true, name: contains, ...studentClassWhere(session) },
           select: { id: true, name: true },
           take: LIMIT,
           orderBy: { name: "asc" },
@@ -58,7 +59,7 @@ export async function GET(request: Request) {
 
     grants(held, "staff.view")
       ? prisma.teacher.findMany({
-          where: { schoolId, deletedAt: null, name: contains },
+          where: { schoolId, deletedAt: null, name: contains, ...classIdWhere(session) },
           select: { id: true, name: true },
           take: LIMIT,
           orderBy: { name: "asc" },

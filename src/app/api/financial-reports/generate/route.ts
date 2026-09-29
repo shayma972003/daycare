@@ -4,6 +4,7 @@ import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logExport } from "@/lib/export-audit";
 import { getFinancialSummary, type ReportPeriodType } from "@/lib/finance";
+import { scopedClassIds } from "@/lib/student-access-scope";
 import { renderToBuffer, Document, Page, Text, View, StyleSheet, Font } from "@react-pdf/renderer";
 import { createElement } from "react";
 import { join } from "path";
@@ -69,6 +70,9 @@ export async function POST(request: Request) {
     );
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
+  if (scopedClassIds(session) !== null) {
+    return Response.json({ error: "لا تملكين صلاحية للتقارير المالية الشاملة" }, { status: 403 });
+  }
 
   let body: unknown;
   try { body = await request.json(); } catch {

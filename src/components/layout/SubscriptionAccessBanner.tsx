@@ -18,9 +18,12 @@ export function SubscriptionAccessBanner({ access }: { access: SchoolSubscriptio
     queueMicrotask(() => setPopupOpen(true));
   }, [access.renewalDate, access.showFirstExpiredDayPopup]);
 
-  if (access.mode === "active") return null;
+  const expiringSoon = access.mode === "active" && access.showRenewalWarning;
+  if (access.mode === "active" && !expiringSoon) return null;
   const locked = access.mode === "locked";
-  const message = locked
+  const message = expiringSoon
+    ? t("schoolSubscription.expiringMessage", { days: String(access.daysUntilRenewal ?? 0) })
+    : locked
     ? t("schoolSubscription.lockedMessage")
     : t("schoolSubscription.graceMessage", { days: access.graceDaysRemaining });
 
@@ -29,7 +32,7 @@ export function SubscriptionAccessBanner({ access }: { access: SchoolSubscriptio
       <div role="alert" className={locked ? "border-b border-red-200 bg-red-50 px-4 py-3 text-red-900" : "border-b border-amber-200 bg-amber-50 px-4 py-3 text-amber-900"}>
         <div className="mx-auto flex max-w-[1500px] flex-wrap items-center justify-between gap-3 text-sm">
           <div>
-            <strong>{locked ? t("schoolSubscription.lockedTitle") : t("schoolSubscription.graceTitle")}</strong>
+            <strong>{expiringSoon ? t("schoolSubscription.expiringTitle") : locked ? t("schoolSubscription.lockedTitle") : t("schoolSubscription.graceTitle")}</strong>
             <span className="mx-2">{message}</span>
           </div>
           <Link href="/subscription" className="rounded-xl bg-gray-950 px-4 py-2 font-semibold text-white hover:bg-gray-800">
@@ -39,7 +42,7 @@ export function SubscriptionAccessBanner({ access }: { access: SchoolSubscriptio
       </div>
 
       <Dialog open={popupOpen} onOpenChange={setPopupOpen}>
-        <DialogContent dir="rtl" className="p-6">
+        <DialogContent className="p-6">
           <DialogHeader>
             <div>
               <DialogTitle>{t("schoolSubscription.expiredPopupTitle")}</DialogTitle>

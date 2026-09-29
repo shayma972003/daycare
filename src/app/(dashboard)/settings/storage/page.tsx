@@ -16,7 +16,7 @@ import { describeApiError } from "@/lib/api-error";
 // connection at import time, which a Client Component must never do.
 import { formatBytes, STORAGE_CATEGORY_LABEL_KEYS } from "@/lib/storage-format";
 import { formatAst } from "@/lib/datetime";
-import { useT } from "@/lib/i18n-provider";
+import { useLocale } from "@/lib/i18n-provider";
 
 interface StorageResponse {
   studentFilesBytes: number;
@@ -53,7 +53,7 @@ const CATEGORY_COLORS: Record<(typeof CATEGORY_KEYS)[number], string> = {
 };
 
 export default function StoragePage() {
-  const t = useT();
+  const { t, locale } = useLocale();
   const [data, setData] = useState<StorageResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -119,7 +119,7 @@ export default function StoragePage() {
   }
 
   return (
-    <div dir="rtl" className="min-h-screen bg-brand-bg">
+    <div className="min-h-screen bg-brand-bg">
       <Topbar title={t("storage.title")} />
 
       <div className="p-6 space-y-5">
@@ -196,7 +196,7 @@ export default function StoragePage() {
                   day: "numeric",
                   hour: "2-digit",
                   minute: "2-digit",
-                }) : "—"}
+                }, locale) : "—"}
                 {" · "}
                 <button onClick={refresh} disabled={busy} className="text-[#5B14D1] hover:underline">
                   {t("common.recalculate")}

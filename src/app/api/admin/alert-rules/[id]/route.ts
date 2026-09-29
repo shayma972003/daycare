@@ -5,7 +5,7 @@ import { z } from "zod";
 const schema = z.object({
   message_subject: z.string().min(1).optional(),
   message_template: z.string().min(1).optional(),
-  threshold_days: z.number().int().nullish(),
+  threshold_days: z.number().int().min(0).max(3650).nullish(),
   is_active: z.boolean().optional(),
 });
 

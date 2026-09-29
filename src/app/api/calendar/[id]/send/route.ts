@@ -5,6 +5,7 @@ import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { lockCalendarEventForUpdate } from "@/lib/calendar-event-lock";
 import { enqueuePush, type PushTarget } from "@/lib/push";
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
+import { scopedClassIds } from "@/lib/student-access-scope";
 
 const schema = z.object({
   notifyGuardians: z.boolean(),
@@ -64,6 +65,7 @@ export async function POST(
     return Response.json({ error: "Choose at least one audience" }, { status: 422 });
   }
   const requestHash = hashIntent(parsed.data);
+  const permittedClassIds = scopedClassIds(session);
 
   type StoredResult = {
     id: string;
@@ -110,14 +112,21 @@ export async function POST(
 
       const schoolWide = event.classes.length === 0;
       if (schoolWide && parsed.data.confirmSchoolWide !== true) return { kind: "confirm" };
+      const eventClassIds = event.classes.map((item) => item.classId);
+      const targetClassIds = permittedClassIds === null
+        ? (schoolWide ? null : eventClassIds)
+        : (schoolWide
+            ? [...permittedClassIds]
+            : eventClassIds.filter((classId) => permittedClassIds.includes(classId)));
       const rooms = await tx.class.findMany({
         where: {
           schoolId,
           deletedAt: null,
-          ...(schoolWide ? {} : { id: { in: event.classes.map((item) => item.classId) } }),
+          ...(targetClassIds === null ? {} : { id: { in: targetClassIds } }),
         },
         select: {
           teacherId: true,
+          teacherAssignments: { select: { teacherId: true } },
           students: {
             where: { schoolId, isActive: true, deletedAt: null },
             select: {
@@ -135,7 +144,10 @@ export async function POST(
       }
       if (parsed.data.notifyStaff) {
         if (event.teacherId) teacherIds.add(event.teacherId);
-        for (const room of rooms) if (room.teacherId) teacherIds.add(room.teacherId);
+        for (const room of rooms) {
+          for (const assignment of room.teacherAssignments ?? []) teacherIds.add(assignment.teacherId);
+          if ((room.teacherAssignments?.length ?? 0) === 0 && room.teacherId) teacherIds.add(room.teacherId);
+        }
       }
       const [guardianAccounts, users] = await Promise.all([
         guardianIds.size

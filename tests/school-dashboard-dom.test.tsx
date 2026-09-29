@@ -64,7 +64,7 @@ describe("school dashboard", () => {
   it("renders sections in daily order and uses the existing permission gates", async () => {
     render(<SchoolDashboard />);
     await act(async () => { await Promise.resolve(); });
-    expect(screen.getByRole("heading", { name: "dashboard.summaryTitle" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "dashboard.summaryTitle" })).toBeNull();
     expect(screen.getByRole("heading", { name: "dashboard.attentionTitle" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "dashboard.attendanceTitle" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "dashboard.todayEventsTitle" })).toBeTruthy();
@@ -150,7 +150,6 @@ describe("school dashboard", () => {
     });
     render(<SchoolDashboard />);
     await act(async () => { await Promise.resolve(); });
-    expect(screen.getByText("dashboard.activeStudents").parentElement?.textContent).toContain("1");
     expect(screen.getByLabelText("dashboard.studentsAttendanceSummary").textContent).toContain("1");
     expect(screen.getByLabelText("dashboard.studentsAttendanceSummary").textContent).toContain("dashboard.absentCount");
   });
@@ -170,5 +169,28 @@ describe("school dashboard", () => {
     await act(async () => { await Promise.resolve(); });
     expect(screen.queryByRole("link", { name: "dashboard.openStudentAttendance" })).toBeNull();
     expect(screen.getByRole("link", { name: "dashboard.openStaffAttendance" })).toBeTruthy();
+  });
+
+  it("shows only the latest five activity-log entries", async () => {
+    mocks.get.mockImplementation((url: string) => {
+      if (url === "/api/dashboard/tasks") return Promise.resolve({ data: { tasks: [] } });
+      if (url === "/api/attendance/page-data") return Promise.resolve({ data: attendance.data });
+      if (url.startsWith("/api/calendar?")) return Promise.resolve({ data: [] });
+      if (url === "/api/settings/logs?skip=0") return Promise.resolve({ data: { logs: Array.from({ length: 6 }, (_, index) => ({
+        id: `log-${index}`,
+        action: `activity-${index + 1}`,
+        performed_by: "Manager",
+        created_at: `2026-08-26T0${index}:00:00Z`,
+      })) } });
+      return Promise.resolve({ data: { logs: [] } });
+    });
+
+    render(<SchoolDashboard />);
+    await act(async () => { await Promise.resolve(); });
+
+    expect(screen.getByText("activity-1")).toBeTruthy();
+    expect(screen.getByText("activity-5")).toBeTruthy();
+    expect(screen.queryByText("activity-6")).toBeNull();
+    expect(mocks.get).toHaveBeenCalledWith("/api/settings/logs?skip=0", expect.objectContaining({ signal: expect.any(AbortSignal) }));
   });
 });

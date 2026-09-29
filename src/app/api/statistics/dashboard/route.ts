@@ -1,6 +1,7 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { getFinancialSummary, type ReportPeriodType } from "@/lib/finance";
 import { logSafeError } from "@/lib/safe-logger";
+import { scopedClassIds } from "@/lib/student-access-scope";
 
 const VALID_TYPES: ReportPeriodType[] = ["monthly", "semi_annual", "annual"];
 
@@ -16,6 +17,9 @@ export async function GET(request: Request) {
     );
   }
   const schoolId = (session.user as { schoolId: string }).schoolId;
+  if (scopedClassIds(session) !== null) {
+    return Response.json({ error: "لا تملكين صلاحية للتقارير المالية الشاملة" }, { status: 403 });
+  }
 
   const { searchParams } = new URL(request.url);
   const typeParam = searchParams.get("type");

@@ -167,6 +167,7 @@ export const ROUTE_PERMISSIONS: Record<string, RouteRule> = {
   "/api/invoices/:id": {
     methods: { GET: "finance.view", DELETE: "finance.manage" },
   },
+  "/api/invoices/:id/pdf": { default: "finance.view" },
   "/api/invoices/generate": { default: "finance.manage" },
   "/api/invoices/generate/teacher": { default: "finance.manage" },
   "/api/invoices/prefill/:id": { default: "finance.manage" },
@@ -228,6 +229,15 @@ export const ROUTE_PERMISSIONS: Record<string, RouteRule> = {
   },
   "/api/care-reports/daily": {
     methods: { POST: "attendance.students" },
+  },
+  "/api/care-reports/returned": {
+    methods: { GET: "attendance.students" },
+  },
+  "/api/care-reports/returned/:batchId/resubmit": {
+    methods: { POST: "attendance.students" },
+  },
+  "/api/care-reports/:id/review": {
+    methods: { POST: "students.manage" },
   },
   "/api/care-reports/:id": {
     methods: { PUT: "attendance.students", DELETE: "students.manage" },

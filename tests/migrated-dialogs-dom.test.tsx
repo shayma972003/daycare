@@ -167,7 +167,7 @@ describe("migrated dialog record isolation", () => {
     await user.click(await screen.findByRole("button", { name: /07:00/ }));
 
     let dialog = screen.getByRole("dialog");
-    let timeInputs = dialog.querySelectorAll<HTMLInputElement>('input[type="time"]');
+    let timeInputs = dialog.querySelectorAll<HTMLInputElement>('input[data-localized-native-type="time"]');
     expect(Array.from(timeInputs, (input) => input.value)).toEqual(["07:00", "15:00"]);
     await user.clear(timeInputs[0]);
     await user.type(timeInputs[0], "09:30");
@@ -175,7 +175,7 @@ describe("migrated dialog record isolation", () => {
 
     await user.click(screen.getByRole("button", { name: /10:00/ }));
     dialog = screen.getByRole("dialog");
-    timeInputs = dialog.querySelectorAll<HTMLInputElement>('input[type="time"]');
+    timeInputs = dialog.querySelectorAll<HTMLInputElement>('input[data-localized-native-type="time"]');
     expect(Array.from(timeInputs, (input) => input.value)).toEqual(["10:00", "18:00"]);
   });
 });

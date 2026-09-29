@@ -1,5 +1,7 @@
 "use client";
 
+import { LocalizedDateTimeInput } from "@/components/ui/LocalizedDateTimeInput";
+
 import { useEffect, useState, useCallback } from "react";
 import axios from "axios";
 import { describeApiError } from "@/lib/api-error";
@@ -144,8 +146,8 @@ export default function LogsPage() {
           <option value="">كل الإجراءات</option>
           {Object.entries(ACTION_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
-        <input type="date" value={filterFrom} onChange={(e) => { setFilterFrom(e.target.value); setPage(1); }} className="input-admin" placeholder="من" />
-        <input type="date" value={filterTo} onChange={(e) => { setFilterTo(e.target.value); setPage(1); }} className="input-admin" placeholder="إلى" />
+        <LocalizedDateTimeInput nativeType="date" value={filterFrom} onChange={(e) => { setFilterFrom(e.target.value); setPage(1); }} className="input-admin" placeholder="من" />
+        <LocalizedDateTimeInput nativeType="date" value={filterTo} onChange={(e) => { setFilterTo(e.target.value); setPage(1); }} className="input-admin" placeholder="إلى" />
       </div>
 
       {/* Table */}

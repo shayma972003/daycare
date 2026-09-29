@@ -1,7 +1,10 @@
 "use client";
 
+import { LocalizedDateTimeInput } from "@/components/ui/LocalizedDateTimeInput";
+
 import { useState, useEffect } from "react";
 import axios from "axios";
+import { useSearchParams } from "next/navigation";
 import { Topbar } from "@/components/layout/Topbar";
 import { formatCurrency } from "@/lib/utils";
 import { describeApiError } from "@/lib/api-error";
@@ -171,7 +174,7 @@ function AddExpenseForm({ onSaved, onCancel }: { onSaved: (e: Expense) => void; 
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">{t("finance.startDate")} *</label>
-          <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} required dir="ltr"
+          <LocalizedDateTimeInput nativeType="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} required dir="ltr"
             className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#5B14D1]" />
         </div>
         {type === "monthly" && (
@@ -179,7 +182,7 @@ function AddExpenseForm({ onSaved, onCancel }: { onSaved: (e: Expense) => void; 
             <label className="block text-xs font-medium text-gray-600 mb-1">
               {t("fields.endDate")} <span className="text-gray-400">{t("finance.optional")}</span>
             </label>
-            <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} dir="ltr"
+            <LocalizedDateTimeInput nativeType="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} dir="ltr"
               className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#5B14D1]" />
             <p className="text-xs text-gray-400 mt-1">{t("finance.openEndedHint")}</p>
           </div>
@@ -248,12 +251,12 @@ function EditExpenseRow({ expense, onSaved, onCancel }: { expense: Expense; onSa
           className="w-28 px-2 py-1 text-sm rounded border border-gray-200 focus:outline-none" />
       </td>
       <td className="px-4 py-2">
-        <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} dir="ltr"
+        <LocalizedDateTimeInput nativeType="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} dir="ltr"
           className="px-2 py-1 text-sm rounded border border-gray-200 focus:outline-none" />
       </td>
       <td className="px-4 py-2">
         {expense.type === "monthly" && (
-          <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} dir="ltr"
+          <LocalizedDateTimeInput nativeType="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} dir="ltr"
             placeholder={t("finance.endDate")}
             className="px-2 py-1 text-sm rounded border border-gray-200 focus:outline-none" />
         )}
@@ -334,13 +337,59 @@ function SummaryRow({ label, value, valueClass }: { label: string; value: string
   );
 }
 
+type ChartTone = "emerald" | "orange" | "purple" | "amber" | "red" | "slate";
+
+const CHART_TONES: Record<ChartTone, string> = {
+  emerald: "bg-emerald-500",
+  orange: "bg-orange-400",
+  purple: "bg-purple-500",
+  amber: "bg-amber-400",
+  red: "bg-red-500",
+  slate: "bg-slate-400",
+};
+
+function MiniBarChart({
+  items,
+  emptyText,
+}: {
+  items: { label: string; value: number; formatted: string; tone: ChartTone }[];
+  emptyText: string;
+}) {
+  const max = Math.max(0, ...items.map((item) => Math.abs(item.value)));
+
+  return (
+    <div className="space-y-3">
+      {items.map((item) => {
+        const width = max === 0 ? 0 : Math.max(4, (Math.abs(item.value) / max) * 100);
+        return (
+          <div key={item.label} className="space-y-1.5">
+            <div className="flex items-center justify-between gap-3 text-xs">
+              <span className="font-bold text-gray-800" dir="ltr">{item.formatted}</span>
+              <span className="min-w-0 truncate text-gray-500" title={item.label}>{item.label}</span>
+            </div>
+            <div className="h-2.5 overflow-hidden rounded-full bg-gray-100" aria-hidden="true">
+              <div
+                className={`h-full rounded-full transition-[width] duration-300 ${CHART_TONES[item.tone]}`}
+                style={{ width: `${width}%` }}
+              />
+            </div>
+          </div>
+        );
+      })}
+      {max === 0 && (
+        <p className="rounded-lg bg-gray-50 px-3 py-2 text-xs leading-5 text-gray-500">{emptyText}</p>
+      )}
+    </div>
+  );
+}
+
 function OpeningBalanceCard({ onSaved }: { onSaved: () => void }) {
   const t = useT();
   const { locale } = useLocale();
   const { can } = usePermissions();
   const [profile, setProfile] = useState<FinanceProfileDto | null>(null);
   const [editing, setEditing] = useState(false);
-  const [amount, setAmount] = useState("0");
+  const [amount, setAmount] = useState("");
   const [date, setDate] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -350,7 +399,8 @@ function OpeningBalanceCard({ onSaved }: { onSaved: () => void }) {
     axios.get<FinanceProfileDto>("/api/finance/settings", { signal: controller.signal })
       .then(({ data }) => {
         setProfile(data);
-        setAmount(String(data.opening_balance ?? 0));
+        const isConfigured = Boolean(data.opening_balance_date) || Number(data.opening_balance) !== 0;
+        setAmount(isConfigured ? String(data.opening_balance) : "");
         setDate(data.opening_balance_date?.slice(0, 10) ?? "");
       })
       .catch(() => undefined);
@@ -358,14 +408,17 @@ function OpeningBalanceCard({ onSaved }: { onSaved: () => void }) {
   }, []);
 
   async function save() {
+    const parsedAmount = amount.trim() === "" ? 0 : Number(amount);
     setSaving(true);
     setError("");
     try {
       const { data } = await axios.put<FinanceProfileDto>("/api/finance/settings", {
-        openingBalance: Number(amount),
-        openingBalanceDate: date || null,
+        openingBalance: parsedAmount,
+        openingBalanceDate: parsedAmount === 0 ? null : (date || null),
       });
       setProfile(data);
+      setAmount(data.opening_balance_date || Number(data.opening_balance) !== 0 ? String(data.opening_balance) : "");
+      setDate(data.opening_balance_date?.slice(0, 10) ?? "");
       setEditing(false);
       onSaved();
     } catch (cause) {
@@ -375,11 +428,17 @@ function OpeningBalanceCard({ onSaved }: { onSaved: () => void }) {
     }
   }
 
+  const parsedAmount = amount.trim() === "" ? 0 : Number(amount);
+  const hasConfiguredBalance = Boolean(profile?.opening_balance_date) || Number(profile?.opening_balance ?? 0) !== 0;
+
   return (
     <div className="rounded-xl border border-[#E8E3EF] bg-white p-4 shadow-[0_1px_4px_rgba(0,0,0,0.04)]">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-sm font-bold text-[#2D2238]">{t("finance.openingBalanceSetup")}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm font-bold text-[#2D2238]">{t("finance.openingBalanceSetup")}</p>
+            <span className="rounded-full bg-[#F5F1F9] px-2 py-0.5 text-[11px] font-medium text-[#776C80]">{t("finance.optional")}</span>
+          </div>
           <p className="mt-1 text-xs text-[#8B8095]">{t("finance.openingBalanceHint")}</p>
         </div>
         {!editing && (
@@ -387,7 +446,7 @@ function OpeningBalanceCard({ onSaved }: { onSaved: () => void }) {
             <div className="text-end">
               <p className="font-bold text-[#2D2238]" dir="ltr">{formatCurrency(profile?.opening_balance ?? 0, locale)}</p>
               <p className="text-xs text-[#9A909F]">
-                {profile?.opening_balance_date
+                {hasConfiguredBalance && profile?.opening_balance_date
                   ? formatAst(new Date(profile.opening_balance_date), { year: "numeric", month: "2-digit", day: "2-digit" }, locale)
                   : t("finance.openingBalanceNotSet")}
               </p>
@@ -403,15 +462,15 @@ function OpeningBalanceCard({ onSaved }: { onSaved: () => void }) {
       {editing && (
         <div className="mt-4 grid grid-cols-1 gap-3 border-t border-[#EEEAF2] pt-4 sm:grid-cols-[1fr_1fr_auto]">
           <label className="text-xs text-[#776C80]">
-            {t("finance.openingBalance")}
-            <input type="number" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} className="mt-1 w-full rounded-lg border border-[#DED5E8] px-3 py-2 text-sm" dir="ltr" />
+            {t("finance.openingBalance")} <span className="text-[#9A909F]">{t("finance.optional")}</span>
+            <input type="number" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0.00" className="mt-1 w-full rounded-lg border border-[#DED5E8] px-3 py-2 text-sm" dir="ltr" />
           </label>
           <label className="text-xs text-[#776C80]">
-            {t("finance.openingBalanceDate")}
-            <input type="date" value={date} onChange={(event) => setDate(event.target.value)} className="mt-1 w-full rounded-lg border border-[#DED5E8] px-3 py-2 text-sm" dir="ltr" />
+            {t("finance.openingBalanceDate")} <span className="text-[#9A909F]">{t("finance.optional")}</span>
+            <LocalizedDateTimeInput nativeType="date" value={date} onChange={(event) => setDate(event.target.value)} className="mt-1 w-full rounded-lg border border-[#DED5E8] px-3 py-2 text-sm" dir="ltr" />
           </label>
           <div className="flex items-end gap-2">
-            <button type="button" onClick={save} disabled={saving || !Number.isFinite(Number(amount)) || (Number(amount) !== 0 && !date)} className="rounded-lg bg-[#5B14D1] px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
+            <button type="button" onClick={save} disabled={saving || !Number.isFinite(parsedAmount) || (parsedAmount !== 0 && !date)} className="rounded-lg bg-[#5B14D1] px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
               {saving ? "..." : t("common.save")}
             </button>
             <button type="button" onClick={() => setEditing(false)} className="rounded-lg border border-[#DED5E8] px-4 py-2 text-sm text-[#776C80]">{t("common.cancel")}</button>
@@ -688,9 +747,16 @@ function SummaryTab() {
 
       {/* الأداء المالي */}
       <SectionCard title={t("finance.performance")}>
-        <SummaryRow label={t("finance.revenues")} value={formatCurrency(summary.revenue.total, locale)} valueClass="text-emerald-600" />
-        <SummaryRow label={t("finance.expenses")} value={formatCurrency(summary.expenses.total, locale)} valueClass="text-orange-500" />
-        <SummaryRow label={t("finance.netIncome")} value={formatCurrency(summary.netIncome, locale)} valueClass={summary.netIncome >= 0 ? "text-emerald-600" : "text-red-500"} />
+        <MiniBarChart
+          emptyText={t("finance.noChartData")}
+          items={[
+            { label: t("finance.revenues"), value: summary.revenue.total, formatted: formatCurrency(summary.revenue.total, locale), tone: "emerald" },
+            { label: t("finance.expenses"), value: summary.expenses.total, formatted: formatCurrency(summary.expenses.total, locale), tone: "orange" },
+          ]}
+        />
+        <div className="border-t border-gray-100 pt-2">
+          <SummaryRow label={t("finance.netIncome")} value={formatCurrency(summary.netIncome, locale)} valueClass={summary.netIncome >= 0 ? "text-emerald-600" : "text-red-500"} />
+        </div>
         <div className="pt-3 border-t border-gray-100 space-y-2">
           <p className="text-xs text-gray-400">{t("finance.vsPrevious")}</p>
           <div className="flex items-center justify-between text-sm">
@@ -707,10 +773,15 @@ function SummaryTab() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* الإيرادات breakdown */}
         <SectionCard title={t("finance.revenues")}>
-          <SummaryRow label={t("finance.monthlyFees")} value={formatCurrency(summary.revenue.monthlyFees, locale)} />
-          <SummaryRow label={t("finance.lateFees")} value={formatCurrency(summary.revenue.lateFees, locale)} />
-          <SummaryRow label={t("finance.registrationCollected")} value={formatCurrency(summary.revenue.registrationFeesCollected, locale)} />
-          <SummaryRow label={t("finance.activityFees")} value={formatCurrency(summary.revenue.activities, locale)} />
+          <MiniBarChart
+            emptyText={t("finance.noChartData")}
+            items={[
+              { label: t("finance.monthlyFees"), value: summary.revenue.monthlyFees, formatted: formatCurrency(summary.revenue.monthlyFees, locale), tone: "purple" },
+              { label: t("finance.lateFees"), value: summary.revenue.lateFees, formatted: formatCurrency(summary.revenue.lateFees, locale), tone: "amber" },
+              { label: t("finance.registrationCollected"), value: summary.revenue.registrationFeesCollected, formatted: formatCurrency(summary.revenue.registrationFeesCollected, locale), tone: "emerald" },
+              { label: t("finance.activityFees"), value: summary.revenue.activities, formatted: formatCurrency(summary.revenue.activities, locale), tone: "slate" },
+            ]}
+          />
           <SummaryRow label={t("finance.vatCollected")} value={formatCurrency(summary.revenue.vatCollected, locale)} />
           <div className="pt-2 border-t border-gray-100">
             <SummaryRow label={t("finance.totalRevenue")} value={formatCurrency(summary.revenue.total, locale)} valueClass="text-emerald-600" />
@@ -719,36 +790,35 @@ function SummaryTab() {
 
         {/* التحصيل */}
         <SectionCard title={t("finance.collection")}>
-          <div className="flex items-start justify-between py-1">
-            <div className="text-end">
-              <div className="flex flex-col gap-0.5">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-bold text-emerald-600" dir="ltr">{formatCurrency(summary.collection.paid, locale)}</span>
-                  <span className="text-xs text-gray-400">{t("finance.netTotal")}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-bold text-gray-600" dir="ltr">{formatCurrency(summary.collection.vatIncluded, locale)}</span>
-                  <span className="text-xs text-gray-400">{t("finance.vatComponent")}</span>
-                </div>
-              </div>
-            </div>
-            <span className="text-sm text-gray-500">{t("finance.paidCount", { n: String(summary.collection.paidCount) })}</span>
-          </div>
-          <SummaryRow label={t("finance.lateCount", { n: String(summary.collection.lateCount) })} value={formatCurrency(summary.collection.late, locale)} valueClass="text-red-500" />
-          <SummaryRow label={t("finance.pendingCount", { n: String(summary.collection.pendingCount) })} value={formatCurrency(summary.collection.pending, locale)} valueClass="text-amber-500" />
-          <SummaryRow label={t("finance.suspendedCount", { n: String(summary.collection.suspendedCount) })} value={formatCurrency(summary.collection.suspended, locale)} valueClass="text-red-700" />
+          <MiniBarChart
+            emptyText={t("finance.noCollectionData")}
+            items={[
+              { label: t("finance.paidCount", { n: String(summary.collection.paidCount) }), value: summary.collection.paid, formatted: formatCurrency(summary.collection.paid, locale), tone: "emerald" },
+              { label: t("finance.lateCount", { n: String(summary.collection.lateCount) }), value: summary.collection.late, formatted: formatCurrency(summary.collection.late, locale), tone: "red" },
+              { label: t("finance.pendingCount", { n: String(summary.collection.pendingCount) }), value: summary.collection.pending, formatted: formatCurrency(summary.collection.pending, locale), tone: "amber" },
+              { label: t("finance.suspendedCount", { n: String(summary.collection.suspendedCount) }), value: summary.collection.suspended, formatted: formatCurrency(summary.collection.suspended, locale), tone: "purple" },
+            ]}
+          />
+          <SummaryRow label={t("finance.vatComponent")} value={formatCurrency(summary.collection.vatIncluded, locale)} valueClass="text-gray-600" />
         </SectionCard>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* المصروفات breakdown */}
         <SectionCard title={t("finance.expenses")}>
-          <SummaryRow label={t("finance.salaries")} value={formatCurrency(summary.expenses.salaries, locale)} />
-          {summary.expenses.manual.length === 0 ? (
-            <p className="text-xs text-gray-400 py-2">{t("finance.noManualExpenses")}</p>
-          ) : (
-            summary.expenses.manual.map((e, i) => <SummaryRow key={i} label={e.title} value={formatCurrency(e.amount, locale)} />)
-          )}
+          <MiniBarChart
+            emptyText={t("finance.noChartData")}
+            items={[
+              { label: t("finance.salaries"), value: summary.expenses.salaries, formatted: formatCurrency(summary.expenses.salaries, locale), tone: "orange" },
+              ...summary.expenses.manual.map((expense) => ({
+                label: expense.title,
+                value: expense.amount,
+                formatted: formatCurrency(expense.amount, locale),
+                tone: "purple" as const,
+              })),
+            ]}
+          />
+          {summary.expenses.manual.length === 0 && <p className="text-xs text-gray-400">{t("finance.noManualExpenses")}</p>}
           <div className="pt-2 border-t border-gray-100">
             <SummaryRow label={t("finance.totalExpenses")} value={formatCurrency(summary.expenses.total, locale)} valueClass="text-orange-500" />
           </div>
@@ -756,8 +826,13 @@ function SummaryTab() {
 
         {/* الرواتب */}
         <SectionCard title={t("finance.salaries")}>
-          <SummaryRow label={t("finance.totalSalaries")} value={formatCurrency(summary.salaries.totalBudgeted, locale)} />
-          <SummaryRow label={t("finance.salaryInvoicesIssued")} value={formatCurrency(summary.salaries.invoicesIssued, locale)} valueClass="text-gray-700" />
+          <MiniBarChart
+            emptyText={t("finance.noChartData")}
+            items={[
+              { label: t("finance.totalSalaries"), value: summary.salaries.totalBudgeted, formatted: formatCurrency(summary.salaries.totalBudgeted, locale), tone: "purple" },
+              { label: t("finance.salaryInvoicesIssued"), value: summary.salaries.invoicesIssued, formatted: formatCurrency(summary.salaries.invoicesIssued, locale), tone: "slate" },
+            ]}
+          />
         </SectionCard>
       </div>
 
@@ -765,8 +840,13 @@ function SummaryTab() {
         {/* التدفق النقدي */}
         <SectionCard title={t("finance.cashFlow")}>
           <SummaryRow label={t("finance.openingBalance")} value={formatCurrency(summary.cashFlow.openingBalance, locale)} />
-          <SummaryRow label={t("finance.receipts")} value={`+ ${formatCurrency(summary.cashFlow.inflows, locale)}`} valueClass="text-emerald-600" />
-          <SummaryRow label={t("finance.expenses")} value={`- ${formatCurrency(summary.cashFlow.outflows, locale)}`} valueClass="text-red-500" />
+          <MiniBarChart
+            emptyText={t("finance.noCashMovements")}
+            items={[
+              { label: t("finance.receipts"), value: summary.cashFlow.inflows, formatted: `+ ${formatCurrency(summary.cashFlow.inflows, locale)}`, tone: "emerald" },
+              { label: t("finance.expenses"), value: summary.cashFlow.outflows, formatted: `- ${formatCurrency(summary.cashFlow.outflows, locale)}`, tone: "red" },
+            ]}
+          />
           <div className="pt-2 border-t border-gray-100">
             <SummaryRow label={t("finance.currentBalance")} value={formatCurrency(summary.cashFlow.closingBalance, locale)} valueClass={summary.cashFlow.closingBalance >= 0 ? "text-emerald-600" : "text-red-500"} />
           </div>
@@ -1066,7 +1146,11 @@ function ExpensesTab() {
 export default function StatisticsPage() {
   // Locale-aware translation — see src/lib/i18n.tsx.
   const t = useT();
-  const [activeTab, setActiveTab] = useState<"summary" | "expenses">("summary");
+  const searchParams = useSearchParams();
+  const requestedTab = searchParams.get("tab");
+  const [activeTab, setActiveTab] = useState<"summary" | "expenses">(
+    requestedTab === "expenses" ? "expenses" : "summary"
+  );
 
   return (
     <div className="min-h-screen bg-gray-50">

@@ -5,11 +5,15 @@ const mocks = vi.hoisted(() => {
   const schoolUpdate = vi.fn();
   const planFindFirst = vi.fn();
   const activityCreate = vi.fn();
+  const recipientFindFirst = vi.fn();
+  const messageCreate = vi.fn();
   const tx = {
     $queryRaw: vi.fn(),
     school: { findUnique: schoolFindUnique, update: schoolUpdate },
     subscriptionPlan: { findFirst: planFindFirst },
     adminActivityLog: { create: activityCreate },
+    adminMessageRecipient: { findFirst: recipientFindFirst },
+    adminMessage: { create: messageCreate },
   };
   return {
     verifyAdmin: vi.fn(),
@@ -18,6 +22,8 @@ const mocks = vi.hoisted(() => {
     schoolUpdate,
     planFindFirst,
     activityCreate,
+    recipientFindFirst,
+    messageCreate,
     tx,
   };
 });
@@ -54,6 +60,8 @@ beforeEach(() => {
   });
   mocks.schoolUpdate.mockImplementation(({ data }: { data: Record<string, unknown> }) => Promise.resolve({ id: "school-1", ...data }));
   mocks.activityCreate.mockResolvedValue({ id: "log-1" });
+  mocks.recipientFindFirst.mockResolvedValue(null);
+  mocks.messageCreate.mockResolvedValue({ id: "message-1" });
   mocks.tx.$queryRaw.mockResolvedValue([{ id: "school-1" }]);
   mocks.planFindFirst.mockResolvedValue({ id: "monthly-plan", billing_interval: "MONTHLY" });
 });
@@ -120,5 +128,69 @@ describe("Super Admin school subscription type", () => {
 
     expect(response.status).toBe(422);
     expect(mocks.transaction).not.toHaveBeenCalled();
+  });
+
+  it("sets a manual end date at the end of the selected Riyadh day", async () => {
+    vi.useFakeTimers({ now: new Date("2026-09-20T12:00:00.000Z") });
+    mocks.schoolFindUnique.mockResolvedValue({
+      id: "school-1",
+      plan_id: "monthly-plan",
+      subscription_status: "expired",
+      renewal_date: new Date("2026-09-19T23:59:59.999Z"),
+      subscription_plan: { billing_interval: "MONTHLY" },
+    });
+
+    const response = await PUT(
+      request({ action: "set_end_date", renewal_date: "2026-10-15" }),
+      { params: Promise.resolve({ schoolId: "school-1" }) }
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.schoolUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        renewal_date: new Date("2026-10-15T20:59:59.999Z"),
+        subscription_status: "active",
+      }),
+    }));
+    expect(mocks.activityCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ action: "subscription_end_date_changed" }),
+    });
+  });
+
+  it("rejects an impossible manual end date", async () => {
+    const response = await PUT(
+      request({ action: "set_end_date", renewal_date: "2026-02-30" }),
+      { params: Promise.resolve({ schoolId: "school-1" }) }
+    );
+
+    expect(response.status).toBe(422);
+    expect(mocks.transaction).not.toHaveBeenCalled();
+  });
+
+  it("immediately warns the school when a manual end date is within seven days", async () => {
+    vi.useFakeTimers({ now: new Date("2026-09-20T12:00:00.000Z") });
+    mocks.schoolFindUnique.mockResolvedValue({
+      id: "school-1",
+      name: "روضة الاختبار",
+      plan_id: null,
+      subscription_status: "trial",
+      renewal_date: new Date("2026-10-20T23:59:59.999Z"),
+      subscription_plan: null,
+    });
+
+    const response = await PUT(
+      request({ action: "set_end_date", renewal_date: "2026-09-21" }),
+      { params: Promise.resolve({ schoolId: "school-1" }) }
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.messageCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        subject: "اشتراكك ينتهي قريبًا",
+        template_key: "renewal_soon",
+        target_type: "system",
+        recipients: { create: { school_id: "school-1", delivered_at: new Date("2026-09-20T12:00:00.000Z") } },
+      }),
+    });
   });
 });

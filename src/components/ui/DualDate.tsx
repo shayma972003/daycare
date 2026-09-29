@@ -13,6 +13,7 @@
  */
 
 import { formatAst, formatHijri } from "@/lib/datetime";
+import { useLocale } from "@/lib/i18n-provider";
 
 export function DualDate({
   value,
@@ -23,6 +24,7 @@ export function DualDate({
   className?: string;
   showHijri?: boolean;
 }) {
+  const { locale } = useLocale();
   if (!value) return <span className={className}>—</span>;
 
   const date = typeof value === "string" ? new Date(value) : value;
@@ -31,12 +33,12 @@ export function DualDate({
   return (
     <time dateTime={date.toISOString()} className={`inline-block ${className}`}>
       <span className="block">
-        {formatAst(date, { year: "numeric", month: "long", day: "numeric" })}
+        {formatAst(date, { year: "numeric", month: "long", day: "numeric" }, locale)}
       </span>
       {/* No "هـ" appended — Intl already emits the era marker for the Islamic
           calendar, and adding one renders "1448 هـ هـ". */}
       {showHijri && (
-        <span className="block text-[11px] text-gray-400">{formatHijri(date)}</span>
+        <span className="block text-[11px] text-gray-400">{formatHijri(date, undefined, locale)}</span>
       )}
     </time>
   );

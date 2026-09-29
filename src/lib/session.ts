@@ -20,6 +20,12 @@ export type AuthSession = {
   permissions: string[];
   /** Staff record this login belongs to, when it has one. */
   teacherId: string | null;
+  /**
+   * Active rooms visible to a linked classroom account. `null` means the
+   * account is not classroom-scoped; an empty array deliberately means it may
+   * see no children until a manager assigns its teacher to a room.
+   */
+  teacherClassIds: string[] | null;
   subscription: SchoolSubscriptionAccess;
   can: (permission: string) => boolean;
 };
@@ -145,6 +151,15 @@ export async function requireSession(): Promise<AuthSession> {
       role: true,
       schoolId: true,
       teacherId: true,
+      teacher: {
+        select: {
+          classAssignments: {
+            where: { class: { deletedAt: null, archivedAt: null } },
+            select: { classId: true },
+            orderBy: [{ createdAt: "asc" }, { classId: "asc" }],
+          },
+        },
+      },
       disabledAt: true,
       acceptedAt: true,
       authVersion: true,
@@ -172,6 +187,9 @@ export async function requireSession(): Promise<AuthSession> {
   const subscription = schoolSubscriptionAccess(user.school);
 
   const permissions = await resolvePermissions(user.schoolId, user);
+  const teacherClassIds = user.teacherId && !permissions.includes(ALL_PERMISSIONS)
+    ? (user.teacher?.classAssignments ?? []).map((assignment) => assignment.classId)
+    : null;
 
   await enforceRoutePermission(permissions);
   await enforceSubscriptionAccess(subscription);
@@ -188,6 +206,7 @@ export async function requireSession(): Promise<AuthSession> {
     },
     permissions,
     teacherId: user.teacherId,
+    teacherClassIds,
     subscription,
     can: (permission: string) => grants(permissions, permission),
   };

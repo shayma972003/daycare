@@ -105,7 +105,7 @@ export default function ActivityLogsPage() {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
-    <div dir="rtl" className="min-h-screen bg-brand-bg">
+    <div className="min-h-screen bg-brand-bg">
       <Topbar title={t("logs.title")} />
       <div className="p-3 sm:p-6">
         <div className="rounded-xl bg-white p-4 shadow-card sm:p-6">
@@ -123,7 +123,7 @@ export default function ActivityLogsPage() {
               value={search}
               onChange={(e) => applyFilter(() => setSearch(e.target.value))}
               placeholder={t("logs.search")}
-              className="flex-1 px-4 py-2 rounded-md border border-gray-200 text-sm text-right focus:outline-none focus:ring-2 focus:ring-teal/30 focus:border-teal"
+              className="flex-1 px-4 py-2 rounded-md border border-gray-200 text-sm text-start focus:outline-none focus:ring-2 focus:ring-teal/30 focus:border-teal"
             />
             <select
               value={entityType}
@@ -157,7 +157,7 @@ export default function ActivityLogsPage() {
               {logs.map((log, index) => (
                 <div
                   key={log.id}
-                  className={`py-3 px-4 border-b border-gray-50 text-right ${
+                  className={`py-3 px-4 border-b border-gray-50 text-start ${
                     index % 2 === 0 ? "bg-white" : "bg-gray-50/30"
                   }`}
                 >

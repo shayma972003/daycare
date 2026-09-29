@@ -1,5 +1,7 @@
 "use client";
 
+import { LocalizedDateTimeInput } from "@/components/ui/LocalizedDateTimeInput";
+
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
@@ -139,10 +141,10 @@ function PeriodScheduleFields({
       <legend className="px-2 text-sm font-semibold text-gray-700">{title}</legend>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <FormField label={checkinLabel}>
-          <input type="time" value={checkin} onChange={(event) => onCheckin(event.target.value)} disabled={disabled} dir="ltr" className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#4f00c1]" />
+          <LocalizedDateTimeInput nativeType="time" value={checkin} onChange={(event) => onCheckin(event.target.value)} disabled={disabled} dir="ltr" className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#4f00c1]" />
         </FormField>
         <FormField label={checkoutLabel}>
-          <input type="time" value={checkout} onChange={(event) => onCheckout(event.target.value)} disabled={disabled} dir="ltr" className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#4f00c1]" />
+          <LocalizedDateTimeInput nativeType="time" value={checkout} onChange={(event) => onCheckout(event.target.value)} disabled={disabled} dir="ltr" className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#4f00c1]" />
         </FormField>
       </div>
     </fieldset>
@@ -1204,7 +1206,7 @@ export default function SettingsPage() {
                 <PermissionGate permission="settings.manage"><button
                   type="button"
                   onClick={() => router.push("/settings/logs")}
-                  className="w-full px-5 py-2.5 rounded-md bg-white border border-[#666666] text-[#666666] text-sm font-medium hover:border-[#5B14D1] hover:text-[#5B14D1] hover:bg-[#F1E8FF] transition-all text-right"
+                  className="w-full px-5 py-2.5 rounded-md bg-white border border-[#666666] text-[#666666] text-sm font-medium hover:border-[#5B14D1] hover:text-[#5B14D1] hover:bg-[#F1E8FF] transition-all text-start"
                 >
                   {t("settings.logsLink")}
                 </button></PermissionGate>
@@ -1212,7 +1214,7 @@ export default function SettingsPage() {
                 <PermissionGate permission="staff.manage"><button
                   type="button"
                   onClick={() => router.push("/settings/permissions")}
-                  className="w-full px-5 py-2.5 rounded-md bg-white border border-[#666666] text-[#666666] text-sm font-medium hover:border-[#5B14D1] hover:text-[#5B14D1] hover:bg-[#F1E8FF] transition-all text-right"
+                  className="w-full px-5 py-2.5 rounded-md bg-white border border-[#666666] text-[#666666] text-sm font-medium hover:border-[#5B14D1] hover:text-[#5B14D1] hover:bg-[#F1E8FF] transition-all text-start"
                 >
                   {t("settings.permissionsLink")}
                 </button></PermissionGate>
@@ -1220,7 +1222,7 @@ export default function SettingsPage() {
                 <PermissionGate permission="settings.storage"><button
                   type="button"
                   onClick={() => router.push("/settings/storage")}
-                  className="w-full px-5 py-2.5 rounded-md bg-white border border-[#666666] text-[#666666] text-sm font-medium hover:border-[#5B14D1] hover:text-[#5B14D1] hover:bg-[#F1E8FF] transition-all text-right"
+                  className="w-full px-5 py-2.5 rounded-md bg-white border border-[#666666] text-[#666666] text-sm font-medium hover:border-[#5B14D1] hover:text-[#5B14D1] hover:bg-[#F1E8FF] transition-all text-start"
                 >
                   {t("settings.storageLink")}
                 </button></PermissionGate>
@@ -1271,12 +1273,12 @@ export default function SettingsPage() {
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-gray-100">
-                          <th className="text-right py-3 px-2 font-semibold text-gray-600">
+                          <th className="text-start py-3 px-2 font-semibold text-gray-600">
                             {trashTab === "students" ? t("settings.trashColumns.studentName") : trashTab === "teachers" ? t("settings.trashColumns.teacherName") : t("settings.trashColumns.className")}
                           </th>
-                          <th className="text-right py-3 px-2 font-semibold text-gray-600">{t("settings.trashColumns.deletedAt")}</th>
-                          <th className="text-right py-3 px-2 font-semibold text-gray-600">{t("settings.trashColumns.purgesOn")}</th>
-                          <th className="text-right py-3 px-2 font-semibold text-gray-600">{t("common.actions")}</th>
+                          <th className="text-start py-3 px-2 font-semibold text-gray-600">{t("settings.trashColumns.deletedAt")}</th>
+                          <th className="text-start py-3 px-2 font-semibold text-gray-600">{t("settings.trashColumns.purgesOn")}</th>
+                          <th className="text-start py-3 px-2 font-semibold text-gray-600">{t("common.actions")}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1427,7 +1429,7 @@ export default function SettingsPage() {
                     className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm resize-none"
                   />
                 </FormField>
-                <div className="mt-3 p-4 bg-gray-50 rounded-xl text-right">
+                <div className="mt-3 p-4 bg-gray-50 rounded-xl text-start">
                   <p className="text-sm font-bold text-gray-700 mb-3">{t("variables.title")}:</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {[
@@ -1485,11 +1487,11 @@ export default function SettingsPage() {
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="border-b border-gray-100">
-                            <th className="text-right py-3 px-2 font-semibold text-gray-600">{t("settings.notificationLog.recipient")}</th>
-                            <th className="text-right py-3 px-2 font-semibold text-gray-600">{t("settings.notificationLog.type")}</th>
-                            <th className="text-right py-3 px-2 font-semibold text-gray-600">{t("settings.notificationLog.content")}</th>
-                            <th className="text-right py-3 px-2 font-semibold text-gray-600">{t("settings.notificationLog.sentAt")}</th>
-                            <th className="text-right py-3 px-2 font-semibold text-gray-600">{t("settings.notificationLog.status")}</th>
+                            <th className="text-start py-3 px-2 font-semibold text-gray-600">{t("settings.notificationLog.recipient")}</th>
+                            <th className="text-start py-3 px-2 font-semibold text-gray-600">{t("settings.notificationLog.type")}</th>
+                            <th className="text-start py-3 px-2 font-semibold text-gray-600">{t("settings.notificationLog.content")}</th>
+                            <th className="text-start py-3 px-2 font-semibold text-gray-600">{t("settings.notificationLog.sentAt")}</th>
+                            <th className="text-start py-3 px-2 font-semibold text-gray-600">{t("settings.notificationLog.status")}</th>
                             <th className="py-3 px-2"></th>
                           </tr>
                         </thead>

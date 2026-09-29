@@ -1,3 +1,5 @@
+import { astDateOnly } from "@/lib/datetime";
+
 export const SCHOOL_SUBSCRIPTION_GRACE_DAYS = 7;
 
 export type SchoolSubscriptionType = "TRIAL" | "MONTHLY" | "YEARLY";
@@ -14,16 +16,14 @@ export type SchoolSubscriptionAccess = {
   mode: "active" | "grace" | "locked";
   reason: "active" | "expired" | "suspended" | "cancelled";
   renewalDate: string | null;
+  daysUntilRenewal: number | null;
+  showRenewalWarning: boolean;
   daysOverdue: number;
   graceDaysRemaining: number;
   showFirstExpiredDayPopup: boolean;
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-
-function utcDateOnly(value: Date): number {
-  return Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate());
-}
 
 /**
  * A renewal date is valid through its calendar day. The next calendar day is
@@ -62,6 +62,8 @@ export function schoolSubscriptionAccess(
       mode: "locked",
       reason: school.subscription_status === "cancelled" ? "cancelled" : "suspended",
       renewalDate,
+      daysUntilRenewal: null,
+      showRenewalWarning: false,
       daysOverdue: 0,
       graceDaysRemaining: 0,
       showFirstExpiredDayPopup: false,
@@ -70,28 +72,39 @@ export function schoolSubscriptionAccess(
 
   if (!effectiveRenewalDate) {
     return school.subscription_status === "expired"
-      ? { mode: "locked", reason: "expired", renewalDate: null, daysOverdue: 0, graceDaysRemaining: 0, showFirstExpiredDayPopup: false }
-      : { mode: "active", reason: "active", renewalDate: null, daysOverdue: 0, graceDaysRemaining: 0, showFirstExpiredDayPopup: false };
+      ? { mode: "locked", reason: "expired", renewalDate: null, daysUntilRenewal: null, showRenewalWarning: false, daysOverdue: 0, graceDaysRemaining: 0, showFirstExpiredDayPopup: false }
+      : { mode: "active", reason: "active", renewalDate: null, daysUntilRenewal: null, showRenewalWarning: false, daysOverdue: 0, graceDaysRemaining: 0, showFirstExpiredDayPopup: false };
   }
 
-  const daysOverdue = Math.max(
-    0,
-    Math.floor((utcDateOnly(now) - utcDateOnly(effectiveRenewalDate)) / DAY_MS)
+  const signedDaysUntilRenewal = Math.floor(
+    (astDateOnly(effectiveRenewalDate).getTime() - astDateOnly(now).getTime()) / DAY_MS
   );
-  if (daysOverdue === 0) {
-    return { mode: "active", reason: "active", renewalDate, daysOverdue: 0, graceDaysRemaining: 0, showFirstExpiredDayPopup: false };
+  if (signedDaysUntilRenewal >= 0) {
+    return {
+      mode: "active",
+      reason: "active",
+      renewalDate,
+      daysUntilRenewal: signedDaysUntilRenewal,
+      showRenewalWarning: signedDaysUntilRenewal <= 7,
+      daysOverdue: 0,
+      graceDaysRemaining: 0,
+      showFirstExpiredDayPopup: false,
+    };
   }
+  const daysOverdue = Math.abs(signedDaysUntilRenewal);
   if (daysOverdue <= SCHOOL_SUBSCRIPTION_GRACE_DAYS) {
     return {
       mode: "grace",
       reason: "expired",
       renewalDate,
+      daysUntilRenewal: null,
+      showRenewalWarning: false,
       daysOverdue,
       graceDaysRemaining: SCHOOL_SUBSCRIPTION_GRACE_DAYS - daysOverdue + 1,
       showFirstExpiredDayPopup: daysOverdue === 1,
     };
   }
-  return { mode: "locked", reason: "expired", renewalDate, daysOverdue, graceDaysRemaining: 0, showFirstExpiredDayPopup: false };
+  return { mode: "locked", reason: "expired", renewalDate, daysUntilRenewal: null, showRenewalWarning: false, daysOverdue, graceDaysRemaining: 0, showFirstExpiredDayPopup: false };
 }
 
 export function addSchoolBillingPeriod(base: Date, interval: "MONTHLY" | "YEARLY"): Date {

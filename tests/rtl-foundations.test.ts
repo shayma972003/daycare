@@ -31,6 +31,25 @@ const scope = [
   "src/components/teachers/ShiftsPanel.tsx",
 ];
 
+const tenantDirectionScope = [
+  ...scope,
+  "src/components/AdminNotificationBell.tsx",
+  "src/components/layout/AlertsProvider.tsx",
+  "src/components/layout/SubscriptionAccessBanner.tsx",
+  "src/components/ui/RecordActions.tsx",
+  "src/components/attendance/WeeklyAttendanceGrid.tsx",
+  "src/app/(dashboard)/students/new/page.tsx",
+  "src/app/(dashboard)/students/[id]/page.tsx",
+  "src/app/(dashboard)/students/import/page.tsx",
+  "src/app/(dashboard)/teachers/new/page.tsx",
+  "src/app/(dashboard)/teachers/[id]/page.tsx",
+  "src/app/(dashboard)/teachers/import/page.tsx",
+  "src/app/(dashboard)/settings/page.tsx",
+  "src/app/(dashboard)/settings/logs/page.tsx",
+  "src/app/(dashboard)/settings/storage/page.tsx",
+  "src/app/portal/page.tsx",
+];
+
 const physicalUtility = /^(?:(?:left|right|m[lr]|p[lr])-.+|(?:border-[lr]|rounded-[lr])(?:-.+)?|text-(?:left|right))$/;
 
 function stringTokens(path: string): string[] {
@@ -113,6 +132,16 @@ describe("logical shell and critical pages", () => {
     expect(fixedRtl).toEqual([]);
     expect(physical).toEqual([]);
   });
+
+  it("does not force RTL in secondary tenant pages and shared overlays", () => {
+    const fixedRtl = [...new Set(tenantDirectionScope)].filter((path) =>
+      /dir\s*=\s*["']rtl["']/.test(source(path))
+    );
+    expect(fixedRtl).toEqual([]);
+    expect(source("src/components/AdminNotificationBell.tsx")).toContain("absolute end-0");
+    expect(source("src/components/AdminNotificationBell.tsx")).toContain("max-w-[calc(100vw-1rem)]");
+    expect(source("src/components/ui/RecordActions.tsx")).toContain("absolute end-0");
+  });
 });
 
 describe("bidirectional content", () => {
@@ -132,7 +161,7 @@ describe("bidirectional content", () => {
     expect(students).toMatch(/dir="ltr"[^>]+guardian_phone_1/);
     expect(students).toMatch(/dir="ltr" type="email"[^>]+guardian_email/);
     expect(statistics).toMatch(/dir="ltr">\{formatCurrency/);
-    expect(source("src/components/teachers/ShiftsPanel.tsx")).toContain('type="time"');
+    expect(source("src/components/teachers/ShiftsPanel.tsx")).toContain('nativeType="time"');
     expect(source("src/components/activities/ActivityFormModal.tsx")).toContain(
       'className="relative" dir="ltr"'
     );

@@ -7,14 +7,25 @@ import {
 } from "@/lib/school-subscription";
 
 describe("school subscription access", () => {
-  const renewal = new Date("2026-09-01T00:00:00.000Z");
+  const renewal = new Date("2026-09-01T20:59:59.999Z");
 
   it("keeps the renewal day active, grants seven grace days, then becomes read-only", () => {
-    expect(schoolSubscriptionAccess({ subscription_status: "active", renewal_date: renewal }, new Date("2026-09-01T23:59:00Z")).mode).toBe("active");
+    expect(schoolSubscriptionAccess({ subscription_status: "active", renewal_date: renewal }, new Date("2026-09-01T20:59:00Z")).mode).toBe("active");
     const dayOne = schoolSubscriptionAccess({ subscription_status: "expired", renewal_date: renewal }, new Date("2026-09-02T12:00:00Z"));
     expect(dayOne).toMatchObject({ mode: "grace", daysOverdue: 1, graceDaysRemaining: 7, showFirstExpiredDayPopup: true });
     expect(schoolSubscriptionAccess({ subscription_status: "expired", renewal_date: renewal }, new Date("2026-09-08T12:00:00Z"))).toMatchObject({ mode: "grace", daysOverdue: 7, graceDaysRemaining: 1 });
     expect(schoolSubscriptionAccess({ subscription_status: "expired", renewal_date: renewal }, new Date("2026-09-09T00:00:00Z")).mode).toBe("locked");
+  });
+
+  it("shows a renewal warning during the final seven active days", () => {
+    expect(schoolSubscriptionAccess(
+      { subscription_status: "active", renewal_date: new Date("2026-09-27T20:59:59.999Z") },
+      new Date("2026-09-20T12:00:00.000Z")
+    )).toMatchObject({ mode: "active", daysUntilRenewal: 7, showRenewalWarning: true });
+    expect(schoolSubscriptionAccess(
+      { subscription_status: "active", renewal_date: new Date("2026-09-28T20:59:59.999Z") },
+      new Date("2026-09-20T12:00:00.000Z")
+    )).toMatchObject({ mode: "active", daysUntilRenewal: 8, showRenewalWarning: false });
   });
 
   it("locks an explicitly suspended or cancelled school immediately", () => {
@@ -30,7 +41,7 @@ describe("school subscription access", () => {
     };
 
     expect(schoolSubscriptionRenewalDate(school)?.toISOString()).toBe("2026-02-28T10:30:00.000Z");
-    expect(schoolSubscriptionAccess(school, new Date("2026-02-28T23:59:00.000Z")).mode).toBe("active");
+    expect(schoolSubscriptionAccess(school, new Date("2026-02-28T20:59:00.000Z")).mode).toBe("active");
     expect(schoolSubscriptionAccess(school, new Date("2026-03-01T12:00:00.000Z"))).toMatchObject({
       mode: "grace",
       daysOverdue: 1,

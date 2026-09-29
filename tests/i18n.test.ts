@@ -66,6 +66,13 @@ describe("the two dictionaries agree", () => {
       .map(([key]) => key);
     expect(blank).toEqual([]);
   });
+
+  it("does not leave Arabic copy inside the English dictionary", () => {
+    const offenders = [...english]
+      .filter(([, value]) => /[\u0600-\u06ff]/u.test(value))
+      .map(([key]) => key);
+    expect(offenders).toEqual([]);
+  });
 });
 
 describe("translate", () => {

@@ -18,6 +18,7 @@ export interface Me {
   role: string;
   schoolName: string;
   permissions: string[];
+  classroomScoped?: boolean;
 }
 
 export type PermissionStatus = "idle" | "loading" | "ready" | "error";

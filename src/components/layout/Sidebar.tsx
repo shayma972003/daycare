@@ -120,7 +120,7 @@ function SidebarContent({
                         )}
                       />
                       <span>{t(item.key)}</span>
-                      {item.href === "/subscription" && subscriptionAccess?.mode !== "active" && (
+                      {item.href === "/subscription" && (subscriptionAccess?.mode !== "active" || subscriptionAccess.showRenewalWarning) && (
                         <span
                           aria-label={t("schoolSubscription.expiredIndicator")}
                           className="ms-auto h-2.5 w-2.5 shrink-0 rounded-full bg-red-500"

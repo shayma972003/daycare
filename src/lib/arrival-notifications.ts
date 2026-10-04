@@ -84,7 +84,7 @@ export async function createGuardianArrivalNotice(input: {
     const configured = await tx.arrivalRecipientSetting.findMany({
       where: {
         schoolId: input.schoolId,
-        user: { is: { disabledAt: null, acceptedAt: { not: null } } },
+        user: { is: { disabledAt: null, acceptedAt: { not: null }, notifyArrival: true } },
       },
       select: { userId: true },
       orderBy: { createdAt: "asc" },

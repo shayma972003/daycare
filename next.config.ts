@@ -53,6 +53,21 @@ const securityHeaders = [
   },
 ];
 
+/**
+ * Expo's web preview runs on a different loopback port from Next during local
+ * development. Native apps do not use browser CORS, and Production must not
+ * advertise a development origin, so these headers only exist in `next dev`.
+ */
+const localMobilePreviewHeaders = [
+  { key: "Access-Control-Allow-Origin", value: "http://127.0.0.1:8081" },
+  { key: "Access-Control-Allow-Methods", value: "GET, POST, PUT, DELETE, OPTIONS" },
+  {
+    key: "Access-Control-Allow-Headers",
+    value: "Authorization, Content-Type, X-Time-Zone",
+  },
+  { key: "Vary", value: "Origin" },
+];
+
 const nextConfig: NextConfig = {
   // The in-app browser and local device testing use the loopback IP while the
   // dev server advertises localhost. Without this Next blocks its own dev
@@ -89,6 +104,14 @@ const nextConfig: NextConfig = {
             : []),
         ],
       },
+      ...(process.env.NODE_ENV !== "production"
+        ? [
+            {
+              source: "/api/mobile/:path*",
+              headers: localMobilePreviewHeaders,
+            },
+          ]
+        : []),
     ];
   },
 };

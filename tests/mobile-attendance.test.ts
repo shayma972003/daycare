@@ -26,6 +26,9 @@ const ROUTES = [
   ["attendance/today/route.ts", "staff"],
   ["invoices/route.ts", "guardian"],
   ["care-reports/create/route.ts", "staff"],
+  ["care-reports/daily/route.ts", "staff"],
+  ["care-reports/returned/route.ts", "staff"],
+  ["care-reports/returned/[batchId]/resubmit/route.ts", "staff"],
   ["attendance/mine/route.ts", "guardian"],
 ] as const;
 
@@ -52,6 +55,9 @@ describe("mobile route contracts", () => {
       "attendance/route.ts",
       "attendance/today/route.ts",
       "care-reports/create/route.ts",
+      "care-reports/daily/route.ts",
+      "care-reports/returned/route.ts",
+      "care-reports/returned/[batchId]/resubmit/route.ts",
     ]) {
       expect(source(file), `${file} has no permission check`).toContain(
         'permission: "attendance.students"'
@@ -64,6 +70,9 @@ describe("mobile route contracts", () => {
       "attendance/route.ts",
       "attendance/today/route.ts",
       "care-reports/create/route.ts",
+      "care-reports/daily/route.ts",
+      "care-reports/returned/route.ts",
+      "care-reports/returned/[batchId]/resubmit/route.ts",
     ]) {
       const code = source(file);
       expect(code, `${file} never reads schoolId from the claims`).toContain(
@@ -98,6 +107,7 @@ describe("mobile route contracts", () => {
     expect(mutationRoute).toContain("calendarToday");
     expect(mutationRoute).toContain("checkInStudent");
     expect(mutationRoute).toContain("checkoutStudent");
+    expect(mutationRoute).toContain("notifyGuardiansOfAttendance");
     expect(mutationRoute).not.toContain("prisma.attendance.upsert");
     expect(source("attendance/today/route.ts")).toContain("astDayStart");
     for (const [file] of ROUTES) {

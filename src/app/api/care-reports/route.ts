@@ -13,6 +13,12 @@ import {
 import { keyFromUrl, schoolIdFromKey } from "@/lib/r2";
 import { z } from "zod";
 import { studentClassWhere } from "@/lib/student-access-scope";
+import {
+  careReportSubmissionFields,
+  loadCareReportPolicy,
+  notifyApprovedCareReports,
+  type CareReportSubmissionStatus,
+} from "@/lib/care-report-policy";
 
 /**
  * Daily care reports (tasks 2.1–2.4).
@@ -178,6 +184,9 @@ export async function POST(request: Request) {
     return Response.json({ error: "التاريخ غير صحيح" }, { status: 422 });
   }
 
+  const { reviewRequired } = await loadCareReportPolicy(schoolId);
+  const submissionFields = careReportSubmissionFields(reviewRequired);
+
   const created: { id: string; studentId: string }[] = [];
 
   for (const student of writable) {
@@ -200,6 +209,7 @@ export async function POST(request: Request) {
         note: template.note?.trim() || null,
         photoUrl: template.photoUrl || null,
         ...fields,
+        ...submissionFields,
       },
       select: { id: true, studentId: true },
     });
@@ -210,11 +220,18 @@ export async function POST(request: Request) {
     return Response.json({ error: "لم يتم إدخال أي بيانات" }, { status: 422 });
   }
 
+  const status: CareReportSubmissionStatus = submissionFields.reviewStatus;
+  await notifyApprovedCareReports(schoolId, created.map((report) => report.id), status);
+
   await logAction({
     school_id: schoolId,
     action: isBatch
-      ? `إرسال ${CARE_TYPE_LABELS[template.type]} للمراجعة لـ${created.length} طفل`
-      : `إرسال ${CARE_TYPE_LABELS[template.type]} للمراجعة: ${writable[0].name}`,
+      ? reviewRequired
+        ? `إرسال ${CARE_TYPE_LABELS[template.type]} للمراجعة لـ${created.length} طفل`
+        : `إرسال ${CARE_TYPE_LABELS[template.type]} مباشرة لأولياء الأمور لـ${created.length} طفل`
+      : reviewRequired
+        ? `إرسال ${CARE_TYPE_LABELS[template.type]} للمراجعة: ${writable[0].name}`
+        : `إرسال ${CARE_TYPE_LABELS[template.type]} مباشرة لولي الأمر: ${writable[0].name}`,
     entity_type: "care_report",
     entity_id: created[0].id,
     entity_name: writable[0].name,
@@ -223,7 +240,12 @@ export async function POST(request: Request) {
   });
 
   return Response.json(
-    { created: created.length, skipped: writable.length - created.length, reports: created },
+    {
+      created: created.length,
+      skipped: writable.length - created.length,
+      status,
+      reports: created,
+    },
     { status: 201 }
   );
 }

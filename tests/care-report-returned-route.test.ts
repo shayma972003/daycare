@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   reportCreate: vi.fn(),
   studentFindMany: vi.fn(),
   returnedFindMany: vi.fn(),
+  settingsFindUnique: vi.fn(),
+  notify: vi.fn(),
   log: vi.fn(),
 }));
 
@@ -20,9 +22,12 @@ vi.mock("@/lib/prisma", () => ({
   prisma: {
     $transaction: mocks.transaction,
     careReport: { findMany: mocks.returnedFindMany },
+    settings: { findUnique: mocks.settingsFindUnique },
   },
 }));
 vi.mock("@/lib/activity-logger", () => ({ logAction: mocks.log }));
+vi.mock("@/lib/care-report-notify", () => ({ notifyGuardiansOfReport: mocks.notify }));
+vi.mock("@/lib/safe-logger", () => ({ logSafeError: vi.fn() }));
 
 import { POST } from "@/app/api/care-reports/returned/[batchId]/resubmit/route";
 import { GET } from "@/app/api/care-reports/returned/route";
@@ -65,6 +70,8 @@ function request() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.settingsFindUnique.mockResolvedValue(null);
+  mocks.notify.mockResolvedValue(undefined);
   mocks.session.mockResolvedValue({
     user: { id: "teacher-user", schoolId: "school-1", name: "Teacher A" },
     teacherId: "teacher-1",
@@ -132,6 +139,27 @@ describe("returned daily care resubmission", () => {
       data: expect.objectContaining({ deletedAt: expect.any(Date) }),
     }));
     expect(mocks.log).toHaveBeenCalledTimes(1);
+  });
+
+  it("sends a corrected report directly when review is disabled", async () => {
+    mocks.settingsFindUnique.mockResolvedValue({ careReportReviewRequired: false });
+
+    const response = await POST(request(), {
+      params: Promise.resolve({ batchId: "returned-batch-123456" }),
+    });
+
+    await expect(response.json()).resolves.toMatchObject({
+      replayed: false,
+      status: "APPROVED",
+    });
+    expect(mocks.reportUpdateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ id: "report-meal" }),
+      data: expect.objectContaining({
+        reviewStatus: "APPROVED",
+        reviewedAt: expect.any(Date),
+      }),
+    }));
+    expect(mocks.notify).toHaveBeenCalledWith("school-1", ["report-meal"]);
   });
 
   it("does not allow an office account to use the teacher correction route", async () => {

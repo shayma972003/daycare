@@ -174,9 +174,13 @@ describe("activity in-app message send", () => {
       guardianId: { in: ["guardian-1", "guardian-2"] },
       disabledAt: null,
       acceptedAt: { not: null },
+      notifyActivity: true,
       guardian: { is: { schoolId: "school-a", deletedAt: null, anonymizedAt: null } },
     });
-    expect(mocks.userFindMany.mock.calls[0][0].where.schoolId).toBe("school-a");
+    expect(mocks.userFindMany.mock.calls[0][0].where).toMatchObject({
+      schoolId: "school-a",
+      notifyActivity: true,
+    });
     expect(mocks.enqueuePush).toHaveBeenCalledTimes(4);
     expect(mocks.enqueuePush.mock.calls.map((call) => call[0])).toEqual([
       { schoolId: "school-a", guardianAccountId: "guardian-account-1" },

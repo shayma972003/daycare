@@ -8,6 +8,16 @@ import {
   dailyReportSchema,
 } from "@/lib/daily-care-batch";
 import {
+  assertNoDailyCareReportsToday,
+  DailyCareAlreadySubmittedError,
+} from "@/lib/daily-care-duplicates";
+import {
+  careReportSubmissionFields,
+  loadCareReportPolicy,
+  notifyApprovedCareReports,
+  type CareReportSubmissionStatus,
+} from "@/lib/care-report-policy";
+import {
   studentClassWhere,
   type TeacherScopedAccess,
 } from "@/lib/student-access-scope";
@@ -28,7 +38,7 @@ async function replayBatch(
       dailyBatchId: batchId,
       student: studentClassWhere(access),
     },
-    select: { id: true, studentId: true, dailyBatchHash: true },
+    select: { id: true, studentId: true, dailyBatchHash: true, reviewStatus: true },
   });
   if (rows.length === 0) return null;
   if (rows.some((row) => row.dailyBatchHash !== hash)) {
@@ -37,7 +47,11 @@ async function replayBatch(
       { status: 409 }
     );
   }
-  return Response.json({ created: rows.length, replayed: true, reports: rows });
+  const status: CareReportSubmissionStatus = rows.every((row) => row.reviewStatus === "APPROVED")
+    ? "APPROVED"
+    : "PENDING_REVIEW";
+  await notifyApprovedCareReports(schoolId, rows.map((row) => row.id), status);
+  return Response.json({ created: rows.length, replayed: true, status, reports: rows });
 }
 
 export async function POST(request: Request) {
@@ -65,6 +79,8 @@ export async function POST(request: Request) {
   const hash = dailyCareRequestHash(payload);
   const replay = await replayBatch(schoolId, payload.idempotencyKey, hash, session);
   if (replay) return replay;
+  const { reviewRequired } = await loadCareReportPolicy(schoolId);
+  const submissionFields = careReportSubmissionFields(reviewRequired);
 
   let created: { id: string; studentId: string }[];
   try {
@@ -83,6 +99,8 @@ export async function POST(request: Request) {
       });
       if (students.length !== studentIds.length) throw new Error("INVALID_STUDENT_SET");
 
+      await assertNoDailyCareReportsToday(tx, schoolId, studentIds);
+
       const reports = buildDailyCareRows(
         payload,
         schoolId,
@@ -93,7 +111,10 @@ export async function POST(request: Request) {
 
       const saved: { id: string; studentId: string }[] = [];
       for (const report of reports) {
-        const row = await tx.careReport.create({ data: report, select: { id: true, studentId: true } });
+        const row = await tx.careReport.create({
+          data: { ...report, ...submissionFields },
+          select: { id: true, studentId: true },
+        });
         saved.push(row);
       }
       return saved;
@@ -110,17 +131,32 @@ export async function POST(request: Request) {
     if (error instanceof Error && error.message === "EMPTY_DAILY_REPORT") {
       return Response.json({ error: "أدخلي بياناً واحداً على الأقل", code: "EMPTY_DAILY_REPORT" }, { status: 422 });
     }
+    if (error instanceof DailyCareAlreadySubmittedError) {
+      return Response.json({
+        error: "تم إرسال تقرير لهذا الطفل اليوم بالفعل",
+        code: "DAILY_REPORT_ALREADY_SUBMITTED",
+        studentIds: error.studentIds,
+      }, { status: 409 });
+    }
     throw error;
   }
 
+  const status: CareReportSubmissionStatus = submissionFields.reviewStatus;
+  await notifyApprovedCareReports(schoolId, created.map((row) => row.id), status);
+
   await logAction({
     school_id: schoolId,
-    action: `إرسال التقرير اليومي الموحّد للمراجعة لـ${payload.entries.length} طفل`,
+    action: reviewRequired
+      ? `إرسال التقرير اليومي الموحّد للمراجعة لـ${payload.entries.length} طفل`
+      : `إرسال التقرير اليومي الموحّد مباشرة لأولياء الأمور لـ${payload.entries.length} طفل`,
     entity_type: "care_report_batch",
     entity_id: payload.idempotencyKey,
     performed_by: session.user.name ?? "الطاقم",
     request,
   });
 
-  return Response.json({ created: created.length, replayed: false, reports: created }, { status: 201 });
+  return Response.json(
+    { created: created.length, replayed: false, status, reports: created },
+    { status: 201 }
+  );
 }

@@ -74,6 +74,15 @@ export async function GET(request: Request) {
         take: 1,
         select: { id: true, checkinAt: true, checkoutAt: true },
       },
+      care_reports: {
+        where: {
+          dailyBatchId: { not: null },
+          deletedAt: null,
+          createdAt: { gte: dayStart, lt: dayEnd },
+        },
+        take: 1,
+        select: { id: true },
+      },
     },
   });
 
@@ -90,6 +99,7 @@ export async function GET(request: Request) {
         className: student.class?.name ?? null,
         checkedInAt: today?.checkinAt?.toISOString() ?? null,
         checkedOutAt: today?.checkoutAt?.toISOString() ?? null,
+        hasDailyCareReportToday: student.care_reports.length > 0,
         /** What the button should offer next, so the app does not re-derive it. */
         nextAction: !today ? "checkin" : today.checkoutAt ? "done" : "checkout",
       };

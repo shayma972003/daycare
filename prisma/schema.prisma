@@ -168,6 +168,7 @@ enum PushPlatform {
   ANDROID
   HUAWEI
   WEB
+  EXPO
 }
 
 enum PushStatus {
@@ -1273,6 +1274,12 @@ model User {
   /// Incremented on credential reset to revoke stateless web JWTs immediately.
   authVersion     Int       @default(0)
 
+  /// Mobile notification preferences. Defaults preserve the delivery behavior
+  /// accounts had before per-user controls were introduced.
+  notifyActivity Boolean @default(true)
+  notifyCalendar Boolean @default(true)
+  notifyArrival  Boolean @default(true)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1341,6 +1348,13 @@ model GuardianAccount {
   lastLoginAt DateTime?
   /// Server-authoritative rolling cooldown for the parent arrival button.
   lastArrivalNoticeAt DateTime?
+  /// Mobile notification preferences. They only affect notifications created
+  /// after the preference is changed; existing inbox rows remain available.
+  notifyActivity   Boolean @default(true)
+  notifyCalendar   Boolean @default(true)
+  notifyAbsence    Boolean @default(true)
+  notifyAttendance Boolean @default(true)
+  notifyCareReport Boolean @default(true)
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
@@ -1529,6 +1543,10 @@ model Settings {
   id                String   @id @default(cuid())
   schoolId          String   @unique
   school            School   @relation(fields: [schoolId], references: [id])
+  /// When false, newly submitted care reports are approved and released to
+  /// guardians immediately. Existing pending reports are never rewritten when
+  /// this setting changes.
+  careReportReviewRequired Boolean @default(true)
   hourlyLateFee     Decimal  @default(0) @db.Decimal(18, 2)
   dailyStudentFee   Decimal  @default(0) @db.Decimal(18, 2)
   weeklyStudentFee  Decimal? @db.Decimal(18, 2)

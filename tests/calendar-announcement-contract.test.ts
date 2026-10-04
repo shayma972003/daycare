@@ -10,6 +10,7 @@ describe("calendar announcement delivery", () => {
     expect(route).toContain('type: "ANNOUNCEMENT"');
     expect(route).toContain("guardianLinks");
     expect(route).toContain("calendarEventId: event.id");
+    expect(route).toContain("notifyCalendar: true");
     expect(route).toContain("enqueuePush");
   });
 

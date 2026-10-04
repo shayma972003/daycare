@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   auth: vi.fn(),
   create: vi.fn(),
   recipients: vi.fn(),
+  acknowledge: vi.fn(),
 }));
 
 vi.mock("@/lib/mobile-guard", () => ({
@@ -15,11 +16,11 @@ vi.mock("@/lib/arrival-notifications", () => ({
 }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    arrivalNoticeRecipient: { findMany: mocks.recipients },
+    arrivalNoticeRecipient: { findMany: mocks.recipients, updateMany: mocks.acknowledge },
   },
 }));
 
-import { GET, POST } from "@/app/api/mobile/v1/arrival/route";
+import { GET, PATCH, POST } from "@/app/api/mobile/v1/arrival/route";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -86,8 +87,32 @@ describe("mobile arrival route", () => {
     const response = await GET(new Request("http://localhost/api/mobile/v1/arrival"));
     expect(response.status).toBe(200);
     expect(mocks.recipients).toHaveBeenCalledWith(expect.objectContaining({
-      where: { schoolId: "school-1", userId: "staff-1" },
+      where: { schoolId: "school-1", userId: "staff-1", readAt: null },
     }));
     expect((await response.json()).notices).toHaveLength(1);
+  });
+
+  it("acknowledges only the signed-in staff account's own unread notice", async () => {
+    mocks.auth.mockResolvedValue({
+      schoolId: "school-1",
+      claims: { sub: "staff-1", kind: "staff" },
+    });
+    mocks.acknowledge.mockResolvedValue({ count: 1 });
+
+    const response = await PATCH(new Request("http://localhost/api/mobile/v1/arrival", {
+      method: "PATCH",
+      body: JSON.stringify({ noticeId: "arrival-1" }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(mocks.acknowledge).toHaveBeenCalledWith({
+      where: {
+        noticeId: "arrival-1",
+        schoolId: "school-1",
+        userId: "staff-1",
+        readAt: null,
+      },
+      data: { readAt: expect.any(Date) },
+    });
   });
 });

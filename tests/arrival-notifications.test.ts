@@ -82,6 +82,11 @@ describe("guardian arrival notifications", () => {
     const stored = mocks.createNotice.mock.calls[0][0].data;
     expect(stored).not.toHaveProperty("studentId");
     expect(stored).not.toHaveProperty("childId");
+    expect(mocks.settings).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        user: { is: expect.objectContaining({ notifyArrival: true }) },
+      }),
+    }));
     expect(mocks.push).toHaveBeenCalledTimes(2);
     expect(mocks.push.mock.calls.map((call) => call[0].userId)).toEqual(["staff-1", "staff-2"]);
     expect(mocks.push.mock.calls[0][1]).toMatchObject({

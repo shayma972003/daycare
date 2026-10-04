@@ -1,0 +1,9 @@
+BEGIN;
+
+DROP INDEX IF EXISTS "Student_nfcTagHash_key";
+
+ALTER TABLE "Student"
+DROP COLUMN IF EXISTS "nfcTagHash",
+DROP COLUMN IF EXISTS "nfcTagIssuedAt";
+
+COMMIT;

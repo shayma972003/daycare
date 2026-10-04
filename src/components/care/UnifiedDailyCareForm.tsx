@@ -141,11 +141,13 @@ export function UnifiedDailyCareForm({
   date,
   onSaved,
   initialDraft,
+  reviewRequired = true,
 }: {
   students: DailyCareStudent[];
   date: string;
   onSaved: (message: string) => void;
   initialDraft?: ReturnedDailyCareDraft;
+  reviewRequired?: boolean;
 }) {
   const t = useT();
   const returnedMode = Boolean(initialDraft);
@@ -296,7 +298,10 @@ export function UnifiedDailyCareForm({
     setSaving(true);
     setError(null);
     try {
-      const response = await axios.post<{ created: number }>(
+      const response = await axios.post<{
+        created: number;
+        status?: "PENDING_REVIEW" | "APPROVED";
+      }>(
         initialDraft
           ? `/api/care-reports/returned/${encodeURIComponent(initialDraft.batchId)}/resubmit`
           : "/api/care-reports/daily",
@@ -344,7 +349,13 @@ export function UnifiedDailyCareForm({
         }
       );
       if (!initialDraft) setIdempotencyKey(batchKey());
-      onSaved(t(initialDraft ? "care.returnedDailyResubmitted" : "care.dailySaved", { n: String(response.data.created) }));
+      const sentDirectly = (response.data.status ?? (reviewRequired ? "PENDING_REVIEW" : "APPROVED")) === "APPROVED";
+      onSaved(t(
+        initialDraft
+          ? sentDirectly ? "care.returnedDailySentDirect" : "care.returnedDailyResubmitted"
+          : sentDirectly ? "care.dailySentDirect" : "care.dailySaved",
+        { n: String(response.data.created) }
+      ));
     } catch (saveError) {
       setError(describeApiError(saveError, t("care.dailySaveFailed")));
     } finally {
@@ -583,7 +594,13 @@ export function UnifiedDailyCareForm({
         <div className="flex flex-col gap-3 border-t border-[#EEEAF2] bg-white px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
           <div>
             {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
-            {!error && <p className="text-xs text-[#8B8095]">{t(returnedMode ? "care.resubmitHint" : "care.sendToFamiliesHint")}</p>}
+            {!error && (
+              <p className="text-xs text-[#8B8095]">
+                {t(returnedMode
+                  ? reviewRequired ? "care.resubmitHint" : "care.resubmitDirectHint"
+                  : reviewRequired ? "care.sendToFamiliesHint" : "care.sendToFamiliesDirectHint")}
+              </p>
+            )}
           </div>
           <button
             type="button"
@@ -593,7 +610,9 @@ export function UnifiedDailyCareForm({
           >
             {saving
               ? t("care.sendingDaily")
-              : t(returnedMode ? "care.resubmitDaily" : "care.sendDaily", { n: String(selectedCount) })}
+              : t(returnedMode
+                ? reviewRequired ? "care.resubmitDaily" : "care.resubmitDailyDirect"
+                : reviewRequired ? "care.sendDaily" : "care.sendDailyDirect", { n: String(selectedCount) })}
           </button>
         </div>
       </section>

@@ -9,6 +9,12 @@ import {
   dailyReportSchema,
 } from "@/lib/daily-care-batch";
 import { logAction } from "@/lib/activity-logger";
+import {
+  careReportSubmissionFields,
+  loadCareReportPolicy,
+  notifyApprovedCareReports,
+  type CareReportSubmissionStatus,
+} from "@/lib/care-report-policy";
 
 const keyOf = (row: { studentId: string; dailyItemKey?: string | null }) =>
   `${row.studentId}:${row.dailyItemKey ?? ""}`;
@@ -47,6 +53,8 @@ export async function POST(
   const payload = parsed.data;
   const hash = dailyCareRequestHash(payload);
   const now = new Date();
+  const { reviewRequired } = await loadCareReportPolicy(schoolId);
+  const submissionFields = careReportSubmissionFields(reviewRequired, now);
 
   const outcome = await prisma.$transaction(async (tx) => {
     await tx.$queryRaw(
@@ -67,7 +75,12 @@ export async function POST(
     }
     if (!active.some((row) => row.reviewStatus === "REJECTED")) {
       if (active.every((row) => row.reviewStatus === "PENDING_REVIEW" && row.dailyBatchHash === hash)) {
-        return { kind: "replayed" as const, count: active.length };
+        return {
+          kind: "replayed" as const,
+          count: active.length,
+          reportIds: active.map((row) => row.id),
+          status: "PENDING_REVIEW" as const,
+        };
       }
       return { kind: "invalid-state" as const };
     }
@@ -106,6 +119,7 @@ export async function POST(
     const existingByKey = new Map(existing.map((row) => [keyOf(row), row]));
     const desiredKeys = new Set(desired.map(keyOf));
     let saved = 0;
+    const reportIds: string[] = [];
 
     for (const report of desired) {
       const prior = existingByKey.get(keyOf(report));
@@ -115,31 +129,24 @@ export async function POST(
           ...report,
           deletedAt: null,
           summarizedAt: null,
-          reviewStatus: "PENDING_REVIEW",
-          reviewedAt: null,
-          reviewedById: null,
-          reviewedByName: null,
-          reviewNote: null,
-          guardianNotifiedAt: null,
+          ...submissionFields,
         };
         const updated = await tx.careReport.updateMany({
           where: { id: prior.id, schoolId, dailyBatchId: batchId },
           data,
         });
         saved += updated.count;
+        if (updated.count > 0) reportIds.push(prior.id);
       } else {
-        await tx.careReport.create({
+        const created = await tx.careReport.create({
           data: {
             ...report,
-            reviewStatus: "PENDING_REVIEW",
-            reviewedAt: null,
-            reviewedById: null,
-            reviewedByName: null,
-            reviewNote: null,
-            guardianNotifiedAt: null,
+            ...submissionFields,
           },
+          select: { id: true },
         });
         saved += 1;
+        reportIds.push(created.id);
       }
     }
 
@@ -161,7 +168,12 @@ export async function POST(
       });
     }
 
-    return { kind: "saved" as const, count: saved };
+    return {
+      kind: "saved" as const,
+      count: saved,
+      reportIds,
+      status: submissionFields.reviewStatus,
+    };
   });
 
   if (outcome.kind === "missing") return Response.json({ error: "Not found" }, { status: 404 });
@@ -185,9 +197,12 @@ export async function POST(
   }
 
   if (outcome.kind === "saved") {
+    await notifyApprovedCareReports(schoolId, outcome.reportIds, outcome.status);
     await logAction({
       school_id: schoolId,
-      action: `إعادة إرسال تقرير الرعاية للمراجعة لـ${payload.entries.length} طفل`,
+      action: reviewRequired
+        ? `إعادة إرسال تقرير الرعاية للمراجعة لـ${payload.entries.length} طفل`
+        : `إعادة إرسال تقرير الرعاية مباشرة لأولياء الأمور لـ${payload.entries.length} طفل`,
       entity_type: "care_report_batch",
       entity_id: batchId,
       performed_by: session.user.name ?? "الطاقم",
@@ -198,6 +213,6 @@ export async function POST(
   return Response.json({
     created: outcome.count,
     replayed: outcome.kind === "replayed",
-    status: "PENDING_REVIEW",
+    status: outcome.status satisfies CareReportSubmissionStatus,
   });
 }

@@ -36,6 +36,7 @@ vi.mock("axios", () => ({
         });
       }
       if (url === "/api/care-reports/returned") return Promise.resolve({ data: state.returnedBatches });
+      if (url === "/api/care-reports/settings") return Promise.resolve({ data: { reviewRequired: true } });
       if (url.startsWith("/api/care-reports?date=")) return state.reportRequest;
       throw new Error(`Unexpected request: ${url}`);
     }),
@@ -67,6 +68,8 @@ describe("daily care page loading", () => {
     await waitFor(() => expect(screen.getByText("Noura")).not.toBeNull());
     expect(screen.getByText("Shared entry")).not.toBeNull();
     expect(screen.getByText("Class")).not.toBeNull();
+    expect(screen.getByText("Care report delivery")).not.toBeNull();
+    expect(screen.getByText("Manager review before sending")).not.toBeNull();
     expect(screen.getByText("Today’s reports")).not.toBeNull();
     expect(screen.getAllByText("Loading…").length).toBeGreaterThan(0);
   });

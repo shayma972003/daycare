@@ -219,8 +219,50 @@ async function sendViaHms(
   }
 }
 
+/** Expo's relay sends the same token to APNs or FCM for the built app. */
+async function sendViaExpo(
+  token: string,
+  payload: PushPayload
+): Promise<SendResult> {
+  try {
+    const accessToken = process.env.EXPO_ACCESS_TOKEN;
+    const response = await fetch("https://exp.host/--/api/v2/push/send", {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      },
+      body: JSON.stringify({
+        to: token,
+        title: payload.title,
+        body: payload.body,
+        sound: "default",
+        data: payload.data ?? {},
+      }),
+    });
+    type ExpoTicket = { status?: string; message?: string; details?: { error?: string } };
+    const result = await response.json().catch(() => null) as {
+      data?: ExpoTicket | ExpoTicket[];
+      errors?: Array<{ message?: string }>;
+    } | null;
+    const ticket = Array.isArray(result?.data) ? result.data[0] : result?.data;
+    if (response.ok && ticket?.status === "ok") return { ok: true };
+    const errorCode = ticket?.details?.error;
+    return {
+      ok: false,
+      permanentFailure: errorCode === "DeviceNotRegistered",
+      error: errorCode ?? ticket?.message ?? result?.errors?.[0]?.message ?? `EXPO_${response.status}`,
+    };
+  } catch (error) {
+    return { ok: false, error: String(error).slice(0, 300) };
+  }
+}
+
 function transportFor(platform: PushPlatform) {
-  return platform === "HUAWEI" ? sendViaHms : sendViaFcm;
+  if (platform === "HUAWEI") return sendViaHms;
+  if (platform === "EXPO") return sendViaExpo;
+  return sendViaFcm;
 }
 
 export interface DrainResult {

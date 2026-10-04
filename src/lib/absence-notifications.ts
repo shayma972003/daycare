@@ -49,6 +49,7 @@ export async function createAbsenceNotification(input: {
           guardianId: { in: [...guardianIds] },
           acceptedAt: { not: null },
           disabledAt: null,
+          notifyAbsence: true,
           guardian: { is: { deletedAt: null, anonymizedAt: null } },
         },
         select: { id: true },

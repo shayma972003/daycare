@@ -71,7 +71,10 @@ describe("absence notifications", () => {
 
     expect(result).toEqual({ created: true, messageId: "message-1", guardians: 2 });
     expect(mocks.accounts).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({ guardianId: { in: expect.arrayContaining(["guardian-1", "guardian-2"]) } }),
+      where: expect.objectContaining({
+        guardianId: { in: expect.arrayContaining(["guardian-1", "guardian-2"]) },
+        notifyAbsence: true,
+      }),
     }));
     expect(mocks.createMessage).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({

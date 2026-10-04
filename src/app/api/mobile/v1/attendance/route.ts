@@ -6,6 +6,8 @@ import {
   checkoutStudent,
 } from "@/lib/attendance-operations";
 import { logAction } from "@/lib/activity-logger";
+import { notifyGuardiansOfAttendance } from "@/lib/attendance-notifications";
+import { logSafeError } from "@/lib/safe-logger";
 import { scopedClassIds } from "@/lib/student-access-scope";
 import { z } from "zod";
 
@@ -81,6 +83,12 @@ export async function POST(request: Request) {
         performed_by: `mobile:${context.claims.sub}`,
         request,
       });
+      await notifyGuardiansOfAttendance({
+        schoolId,
+        studentId,
+        studentName: attendance.personName,
+        event: "checkin",
+      }).catch((error) => logSafeError("attendance-checkin-notification", error));
       return Response.json({
         id: attendance.id,
         checkedInAt: attendance.checkinAt?.toISOString() ?? null,
@@ -105,6 +113,12 @@ export async function POST(request: Request) {
       performed_by: `mobile:${context.claims.sub}`,
       request,
     });
+    await notifyGuardiansOfAttendance({
+      schoolId,
+      studentId,
+      studentName: attendance.personName,
+      event: "checkout",
+    }).catch((error) => logSafeError("attendance-checkout-notification", error));
     return Response.json({
       id: attendance.attendanceId,
       checkedInAt: attendance.checkinAt.toISOString(),

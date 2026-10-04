@@ -63,6 +63,7 @@ export async function GET(request: Request) {
     where: {
       schoolId: context.schoolId,
       userId: context.claims.sub,
+      readAt: null,
     },
     orderBy: { createdAt: "desc" },
     take: 100,
@@ -83,6 +84,41 @@ export async function GET(request: Request) {
     {
       notices: recipients.map(({ notice, readAt }) => ({ ...notice, readAt })),
     },
+    { headers: { "Cache-Control": "private, no-store" } }
+  );
+}
+
+/** Acknowledges one notice for the signed-in selected staff account only. */
+export async function PATCH(request: Request) {
+  let context;
+  try {
+    context = await requireMobileAuth(request, { kind: "staff" });
+  } catch (error) {
+    return mobileAuthResponse(error) ?? Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const body = await request.json().catch(() => null) as { noticeId?: unknown } | null;
+  const noticeId = typeof body?.noticeId === "string" ? body.noticeId.trim() : "";
+  if (!noticeId) {
+    return Response.json({ error: "الإشعار غير صحيح" }, { status: 422 });
+  }
+
+  const result = await prisma.arrivalNoticeRecipient.updateMany({
+    where: {
+      noticeId,
+      schoolId: context.schoolId,
+      userId: context.claims.sub,
+      readAt: null,
+    },
+    data: { readAt: new Date() },
+  });
+
+  if (result.count === 0) {
+    return Response.json({ error: "الإشعار غير موجود" }, { status: 404 });
+  }
+
+  return Response.json(
+    { success: true },
     { headers: { "Cache-Control": "private, no-store" } }
   );
 }

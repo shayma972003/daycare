@@ -3,8 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   batchFindMany: vi.fn(),
   studentFindMany: vi.fn(),
+  dailyFindMany: vi.fn(),
+  queryRaw: vi.fn(),
   create: vi.fn(),
   transaction: vi.fn(),
+  settingsFindUnique: vi.fn(),
   notify: vi.fn(),
   log: vi.fn(),
 }));
@@ -22,6 +25,7 @@ vi.mock("@/lib/session", () => ({
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     careReport: { findMany: mocks.batchFindMany },
+    settings: { findUnique: mocks.settingsFindUnique },
     $transaction: mocks.transaction,
   },
 }));
@@ -74,18 +78,22 @@ function request(payload: unknown) {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.batchFindMany.mockResolvedValue([]);
+  mocks.settingsFindUnique.mockResolvedValue(null);
   mocks.studentFindMany.mockResolvedValue([
     { id: "student-1", classId: "class-1" },
     { id: "student-2", classId: "class-1" },
   ]);
+  mocks.dailyFindMany.mockResolvedValue([]);
+  mocks.queryRaw.mockResolvedValue([]);
   let id = 0;
   mocks.create.mockImplementation(async ({ data }: { data: { studentId: string } }) => ({
     id: `report-${++id}`,
     studentId: data.studentId,
   }));
   mocks.transaction.mockImplementation(async (callback: (tx: unknown) => unknown) => callback({
+    $queryRaw: mocks.queryRaw,
     student: { findMany: mocks.studentFindMany },
-    careReport: { create: mocks.create },
+    careReport: { create: mocks.create, findMany: mocks.dailyFindMany },
   }));
   mocks.notify.mockResolvedValue(undefined);
   mocks.log.mockResolvedValue(undefined);
@@ -121,6 +129,29 @@ describe("unified daily care report route", () => {
     expect(mocks.notify).not.toHaveBeenCalled();
   });
 
+  it("approves, exposes, and notifies a new batch when direct delivery is enabled", async () => {
+    mocks.settingsFindUnique.mockResolvedValue({ careReportReviewRequired: false });
+
+    const response = await POST(request(basePayload));
+    const json = await response.json();
+
+    expect(response.status).toBe(201);
+    expect(json.status).toBe("APPROVED");
+    expect(mocks.create.mock.calls.map(([argument]) => argument.data)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          reviewStatus: "APPROVED",
+          reviewedAt: expect.any(Date),
+          guardianNotifiedAt: null,
+        }),
+      ])
+    );
+    expect(mocks.notify).toHaveBeenCalledWith(
+      "school-1",
+      expect.arrayContaining(["report-1"])
+    );
+  });
+
   it("rejects the whole batch when one child is outside the teacher's classes", async () => {
     mocks.studentFindMany.mockResolvedValue([{ id: "student-1", classId: "class-1" }]);
 
@@ -146,6 +177,20 @@ describe("unified daily care report route", () => {
       mealSource: "HOME",
       mealName: null,
     }));
+  });
+
+  it("rejects a second daily batch for a child who already has a report today", async () => {
+    mocks.dailyFindMany.mockResolvedValue([{ studentId: "student-1" }]);
+
+    const response = await POST(request(basePayload));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "DAILY_REPORT_ALREADY_SUBMITTED",
+      studentIds: ["student-1"],
+    });
+    expect(mocks.queryRaw).toHaveBeenCalledTimes(1);
+    expect(mocks.create).not.toHaveBeenCalled();
   });
 
   it("stores the approved per-child details as separate feed-compatible reports", async () => {
@@ -187,14 +232,42 @@ describe("unified daily care report route", () => {
     ]));
   });
 
-  it("rejects a nap without a valid start and end", async () => {
+  it("accepts a slept status when only one optional time is known", async () => {
+    mocks.studentFindMany.mockResolvedValue([{ id: "student-1", classId: "class-1" }]);
     const payload = {
       ...basePayload,
       entries: [{ ...basePayload.entries[0], napEndAt: null }],
     };
     const response = await POST(request(payload));
-    expect(response.status).toBe(422);
-    expect(mocks.transaction).not.toHaveBeenCalled();
+    expect(response.status).toBe(201);
+    expect(mocks.create.mock.calls.map(([argument]) => argument.data)).toContainEqual(
+      expect.objectContaining({
+        type: "NAP",
+        napStartAt: new Date("2026-09-08T10:00:00.000Z"),
+        napEndAt: null,
+        napMinutes: null,
+      })
+    );
+  });
+
+  it("accepts partial medication details and uses submission time when time is omitted", async () => {
+    mocks.studentFindMany.mockResolvedValue([{ id: "student-1", classId: "class-1" }]);
+    const payload = {
+      ...basePayload,
+      entries: [{
+        ...basePayload.entries[0],
+        medication: { name: "دواء", dose: "", occurredAt: null },
+      }],
+    };
+    const response = await POST(request(payload));
+    expect(response.status).toBe(201);
+    expect(mocks.create.mock.calls.map(([argument]) => argument.data)).toContainEqual(
+      expect.objectContaining({
+        type: "MEDICATION",
+        medicationName: "دواء",
+        medicationDose: null,
+      })
+    );
   });
 
   it("rejects the whole request when a child is outside the writable tenant roster", async () => {

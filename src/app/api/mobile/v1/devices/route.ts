@@ -12,7 +12,7 @@ import { z } from "zod";
 
 const schema = z.object({
   token: z.string().min(10).max(500),
-  platform: z.enum(["IOS", "ANDROID", "HUAWEI", "WEB"]),
+  platform: z.enum(["IOS", "ANDROID", "HUAWEI", "WEB", "EXPO"]),
 });
 
 export async function POST(request: Request) {

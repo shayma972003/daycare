@@ -13,6 +13,19 @@ describe("6F push and mobile hardening contracts", () => {
     expect(code).toContain("finishClaim");
   });
 
+  it("supports Expo push tokens for both mobile platforms", () => {
+    const push = source("src/lib/push.ts");
+    const devices = source("src/app/api/mobile/v1/devices/route.ts");
+    const schema = source("prisma/schema.prisma");
+    const registration = source("mobile/src/notifications/device.native.ts");
+    expect(schema).toContain("EXPO");
+    expect(devices).toContain('"EXPO"');
+    expect(push).toContain("sendViaExpo");
+    expect(push).toContain("https://exp.host/--/api/v2/push/send");
+    expect(registration).toContain("getExpoPushTokenAsync");
+    expect(registration).toContain('platform: "EXPO"');
+  });
+
   it("never targets a disabled account or suspended school", () => {
     const code = source("src/lib/push.ts");
     expect(code).toContain("disabledAt: null");

@@ -4,6 +4,12 @@ import { buildReportFields, careReportInputSchema, type CareReportInput } from "
 import { keyFromUrl, schoolIdFromKey } from "@/lib/r2";
 import { z } from "zod";
 import { studentClassWhere } from "@/lib/student-access-scope";
+import {
+  careReportSubmissionFields,
+  loadCareReportPolicy,
+  notifyApprovedCareReports,
+  type CareReportSubmissionStatus,
+} from "@/lib/care-report-policy";
 
 /**
  * Filing a care report from the app.
@@ -110,6 +116,9 @@ export async function POST(request: Request) {
     return Response.json({ error: "التاريخ غير صحيح" }, { status: 422 });
   }
 
+  const { reviewRequired } = await loadCareReportPolicy(schoolId);
+  const submissionFields = careReportSubmissionFields(reviewRequired);
+
   const writes = writable.flatMap((student) => {
     const fields = buildReportFields({ ...template, studentId: student.id });
     // Nothing was filled in. Skipped rather than saved: a parent seeing an
@@ -127,6 +136,7 @@ export async function POST(request: Request) {
         // itself is written separately, exactly as the dashboard does.
         type: template.type,
         ...fields,
+        ...submissionFields,
       }];
   });
 
@@ -138,5 +148,8 @@ export async function POST(request: Request) {
     writes.map((data) => prisma.careReport.create({ data, select: { id: true, studentId: true } }))
   );
 
-  return Response.json({ created: created.length, reports: created }, { status: 201 });
+  const status: CareReportSubmissionStatus = submissionFields.reviewStatus;
+  await notifyApprovedCareReports(schoolId, created.map((report) => report.id), status);
+
+  return Response.json({ created: created.length, status, reports: created }, { status: 201 });
 }

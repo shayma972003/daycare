@@ -73,6 +73,9 @@ export default function CarePage() {
   const [returnedBatches, setReturnedBatches] = useState<ReturnedBatch[]>([]);
   const [returnedLoading, setReturnedLoading] = useState(false);
   const [editingReturnedBatchId, setEditingReturnedBatchId] = useState<string | null>(null);
+  const [reviewRequired, setReviewRequired] = useState(true);
+  const [policyLoading, setPolicyLoading] = useState(true);
+  const [policySaving, setPolicySaving] = useState(false);
   const today = deviceDateInputValue();
 
   const loadReports = useCallback(async (signal?: AbortSignal) => {
@@ -177,6 +180,23 @@ export default function CarePage() {
     return () => controller.abort();
   }, [t, today]);
 
+  useEffect(() => {
+    const controller = new AbortController();
+    void axios.get<{ reviewRequired: boolean }>("/api/care-reports/settings", {
+      signal: controller.signal,
+    })
+      .then((response) => setReviewRequired(response.data.reviewRequired))
+      .catch((loadError) => {
+        if (!axios.isCancel(loadError)) {
+          setError(describeApiError(loadError, t("care.policyLoadFailed")));
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setPolicyLoading(false);
+      });
+    return () => controller.abort();
+  }, [t]);
+
   const classStudents = useMemo(
     () => classFilter ? students.filter((student) => student.classId === classFilter) : students,
     [classFilter, students]
@@ -250,6 +270,25 @@ export default function CarePage() {
     }
   }
 
+  async function updateReviewPolicy(nextReviewRequired: boolean) {
+    if (nextReviewRequired === reviewRequired || policySaving) return;
+    if (!nextReviewRequired && !window.confirm(t("care.directSendConfirm"))) return;
+    setPolicySaving(true);
+    setError(null);
+    try {
+      const response = await axios.put<{ reviewRequired: boolean }>(
+        "/api/care-reports/settings",
+        { reviewRequired: nextReviewRequired }
+      );
+      setReviewRequired(response.data.reviewRequired);
+      setNotice(t("care.policySaved"));
+    } catch (saveError) {
+      setError(describeApiError(saveError, t("care.policySaveFailed")));
+    } finally {
+      setPolicySaving(false);
+    }
+  }
+
   return (
     <div dir={locale === "ar" ? "rtl" : "ltr"} className="min-h-screen bg-[#F8F7FA]">
       <Topbar title={t("care.title")} />
@@ -264,6 +303,41 @@ export default function CarePage() {
             {t("care.todayDraft")}
           </div>
         </section>
+
+        {mayReview && (
+          <section className="rounded-2xl border border-[#E8E3EF] bg-white p-4 sm:p-5">
+            <div>
+              <h2 className="font-bold text-[#2D2238]">{t("care.reportDeliveryMode")}</h2>
+              <p className="mt-1 text-xs leading-5 text-[#8B8095]">{t("care.reportDeliveryModeHint")}</p>
+            </div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                aria-pressed={reviewRequired}
+                disabled={policyLoading || policySaving}
+                onClick={() => void updateReviewPolicy(true)}
+                className={`rounded-xl border p-4 text-start transition disabled:opacity-50 ${reviewRequired
+                  ? "border-[#5B14D1] bg-[#F4EEFF]"
+                  : "border-[#E8E3EF] bg-white hover:border-[#C9B8EA]"}`}
+              >
+                <span className="block text-sm font-bold text-[#2D2238]">{t("care.reviewBeforeSend")}</span>
+                <span className="mt-1 block text-xs leading-5 text-[#766B80]">{t("care.reviewBeforeSendDescription")}</span>
+              </button>
+              <button
+                type="button"
+                aria-pressed={!reviewRequired}
+                disabled={policyLoading || policySaving}
+                onClick={() => void updateReviewPolicy(false)}
+                className={`rounded-xl border p-4 text-start transition disabled:opacity-50 ${!reviewRequired
+                  ? "border-emerald-600 bg-emerald-50"
+                  : "border-[#E8E3EF] bg-white hover:border-[#C9B8EA]"}`}
+              >
+                <span className="block text-sm font-bold text-[#2D2238]">{t("care.directSend")}</span>
+                <span className="mt-1 block text-xs leading-5 text-[#766B80]">{t("care.directSendDescription")}</span>
+              </button>
+            </div>
+          </section>
+        )}
 
         <section className="flex flex-col gap-4 rounded-2xl border border-[#E8E3EF] bg-white p-4 sm:flex-row sm:items-end sm:justify-between sm:p-5">
           <label className="w-full space-y-1.5 sm:max-w-[260px]">
@@ -344,6 +418,7 @@ export default function CarePage() {
             students={editingReturnedBatch.students}
             date={deviceDateInputValue(new Date(editingReturnedBatch.meal.occurredAt))}
             initialDraft={editingReturnedBatch}
+            reviewRequired={reviewRequired}
             onSaved={(message) => {
               setNotice(message);
               setError(null);
@@ -363,6 +438,7 @@ export default function CarePage() {
             key={formKey}
             students={visibleStudents}
             date={today}
+            reviewRequired={reviewRequired}
             onSaved={(message) => {
               setNotice(message);
               setError(null);

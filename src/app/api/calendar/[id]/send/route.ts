@@ -157,6 +157,7 @@ export async function POST(
                 guardianId: { in: [...guardianIds] },
                 disabledAt: null,
                 acceptedAt: { not: null },
+                notifyCalendar: true,
                 guardian: { is: { schoolId, deletedAt: null, anonymizedAt: null } },
               },
               select: { id: true },
@@ -169,6 +170,7 @@ export async function POST(
                 teacherId: { in: [...teacherIds] },
                 disabledAt: null,
                 acceptedAt: { not: null },
+                notifyCalendar: true,
               },
               select: { id: true },
             })

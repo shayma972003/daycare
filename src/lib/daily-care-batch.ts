@@ -23,9 +23,9 @@ const entrySchema = z.object({
   supplies: z.string().trim().max(150).nullish(),
   health: z.string().trim().max(600).nullish(),
   medication: z.object({
-    name: z.string().trim().min(1).max(150),
-    dose: z.string().trim().min(1).max(150),
-    occurredAt: z.iso.datetime(),
+    name: z.string().trim().max(150).nullish(),
+    dose: z.string().trim().max(150).nullish(),
+    occurredAt: z.iso.datetime().nullish(),
   }).nullish(),
 });
 
@@ -38,14 +38,6 @@ export const dailyReportSchema = z.object({
   }),
   entries: z.array(entrySchema).min(1).max(60),
 }).superRefine((value, context) => {
-  if (value.meal.source === "CENTER" && !value.meal.name) {
-    context.addIssue({
-      code: "custom",
-      path: ["meal", "name"],
-      message: "اسم وجبة المركز مطلوب",
-    });
-  }
-
   const seen = new Set<string>();
   value.entries.forEach((entry, index) => {
     if (seen.has(entry.studentId)) {
@@ -60,11 +52,11 @@ export const dailyReportSchema = z.object({
     if (entry.napStatus === "SLEPT") {
       const start = entry.napStartAt ? new Date(entry.napStartAt) : null;
       const end = entry.napEndAt ? new Date(entry.napEndAt) : null;
-      if (!start || !end || end <= start) {
+      if (start && end && end <= start) {
         context.addIssue({
           code: "custom",
           path: ["entries", index, "napEndAt"],
-          message: "حددي بداية ونهاية نوم صحيحتين",
+          message: "نهاية النوم يجب أن تكون بعد بدايته",
         });
       }
     }
@@ -129,16 +121,20 @@ export function buildDailyCareRows(
     }
 
     if (entry.napStatus === "SLEPT") {
-      const napStartAt = new Date(entry.napStartAt!);
-      const napEndAt = new Date(entry.napEndAt!);
+      const napStartAt = entry.napStartAt ? new Date(entry.napStartAt) : null;
+      const napEndAt = entry.napEndAt ? new Date(entry.napEndAt) : null;
+      const napMinutes = napStartAt && napEndAt
+        ? Math.round((napEndAt.getTime() - napStartAt.getTime()) / 60_000)
+        : null;
       reports.push({
         ...common,
         dailyItemKey: "nap",
         type: "NAP",
-        occurredAt: napStartAt,
+        occurredAt: napStartAt ?? submittedAt,
         napStartAt,
         napEndAt,
-        napMinutes: Math.round((napEndAt.getTime() - napStartAt.getTime()) / 60_000),
+        napMinutes,
+        napQuality: "SLEPT",
       });
     } else if (entry.napStatus === "DID_NOT_SLEEP") {
       reports.push({
@@ -203,9 +199,11 @@ export function buildDailyCareRows(
         ...common,
         dailyItemKey: "medication",
         type: "MEDICATION",
-        occurredAt: new Date(entry.medication.occurredAt),
-        medicationName: entry.medication.name,
-        medicationDose: entry.medication.dose,
+        occurredAt: entry.medication.occurredAt
+          ? new Date(entry.medication.occurredAt)
+          : submittedAt,
+        medicationName: entry.medication.name || null,
+        medicationDose: entry.medication.dose || null,
         givenByName: author.name,
       });
     }

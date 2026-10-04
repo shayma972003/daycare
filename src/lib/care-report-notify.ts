@@ -62,6 +62,7 @@ export async function notifyGuardiansOfReport(
         guardianId: { in: [...guardianIds] },
         acceptedAt: { not: null },
         disabledAt: null,
+        notifyCareReport: true,
         guardian: { is: { schoolId, deletedAt: null, anonymizedAt: null } },
       },
       select: { id: true },
@@ -88,16 +89,16 @@ export async function notifyGuardiansOfReport(
       }
     }
 
-    if (accounts.length > 0) {
-      await prisma.careReport.updateMany({
-        where: {
-          id: { in: studentReports.map((report) => report.id) },
-          schoolId,
-          guardianNotifiedAt: null,
-        },
-        data: { guardianNotifiedAt: new Date() },
-      });
-    }
+    // Opting out is a completed delivery decision, not a reason to retry old
+    // reports if the guardian later enables this category again.
+    await prisma.careReport.updateMany({
+      where: {
+        id: { in: studentReports.map((report) => report.id) },
+        schoolId,
+        guardianNotifiedAt: null,
+      },
+      data: { guardianNotifiedAt: new Date() },
+    });
   }
 
   return queued;

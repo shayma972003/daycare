@@ -236,6 +236,9 @@ export const ROUTE_PERMISSIONS: Record<string, RouteRule> = {
   "/api/care-reports/returned/:batchId/resubmit": {
     methods: { POST: "attendance.students" },
   },
+  "/api/care-reports/settings": {
+    methods: { GET: "attendance.students", PUT: "students.manage" },
+  },
   "/api/care-reports/:id/review": {
     methods: { POST: "students.manage" },
   },

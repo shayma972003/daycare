@@ -19,6 +19,30 @@ beforeEach(() => {
 });
 
 describe("unified daily care form", () => {
+  it("uses direct-delivery copy when manager review is disabled", async () => {
+    const user = userEvent.setup();
+    const onSaved = vi.fn();
+    mocks.post.mockResolvedValueOnce({ data: { created: 2, status: "APPROVED" } });
+    render(
+      <LocaleProvider initialLocale="en">
+        <UnifiedDailyCareForm
+          date="2026-09-08"
+          reviewRequired={false}
+          students={[{ id: "student-1", name: "Noura" }]}
+          onSaved={onSaved}
+        />
+      </LocaleProvider>
+    );
+
+    await user.type(screen.getByPlaceholderText("For example: rice and vegetables"), "Rice");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Food - Noura" }), "ALL");
+    await user.click(screen.getByRole("button", { name: "Send 1 children’s report now" }));
+
+    await waitFor(() => expect(mocks.post).toHaveBeenCalledTimes(1));
+    expect(screen.getByText("The report will be visible to guardians immediately after submission")).toBeTruthy();
+    expect(onSaved).toHaveBeenCalledWith("Saved 2 care entries and sent them directly to guardians");
+  });
+
   it("shares only the meal and keeps nap, toilet and mood per child", async () => {
     const user = userEvent.setup();
     const onSaved = vi.fn();

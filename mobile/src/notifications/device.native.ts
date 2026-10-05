@@ -6,6 +6,7 @@ import { Platform } from "react-native";
 import { request } from "@/api/client";
 
 let registeredToken: string | null = null;
+const ANDROID_ALERT_CHANNEL_ID = "daycare-alerts-v2";
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -28,9 +29,12 @@ export async function registerDeviceForPush(): Promise<void> {
   if (!id) return;
 
   if (Platform.OS === "android") {
-    await Notifications.setNotificationChannelAsync("default", {
+    await Notifications.setNotificationChannelAsync(ANDROID_ALERT_CHANNEL_ID, {
       name: "الإشعارات",
-      importance: Notifications.AndroidImportance.HIGH,
+      importance: Notifications.AndroidImportance.MAX,
+      sound: "default",
+      enableVibrate: true,
+      vibrationPattern: [0, 250, 250, 250],
     });
   }
 

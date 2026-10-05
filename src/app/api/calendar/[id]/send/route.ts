@@ -110,8 +110,16 @@ export async function POST(
       if (event.updatedAt.toISOString() !== parsed.data.eventVersion) return { kind: "stale" };
       if ((event.description ?? "").trim() !== parsed.data.message) return { kind: "unsaved" };
 
-      const schoolWide = event.classes.length === 0;
+      // No room and no teacher means a genuinely school-wide announcement.
+      // Resolve that audience from the active app accounts themselves. Going
+      // through rooms made a new school with no rooms report an empty audience
+      // even when its staff and guardian accounts were already active.
+      const schoolWide = event.classes.length === 0 && !event.teacherId;
       if (schoolWide && parsed.data.confirmSchoolWide !== true) return { kind: "confirm" };
+      // A user restricted to specific rooms must keep that boundary even when
+      // the event itself has no room. Only an unrestricted manager may resolve
+      // a school-wide audience directly from every active app account.
+      const allSchoolAudience = schoolWide && permittedClassIds === null;
       const eventClassIds = event.classes.map((item) => item.classId);
       const targetClassIds = permittedClassIds === null
         ? (schoolWide ? null : eventClassIds)
@@ -150,11 +158,11 @@ export async function POST(
         }
       }
       const [guardianAccounts, users] = await Promise.all([
-        guardianIds.size
+        parsed.data.notifyGuardians && (allSchoolAudience || guardianIds.size > 0)
           ? tx.guardianAccount.findMany({
               where: {
                 schoolId,
-                guardianId: { in: [...guardianIds] },
+                ...(allSchoolAudience ? {} : { guardianId: { in: [...guardianIds] } }),
                 disabledAt: null,
                 acceptedAt: { not: null },
                 notifyCalendar: true,
@@ -163,11 +171,11 @@ export async function POST(
               select: { id: true },
             })
           : [],
-        teacherIds.size
+        parsed.data.notifyStaff && (allSchoolAudience || teacherIds.size > 0)
           ? tx.user.findMany({
               where: {
                 schoolId,
-                teacherId: { in: [...teacherIds] },
+                ...(allSchoolAudience ? {} : { teacherId: { in: [...teacherIds] } }),
                 disabledAt: null,
                 acceptedAt: { not: null },
                 notifyCalendar: true,

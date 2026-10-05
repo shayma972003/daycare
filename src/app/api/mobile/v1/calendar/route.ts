@@ -5,7 +5,12 @@ import {
   storedDate,
   zonedTimeOnDate,
 } from "@/lib/device-date";
-import { guardianCalendarAudience } from "@/lib/mobile-calendar-scope";
+import {
+  guardianCalendarAudience,
+  guardianProgrammeAudience,
+  staffCalendarAudience,
+  staffProgrammeAudience,
+} from "@/lib/mobile-calendar-scope";
 import { guardianChildIds, mobileAuthResponse, requireMobileAuth } from "@/lib/mobile-guard";
 import { prisma } from "@/lib/prisma";
 
@@ -54,7 +59,7 @@ export async function GET(request: Request) {
     return Response.json({ error: "تعذّر تحديد حدود التاريخ" }, { status: 422 });
   }
 
-  let classIds: string[] | null;
+  let classIds: string[];
   let guardianTeacherIds: string[] = [];
   if (context.claims.kind === "guardian") {
     const childIds = await guardianChildIds(context.claims.sub);
@@ -87,50 +92,98 @@ export async function GET(request: Request) {
       )
     );
   } else {
-    // Staff calendar visibility is teacher-based below. Child records remain
-    // class-scoped in their own routes; the calendar itself contains no child
-    // records.
-    classIds = null;
+    classIds = context.teacherClassIds ?? [];
+    // Owners normally have no teacher link. If an unrestricted account is
+    // linked to a teacher, recover that teacher's rooms here rather than
+    // widening their mobile calendar to every room in the school.
+    if (context.teacherId && context.teacherClassIds === null) {
+      const assignedClasses = await prisma.class.findMany({
+        where: {
+          schoolId: context.schoolId,
+          deletedAt: null,
+          archivedAt: null,
+          OR: [
+            { teacherAssignments: { some: { teacherId: context.teacherId } } },
+            {
+              teacherId: context.teacherId,
+              teacherAssignments: { none: {} },
+            },
+          ],
+        },
+        select: { id: true },
+      });
+      classIds = assignedClasses.map((classroom) => classroom.id);
+    }
   }
 
   const audienceScope = context.claims.kind === "guardian"
-    ? guardianCalendarAudience(classIds ?? [], guardianTeacherIds)
-    : context.teacherId
-      ? { OR: [{ teacherId: null }, { teacherId: context.teacherId }] }
-      : { teacherId: null };
+    ? guardianCalendarAudience(classIds, guardianTeacherIds)
+    : staffCalendarAudience(classIds, context.teacherId);
+  const programmeAudienceScope = context.claims.kind === "guardian"
+    ? guardianProgrammeAudience(classIds, guardianTeacherIds)
+    : staffProgrammeAudience(classIds, context.teacherId);
 
-  const events = await prisma.calendarEvent.findMany({
-    where: {
-      schoolId: context.schoolId,
-      deletedAt: null,
-      AND: [
-        { startAt: { lt: until } },
-        {
-          OR: [
-            { endAt: { gt: from } },
-            { endAt: null, startAt: { gte: from } },
-          ],
-        },
-      ],
-      ...audienceScope,
-    },
-    orderBy: [{ startAt: "asc" }, { title: "asc" }],
-    take: 250,
-    select: {
-      id: true,
-      type: true,
-      title: true,
-      description: true,
-      startAt: true,
-      endAt: true,
-      allDay: true,
-      location: true,
-      classes: { select: { classId: true } },
-    },
-  });
+  const [events, programmes] = await Promise.all([
+    prisma.calendarEvent.findMany({
+      where: {
+        schoolId: context.schoolId,
+        deletedAt: null,
+        AND: [
+          { startAt: { lt: until } },
+          {
+            OR: [
+              { endAt: { gt: from } },
+              { endAt: null, startAt: { gte: from } },
+            ],
+          },
+        ],
+        ...audienceScope,
+      },
+      orderBy: [{ startAt: "asc" }, { title: "asc" }],
+      take: 250,
+      select: {
+        id: true,
+        type: true,
+        title: true,
+        description: true,
+        startAt: true,
+        endAt: true,
+        allDay: true,
+        teacherId: true,
+        location: true,
+        classes: { select: { classId: true } },
+      },
+    }),
+    prisma.activity.findMany({
+      where: {
+        schoolId: context.schoolId,
+        isActive: true,
+        startDate: { lt: until },
+        endDate: { gte: from },
+        ...programmeAudienceScope,
+      },
+      orderBy: [{ startDate: "asc" }, { name: "asc" }],
+      take: 250,
+      select: {
+        id: true,
+        name: true,
+        message: true,
+        startDate: true,
+        endDate: true,
+        allDay: true,
+        teacherId: true,
+        activityInvites: { select: { classId: true } },
+      },
+    }),
+  ]);
 
   const eventClassIds = Array.from(
-    new Set(events.flatMap((event) => event.classes.map((link) => link.classId)))
+    new Set([
+      ...events.flatMap((event) => event.classes.map((link) => link.classId)),
+      ...programmes.flatMap((programme) =>
+        programme.activityInvites.map((invite) => invite.classId)
+      ),
+    ])
   );
   const classes = eventClassIds.length
     ? await prisma.class.findMany({
@@ -140,24 +193,54 @@ export async function GET(request: Request) {
     : [];
   const classNameById = new Map(classes.map((classroom) => [classroom.id, classroom.name]));
 
+  const eventRows = events.map((event) => ({
+    id: event.id,
+    type: event.type,
+    title: event.title,
+    description: event.description,
+    startAt: event.startAt.toISOString(),
+    endAt: event.endAt?.toISOString() ?? null,
+    allDay: event.allDay,
+    location: event.location,
+    classNames: event.classes
+      .map((link) => classNameById.get(link.classId))
+      .filter((name): name is string => Boolean(name)),
+    schoolWide: event.classes.length === 0 && !event.teacherId,
+  }));
+  const programmeRows = programmes.map((programme) => {
+    const allDay = programme.allDay !== false;
+    const startDate = programme.startDate.toISOString().slice(0, 10);
+    const endDate = programme.endDate.toISOString().slice(0, 10);
+    return {
+      id: programme.id,
+      type: "ACTIVITY" as const,
+      title: programme.name,
+      description: programme.message,
+      startAt: allDay
+        ? `${startDate}T00:00:00.000Z`
+        : programme.startDate.toISOString(),
+      endAt: allDay
+        ? `${addDateDays(endDate, 1)}T00:00:00.000Z`
+        : programme.endDate.toISOString(),
+      allDay,
+      location: null,
+      classNames: programme.activityInvites
+        .map((invite) => classNameById.get(invite.classId))
+        .filter((name): name is string => Boolean(name)),
+      schoolWide: programme.activityInvites.length === 0 && !programme.teacherId,
+    };
+  });
+  const rows = [...eventRows, ...programmeRows]
+    .sort((left, right) =>
+      left.startAt.localeCompare(right.startAt) || left.title.localeCompare(right.title)
+    )
+    .slice(0, 250);
+
   return Response.json(
     {
       from: fromKey,
       to: toKey,
-      events: events.map((event) => ({
-        id: event.id,
-        type: event.type,
-        title: event.title,
-        description: event.description,
-        startAt: event.startAt.toISOString(),
-        endAt: event.endAt?.toISOString() ?? null,
-        allDay: event.allDay,
-        location: event.location,
-        classNames: event.classes
-          .map((link) => classNameById.get(link.classId))
-          .filter((name): name is string => Boolean(name)),
-        schoolWide: event.classes.length === 0,
-      })),
+      events: rows,
     },
     { headers: { "Cache-Control": "private, no-store" } }
   );

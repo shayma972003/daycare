@@ -2,6 +2,8 @@ import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { logAction } from "@/lib/activity-logger";
 import { calendarToday, requestTimeZone } from "@/lib/device-date";
 import { AttendanceOperationError, checkInStudent } from "@/lib/attendance-operations";
+import { notifyGuardiansOfAttendance } from "@/lib/attendance-notifications";
+import { logSafeError } from "@/lib/safe-logger";
 import { scopedClassIds } from "@/lib/student-access-scope";
 
 export async function POST(
@@ -40,6 +42,12 @@ export async function POST(
       performed_by: session.user.name ?? "المدير",
       request,
     });
+    await notifyGuardiansOfAttendance({
+      schoolId,
+      studentId: id,
+      studentName: personName,
+      event: "checkin",
+    }).catch((error) => logSafeError("attendance-checkin-notification", error));
     return Response.json(attendance, { status: 201 });
   } catch (error) {
     if (error instanceof AttendanceOperationError) {

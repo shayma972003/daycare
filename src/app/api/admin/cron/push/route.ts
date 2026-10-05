@@ -4,10 +4,10 @@ import { isAuthorizedCron, cronUnauthorized } from "@/lib/cron-auth";
 /**
  * Drains the push queue.
  *
- * Scheduled every five minutes in vercel.json. Five rather than one because a
- * notification arriving four minutes late is unremarkable to a parent, while a
- * cron running twelve times as often costs twelve times as many invocations for
- * the same throughput.
+ * Scheduled daily in vercel.json as a durable recovery sweep. Normal
+ * request-triggered notifications are drained after the originating response,
+ * while this worker catches provider retries, interrupted background work, and
+ * unusually large queues without requiring a paid high-frequency cron plan.
  *
  * Idempotent: only PENDING rows within their attempt budget are picked up, so an
  * overlapping run finds nothing to redo.

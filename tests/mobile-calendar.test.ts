@@ -22,14 +22,13 @@ describe("mobile calendar contracts", () => {
     expect(route).toContain("guardianChildIds(context.claims.sub)");
     expect(route).toContain("id: { in: childIds }");
     expect(route).toContain("teacherAssignments: { select: { teacherId: true } }");
-    expect(route).toContain("guardianCalendarAudience(classIds ?? [], guardianTeacherIds)");
+    expect(route).toContain("guardianCalendarAudience(classIds, guardianTeacherIds)");
   });
 
   it("returns unassigned and own events to linked staff without exposing another teacher", () => {
-    expect(route).toContain("classIds = null");
     expect(route).toContain("schoolId: context.schoolId");
-    expect(route).toContain("{ teacherId: null }");
-    expect(route).toContain("{ teacherId: context.teacherId }");
+    expect(route).toContain("context.teacherClassIds ?? []");
+    expect(route).toContain("staffCalendarAudience(classIds, context.teacherId)");
   });
 
   it("is read-only and bounds the requested range and response", () => {
@@ -37,6 +36,18 @@ describe("mobile calendar contracts", () => {
     expect(route).toContain('zonedTimeOnDate(fromKey, "00:00", timeZone)');
     expect(route).toContain("take: 250");
     expect(route).not.toMatch(/calendarEvent\.(create|update|delete)/);
+  });
+
+  it("merges programmes into the mobile calendar with the same audience rules", () => {
+    expect(route).toContain("prisma.activity.findMany");
+    expect(route).toContain("guardianProgrammeAudience(classIds, guardianTeacherIds)");
+    expect(route).toContain("staffProgrammeAudience(classIds, context.teacherId)");
+    expect(route).toContain('type: "ACTIVITY" as const');
+    expect(route).toContain("programme.activityInvites.length === 0 && !programme.teacherId");
+  });
+
+  it("labels only events without both room and teacher targets as school-wide", () => {
+    expect(route).toContain("event.classes.length === 0 && !event.teacherId");
   });
 
   it("exposes the same calendar screen to guardian and staff tabs", () => {
@@ -82,6 +93,50 @@ describe("guardian calendar audience", () => {
 
     expect(guardianCalendarAudience([], [])).toEqual({
       OR: [{ teacherId: null, classes: { none: {} } }],
+    });
+  });
+});
+
+describe("staff calendar audience", () => {
+  it("includes own rooms, own teacher events, and only fully public unassigned events", async () => {
+    const { staffCalendarAudience } = await import("../src/lib/mobile-calendar-scope");
+
+    expect(staffCalendarAudience(["class-1"], "teacher-1")).toEqual({
+      OR: [
+        { classes: { some: { classId: { in: ["class-1"] } } } },
+        { teacherId: "teacher-1" },
+        { teacherId: null, classes: { none: {} } },
+      ],
+    });
+  });
+
+  it("keeps unlinked staff limited to fully public events", async () => {
+    const { staffCalendarAudience } = await import("../src/lib/mobile-calendar-scope");
+
+    expect(staffCalendarAudience([], null)).toEqual({
+      OR: [{ teacherId: null, classes: { none: {} } }],
+    });
+  });
+});
+
+describe("programme calendar audience", () => {
+  it("uses programme room invites for guardians", async () => {
+    const { guardianProgrammeAudience } = await import("../src/lib/mobile-calendar-scope");
+
+    expect(guardianProgrammeAudience(["class-1"], ["teacher-1"])).toEqual({
+      OR: [
+        { activityInvites: { some: { classId: { in: ["class-1"] } } } },
+        { teacherId: { in: ["teacher-1"] } },
+        { teacherId: null, activityInvites: { none: {} } },
+      ],
+    });
+  });
+
+  it("keeps an unlinked staff account limited to public programmes", async () => {
+    const { staffProgrammeAudience } = await import("../src/lib/mobile-calendar-scope");
+
+    expect(staffProgrammeAudience([], null)).toEqual({
+      OR: [{ teacherId: null, activityInvites: { none: {} } }],
     });
   });
 });

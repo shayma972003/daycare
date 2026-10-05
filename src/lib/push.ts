@@ -18,15 +18,52 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { logSafeError } from "@/lib/safe-logger";
 import type { PushPlatform } from "@/generated/prisma/enums";
 import type { Prisma } from "@/generated/prisma/client";
 import { randomBytes } from "node:crypto";
+import { after } from "next/server";
+import { cache } from "react";
 
 /** Attempts before a notification is abandoned. */
 const MAX_ATTEMPTS = 3;
 /** Bounded per run so one invocation cannot exceed the function timeout. */
 const BATCH_SIZE = 100;
+/** Keep request-triggered background delivery inside ordinary route limits. */
+const IMMEDIATE_BATCH_SIZE = 25;
 const LEASE_MS = 2 * 60 * 1000;
+/** "Arriving in five minutes" must never surface hours after it was sent. */
+const ARRIVAL_PUSH_TTL_MS = 10 * 60 * 1000;
+/** A new id avoids inheriting a silent/low-priority channel already on-device. */
+const ANDROID_ALERT_CHANNEL_ID = "daycare-alerts-v2";
+
+/**
+ * Starts one best-effort queue drain after the current response is sent.
+ *
+ * React cache scopes the callback to the current request, so an announcement
+ * targeting many recipients does not schedule one worker per recipient. The
+ * durable daily cron remains the recovery path for provider outages, retries,
+ * or a queue larger than this deliberately small immediate batch.
+ */
+const scheduleDrainAfterResponse = cache(() => {
+  after(async () => {
+    try {
+      await drainPushQueue(IMMEDIATE_BATCH_SIZE);
+    } catch (error) {
+      logSafeError("push-immediate-drain", error);
+    }
+  });
+});
+
+function schedulePushDrain(): void {
+  try {
+    scheduleDrainAfterResponse();
+  } catch (error) {
+    // Non-request callers (for example maintenance scripts and isolated tests)
+    // still keep the durable queue row for the scheduled recovery worker.
+    logSafeError("push-drain-schedule", error);
+  }
+}
 
 export interface PushPayload {
   title: string;
@@ -101,6 +138,8 @@ export async function enqueuePush(
       data: payload.data ?? undefined,
     })),
   });
+
+  schedulePushDrain();
 
   return devices.length;
 }
@@ -238,6 +277,8 @@ async function sendViaExpo(
         title: payload.title,
         body: payload.body,
         sound: "default",
+        priority: "high",
+        channelId: ANDROID_ALERT_CHANNEL_ID,
         data: payload.data ?? {},
       }),
     });
@@ -347,6 +388,16 @@ export async function drainPushQueue(limit = BATCH_SIZE): Promise<DrainResult> {
   for (const notification of pending) {
     if (!notification.deviceTokenId) {
       await finishClaim(notification, { status: "FAILED", lastError: "NO_DEVICE" });
+      result.abandoned++;
+      continue;
+    }
+
+    const notificationData = notification.data as Record<string, string> | null;
+    if (
+      notificationData?.kind === "guardian_arrival" &&
+      notification.createdAt.getTime() < Date.now() - ARRIVAL_PUSH_TTL_MS
+    ) {
+      await finishClaim(notification, { status: "FAILED", lastError: "EXPIRED_ARRIVAL" });
       result.abandoned++;
       continue;
     }

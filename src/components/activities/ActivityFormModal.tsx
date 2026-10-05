@@ -448,7 +448,11 @@ export function ActivityFormModal({
       setError(t("activities.saveChangesBeforeSending"));
       return;
     }
-    if (savedSendSnapshot.classIds.length === 0 && !confirmSchoolWide) {
+    if (
+      savedSendSnapshot.classIds.length === 0 &&
+      !savedSendSnapshot.teacherId &&
+      !confirmSchoolWide
+    ) {
       setError(t("activities.confirmSchoolWide"));
       return;
     }
@@ -836,9 +840,11 @@ export function ActivityFormModal({
                       ? t("common.loading")
                       : savedSendSnapshot.classIds.length > 0
                       ? t("activities.selectedClassesAudience", { n: String(savedSendSnapshot?.classIds.length ?? 0) })
+                      : savedSendSnapshot.teacherId
+                      ? t("activities.selectedTeacherAudience")
                       : t("activities.allClassesAudience")}
                   </p>
-                  {savedSendSnapshot?.classIds.length === 0 && (
+                  {savedSendSnapshot?.classIds.length === 0 && !savedSendSnapshot.teacherId && (
                     <label className="mt-2 flex items-start gap-2">
                       <input
                         type="checkbox"

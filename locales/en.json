@@ -1579,6 +1579,7 @@
     "confirmSchoolWide": "Confirm that this message is for all classes",
     "audiencePreview": "Message audience",
     "selectedClassesAudience": "Accounts linked to {n} selected classes",
+    "selectedTeacherAudience": "Account linked to the selected teacher",
     "allClassesAudience": "No classes are selected: this means all classes",
     "confirmAllClasses": "I confirm sending to all classes"
   },

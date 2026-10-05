@@ -35,7 +35,13 @@
         }
       ],
       "expo-secure-store",
-      "expo-notifications"
+      [
+        "expo-notifications",
+        {
+          "defaultChannel": "daycare-alerts-v2",
+          "color": "#5B14D1"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

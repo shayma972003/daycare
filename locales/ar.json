@@ -1579,6 +1579,7 @@
     "confirmSchoolWide": "أكدي أن الرسالة موجهة لجميع الفصول",
     "audiencePreview": "جمهور الرسالة",
     "selectedClassesAudience": "الحسابات المرتبطة بـ {n} فصول محددة",
+    "selectedTeacherAudience": "الحساب المرتبط بالمعلمة المحددة",
     "allClassesAudience": "لم تحددي فصولاً: هذا يعني جميع الفصول",
     "confirmAllClasses": "أؤكد الإرسال إلى جميع الفصول"
   },

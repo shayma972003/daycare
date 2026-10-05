@@ -189,30 +189,38 @@ export async function POST(
         return { kind: "unsaved_message" };
       }
 
-      const schoolWide = activity.activityInvites.length === 0;
+      // No invited room and no named teacher is a genuinely school-wide
+      // programme. Resolve that audience from active app accounts directly so
+      // a new school with no rooms can still notify its staff and guardians.
+      const schoolWide = activity.activityInvites.length === 0 && !activity.teacherId;
       if (schoolWide && parsed.data.confirmSchoolWide !== true) {
         return { kind: "school_wide_confirmation_required" };
       }
+      // A room-scoped staff account must never widen a school-wide programme
+      // beyond the rooms already granted to that account.
+      const allSchoolAudience = schoolWide && permittedClassIds === null;
       const classes = schoolWide
-        ? await tx.class.findMany({
-            where: {
-              schoolId,
-              deletedAt: null,
-              ...(permittedClassIds === null ? {} : { id: { in: [...permittedClassIds] } }),
-            },
-            select: {
-              id: true,
-              teacherId: true,
-              teacherAssignments: { select: { teacherId: true } },
-              students: {
-                where: { schoolId, isActive: true, deletedAt: null },
-                select: {
-                  guardianId: true,
-                  guardianLinks: { select: { guardianId: true } },
+        ? allSchoolAudience
+          ? []
+          : await tx.class.findMany({
+              where: {
+                schoolId,
+                deletedAt: null,
+                id: { in: [...(permittedClassIds ?? [])] },
+              },
+              select: {
+                id: true,
+                teacherId: true,
+                teacherAssignments: { select: { teacherId: true } },
+                students: {
+                  where: { schoolId, isActive: true, deletedAt: null },
+                  select: {
+                    guardianId: true,
+                    guardianLinks: { select: { guardianId: true } },
+                  },
                 },
               },
-            },
-          })
+            })
         : activity.activityInvites
             .map((invite) => invite.class)
             .filter((room) => permittedClassIds === null || permittedClassIds.includes(room.id));
@@ -232,11 +240,11 @@ export async function POST(
         }
       }
 
-      const guardianAccounts = guardianIds.size > 0
+      const guardianAccounts = parsed.data.notifyGuardians && (allSchoolAudience || guardianIds.size > 0)
         ? await tx.guardianAccount.findMany({
             where: {
               schoolId,
-              guardianId: { in: [...guardianIds] },
+              ...(allSchoolAudience ? {} : { guardianId: { in: [...guardianIds] } }),
               disabledAt: null,
               acceptedAt: { not: null },
               notifyActivity: true,
@@ -245,11 +253,11 @@ export async function POST(
             select: { id: true },
           })
         : [];
-      const users = teacherIds.size > 0
+      const users = parsed.data.notifyStaff && (allSchoolAudience || teacherIds.size > 0)
         ? await tx.user.findMany({
             where: {
               schoolId,
-              teacherId: { in: [...teacherIds] },
+              ...(allSchoolAudience ? {} : { teacherId: { in: [...teacherIds] } }),
               disabledAt: null,
               acceptedAt: { not: null },
               notifyActivity: true,

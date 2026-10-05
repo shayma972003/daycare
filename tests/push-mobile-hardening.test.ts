@@ -26,6 +26,34 @@ describe("6F push and mobile hardening contracts", () => {
     expect(registration).toContain('platform: "EXPO"');
   });
 
+  it("uses an explicit audible high-priority Android channel", () => {
+    const push = source("src/lib/push.ts");
+    const registration = source("mobile/src/notifications/device.native.ts");
+    const appConfig = source("mobile/app.json");
+    for (const code of [push, registration, appConfig]) {
+      expect(code).toContain("daycare-alerts-v2");
+    }
+    expect(push).toContain('priority: "high"');
+    expect(push).toContain("channelId: ANDROID_ALERT_CHANNEL_ID");
+    expect(registration).toContain('sound: "default"');
+    expect(registration).toContain("AndroidImportance.MAX");
+  });
+
+  it("starts one bounded queue drain after the originating response", () => {
+    const code = source("src/lib/push.ts");
+    expect(code).toContain('import { after } from "next/server"');
+    expect(code).toContain("const scheduleDrainAfterResponse = cache");
+    expect(code).toContain("await drainPushQueue(IMMEDIATE_BATCH_SIZE)");
+    expect(code).toContain("schedulePushDrain();");
+  });
+
+  it("expires stale five-minute arrival pushes instead of delivering them late", () => {
+    const code = source("src/lib/push.ts");
+    expect(code).toContain("ARRIVAL_PUSH_TTL_MS");
+    expect(code).toContain('notificationData?.kind === "guardian_arrival"');
+    expect(code).toContain('lastError: "EXPIRED_ARRIVAL"');
+  });
+
   it("never targets a disabled account or suspended school", () => {
     const code = source("src/lib/push.ts");
     expect(code).toContain("disabledAt: null");

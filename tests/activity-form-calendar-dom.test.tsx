@@ -173,6 +173,43 @@ describe("activity calendar form", () => {
     expect(axiosMocks.post).not.toHaveBeenCalled();
   });
 
+  it("sends a teacher-only programme without asking for school-wide confirmation", async () => {
+    const user = userEvent.setup();
+    axiosMocks.get.mockImplementation((url: string) => {
+      if (url === "/api/academic-stages") return Promise.resolve({ data: [] });
+      if (url === "/api/teachers") return Promise.resolve({ data: [{ id: "teacher-1", name: "Teacher one" }] });
+      if (url === "/api/classes") return Promise.resolve({ data: [] });
+      if (url === "/api/activities/activity-1") return Promise.resolve({
+        data: {
+          teacherId: "teacher-1",
+          message: "Teacher message",
+          updatedAt: "2026-09-03T08:00:00.000Z",
+          activityInvites: [],
+        },
+      });
+      return Promise.reject(new Error(`Unexpected GET ${url}`));
+    });
+    render(english(<ActivityFormModal
+      open
+      activity={{
+        id: "activity-1", name: "Activity", startDate: "2026-09-02", endDate: "2026-09-02",
+        allDay: true, message: "Teacher message",
+      }}
+      onClose={vi.fn()}
+      onSaved={vi.fn()}
+    />));
+
+    await user.click((await screen.findByText("Send an in-app message to teachers")).closest("label")!.querySelector("input")!);
+    expect(await screen.findByText("Account linked to the selected teacher")).not.toBeNull();
+    expect(screen.queryByText("I confirm sending to all classes")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Send in-app message" }));
+
+    await waitFor(() => expect(axiosMocks.post).toHaveBeenCalledWith(
+      "/api/activities/activity-1/send",
+      expect.objectContaining({ notifyStaff: true, confirmSchoolWide: false })
+    ));
+  });
+
   it("does not send when loading the persisted activity details failed", async () => {
     const user = userEvent.setup();
     axiosMocks.get.mockImplementation((url: string) => {

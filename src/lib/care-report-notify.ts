@@ -6,8 +6,9 @@ import { logSafeError } from "@/lib/safe-logger";
 /**
  * Immediate push when a report is filed (task 2.8).
  *
- * Queued, not sent: `enqueuePush` writes rows and the five-minute worker
- * delivers them. The teacher's request returns as soon as the report is saved.
+ * Queued, not sent inline: `enqueuePush` writes rows and schedules a background
+ * drain after the response. The teacher's request returns as soon as the report
+ * is saved.
  *
  * **The notification never carries the report's contents.** It says a report
  * exists and which child it concerns. A push payload is rendered on a lock

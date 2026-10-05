@@ -232,6 +232,54 @@ describe("activity in-app message send", () => {
     expect(mocks.classFindMany).not.toHaveBeenCalled();
   });
 
+  it("resolves an unrestricted school-wide programme without requiring rooms", async () => {
+    mocks.activityFindFirst.mockResolvedValue({
+      ...activity(),
+      name: "School day",
+      message: "Stored",
+      teacherId: null,
+      activityInvites: [],
+    });
+
+    const response = await POST(request(sendBody({
+      message: "Stored",
+      confirmSchoolWide: true,
+      idempotencyKey: "school-wide-request-123456",
+    })), { params: Promise.resolve({ id: "activity-1" }) });
+
+    expect(response.status).toBe(201);
+    expect(mocks.classFindMany).not.toHaveBeenCalled();
+    expect(mocks.guardianFindMany.mock.calls[0][0].where).not.toHaveProperty("guardianId");
+    expect(mocks.userFindMany.mock.calls[0][0].where).not.toHaveProperty("teacherId");
+    expect(mocks.messageCreate.mock.calls[0][0].data).toMatchObject({
+      guardianRecipientCount: 2,
+      staffRecipientCount: 2,
+    });
+  });
+
+  it("keeps a teacher-only programme targeted instead of treating it as school-wide", async () => {
+    mocks.activityFindFirst.mockResolvedValue({
+      ...activity(),
+      message: "Teacher only",
+      teacherId: "teacher-owner",
+      activityInvites: [],
+    });
+    mocks.guardianFindMany.mockResolvedValue([]);
+
+    const response = await POST(request(sendBody({
+      message: "Teacher only",
+      notifyGuardians: false,
+      confirmSchoolWide: false,
+      idempotencyKey: "teacher-only-request-123456",
+    })), { params: Promise.resolve({ id: "activity-1" }) });
+
+    expect(response.status).toBe(201);
+    expect(mocks.userFindMany.mock.calls[0][0].where).toMatchObject({
+      teacherId: { in: ["teacher-owner"] },
+    });
+    expect(mocks.classFindMany).not.toHaveBeenCalled();
+  });
+
   it("returns the stored recipient and push counts on an exact retry without recomputing audience", async () => {
     mocks.messageFindFirst.mockResolvedValue({
       id: "message-existing",

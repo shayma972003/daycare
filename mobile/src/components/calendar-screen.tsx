@@ -11,7 +11,8 @@ import {
   riyadhDateKey,
 } from "@/calendar/week";
 import { AppScreen, cardStyles } from "@/components/app-screen";
-import { PrimaryButton, TextButton } from "@/components/buttons";
+import { PrimaryButton } from "@/components/buttons";
+import { IllustrationPlaceholder } from "@/components/illustration-placeholder";
 import { useSession } from "@/session";
 import { colors, radius, spacing, touchTarget } from "@/theme";
 
@@ -79,7 +80,7 @@ function eventTime(event: MobileCalendarEvent) {
 }
 
 export function CalendarScreen() {
-  const { account, signOut } = useSession();
+  const { account } = useSession();
   const firstWeekStart = useMemo(() => currentWeekStart(), []);
   const today = useMemo(() => riyadhDateKey(new Date()), []);
   const month = useMemo(() => currentMonthGrid(today), [today]);
@@ -141,27 +142,24 @@ export function CalendarScreen() {
 
   return (
     <AppScreen
-      action={<TextButton label="تسجيل الخروج" onPress={() => void signOut()} />}
+      action={(
+        <Pressable
+          accessibilityLabel="تحديث التقويم"
+          accessibilityRole="button"
+          disabled={loading}
+          onPress={() => void refresh()}
+          style={({ pressed }) => [styles.refreshButton, pressed && !loading && styles.pressed]}
+        >
+          {loading ? (
+            <ActivityIndicator color={colors.primary} size="small" />
+          ) : (
+            <Text style={styles.refreshIcon}>↻</Text>
+          )}
+        </Pressable>
+      )}
       subtitle={account.schoolName}
       title="التقويم"
     >
-      <Pressable
-        accessibilityLabel="تحديث التقويم"
-        accessibilityRole="button"
-        disabled={loading}
-        onPress={() => void refresh()}
-        style={({ pressed }) => [
-          styles.refreshButton,
-          pressed && !loading && styles.pressed,
-        ]}
-      >
-        {loading ? (
-          <ActivityIndicator color={colors.primary} size="small" />
-        ) : (
-          <Text style={styles.refreshIcon}>↻</Text>
-        )}
-      </Pressable>
-
       <View style={styles.weekSwitch}>
         <Pressable
           accessibilityRole="button"
@@ -280,7 +278,7 @@ export function CalendarScreen() {
         </View>
       ) : selectedEvents.length === 0 ? (
         <View style={styles.stateCard}>
-          <Text style={styles.emptyIcon}>📅</Text>
+          <IllustrationPlaceholder compact label="مكان رسم للتقويم" />
           <Text style={styles.emptyTitle}>لا توجد أحداث في هذا اليوم</Text>
           <Text style={cardStyles.body}>اختاري يوماً آخر من التقويم.</Text>
         </View>
@@ -341,9 +339,8 @@ const styles = StyleSheet.create({
     height: touchTarget,
     alignItems: "center",
     justifyContent: "center",
-    alignSelf: "flex-start",
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: "rgba(255,255,255,0.55)",
     borderRadius: 999,
     backgroundColor: colors.surface,
   },
@@ -355,7 +352,7 @@ const styles = StyleSheet.create({
   weekSwitch: {
     flexDirection: "row-reverse",
     padding: 4,
-    borderRadius: radius.md,
+    borderRadius: 999,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
@@ -365,7 +362,7 @@ const styles = StyleSheet.create({
     minHeight: touchTarget,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: radius.sm,
+    borderRadius: 999,
   },
   weekOptionActive: { backgroundColor: colors.primary },
   weekOptionText: { color: colors.muted, fontSize: 14, fontWeight: "700" },
@@ -379,7 +376,7 @@ const styles = StyleSheet.create({
     gap: 3,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: radius.md,
+    borderRadius: 18,
     backgroundColor: colors.surface,
   },
   dayButtonSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
@@ -392,10 +389,13 @@ const styles = StyleSheet.create({
   monthSection: {
     gap: spacing.sm,
     padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.lg,
+    borderRadius: radius.xl,
     backgroundColor: colors.surface,
+    shadowColor: colors.primaryDark,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.07,
+    shadowRadius: 20,
+    elevation: 2,
   },
   monthTitle: {
     color: colors.text,
@@ -436,14 +436,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: spacing.md,
     padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.lg,
+    borderRadius: radius.xl,
     backgroundColor: colors.surface,
   },
   errorCard: { borderColor: "#F8B4B4", backgroundColor: colors.dangerSoft },
   errorTitle: { color: colors.danger, fontSize: 17, fontWeight: "800" },
-  emptyIcon: { fontSize: 34 },
   emptyTitle: { color: colors.text, fontSize: 18, fontWeight: "800" },
   eventsList: { gap: spacing.sm },
   eventCard: {
@@ -452,7 +449,7 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: radius.md,
+    borderRadius: radius.lg,
     backgroundColor: colors.surface,
   },
   pressed: { opacity: 0.75 },

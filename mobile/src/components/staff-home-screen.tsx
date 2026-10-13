@@ -13,7 +13,7 @@ import { loadReturnedDailyCareReports, type ReturnedDailyCareBatch } from "@/api
 import { riyadhDateKey } from "@/calendar/week";
 import { AppScreen } from "@/components/app-screen";
 import { useSession } from "@/session";
-import { colors, radius, spacing, touchTarget } from "@/theme";
+import { colors, radius, shadow, spacing, touchTarget } from "@/theme";
 
 const RIYADH_ZONE = "Asia/Riyadh";
 
@@ -357,21 +357,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: "rgba(255,255,255,0.55)",
     borderRadius: 999,
     backgroundColor: colors.surface,
   },
   refreshIcon: { color: colors.primary, fontSize: 27, fontWeight: "800" },
   pressed: { opacity: 0.72 },
   arrivalNotice: {
+    ...shadow.card,
     minHeight: 96,
     flexDirection: "row-reverse",
     alignItems: "center",
     gap: spacing.md,
     padding: spacing.md,
-    borderWidth: 1,
-    borderColor: "#F4C95D",
-    borderRadius: radius.lg,
+    borderRadius: radius.xl,
     backgroundColor: colors.warningSoft,
   },
   arrivalIcon: {
@@ -398,12 +397,11 @@ const styles = StyleSheet.create({
   },
   okButtonText: { color: colors.surface, fontSize: 14, fontWeight: "900" },
   sectionCard: {
+    ...shadow.card,
     overflow: "hidden",
     gap: spacing.md,
     padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.lg,
+    borderRadius: radius.xl,
     backgroundColor: colors.surface,
   },
   sectionHeader: {

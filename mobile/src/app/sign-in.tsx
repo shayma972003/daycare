@@ -3,6 +3,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -13,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { signIn } from "@/api/auth";
 import { ApiError, type AccountKind } from "@/api/client";
 import { PrimaryButton } from "@/components/buttons";
+import { IllustrationPlaceholder } from "@/components/illustration-placeholder";
 import { useSession } from "@/session";
 import { colors, radius, spacing, touchTarget } from "@/theme";
 
@@ -53,11 +55,22 @@ export default function SignInScreen() {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={styles.keyboard}
       >
-        <View style={styles.page}>
-          <View style={styles.brand}>
-            <View style={styles.logo}>
-              <Text style={styles.logoText}>ر</Text>
+        <ScrollView
+          contentContainerStyle={styles.page}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.intro}>
+            <View style={styles.brandRow}>
+              <View style={styles.logo}>
+                <Text style={styles.logoText}>ر</Text>
+              </View>
+              <View style={styles.brandCopy}>
+                <Text style={styles.brandName}>طفولة تيك</Text>
+                <Text style={styles.brandTagline}>مدرستك أقرب إليك</Text>
+              </View>
             </View>
+            <IllustrationPlaceholder label="مكان صورة ترحيبية" />
             <Text style={styles.title}>تسجيل الدخول</Text>
             <Text style={styles.subtitle}>تطبيق المدرسة لولي الأمر والمعلم</Text>
           </View>
@@ -130,7 +143,7 @@ export default function SignInScreen() {
               الدخول بعد تفعيل الدعوة وإنشاء كلمة المرور.
             </Text>
           </View>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -140,28 +153,40 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.background },
   keyboard: { flex: 1 },
   page: {
-    flex: 1,
+    flexGrow: 1,
     width: "100%",
     maxWidth: 520,
     alignSelf: "center",
     justifyContent: "center",
     padding: spacing.lg,
-    gap: spacing.xl,
+    gap: spacing.lg,
   },
-  brand: { alignItems: "center", gap: spacing.sm },
+  intro: { alignItems: "stretch", gap: spacing.sm },
+  brandRow: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  brandCopy: { gap: 1 },
+  brandName: { color: colors.primary, fontSize: 20, fontWeight: "900", textAlign: "right" },
+  brandTagline: { color: colors.muted, fontSize: 11, fontWeight: "700", textAlign: "right" },
   logo: {
-    width: 72,
-    height: 72,
-    borderRadius: radius.lg,
+    width: 56,
+    height: 56,
+    borderRadius: 18,
     backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
   },
-  logoText: { color: colors.surface, fontSize: 32, fontWeight: "800" },
+  logoText: { color: colors.surface, fontSize: 25, fontWeight: "900" },
   title: {
     color: colors.text,
-    fontSize: 28,
-    fontWeight: "800",
+    marginTop: spacing.sm,
+    fontSize: 29,
+    fontWeight: "900",
+    textAlign: "center",
     writingDirection: "rtl",
   },
   subtitle: {
@@ -175,9 +200,14 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     gap: spacing.md,
     backgroundColor: colors.surface,
-    borderRadius: radius.lg,
+    borderRadius: radius.xl,
     borderWidth: 1,
     borderColor: colors.border,
+    shadowColor: colors.primaryDark,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.08,
+    shadowRadius: 24,
+    elevation: 3,
   },
   sectionTitle: {
     color: colors.text,
@@ -190,8 +220,8 @@ const styles = StyleSheet.create({
     flexDirection: "row-reverse",
     gap: spacing.sm,
     padding: spacing.xs,
-    backgroundColor: colors.background,
-    borderRadius: radius.md,
+    backgroundColor: colors.primarySoft,
+    borderRadius: 999,
   },
   segment: {
     flex: 1,
@@ -199,7 +229,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: radius.sm,
+    borderRadius: 999,
   },
   segmentSelected: { backgroundColor: colors.primary },
   segmentText: { color: colors.muted, fontSize: 14, fontWeight: "700" },
@@ -213,14 +243,14 @@ const styles = StyleSheet.create({
     writingDirection: "rtl",
   },
   input: {
-    minHeight: touchTarget,
+    minHeight: touchTarget + 6,
     paddingHorizontal: spacing.md,
     color: colors.text,
     fontSize: 16,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.md,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.background,
   },
   errorBox: {
     padding: spacing.md,

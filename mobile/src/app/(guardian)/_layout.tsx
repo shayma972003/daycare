@@ -1,10 +1,14 @@
 import { Tabs } from "expo-router";
-import { StyleSheet, Text, type ColorValue } from "react-native";
+import { StyleSheet, Text, View, type ColorValue } from "react-native";
 
 import { colors } from "@/theme";
 
-function TabIcon({ label, color }: { label: string; color: ColorValue }) {
-  return <Text style={[styles.icon, { color }]}>{label}</Text>;
+function TabIcon({ label, color, focused }: { label: string; color: ColorValue; focused: boolean }) {
+  return (
+    <View style={[styles.iconShell, focused && styles.iconShellActive]}>
+      <Text style={[styles.icon, { color }]}>{label}</Text>
+    </View>
+  );
 }
 
 export default function GuardianLayout() {
@@ -16,6 +20,7 @@ export default function GuardianLayout() {
         tabBarInactiveTintColor: colors.muted,
         tabBarLabelStyle: styles.label,
         tabBarStyle: styles.bar,
+        tabBarItemStyle: styles.item,
       }}
     >
       <Tabs.Screen
@@ -23,7 +28,7 @@ export default function GuardianLayout() {
         options={{
           title: "الرئيسية",
           tabBarAccessibilityLabel: "الرئيسية",
-          tabBarIcon: ({ color }) => <TabIcon color={color} label="⌂" />,
+          tabBarIcon: ({ color, focused }) => <TabIcon color={color} focused={focused} label="⌂" />,
         }}
       />
       <Tabs.Screen
@@ -31,7 +36,7 @@ export default function GuardianLayout() {
         options={{
           title: "التقويم",
           tabBarAccessibilityLabel: "التقويم",
-          tabBarIcon: ({ color }) => <TabIcon color={color} label="□" />,
+          tabBarIcon: ({ color, focused }) => <TabIcon color={color} focused={focused} label="□" />,
         }}
       />
       <Tabs.Screen
@@ -39,7 +44,7 @@ export default function GuardianLayout() {
         options={{
           title: "الرعاية",
           tabBarAccessibilityLabel: "تقارير الرعاية",
-          tabBarIcon: ({ color }) => <TabIcon color={color} label="♡" />,
+          tabBarIcon: ({ color, focused }) => <TabIcon color={color} focused={focused} label="♡" />,
         }}
       />
       <Tabs.Screen
@@ -47,7 +52,7 @@ export default function GuardianLayout() {
         options={{
           title: "الإشعارات",
           tabBarAccessibilityLabel: "الإشعارات",
-          tabBarIcon: ({ color }) => <TabIcon color={color} label="◉" />,
+          tabBarIcon: ({ color, focused }) => <TabIcon color={color} focused={focused} label="◉" />,
         }}
       />
       <Tabs.Screen
@@ -55,7 +60,7 @@ export default function GuardianLayout() {
         options={{
           title: "حسابي",
           tabBarAccessibilityLabel: "حسابي",
-          tabBarIcon: ({ color }) => <TabIcon color={color} label="●" />,
+          tabBarIcon: ({ color, focused }) => <TabIcon color={color} focused={focused} label="●" />,
         }}
       />
     </Tabs>
@@ -63,7 +68,21 @@ export default function GuardianLayout() {
 }
 
 const styles = StyleSheet.create({
-  bar: { height: 68, paddingTop: 7, paddingBottom: 9, borderTopColor: colors.border },
-  label: { fontSize: 12, fontWeight: "700" },
-  icon: { fontSize: 22, fontWeight: "800" },
+  bar: {
+    height: 78,
+    paddingTop: 7,
+    paddingBottom: 9,
+    borderTopWidth: 0,
+    backgroundColor: colors.surface,
+    elevation: 12,
+    shadowColor: colors.primaryDark,
+    shadowOffset: { width: 0, height: -6 },
+    shadowOpacity: 0.07,
+    shadowRadius: 18,
+  },
+  item: { paddingHorizontal: 2 },
+  label: { marginTop: 2, fontSize: 11, fontWeight: "800" },
+  iconShell: { width: 35, height: 28, alignItems: "center", justifyContent: "center", borderRadius: 14 },
+  iconShellActive: { backgroundColor: colors.primarySoft },
+  icon: { fontSize: 21, fontWeight: "900" },
 });

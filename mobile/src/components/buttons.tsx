@@ -1,6 +1,6 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text } from "react-native";
 
-import { colors, radius, spacing, touchTarget } from "@/theme";
+import { colors, shadow, spacing, touchTarget } from "@/theme";
 
 type PrimaryButtonProps = {
   label: string;
@@ -39,17 +39,18 @@ export function TextButton({ label, onPress }: { label: string; onPress: () => v
 
 const styles = StyleSheet.create({
   primary: {
-    minHeight: touchTarget,
+    ...shadow.card,
+    minHeight: touchTarget + 8,
     paddingHorizontal: spacing.lg,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: radius.md,
+    borderRadius: 999,
     backgroundColor: colors.primary,
   },
   primaryText: {
     color: colors.surface,
     fontSize: 16,
-    fontWeight: "700",
+    fontWeight: "800",
   },
   textButton: {
     minHeight: touchTarget,
@@ -57,7 +58,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: radius.md,
+    borderRadius: 999,
+    backgroundColor: colors.primarySoft,
   },
   textButtonLabel: {
     color: colors.primary,

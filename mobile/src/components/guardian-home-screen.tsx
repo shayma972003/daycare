@@ -9,7 +9,7 @@ import { ApiError } from "@/api/client";
 import { riyadhDateKey } from "@/calendar/week";
 import { AppScreen } from "@/components/app-screen";
 import { useSession } from "@/session";
-import { colors, radius, spacing, touchTarget } from "@/theme";
+import { colors, radius, shadow, spacing, touchTarget } from "@/theme";
 
 const RIYADH_ZONE = "Asia/Riyadh";
 
@@ -164,7 +164,15 @@ export function GuardianHomeScreen() {
       title="الرئيسية"
     >
       <View style={styles.arrivalCard}>
-        <Text style={styles.arrivalTitle}>هل أنت في الطريق؟</Text>
+        <View style={styles.arrivalHeader}>
+          <View style={styles.arrivalIcon}>
+            <Text style={styles.arrivalIconText}>⌁</Text>
+          </View>
+          <View style={styles.arrivalCopy}>
+            <Text style={styles.arrivalTitle}>هل أنت في الطريق؟</Text>
+            <Text style={styles.arrivalHint}>أرسلي تنبيهًا سريعًا للمعلمة</Text>
+          </View>
+        </View>
         <Pressable
           accessibilityRole="button"
           disabled={sending || remainingSeconds > 0}
@@ -252,27 +260,46 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: "rgba(255,255,255,0.55)",
     borderRadius: 999,
     backgroundColor: colors.surface,
   },
   refreshIcon: { color: colors.primary, fontSize: 27, fontWeight: "800" },
-  arrivalCard: { gap: spacing.md, padding: spacing.lg, borderRadius: radius.lg, backgroundColor: colors.primarySoft },
+  arrivalCard: {
+    ...shadow.card,
+    overflow: "hidden",
+    gap: spacing.md,
+    padding: spacing.lg,
+    borderRadius: radius.xl,
+    backgroundColor: colors.surface,
+  },
+  arrivalHeader: { flexDirection: "row-reverse", alignItems: "center", gap: spacing.md },
+  arrivalIcon: {
+    width: 56,
+    height: 56,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 20,
+    backgroundColor: colors.primarySoft,
+  },
+  arrivalIconText: { color: colors.primary, fontSize: 29, fontWeight: "900" },
+  arrivalCopy: { flex: 1, gap: 3 },
   arrivalTitle: { color: colors.text, fontSize: 20, fontWeight: "900", textAlign: "right", writingDirection: "rtl" },
+  arrivalHint: { color: colors.muted, fontSize: 12, textAlign: "right", writingDirection: "rtl" },
   arrivalButton: { minHeight: touchTarget + 8, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.md, borderRadius: radius.md, backgroundColor: colors.primary },
   arrivalButtonDisabled: { backgroundColor: colors.muted },
   arrivalButtonText: { color: colors.surface, fontSize: 16, fontWeight: "900" },
   pressed: { opacity: 0.75 },
   successMessage: { color: colors.success, fontSize: 14, fontWeight: "800", textAlign: "center" },
   errorMessage: { color: colors.danger, fontSize: 13, fontWeight: "700", textAlign: "center" },
-  reportNotice: { minHeight: 78, flexDirection: "row-reverse", alignItems: "center", gap: spacing.md, padding: spacing.md, borderWidth: 1, borderColor: "#C7B4F6", borderRadius: radius.lg, backgroundColor: colors.surface },
+  reportNotice: { ...shadow.card, minHeight: 78, flexDirection: "row-reverse", alignItems: "center", gap: spacing.md, padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.surface },
   reportCount: { width: 42, height: 42, alignItems: "center", justifyContent: "center", borderRadius: 21, backgroundColor: colors.primary },
   reportCountText: { color: colors.surface, fontSize: 18, fontWeight: "900" },
   reportCopy: { flex: 1, gap: 4 },
   reportTitle: { color: colors.text, fontSize: 15, fontWeight: "900", textAlign: "right", writingDirection: "rtl" },
   reportNames: { color: colors.muted, fontSize: 12, textAlign: "right", writingDirection: "rtl" },
   noticeArrow: { color: colors.primary, fontSize: 27, fontWeight: "900" },
-  eventsCard: { gap: spacing.md, padding: spacing.md, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, backgroundColor: colors.surface },
+  eventsCard: { ...shadow.card, gap: spacing.md, padding: spacing.lg, borderRadius: radius.xl, backgroundColor: colors.surface },
   sectionHeader: { minHeight: 32, flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", gap: spacing.md },
   sectionTitle: { color: colors.text, fontSize: 18, fontWeight: "900", textAlign: "right", writingDirection: "rtl" },
   sectionAction: { color: colors.primary, fontSize: 13, fontWeight: "800" },

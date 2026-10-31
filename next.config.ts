@@ -15,10 +15,11 @@ const securityHeaders = [
   { key: "X-Frame-Options", value: "DENY" },
   // Never leak a full dashboard URL (which contains ids) to a third-party site.
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  // The app needs none of these; denying them shrinks the attack surface.
+  // Location attendance needs same-origin geolocation. Keep unrelated device
+  // capabilities denied so embedded or third-party content cannot request them.
   {
     key: "Permissions-Policy",
-    value: "camera=(), microphone=(), geolocation=(), interest-cohort=()",
+    value: "camera=(), microphone=(), geolocation=(self), interest-cohort=()",
   },
   {
     key: "Content-Security-Policy",

@@ -9,6 +9,7 @@ import {
 } from "@/lib/data-retention";
 import { z } from "zod";
 import { logSafeError } from "@/lib/safe-logger";
+import type { Prisma } from "@/generated/prisma/client";
 
 /**
  * Retention policy administration.
@@ -87,30 +88,57 @@ export async function PUT(request: Request) {
   }
 
   try {
-    const updated = await prisma.systemSettings.update({
-      where: { id: SYSTEM_SETTINGS_ID },
-      data: {
-        ...(studentRetentionYears !== undefined && { studentRetentionYears }),
-        ...(employeeRetentionYears !== undefined && { employeeRetentionYears }),
-        ...(anonymizationEnabled !== undefined && { anonymizationEnabled }),
-        updatedBy: session.adminId,
-      },
+    const result = await prisma.$transaction(async (tx) => {
+      const previous = await tx.systemSettings.findUniqueOrThrow({
+        where: { id: SYSTEM_SETTINGS_ID },
+        select: {
+          studentRetentionYears: true,
+          employeeRetentionYears: true,
+          anonymizationEnabled: true,
+        },
+      });
+      const updated = await tx.systemSettings.update({
+        where: { id: SYSTEM_SETTINGS_ID },
+        data: {
+          ...(studentRetentionYears !== undefined && { studentRetentionYears }),
+          ...(employeeRetentionYears !== undefined && { employeeRetentionYears }),
+          ...(anonymizationEnabled !== undefined && { anonymizationEnabled }),
+          updatedBy: session.adminId,
+        },
+      });
+
+      // Existing departed records are re-dated to the new policy. Leaving them on
+      // the old schedule would mean two children who left the same week expire
+      // years apart, which is impossible to explain to a regulator — and shortening
+      // the period would otherwise have no effect on the very records it was
+      // shortened for.
+      let rescheduled = 0;
+      if (studentRetentionYears !== undefined) {
+        rescheduled += await rescheduleStudents(tx, studentRetentionYears);
+      }
+      if (employeeRetentionYears !== undefined) {
+        rescheduled += await rescheduleTeachers(tx, employeeRetentionYears);
+      }
+
+      await tx.adminActivityLog.create({
+        data: {
+          action: "data_retention_policy_updated",
+          performed_by: session.adminId,
+          metadata: {
+            previous,
+            next: {
+              studentRetentionYears: updated.studentRetentionYears,
+              employeeRetentionYears: updated.employeeRetentionYears,
+              anonymizationEnabled: updated.anonymizationEnabled,
+            },
+            rescheduled,
+          },
+        },
+      });
+      return { ...updated, rescheduled };
     });
 
-    // Existing departed records are re-dated to the new policy. Leaving them on
-    // the old schedule would mean two children who left the same week expire
-    // years apart, which is impossible to explain to a regulator — and shortening
-    // the period would otherwise have no effect on the very records it was
-    // shortened for.
-    let rescheduled = 0;
-    if (studentRetentionYears !== undefined) {
-      rescheduled += await rescheduleStudents(studentRetentionYears);
-    }
-    if (employeeRetentionYears !== undefined) {
-      rescheduled += await rescheduleTeachers(employeeRetentionYears);
-    }
-
-    return Response.json({ ...updated, rescheduled });
+    return Response.json(result);
   } catch (error) {
     logSafeError("admin-data-retention-put", error);
     return Response.json({ error: "تعذر حفظ الإعدادات" }, { status: 500 });
@@ -135,8 +163,8 @@ export async function PUT(request: Request) {
  * Already-anonymised rows are excluded — their date is history, and there is
  * nothing left to expire.
  */
-async function rescheduleStudents(years: number): Promise<number> {
-  return prisma.$executeRaw`
+async function rescheduleStudents(tx: Prisma.TransactionClient, years: number): Promise<number> {
+  return tx.$executeRaw`
     UPDATE "Student"
     SET "retentionUntil" =
           date_trunc('day', "leftAt" + INTERVAL '3 hours')
@@ -146,8 +174,8 @@ async function rescheduleStudents(years: number): Promise<number> {
   `;
 }
 
-async function rescheduleTeachers(years: number): Promise<number> {
-  return prisma.$executeRaw`
+async function rescheduleTeachers(tx: Prisma.TransactionClient, years: number): Promise<number> {
+  return tx.$executeRaw`
     UPDATE "Teacher"
     SET "retentionUntil" =
           date_trunc('day', "leftAt" + INTERVAL '3 hours')

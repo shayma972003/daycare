@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
 
 import { loadMessages, markMessageRead, type MobileMessage } from "@/api/messages";
 import { AppScreen } from "@/components/app-screen";
 import { TextButton } from "@/components/buttons";
+import { Text, useLanguage } from "@/language";
 import { useSession } from "@/session";
 import { colors, radius, spacing, touchTarget } from "@/theme";
 
@@ -22,8 +23,8 @@ function kindLabel(kind: MobileMessage["kind"]) {
   return "إعلان";
 }
 
-function formatMessageDate(value: string) {
-  return new Intl.DateTimeFormat("ar-SA-u-ca-gregory-nu-latn", {
+function formatMessageDate(value: string, locale: string) {
+  return new Intl.DateTimeFormat(locale, {
     timeZone: "Asia/Riyadh",
     day: "numeric",
     month: "short",
@@ -32,9 +33,9 @@ function formatMessageDate(value: string) {
   }).format(new Date(value));
 }
 
-function formatAbsenceDate(value: string | null) {
+function formatAbsenceDate(value: string | null, locale: string) {
   if (!value) return null;
-  return new Intl.DateTimeFormat("ar-SA-u-ca-gregory-nu-latn", {
+  return new Intl.DateTimeFormat(locale, {
     timeZone: "UTC",
     weekday: "long",
     day: "numeric",
@@ -44,6 +45,7 @@ function formatAbsenceDate(value: string | null) {
 
 export function GuardianNotificationsScreen() {
   const { account } = useSession();
+  const { isRTL, locale, t } = useLanguage();
   const router = useRouter();
   const [messages, setMessages] = useState<MobileMessage[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -129,7 +131,7 @@ export function GuardianNotificationsScreen() {
     <AppScreen
       action={(
         <Pressable
-          accessibilityLabel="تحديث الإشعارات"
+          accessibilityLabel={t("تحديث الإشعارات")}
           accessibilityRole="button"
           disabled={refreshing}
           onPress={() => void reload()}
@@ -144,7 +146,7 @@ export function GuardianNotificationsScreen() {
       title="الإشعارات"
     >
       {unreadCount > 0 ? (
-        <View style={styles.actions}>
+        <View style={[styles.actions, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
           <Text style={styles.unreadText}>{unreadCount} إشعار غير مقروء</Text>
           <TextButton label="تحديد الكل كمقروء" onPress={() => void markAll()} />
         </View>
@@ -168,7 +170,9 @@ export function GuardianNotificationsScreen() {
           {messages.map((message) => (
             <MessageCard
               expanded={expandedId === message.recipientId}
+              isRTL={isRTL}
               key={message.recipientId}
+              locale={locale}
               message={message}
               onOpenCalendar={() => router.push("/(guardian)/calendar")}
               onPress={() => void openMessage(message)}
@@ -180,13 +184,15 @@ export function GuardianNotificationsScreen() {
   );
 }
 
-function MessageCard({ expanded, message, onOpenCalendar, onPress }: {
+function MessageCard({ expanded, isRTL, locale, message, onOpenCalendar, onPress }: {
   expanded: boolean;
+  isRTL: boolean;
+  locale: string;
   message: MobileMessage;
   onOpenCalendar: () => void;
   onPress: () => void;
 }) {
-  const absenceDate = formatAbsenceDate(message.absenceDate);
+  const absenceDate = formatAbsenceDate(message.absenceDate, locale);
   return (
     <Pressable
       accessibilityRole="button"
@@ -198,11 +204,11 @@ function MessageCard({ expanded, message, onOpenCalendar, onPress }: {
         pressed && styles.pressed,
       ]}
     >
-      <View style={styles.messageHeader}>
+      <View style={[styles.messageHeader, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
         {!message.readAt ? <View style={styles.unreadDot} /> : null}
         <View style={styles.messageCopy}>
           <Text style={styles.messageTitle}>{messageTitle(message)}</Text>
-          <Text style={styles.messageDate}>{formatMessageDate(message.createdAt)}</Text>
+          <Text style={styles.messageDate}>{formatMessageDate(message.createdAt, locale)}</Text>
         </View>
         <View style={styles.kindBadge}>
           <Text style={styles.kindText}>{kindLabel(message.kind)}</Text>

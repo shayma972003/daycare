@@ -15,17 +15,22 @@ describe("mobile care tab", () => {
 
     expect(guardianLayout).toContain('name="care"');
     expect(staffLayout).toContain('name="care"');
-    expect(guardianLayout).toContain('tabBarAccessibilityLabel: "تقارير الرعاية"');
-    expect(staffLayout).toContain('tabBarAccessibilityLabel: "تقارير الرعاية"');
+    expect(guardianLayout).toContain('tabBarAccessibilityLabel: t("تقارير الرعاية")');
+    expect(staffLayout).toContain('tabBarAccessibilityLabel: t("تقارير الرعاية")');
   });
 
   it("keeps guardian reports read-only and child scoped", () => {
     const api = source("mobile", "src", "api", "care.ts");
     const screen = source("mobile", "src", "components", "guardian-care-screen.tsx");
+    const display = source("mobile", "src", "care-report-display.ts");
 
     expect(api).toContain("loadGuardianCareReports");
     expect(api).toContain("encodeURIComponent(studentId)");
     expect(screen).toContain("لا توجد تقارير معتمدة بعد");
+    expect(screen).toContain("careReportTypeLabel(report, language)");
+    expect(screen).toContain("careReportSummary(report, language)");
+    expect(display).toContain('HEALTH: "General health"');
+    expect(display).toContain('SUPPLIES: "Supply request"');
     expect(screen).not.toContain("createCareReports");
   });
 

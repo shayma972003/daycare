@@ -1,6 +1,7 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { syncExpenseOccurrence } from "@/lib/expense-occurrences";
+import { activityLogData } from "@/lib/activity-logger";
 import { logSafeError } from "@/lib/safe-logger";
 import { z } from "zod";
 
@@ -90,6 +91,17 @@ export async function POST(request: Request) {
         },
       });
       await syncExpenseOccurrence(created.id, tx);
+      await tx.activityLog.create({
+        data: activityLogData({
+          school_id: schoolId,
+          action: "expense created",
+          entity_type: "expense",
+          entity_id: created.id,
+          entity_name: created.title,
+          performed_by: session.user.name ?? "admin",
+          request,
+        }),
+      });
       return created;
     });
     return Response.json(expense, { status: 201 });

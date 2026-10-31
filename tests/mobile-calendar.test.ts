@@ -69,7 +69,7 @@ describe("mobile calendar contracts", () => {
     expect(screen).toContain("هذا الأسبوع");
     expect(screen).toContain("الشهر");
     expect(screen).toContain("currentMonthGrid");
-    expect(screen).toContain('accessibilityLabel="تحديث التقويم"');
+    expect(screen).toContain('accessibilityLabel={t("تحديث التقويم")}');
     expect(screen).not.toContain("الأسبوع القادم");
     expect(screen).not.toContain("أحداث الأسبوع");
   });

@@ -20,8 +20,8 @@ describe("StoredFile ownership migration", () => {
     expect(schema).toContain("enum StoredFileOwnerType");
     expect(schema).toContain("ENROLLMENT_TOKEN");
     expect(schema).toContain("ENROLLMENT_SUBMISSION");
-    expect(schema).toContain("ownerType   StoredFileOwnerType @default(LEGACY)");
-    expect(schema).toContain("deletePendingAt DateTime?");
+    expect(schema).toMatch(/ownerType\s+StoredFileOwnerType\s+@default\(LEGACY\)/);
+    expect(schema).toMatch(/deletePendingAt\s+DateTime\?/);
     expect(migration).toContain('CREATE TYPE "StoredFileOwnerType"');
     expect(migration).toContain('"StoredFile_schoolId_ownerType_ownerId_idx"');
   });

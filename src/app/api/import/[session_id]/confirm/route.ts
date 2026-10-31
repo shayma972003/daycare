@@ -45,6 +45,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ session
   }
   const { session_id: sessionId } = await params;
 
+  const importType = await prisma.importSession.findFirst({
+    where: { id: sessionId, school_id: schoolId },
+    select: { type: true },
+  });
+  if (importType?.type === 'students' && !session.can('students.health')) {
+    return Response.json({ error: 'Forbidden', code: 'HEALTH_ACCESS_REQUIRED' }, { status: 403 });
+  }
+
   const claimed = await prisma.importSession.updateMany({
     where: {
       id: sessionId,

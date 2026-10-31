@@ -16,7 +16,10 @@ const mocks = vi.hoisted(() => ({
   signedReadUrl: vi.fn(),
 }));
 
-vi.mock("@/lib/env", () => ({ storageEnabled: true }));
+vi.mock("@/lib/env", () => ({
+  env: { NODE_ENV: "test" },
+  storageEnabled: true,
+}));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     storedFile: { findFirst: mocks.storedFileFindFirst },

@@ -81,6 +81,20 @@ const envSchema = z.object({
   /** Public links in outbound messages. Falls back to NEXTAUTH_URL. */
   NEXT_PUBLIC_APP_URL: optional(z.string().url()),
 
+  // AI assistant. Both values are server-only and the feature stays disabled
+  // unless the selected provider is configured. Never prefix these values
+  // with NEXT_PUBLIC_. Ollama is deliberately restricted to this machine.
+  AI_PROVIDER: optional(z.enum(["openai", "ollama"])),
+  OPENAI_API_KEY: optional(z.string().min(1)),
+  OPENAI_MODEL: optional(z.string().min(1)),
+  OLLAMA_BASE_URL: optional(
+    z.string().url().refine((value) => {
+      const url = new URL(value);
+      return url.protocol === "http:" && ["127.0.0.1", "localhost", "::1"].includes(url.hostname);
+    }, "OLLAMA_BASE_URL must be a local HTTP URL")
+  ),
+  OLLAMA_MODEL: optional(z.string().min(1)),
+
   // ─── Monitoring — every one optional, the app runs without them ───────────
   /**
    * Sentry. Public by design: a DSN is embedded in the browser bundle and is not
@@ -112,6 +126,14 @@ const envSchema = z.object({
 
 }).superRefine((value, ctx) => {
   if (value.NODE_ENV !== "production") return;
+
+  if (value.AI_PROVIDER === "ollama") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["AI_PROVIDER"],
+      message: "Ollama is limited to local development",
+    });
+  }
 
   for (const name of ["PII_ENCRYPTION_KEY", "PII_INDEX_PEPPER", "OTP_HASH_PEPPER"] as const) {
     if (!value[name]) {

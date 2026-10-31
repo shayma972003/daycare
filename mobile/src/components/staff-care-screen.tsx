@@ -4,7 +4,6 @@ import {
   Modal,
   Pressable,
   StyleSheet,
-  Text,
   TextInput,
   View,
 } from "react-native";
@@ -24,6 +23,7 @@ import {
 import { riyadhDateKey } from "@/calendar/week";
 import { AppScreen } from "@/components/app-screen";
 import { PrimaryButton, TextButton } from "@/components/buttons";
+import { Text, useLanguage } from "@/language";
 import { useSession } from "@/session";
 import { colors, radius, spacing, touchTarget } from "@/theme";
 
@@ -109,9 +109,9 @@ function timeFromIso(value: string | null | undefined) {
   }).format(new Date(value));
 }
 
-function formatReturnedAt(value: string | null) {
+function formatReturnedAt(value: string | null, locale: string) {
   if (!value) return "";
-  return new Intl.DateTimeFormat("ar-SA", {
+  return new Intl.DateTimeFormat(locale, {
     timeZone: "Asia/Riyadh",
     day: "numeric",
     month: "long",
@@ -152,6 +152,7 @@ function freshEntries(students: CareStudent[], returned?: ReturnedDailyCareBatch
 
 export function StaffCareScreen() {
   const { account, signOut } = useSession();
+  const { isRTL } = useLanguage();
   const [activeTab, setActiveTab] = useState<"create" | "returned">("create");
   const [students, setStudents] = useState<CareStudent[]>([]);
   const [returned, setReturned] = useState<ReturnedDailyCareBatch[]>([]);
@@ -227,7 +228,10 @@ export function StaffCareScreen() {
       subtitle={account.schoolName}
       title="تقارير الرعاية"
     >
-      <View accessibilityRole="tablist" style={styles.modeTabs}>
+      <View
+        accessibilityRole="tablist"
+        style={[styles.modeTabs, { flexDirection: isRTL ? "row-reverse" : "row" }]}
+      >
         <ModeTab
           active={activeTab === "create"}
           label="إنشاء التقارير"
@@ -336,6 +340,7 @@ function ReturnedList({ batches, onOpen, onRefresh }: {
   onOpen: (batch: ReturnedDailyCareBatch) => void;
   onRefresh: () => Promise<void>;
 }) {
+  const { isRTL, locale } = useLanguage();
   return (
     <View style={styles.listSection}>
       <SectionHeading
@@ -344,10 +349,10 @@ function ReturnedList({ batches, onOpen, onRefresh }: {
       />
       {batches.map((batch) => (
         <View key={batch.batchId} style={styles.returnedCard}>
-          <View style={styles.returnedHeader}>
+          <View style={[styles.returnedHeader, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
             <View style={styles.returnedTitleCopy}>
               <Text style={styles.returnedTitle}>{batch.students.map((student) => student.name).join("، ")}</Text>
-              <Text style={styles.metaText}>{batch.students.length} أطفال · {formatReturnedAt(batch.returnedAt)}</Text>
+              <Text style={styles.metaText}>{batch.students.length} أطفال · {formatReturnedAt(batch.returnedAt, locale)}</Text>
             </View>
             <View style={styles.returnedBadge}>
               <Text style={styles.returnedBadgeText}>مرتجع</Text>
@@ -374,6 +379,7 @@ function DailyCareForm({ initialBatch, onBack, onCreated, onSubmit, onSubmitted,
   reviewRequired: boolean;
   students: CareStudent[];
 }) {
+  const { isRTL } = useLanguage();
   const today = useMemo(() => riyadhDateKey(new Date()), []);
   const returnedMode = Boolean(initialBatch);
   const [selectedIds, setSelectedIds] = useState<string[]>(() => students.map((student) => student.id));
@@ -472,7 +478,7 @@ function DailyCareForm({ initialBatch, onBack, onCreated, onSubmit, onSubmitted,
     <View style={styles.formStack}>
       {returnedMode ? (
         <View style={styles.returnedEditorHeader}>
-          <View style={styles.returnedEditorTitleRow}>
+          <View style={[styles.returnedEditorTitleRow, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
             <Text style={styles.returnedEditorTitle}>تعديل التقرير المرتجع</Text>
             {onBack ? <TextButton label="رجوع" onPress={onBack} /> : null}
           </View>
@@ -502,7 +508,7 @@ function DailyCareForm({ initialBatch, onBack, onCreated, onSubmit, onSubmitted,
       <View style={styles.sectionPanel}>
         <View style={styles.childrenHeading}>
           <SectionHeading subtitle="كل الحقول اختيارية؛ سجّلي فقط ما حدث للطفل." title="تفاصيل الأطفال" />
-          <View style={styles.selectionSummary}>
+          <View style={[styles.selectionSummary, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
             <Text style={styles.selectionText}>{selectedIds.length} محدد</Text>
             {!returnedMode ? (
               <TextButton
@@ -549,8 +555,9 @@ function DailyCareForm({ initialBatch, onBack, onCreated, onSubmit, onSubmitted,
 }
 
 function SectionHeading({ subtitle, title }: { subtitle: string; title: string }) {
+  const { isRTL } = useLanguage();
   return (
-    <View style={styles.sectionHeading}>
+    <View style={[styles.sectionHeading, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
       <View style={styles.sectionAccent} />
       <View style={styles.sectionHeadingCopy}>
         <Text style={styles.sectionTitle}>{title}</Text>
@@ -599,6 +606,7 @@ function ChildCareRow({ entry, expanded, isLast, locked, onChange, onToggle, onT
   selected: boolean;
   student: CareStudent;
 }) {
+  const { isRTL } = useLanguage();
   return (
     <View style={[styles.childRow, !isLast && styles.childRowBorder, !selected && styles.childRowInactive]}>
       <Pressable
@@ -606,7 +614,7 @@ function ChildCareRow({ entry, expanded, isLast, locked, onChange, onToggle, onT
         accessibilityState={{ checked: selected, disabled: locked }}
         disabled={locked}
         onPress={onToggle}
-        style={styles.childHeader}
+        style={[styles.childHeader, { flexDirection: isRTL ? "row-reverse" : "row" }]}
       >
         <View style={[styles.check, selected && styles.checkSelected]}>
           <Text style={styles.checkText}>{selected ? "✓" : ""}</Text>
@@ -623,7 +631,7 @@ function ChildCareRow({ entry, expanded, isLast, locked, onChange, onToggle, onT
           <View style={styles.fieldDivider} />
           <LabeledChoices label="النوم" onChange={(value) => onChange({ napStatus: value as NapStatus, ...(value !== "SLEPT" ? { napStart: "", napEnd: "" } : {}) })} options={[["NO_RECORD", "لم يسجل"], ["SLEPT", "نام"], ["DID_NOT_SLEEP", "لم ينم"]]} value={entry.napStatus} />
           {entry.napStatus === "SLEPT" ? (
-            <View style={styles.twoColumns}>
+            <View style={[styles.twoColumns, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
               <TimePickerField compact label="من (اختياري)" onChange={(napStart) => onChange({ napStart })} value={entry.napStart} />
               <TimePickerField compact label="إلى (اختياري)" onChange={(napEnd) => onChange({ napEnd })} value={entry.napEnd} />
             </View>
@@ -633,7 +641,11 @@ function ChildCareRow({ entry, expanded, isLast, locked, onChange, onToggle, onT
           {entry.toilet !== "NO_RECORD" ? <TimePickerField label="الوقت (اختياري)" onChange={(toiletTime) => onChange({ toiletTime })} value={entry.toiletTime} /> : null}
           <View style={styles.fieldDivider} />
           <LabeledChoices label="المزاج" onChange={(value) => onChange({ mood: value as Mood })} options={[["", "لم يسجل"], ["HAPPY", "سعيد"], ["CALM", "هادئ"], ["TIRED", "متعب"], ["UPSET", "منزعج"], ["CRYING", "يبكي"], ["UNWELL", "متوعك"]]} value={entry.mood} />
-          <Pressable accessibilityRole="button" onPress={onToggleExpanded} style={styles.detailsButton}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={onToggleExpanded}
+            style={[styles.detailsButton, { flexDirection: isRTL ? "row-reverse" : "row" }]}
+          >
             <Text style={styles.detailsButtonText}>ملاحظات وتفاصيل إضافية</Text>
             <Text style={styles.detailsChevron}>{expanded ? "−" : "+"}</Text>
           </Pressable>
@@ -663,10 +675,11 @@ function LabeledChoices({ label, onChange, options, value }: {
   options: [string, string][];
   value: string;
 }) {
+  const { isRTL } = useLanguage();
   return (
     <View style={styles.choiceField}>
       <Text style={styles.fieldLabel}>{label}</Text>
-      <View style={styles.options}>
+      <View style={[styles.options, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
         {options.map(([optionValue, optionLabel]) => (
           <Choice active={value === optionValue} key={`${label}-${optionValue || "empty"}`} label={optionLabel} onPress={() => onChange(optionValue)} />
         ))}
@@ -693,12 +706,15 @@ function timePickerParts(value: string) {
   };
 }
 
-function displayTime(value: string) {
+function displayTime(value: string, language: "ar" | "en") {
   if (!value) return "اختيار الوقت";
   const normalized = normalizeTime(value);
   if (!normalized) return "اختيار الوقت";
   const [hour24, minute] = normalized.split(":").map(Number);
-  return `${hour24 % 12 || 12}:${String(minute).padStart(2, "0")} ${hour24 >= 12 ? "م" : "ص"}`;
+  const period = language === "ar"
+    ? hour24 >= 12 ? "م" : "ص"
+    : hour24 >= 12 ? "PM" : "AM";
+  return `${hour24 % 12 || 12}:${String(minute).padStart(2, "0")} ${period}`;
 }
 
 function TimePickerField({ compact = false, label, onChange, value }: {
@@ -707,6 +723,7 @@ function TimePickerField({ compact = false, label, onChange, value }: {
   onChange: (value: string) => void;
   value: string;
 }) {
+  const { isRTL, language } = useLanguage();
   const initial = timePickerParts(value);
   const [open, setOpen] = useState(false);
   const [hour, setHour] = useState(initial.hour);
@@ -732,8 +749,12 @@ function TimePickerField({ compact = false, label, onChange, value }: {
   return (
     <View style={[styles.field, compact && styles.compactField]}>
       <Text style={styles.fieldLabel}>{label}</Text>
-      <Pressable accessibilityRole="button" onPress={openPicker} style={styles.timeButton}>
-        <Text style={[styles.timeButtonText, !value && styles.timeButtonPlaceholder]}>{displayTime(value)}</Text>
+      <Pressable
+        accessibilityRole="button"
+        onPress={openPicker}
+        style={[styles.timeButton, { flexDirection: isRTL ? "row" : "row-reverse" }]}
+      >
+        <Text style={[styles.timeButtonText, !value && styles.timeButtonPlaceholder]}>{displayTime(value, language)}</Text>
         <Text style={styles.timeIcon}>◷</Text>
       </Pressable>
       <Modal animationType="fade" onRequestClose={() => setOpen(false)} transparent visible={open}>
@@ -741,7 +762,7 @@ function TimePickerField({ compact = false, label, onChange, value }: {
           <View style={styles.timeModal}>
             <Text style={styles.timeModalTitle}>{label}</Text>
             <Text style={styles.timeModalHint}>اختاري الساعة والدقيقة</Text>
-            <View style={styles.timeSelectors}>
+            <View style={[styles.timeSelectors, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
               <TimeStepper
                 label="الساعة"
                 onDecrease={() => setHour((current) => current === 1 ? 12 : current - 1)}
@@ -755,7 +776,7 @@ function TimePickerField({ compact = false, label, onChange, value }: {
                 value={String(minute).padStart(2, "0")}
               />
             </View>
-            <View style={styles.periodChoices}>
+            <View style={[styles.periodChoices, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
               <Choice active={period === "AM"} label="صباحًا" onPress={() => setPeriod("AM")} />
               <Choice active={period === "PM"} label="مساءً" onPress={() => setPeriod("PM")} />
             </View>
@@ -777,15 +798,16 @@ function TimeStepper({ label, onDecrease, onIncrease, value }: {
   onIncrease: () => void;
   value: string;
 }) {
+  const { t } = useLanguage();
   return (
     <View style={styles.timeStepper}>
       <Text style={styles.timeStepperLabel}>{label}</Text>
       <View style={styles.timeStepperControls}>
-        <Pressable accessibilityLabel={`إنقاص ${label}`} accessibilityRole="button" onPress={onDecrease} style={styles.stepButton}>
+        <Pressable accessibilityLabel={`${t("تقليل")} ${t(label)}`} accessibilityRole="button" onPress={onDecrease} style={styles.stepButton}>
           <Text style={styles.stepButtonText}>−</Text>
         </Pressable>
         <Text style={styles.stepValue}>{value}</Text>
-        <Pressable accessibilityLabel={`زيادة ${label}`} accessibilityRole="button" onPress={onIncrease} style={styles.stepButton}>
+        <Pressable accessibilityLabel={`${t("زيادة")} ${t(label)}`} accessibilityRole="button" onPress={onIncrease} style={styles.stepButton}>
           <Text style={styles.stepButtonText}>+</Text>
         </Pressable>
       </View>
@@ -801,16 +823,17 @@ function Field({ compact = false, label, multiline = false, onChangeText, placeh
   placeholder?: string;
   value: string;
 }) {
+  const { isRTL, t } = useLanguage();
   return (
     <View style={[styles.field, compact && styles.compactField]}>
       <Text style={styles.fieldLabel}>{label}</Text>
       <TextInput
         multiline={multiline}
         onChangeText={onChangeText}
-        placeholder={placeholder}
+        placeholder={placeholder ? t(placeholder) : undefined}
         placeholderTextColor={colors.muted}
         style={[styles.input, multiline && styles.multiline]}
-        textAlign="right"
+        textAlign={isRTL ? "right" : "left"}
         value={value}
       />
     </View>

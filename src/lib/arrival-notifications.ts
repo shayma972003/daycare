@@ -3,6 +3,21 @@ import { enqueuePush } from "@/lib/push";
 import { logSafeError } from "@/lib/safe-logger";
 
 export const ARRIVAL_COOLDOWN_MS = 5 * 60 * 1000;
+export const ARRIVAL_MINUTE_OPTIONS = [0, 5, 10, 15] as const;
+export type ArrivalMinutes = (typeof ARRIVAL_MINUTE_OPTIONS)[number];
+
+export function arrivalNoticeMessage(senderName: string, minutes: ArrivalMinutes) {
+  return minutes === 0
+    ? `ولي الأمر ${senderName} وصل`
+    : `سيصل ${senderName} خلال ${minutes} دقائق`;
+}
+
+export function arrivalMinutesFromDates(expectedAt: Date, createdAt: Date): ArrivalMinutes {
+  const minutes = Math.max(0, Math.round((expectedAt.getTime() - createdAt.getTime()) / 60_000));
+  return ARRIVAL_MINUTE_OPTIONS.includes(minutes as ArrivalMinutes)
+    ? minutes as ArrivalMinutes
+    : 5;
+}
 
 export type ArrivalNoticeResult =
   | {
@@ -10,6 +25,7 @@ export type ArrivalNoticeResult =
       noticeId: string;
       message: string;
       expectedAt: Date;
+      cooldownUntil: Date;
       recipients: number;
       pushQueued: number;
     }
@@ -29,10 +45,13 @@ export type ArrivalNoticeResult =
 export async function createGuardianArrivalNotice(input: {
   schoolId: string;
   guardianAccountId: string;
+  arrivalMinutes?: ArrivalMinutes;
   now?: Date;
 }): Promise<ArrivalNoticeResult> {
   const now = input.now ?? new Date();
+  const arrivalMinutes = input.arrivalMinutes ?? 5;
   const cooldownStartedBefore = new Date(now.getTime() - ARRIVAL_COOLDOWN_MS);
+  const cooldownUntil = new Date(now.getTime() + ARRIVAL_COOLDOWN_MS);
 
   const result = await prisma.$transaction(async (tx) => {
     const account = await tx.guardianAccount.findFirst({
@@ -90,7 +109,7 @@ export async function createGuardianArrivalNotice(input: {
       orderBy: { createdAt: "asc" },
     });
     const senderName = account.guardian.name.trim() || "ولي الأمر";
-    const expectedAt = new Date(now.getTime() + ARRIVAL_COOLDOWN_MS);
+    const expectedAt = new Date(now.getTime() + arrivalMinutes * 60_000);
     const notice = await tx.arrivalNotice.create({
       data: {
         schoolId: input.schoolId,
@@ -127,7 +146,7 @@ export async function createGuardianArrivalNotice(input: {
     };
   }
 
-  const message = `سيصل ${result.notice.senderName} خلال 5 دقائق`;
+  const message = arrivalNoticeMessage(result.notice.senderName, arrivalMinutes);
   const deliveries = await Promise.allSettled(
     result.notice.recipients.map((recipient) =>
       enqueuePush(
@@ -169,6 +188,7 @@ export async function createGuardianArrivalNotice(input: {
     noticeId: result.notice.id,
     message,
     expectedAt: result.notice.expectedAt,
+    cooldownUntil,
     recipients: result.notice.recipients.length,
     pushQueued,
   };

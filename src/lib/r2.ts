@@ -82,6 +82,7 @@ export type FileCategory =
   | "units"
   | "activities"
   | "classes"
+  | "support"
   | "school";
 
 /**

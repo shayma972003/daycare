@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
 
 import { loadCalendar, type CalendarEventType, type MobileCalendarEvent } from "@/api/calendar";
 import {
@@ -13,6 +13,7 @@ import {
 import { AppScreen, cardStyles } from "@/components/app-screen";
 import { PrimaryButton } from "@/components/buttons";
 import { IllustrationPlaceholder } from "@/components/illustration-placeholder";
+import { Text, useLanguage } from "@/language";
 import { useSession } from "@/session";
 import { colors, radius, spacing, touchTarget } from "@/theme";
 
@@ -32,8 +33,8 @@ const TYPE_COLORS: Record<CalendarEventType, string> = {
   UNIT: "#067647",
 };
 
-function dayLabel(value: string) {
-  return new Intl.DateTimeFormat("ar-SA-u-ca-gregory-nu-latn", {
+function dayLabel(value: string, locale: string) {
+  return new Intl.DateTimeFormat(locale, {
     timeZone: RIYADH_ZONE,
     weekday: "long",
     day: "numeric",
@@ -42,45 +43,46 @@ function dayLabel(value: string) {
   }).format(new Date(value));
 }
 
-function weekdayLabel(value: string) {
-  return new Intl.DateTimeFormat("ar-SA-u-ca-gregory-nu-latn", {
+function weekdayLabel(value: string, locale: string) {
+  return new Intl.DateTimeFormat(locale, {
     timeZone: "UTC",
     weekday: "short",
   }).format(new Date(`${value}T12:00:00.000Z`));
 }
 
-function dayNumber(value: string) {
-  return new Intl.DateTimeFormat("ar-SA-u-ca-gregory-nu-latn", {
+function dayNumber(value: string, locale: string) {
+  return new Intl.DateTimeFormat(locale, {
     timeZone: "UTC",
     day: "numeric",
   }).format(new Date(`${value}T12:00:00.000Z`));
 }
 
-function monthLabel(value: string) {
-  return new Intl.DateTimeFormat("ar-SA-u-ca-gregory-nu-latn", {
+function monthLabel(value: string, locale: string) {
+  return new Intl.DateTimeFormat(locale, {
     timeZone: "UTC",
     month: "long",
     year: "numeric",
   }).format(new Date(`${value}T12:00:00.000Z`));
 }
 
-function timeLabel(value: string) {
-  return new Intl.DateTimeFormat("ar-SA-u-ca-gregory-nu-latn", {
+function timeLabel(value: string, locale: string) {
+  return new Intl.DateTimeFormat(locale, {
     timeZone: RIYADH_ZONE,
     hour: "numeric",
     minute: "2-digit",
   }).format(new Date(value));
 }
 
-function eventTime(event: MobileCalendarEvent) {
+function eventTime(event: MobileCalendarEvent, locale: string) {
   if (event.allDay) return "طوال اليوم";
-  const start = timeLabel(event.startAt);
+  const start = timeLabel(event.startAt, locale);
   if (!event.endAt) return start;
-  return `${start} – ${timeLabel(event.endAt)}`;
+  return `${start} – ${timeLabel(event.endAt, locale)}`;
 }
 
 export function CalendarScreen() {
   const { account } = useSession();
+  const { isRTL, locale, t } = useLanguage();
   const firstWeekStart = useMemo(() => currentWeekStart(), []);
   const today = useMemo(() => riyadhDateKey(new Date()), []);
   const month = useMemo(() => currentMonthGrid(today), [today]);
@@ -144,7 +146,7 @@ export function CalendarScreen() {
     <AppScreen
       action={(
         <Pressable
-          accessibilityLabel="تحديث التقويم"
+          accessibilityLabel={t("تحديث التقويم")}
           accessibilityRole="button"
           disabled={loading}
           onPress={() => void refresh()}
@@ -160,7 +162,7 @@ export function CalendarScreen() {
       subtitle={account.schoolName}
       title="التقويم"
     >
-      <View style={styles.weekSwitch}>
+      <View style={[styles.weekSwitch, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
         <Pressable
           accessibilityRole="button"
           onPress={() => selectView("week")}
@@ -182,13 +184,13 @@ export function CalendarScreen() {
       </View>
 
       {viewMode === "week" ? (
-        <View style={styles.dayStrip}>
+        <View style={[styles.dayStrip, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
           {visibleDays.map((day) => {
             const selected = day === selectedDay;
             const hasEvents = events.some((event) => eventOccursOnDate(event, day));
             return (
               <Pressable
-                accessibilityLabel={dayLabel(`${day}T12:00:00.000Z`)}
+                accessibilityLabel={dayLabel(`${day}T12:00:00.000Z`, locale)}
                 accessibilityRole="button"
                 key={day}
                 onPress={() => {
@@ -198,10 +200,10 @@ export function CalendarScreen() {
                 style={[styles.dayButton, selected && styles.dayButtonSelected]}
               >
                 <Text style={[styles.dayName, selected && styles.dayTextSelected]}>
-                  {weekdayLabel(day)}
+                  {weekdayLabel(day, locale)}
                 </Text>
                 <Text style={[styles.dayNumber, selected && styles.dayTextSelected]}>
-                  {dayNumber(day)}
+                  {dayNumber(day, locale)}
                 </Text>
                 <View
                   style={[
@@ -216,22 +218,22 @@ export function CalendarScreen() {
         </View>
       ) : (
         <View style={styles.monthSection}>
-          <Text style={styles.monthTitle}>{monthLabel(month.monthStart)}</Text>
-          <View style={styles.monthWeekdays}>
+          <Text style={styles.monthTitle}>{monthLabel(month.monthStart, locale)}</Text>
+          <View style={[styles.monthWeekdays, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
             {daysFrom(month.gridStart, 7).map((day) => (
               <Text key={day} style={styles.monthWeekday}>
-                {weekdayLabel(day)}
+                {weekdayLabel(day, locale)}
               </Text>
             ))}
           </View>
-          <View style={styles.monthGrid}>
+          <View style={[styles.monthGrid, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
             {month.days.map((day) => {
               const selected = day === selectedDay;
               const inMonth = day >= month.monthStart && day <= month.monthEnd;
               const hasEvents = events.some((event) => eventOccursOnDate(event, day));
               return (
                 <Pressable
-                  accessibilityLabel={dayLabel(`${day}T12:00:00.000Z`)}
+                  accessibilityLabel={dayLabel(`${day}T12:00:00.000Z`, locale)}
                   accessibilityRole="button"
                   key={day}
                   onPress={() => {
@@ -247,7 +249,7 @@ export function CalendarScreen() {
                       selected && styles.dayTextSelected,
                     ]}
                   >
-                    {dayNumber(day)}
+                    {dayNumber(day, locale)}
                   </Text>
                   <View
                     style={[
@@ -263,7 +265,7 @@ export function CalendarScreen() {
         </View>
       )}
 
-      <Text style={styles.selectedDate}>{dayLabel(`${selectedDay}T12:00:00.000Z`)}</Text>
+      <Text style={styles.selectedDate}>{dayLabel(`${selectedDay}T12:00:00.000Z`, locale)}</Text>
 
       {loading ? (
         <View style={styles.stateCard}>
@@ -295,7 +297,7 @@ export function CalendarScreen() {
                 onPress={() => setExpandedId(expanded ? null : event.id)}
                 style={({ pressed }) => [styles.eventCard, pressed && styles.pressed]}
               >
-                <View style={styles.eventHeader}>
+                <View style={[styles.eventHeader, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
                   <View
                     style={[
                       styles.typePill,
@@ -308,7 +310,7 @@ export function CalendarScreen() {
                   </View>
                   <View style={styles.eventCopy}>
                     <Text style={styles.eventTitle}>{event.title}</Text>
-                    <Text style={styles.eventMeta}>{eventTime(event)}</Text>
+                    <Text style={styles.eventMeta}>{eventTime(event, locale)}</Text>
                   </View>
                   <Text style={styles.chevron}>{expanded ? "⌃" : "⌄"}</Text>
                 </View>

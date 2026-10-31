@@ -135,6 +135,11 @@ export async function checkInTeacher(input: {
   date: Date;
   now: Date;
   timeZone: string;
+  location?: {
+    eventId: string;
+    distanceMeters: number;
+    accuracyMeters: number;
+  };
 }) {
   return prisma.$transaction(async (tx) => {
     await lockAttendanceSubject(tx, "teacher", input.teacherId, input.schoolId);
@@ -202,6 +207,14 @@ export async function checkInTeacher(input: {
           checkinAt: input.now,
           lateMinutes,
           date: input.date,
+          ...(input.location
+            ? {
+                checkinSource: "LOCATION",
+                checkinEventId: input.location.eventId,
+                checkinDistanceMeters: input.location.distanceMeters,
+                checkinAccuracyMeters: input.location.accuracyMeters,
+              }
+            : {}),
         },
       });
     } catch (error) {
@@ -308,6 +321,11 @@ export async function checkoutTeacher(input: {
   schoolId: string;
   now: Date;
   timeZone: string;
+  location?: {
+    eventId: string;
+    distanceMeters: number;
+    accuracyMeters: number;
+  };
 }) {
   return prisma.$transaction(async (tx) => {
     await lockAttendanceSubject(tx, "teacher", input.teacherId, input.schoolId);
@@ -359,7 +377,19 @@ export async function checkoutTeacher(input: {
 
     const closed = await tx.teacherAttendance.updateMany({
       where: { id: existing.id, schoolId: input.schoolId, checkoutAt: null },
-      data: { checkoutAt: input.now, requiredHours, compensated },
+      data: {
+        checkoutAt: input.now,
+        requiredHours,
+        compensated,
+        ...(input.location
+          ? {
+              checkoutSource: "LOCATION",
+              checkoutEventId: input.location.eventId,
+              checkoutDistanceMeters: input.location.distanceMeters,
+              checkoutAccuracyMeters: input.location.accuracyMeters,
+            }
+          : {}),
+      },
     });
     if (closed.count !== 1) throw conflict("ALREADY_CHECKED_OUT");
     await tx.teacher.update({

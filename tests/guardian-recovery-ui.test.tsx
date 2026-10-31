@@ -4,7 +4,7 @@ import { type ReactNode } from "react";
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ForgotPasswordForm } from "@/app/forgot-password/page";
+import { ForgotPasswordForm } from "@/components/auth/ForgotPasswordForm";
 import ResetPasswordPage from "@/app/reset-password/page";
 import { LocaleProvider } from "@/lib/i18n-provider";
 

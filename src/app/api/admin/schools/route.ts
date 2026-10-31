@@ -6,29 +6,7 @@ import { mintInvite } from "@/lib/invitations";
 import { env } from "@/lib/env";
 import { ROLE_TEMPLATES } from "@/lib/permissions";
 import { addSchoolBillingPeriod, schoolSubscriptionAccess } from "@/lib/school-subscription";
-
-export type SchoolAdminInvitationStatus =
-  | "active"
-  | "pending"
-  | "expired"
-  | "revoked"
-  | "none";
-
-export function schoolAdminInvitationStatus(input: {
-  acceptedAt: Date | null;
-  passwordSet: boolean;
-  invitation?: {
-    expiresAt: Date;
-    usedAt: Date | null;
-    revokedAt: Date | null;
-  } | null;
-}, now = new Date()): SchoolAdminInvitationStatus {
-  if (input.acceptedAt || input.passwordSet) return "active";
-  if (!input.invitation || input.invitation.usedAt) return "none";
-  if (input.invitation.revokedAt) return "revoked";
-  if (input.invitation.expiresAt <= now) return "expired";
-  return "pending";
-}
+import { schoolAdminInvitationStatus } from "@/lib/school-admin-invitation-status";
 
 export async function GET(request: Request) {
   const session = await verifyAdminSessionFromRequest(request);

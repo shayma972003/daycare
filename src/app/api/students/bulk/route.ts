@@ -96,6 +96,13 @@ export async function POST(request: Request) {
     }
   });
 
+  if (
+    valid.some((row) => row.healthCondition !== undefined || row.allergies !== undefined) &&
+    !session.can("students.health")
+  ) {
+    return Response.json({ error: "Forbidden", code: "HEALTH_ACCESS_REQUIRED" }, { status: 403 });
+  }
+
   let added = 0;
 
   for (const v of valid) {

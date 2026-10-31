@@ -7,9 +7,14 @@ import axios from "axios";
 const NAV_ITEMS = [
   { href: "/admin", label: "الرئيسية", icon: "⊞" },
   { href: "/admin/schools", label: "المدارس", icon: "⌂" },
+  { href: "/admin/support", label: "الدعم الفني", icon: "?" },
   { href: "/admin/subscriptions", label: "الاشتراكات", icon: "◈" },
   { href: "/admin/communications", label: "التواصل", icon: "✉" },
   { href: "/admin/logs", label: "السجل", icon: "≡" },
+  { href: "/admin/system-health", label: "صحة النظام", icon: "♥" },
+  { href: "/admin/data-quality", label: "سلامة البيانات", icon: "✓" },
+  { href: "/admin/analytics", label: "تحليلات الاستخدام", icon: "◫" },
+  { href: "/admin/growth", label: "النمو والتوقعات", icon: "↗" },
   { href: "/admin/data-retention", label: "الاحتفاظ بالبيانات", icon: "⏳" },
   { href: "/admin/settings", label: "الإعدادات", icon: "⚙" },
 ];

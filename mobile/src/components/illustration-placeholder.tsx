@@ -1,14 +1,16 @@
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 
+import { Text, useLanguage } from "@/language";
 import { colors, radius, spacing } from "@/theme";
 
 export function IllustrationPlaceholder({ compact = false, label = "مكان رسم توضيحي" }: {
   compact?: boolean;
   label?: string;
 }) {
+  const { t } = useLanguage();
   return (
     <View
-      accessibilityLabel={label}
+      accessibilityLabel={t(label)}
       style={[styles.frame, compact && styles.frameCompact]}
     >
       <View pointerEvents="none" style={styles.orbOne} />

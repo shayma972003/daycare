@@ -43,8 +43,87 @@ interface SchoolDetail {
     taxPeriod: string | null;
   };
   stats: { students: number; teachers: number; classes: number; invoices: number; notifications: number };
+  support: {
+    accounts: {
+      staff: AccountSummary;
+      guardians: AccountSummary;
+      latestGuardianLoginAt: string | null;
+    };
+    devices: {
+      total: number;
+      healthy: number;
+      failed: number;
+      expo: number;
+      web: number;
+      lastSeenAt: string | null;
+      items: {
+        id: string;
+        ownerKind: "staff" | "guardian";
+        ownerName: string;
+        ownerEmail: string | null;
+        platform: "EXPO" | "WEB" | "HUAWEI";
+        status: "healthy" | "failed";
+        lastSeenAt: string;
+        registeredAt: string;
+        canTest: boolean;
+      }[];
+    };
+    notifications: {
+      windowDays: number;
+      push: {
+        pending: number;
+        sent: number;
+        failed: number;
+        latestFailureAt: string | null;
+        latestFailure: string | null;
+        recentFailures: {
+          id: string;
+          deviceId: string | null;
+          occurredAt: string;
+          reason: string | null;
+        }[];
+      };
+      outbound: {
+        sent: number;
+        failed: number;
+        recent: {
+          id: string;
+          type: "EMAIL" | "WHATSAPP";
+          status: "SENT" | "FAILED";
+          source: string;
+          sentAt: string;
+        }[];
+      };
+    };
+    storage: {
+      totalBytes: number;
+      maxBytes: number | null;
+      computedAt: string | null;
+      breakdown: {
+        studentFilesBytes: number;
+        careReportBytes: number;
+        staffFilesBytes: number;
+        unitFilesBytes: number;
+        invoiceBytes: number;
+        otherBytes: number;
+      };
+    };
+    configuration: {
+      careReportReviewRequired: boolean;
+      arrivalRecipientCount: number;
+      pendingCareReportCount: number;
+    };
+  };
   activityLogs: { id: string; action: string; metadata: unknown; performed_by: string; performed_at: string }[];
   messages: { id: string; subject: string; sent_at: string | null; is_automated: boolean; delivered_at: string | null; read_at: string | null }[];
+}
+
+interface AccountSummary {
+  total: number;
+  active: number;
+  pending: number;
+  expiredInvitations: number;
+  disabled: number;
 }
 
 type SubscriptionType = "TRIAL" | "MONTHLY" | "YEARLY";
@@ -73,6 +152,17 @@ const EDUCATION_STAGE_OPTIONS = ["حضانة", "تمهيدي", "رياض أطف�
 const ENTITY_TYPE_OPTIONS = ["مؤسسة فردية", "شركة ذات مسؤولية محدودة", "شركة مساهمة", "شركة تضامن", "أخرى"];
 const SCHOOL_TYPE_OPTIONS = ["حضانة", "روضة أطفال", "مركز رعاية نهارية", "أخرى"];
 const ZAKAT_STATUS_LABELS: Record<string, string> = { yes: "نعم", no: "لا", needs_review: "يحتاج مراجعة" };
+
+function supportDate(value: string | null) {
+  return value ? new Date(value).toLocaleString("ar-SA") : "لا يوجد";
+}
+
+function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} بايت`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} ك.ب`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} م.ب`;
+  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} ج.ب`;
+}
 
 export default function SchoolDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -118,6 +208,8 @@ export default function SchoolDetailPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
+  const [testingDeviceId, setTestingDeviceId] = useState<string | null>(null);
+  const [deliveryNotice, setDeliveryNotice] = useState<string | null>(null);
 
   // Admin invoices
   const [invoices, setInvoices] = useState<AdminInvoice[]>([]);
@@ -304,6 +396,21 @@ export default function SchoolDetailPage() {
   const onDelete = guard(handleDelete, "تعذر حذف المدرسة");
   const onChangeSubscriptionType = guard(handleChangeSubscriptionType, "تعذر تغيير نوع الاشتراك");
 
+  async function sendTestNotification(deviceId: string) {
+    if (testingDeviceId) return;
+    setTestingDeviceId(deviceId);
+    setDeliveryNotice(null);
+    setActionError(null);
+    try {
+      await axios.post(`/api/admin/schools/${id}/notifications/test`, { deviceId });
+      setDeliveryNotice("تم وضع إشعار الاختبار في قائمة الإرسال لهذا الجهاز.");
+    } catch (error) {
+      setActionError(describeApiError(error, "تعذر إرسال إشعار الاختبار"));
+    } finally {
+      setTestingDeviceId(null);
+    }
+  }
+
   if (loading) return <div className="p-8 text-gray-400 text-sm">جاري التحميل...</div>;
   if (!data) {
     return (
@@ -325,8 +432,20 @@ export default function SchoolDetailPage() {
     );
   }
 
-  const { school, stats, activityLogs, messages } = data;
+  const { school, stats, support, activityLogs, messages } = data;
   const isSuspended = school.subscription_status === "suspended";
+  const storagePercent = support.storage.maxBytes
+    ? Math.min(100, Math.round((support.storage.totalBytes / support.storage.maxBytes) * 100))
+    : null;
+  const supportAlerts = [
+    support.accounts.staff.active === 0 ? "لا يوجد حساب موظف مفعل" : null,
+    support.accounts.staff.expiredInvitations > 0 ? `${support.accounts.staff.expiredInvitations} دعوة موظف منتهية` : null,
+    support.accounts.guardians.expiredInvitations > 0 ? `${support.accounts.guardians.expiredInvitations} دعوة ولي أمر منتهية` : null,
+    support.devices.failed > 0 ? `${support.devices.failed} جهاز متوقف عن استقبال الإشعارات` : null,
+    support.notifications.push.failed > 0 ? `${support.notifications.push.failed} إشعار جوال فشل خلال 30 يومًا` : null,
+    support.configuration.arrivalRecipientCount === 0 ? "لم يُحدد مستلم لإشعارات الوصول" : null,
+    storagePercent !== null && storagePercent >= 80 ? `مساحة التخزين وصلت إلى ${storagePercent}%` : null,
+  ].filter((item): item is string => Boolean(item));
 
   return (
     <div className="mx-auto w-full max-w-[1500px] space-y-6 p-4 sm:p-6 lg:p-8">
@@ -388,9 +507,11 @@ export default function SchoolDetailPage() {
         </button>
       </section>
 
-      <Tabs.Root defaultValue="info">
+      <Tabs.Root defaultValue="support">
         <Tabs.List className="flex gap-1 bg-[#1e1e2e] p-1 rounded-xl w-fit border border-white/5 mb-6">
           {[
+            { value: "support", label: "الدعم 360" },
+            { value: "delivery", label: "تشخيص الإرسال" },
             { value: "info", label: "معلومات عامة" },
             { value: "stats", label: "الإحصائيات" },
             { value: "logs", label: "سجل النشاط" },
@@ -405,6 +526,201 @@ export default function SchoolDetailPage() {
             </Tabs.Trigger>
           ))}
         </Tabs.List>
+
+        <Tabs.Content value="support">
+          <div className="space-y-5">
+            <section className="rounded-2xl border border-indigo-500/20 bg-gradient-to-l from-indigo-500/10 to-transparent p-5">
+              <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="font-bold text-white">ملخص الدعم الفني</h2>
+                    <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${supportAlerts.length ? "bg-amber-500/15 text-amber-300" : "bg-emerald-500/15 text-emerald-300"}`}>
+                      {supportAlerts.length ? `${supportAlerts.length} نقاط تحتاج متابعة` : "الحالة سليمة"}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs leading-6 text-gray-400">حالة الحسابات والأجهزة والإشعارات والإعدادات في مكان واحد، دون عرض بيانات الأطفال الحساسة.</p>
+                </div>
+                <div className="text-xs text-gray-400">
+                  آخر دخول للمنشأة: <span className="text-white">{supportDate(school.last_login_at)}</span>
+                </div>
+              </div>
+              {supportAlerts.length > 0 && (
+                <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                  {supportAlerts.map((alert) => (
+                    <div key={alert} className="rounded-xl border border-amber-500/20 bg-amber-500/[0.07] px-3 py-2 text-xs text-amber-200">
+                      {alert}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <div className="grid gap-5 xl:grid-cols-2">
+              <SupportSection title="الحسابات والدعوات" subtitle="حالة تفعيل حسابات الموظفين وأولياء الأمور">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <AccountSupportCard title="الموظفون" summary={support.accounts.staff} />
+                  <AccountSupportCard title="أولياء الأمور" summary={support.accounts.guardians} />
+                </div>
+                <div className="mt-3 rounded-xl bg-white/[0.025] px-4 py-3 text-xs text-gray-400">
+                  آخر دخول لولي أمر: <span className="text-white">{supportDate(support.accounts.latestGuardianLoginAt)}</span>
+                </div>
+              </SupportSection>
+
+              <SupportSection title="الأجهزة والإشعارات" subtitle={`ملخص آخر ${support.notifications.windowDays} يومًا`}>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <SupportMetric label="الأجهزة" value={support.devices.total} />
+                  <SupportMetric label="أجهزة سليمة" value={support.devices.healthy} tone="good" />
+                  <SupportMetric label="أجهزة متوقفة" value={support.devices.failed} tone={support.devices.failed ? "bad" : "neutral"} />
+                  <SupportMetric label="آخر اتصال" value={supportDate(support.devices.lastSeenAt)} compact />
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <SupportMetric label="Push ناجح" value={support.notifications.push.sent} tone="good" />
+                  <SupportMetric label="Push فاشل" value={support.notifications.push.failed} tone={support.notifications.push.failed ? "bad" : "neutral"} />
+                  <SupportMetric label="قيد الإرسال" value={support.notifications.push.pending} />
+                  <SupportMetric label="بريد/رسائل فاشلة" value={support.notifications.outbound.failed} tone={support.notifications.outbound.failed ? "bad" : "neutral"} />
+                </div>
+                {support.notifications.push.latestFailure && (
+                  <div className="mt-3 rounded-xl border border-red-500/20 bg-red-500/[0.06] px-4 py-3 text-xs text-red-200">
+                    آخر فشل: {support.notifications.push.latestFailure} — {supportDate(support.notifications.push.latestFailureAt)}
+                  </div>
+                )}
+              </SupportSection>
+
+              <SupportSection title="الإعدادات التشغيلية" subtitle="الإعدادات الأكثر تأثيرًا على تجربة التطبيق">
+                <div className="space-y-2">
+                  <SupportRow label="تقارير الرعاية" value={support.configuration.careReportReviewRequired ? "تحتاج مراجعة المديرة" : "ترسل مباشرة لولي الأمر"} />
+                  <SupportRow label="تقارير بانتظار المراجعة" value={String(support.configuration.pendingCareReportCount)} warn={support.configuration.pendingCareReportCount > 0} />
+                  <SupportRow label="مستلمو إشعار الوصول" value={String(support.configuration.arrivalRecipientCount)} warn={support.configuration.arrivalRecipientCount === 0} />
+                  <SupportRow label="نوع الوصول للنظام" value={school.access_mode === "active" ? "كامل" : school.access_mode === "grace" ? "فترة سماح" : "مقفل"} warn={school.access_mode !== "active"} />
+                </div>
+              </SupportSection>
+
+              <SupportSection title="مساحة التخزين" subtitle="الاستخدام المسجل للمنشأة">
+                <div className="flex items-end justify-between gap-4">
+                  <div>
+                    <div className="text-2xl font-bold text-white">{formatBytes(support.storage.totalBytes)}</div>
+                    <div className="mt-1 text-xs text-gray-500">
+                      {support.storage.maxBytes ? `من أصل ${formatBytes(support.storage.maxBytes)}` : "الخطة بلا حد تخزين"}
+                    </div>
+                  </div>
+                  <div className="text-xs text-gray-400">آخر احتساب: {supportDate(support.storage.computedAt)}</div>
+                </div>
+                {storagePercent !== null && (
+                  <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/5">
+                    <div
+                      className={`h-full rounded-full ${storagePercent >= 90 ? "bg-red-500" : storagePercent >= 80 ? "bg-amber-500" : "bg-indigo-500"}`}
+                      style={{ width: `${storagePercent}%` }}
+                    />
+                  </div>
+                )}
+                <div className="mt-4 grid grid-cols-2 gap-2 text-xs text-gray-400 sm:grid-cols-3">
+                  <span>ملفات الأطفال: {formatBytes(support.storage.breakdown.studentFilesBytes)}</span>
+                  <span>تقارير الرعاية: {formatBytes(support.storage.breakdown.careReportBytes)}</span>
+                  <span>ملفات الموظفين: {formatBytes(support.storage.breakdown.staffFilesBytes)}</span>
+                  <span>ملفات التعليم: {formatBytes(support.storage.breakdown.unitFilesBytes)}</span>
+                  <span>الفواتير: {formatBytes(support.storage.breakdown.invoiceBytes)}</span>
+                  <span>أخرى: {formatBytes(support.storage.breakdown.otherBytes)}</span>
+                </div>
+              </SupportSection>
+            </div>
+          </div>
+        </Tabs.Content>
+
+        <Tabs.Content value="delivery">
+          <div className="space-y-5">
+            {deliveryNotice && (
+              <div role="status" className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.08] px-4 py-3 text-sm text-emerald-200">
+                {deliveryNotice}
+              </div>
+            )}
+
+            <SupportSection title="الأجهزة المسجلة" subtitle="لا تظهر رموز الأجهزة السرية في لوحة الدعم">
+              <div className="mb-4 rounded-xl border border-blue-500/15 bg-blue-500/[0.05] px-4 py-3 text-xs leading-6 text-blue-200">
+                آخر اتصال وحالة الرمز متاحان الآن. صلاحية إشعارات نظام التشغيل ونسخة التطبيق لا يرسلهما التطبيق إلى الخادم حاليًا، لذلك لا نخمن حالتهما.
+              </div>
+              {support.devices.items.length === 0 ? (
+                <div className="rounded-xl bg-white/[0.025] px-4 py-8 text-center text-sm text-gray-500">
+                  لم يسجل التطبيق أي جهاز لهذه المنشأة بعد.
+                </div>
+              ) : (
+                <div className="grid gap-3 lg:grid-cols-2">
+                  {support.devices.items.map((device) => (
+                    <div key={device.id} className="rounded-xl border border-white/5 bg-white/[0.025] p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h4 className="font-semibold text-white">{device.ownerName}</h4>
+                            <span className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] text-gray-400">
+                              {device.ownerKind === "staff" ? "موظف" : "ولي أمر"}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-xs text-gray-500" dir="ltr">{device.ownerEmail ?? "—"}</p>
+                        </div>
+                        <span className={`rounded-full px-2.5 py-1 text-[11px] ${device.status === "healthy" ? "bg-emerald-500/15 text-emerald-300" : "bg-red-500/15 text-red-300"}`}>
+                          {device.status === "healthy" ? "جاهز" : "متوقف"}
+                        </span>
+                      </div>
+                      <div className="mt-4 grid grid-cols-2 gap-2 text-xs text-gray-400">
+                        <span>المنصة: <b className="text-gray-200">{device.platform}</b></span>
+                        <span>آخر اتصال: <b className="text-gray-200">{supportDate(device.lastSeenAt)}</b></span>
+                        <span>تاريخ التسجيل: <b className="text-gray-200">{supportDate(device.registeredAt)}</b></span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void sendTestNotification(device.id)}
+                        disabled={!device.canTest || Boolean(testingDeviceId)}
+                        className="mt-4 w-full rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-3 py-2 text-xs font-semibold text-indigo-200 hover:bg-indigo-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        {testingDeviceId === device.id ? "جاري الإرسال..." : device.canTest ? "إرسال إشعار اختباري" : "الاختبار غير متاح"}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </SupportSection>
+
+            <div className="grid gap-5 xl:grid-cols-2">
+              <SupportSection title="فشل إشعارات الجوال" subtitle="آخر المحاولات الفاشلة مع سبب مبسط وآمن">
+                {support.notifications.push.recentFailures.length === 0 ? (
+                  <div className="rounded-xl bg-emerald-500/[0.05] px-4 py-6 text-center text-sm text-emerald-300">
+                    لا توجد محاولات فاشلة مسجلة.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {support.notifications.push.recentFailures.map((failure) => (
+                      <div key={failure.id} className="rounded-xl bg-red-500/[0.05] px-4 py-3">
+                        <div className="text-xs font-semibold text-red-200">{failure.reason ?? "فشل لدى مزود الإشعارات"}</div>
+                        <div className="mt-1 text-[11px] text-gray-500">{supportDate(failure.occurredAt)}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </SupportSection>
+
+              <SupportSection title="سجل البريد والرسائل" subtitle="آخر عمليات الإرسال دون عرض محتوى الرسالة أو اسم المستلم">
+                {support.notifications.outbound.recent.length === 0 ? (
+                  <div className="rounded-xl bg-white/[0.025] px-4 py-6 text-center text-sm text-gray-500">
+                    لا توجد عمليات إرسال مسجلة.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {support.notifications.outbound.recent.map((delivery) => (
+                      <div key={delivery.id} className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.025] px-4 py-3 text-xs">
+                        <div>
+                          <div className="font-semibold text-white">{delivery.type === "EMAIL" ? "بريد إلكتروني" : "واتساب"}</div>
+                          <div className="mt-1 text-[11px] text-gray-500">{delivery.source} · {supportDate(delivery.sentAt)}</div>
+                        </div>
+                        <span className={`rounded-full px-2.5 py-1 text-[11px] ${delivery.status === "SENT" ? "bg-emerald-500/15 text-emerald-300" : "bg-red-500/15 text-red-300"}`}>
+                          {delivery.status === "SENT" ? "أُرسل" : "فشل"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </SupportSection>
+            </div>
+          </div>
+        </Tabs.Content>
 
         {/* General Info Tab */}
         <Tabs.Content value="info">
@@ -731,6 +1047,96 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div className="min-w-0 [&_.input-admin]:w-full">
       <label className="block text-gray-400 text-xs mb-1">{label}</label>
       {children}
+    </div>
+  );
+}
+
+function SupportSection({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-2xl border border-white/5 bg-[#1e1e2e] p-5">
+      <div className="mb-4 border-b border-white/5 pb-3">
+        <h3 className="text-sm font-bold text-white">{title}</h3>
+        <p className="mt-1 text-xs text-gray-500">{subtitle}</p>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function AccountSupportCard({ title, summary }: { title: string; summary: AccountSummary }) {
+  return (
+    <div className="rounded-xl bg-white/[0.025] p-4">
+      <div className="flex items-center justify-between">
+        <h4 className="text-sm font-semibold text-white">{title}</h4>
+        <span className="text-xs text-gray-500">الإجمالي {summary.total}</span>
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+        <SupportCount label="مفعل" value={summary.active} tone="good" />
+        <SupportCount label="بانتظار التفعيل" value={summary.pending} tone={summary.pending ? "warn" : "neutral"} />
+        <SupportCount label="دعوة منتهية" value={summary.expiredInvitations} tone={summary.expiredInvitations ? "bad" : "neutral"} />
+        <SupportCount label="معطل" value={summary.disabled} tone={summary.disabled ? "bad" : "neutral"} />
+      </div>
+    </div>
+  );
+}
+
+function SupportCount({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: "neutral" | "good" | "warn" | "bad";
+}) {
+  const color = tone === "good"
+    ? "text-emerald-300"
+    : tone === "warn"
+      ? "text-amber-300"
+      : tone === "bad"
+        ? "text-red-300"
+        : "text-gray-300";
+  return (
+    <div className="rounded-lg bg-black/10 px-3 py-2">
+      <div className={`font-bold ${color}`}>{value}</div>
+      <div className="mt-0.5 text-[11px] text-gray-500">{label}</div>
+    </div>
+  );
+}
+
+function SupportMetric({
+  label,
+  value,
+  tone = "neutral",
+  compact = false,
+}: {
+  label: string;
+  value: string | number;
+  tone?: "neutral" | "good" | "bad";
+  compact?: boolean;
+}) {
+  const color = tone === "good" ? "text-emerald-300" : tone === "bad" ? "text-red-300" : "text-indigo-300";
+  return (
+    <div className="min-w-0 rounded-xl bg-white/[0.025] p-3">
+      <div className={`${compact ? "text-xs leading-5" : "text-xl"} break-words font-bold ${color}`}>{value}</div>
+      <div className="mt-1 text-[11px] text-gray-500">{label}</div>
+    </div>
+  );
+}
+
+function SupportRow({ label, value, warn = false }: { label: string; value: string; warn?: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.025] px-4 py-3 text-xs">
+      <span className="text-gray-400">{label}</span>
+      <span className={warn ? "font-semibold text-amber-300" : "text-white"}>{value}</span>
     </div>
   );
 }

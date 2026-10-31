@@ -1,1 +1,5 @@
-export { registerDeviceForPush, unregisterDeviceForPush } from "./device.web";
+export {
+  notifyLocalAttendanceRecorded,
+  registerDeviceForPush,
+  unregisterDeviceForPush,
+} from "./device.web";

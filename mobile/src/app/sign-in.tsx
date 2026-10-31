@@ -5,7 +5,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   TextInput,
   View,
 } from "react-native";
@@ -15,6 +14,7 @@ import { signIn } from "@/api/auth";
 import { ApiError, type AccountKind } from "@/api/client";
 import { PrimaryButton } from "@/components/buttons";
 import { IllustrationPlaceholder } from "@/components/illustration-placeholder";
+import { Text, useLanguage } from "@/language";
 import { useSession } from "@/session";
 import { colors, radius, spacing, touchTarget } from "@/theme";
 
@@ -25,6 +25,7 @@ const kinds: { value: AccountKind; label: string }[] = [
 
 export default function SignInScreen() {
   const { setAccount } = useSession();
+  const { isRTL } = useLanguage();
   const [kind, setKind] = useState<AccountKind>("guardian");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -61,7 +62,7 @@ export default function SignInScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.intro}>
-            <View style={styles.brandRow}>
+            <View style={[styles.brandRow, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
               <View style={styles.logo}>
                 <Text style={styles.logoText}>ر</Text>
               </View>
@@ -77,7 +78,7 @@ export default function SignInScreen() {
 
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>نوع الحساب</Text>
-            <View style={styles.segmented}>
+            <View style={[styles.segmented, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
               {kinds.map((item) => {
                 const selected = kind === item.value;
                 return (
@@ -110,7 +111,7 @@ export default function SignInScreen() {
                 placeholderTextColor={colors.muted}
                 returnKeyType="next"
                 style={styles.input}
-                textAlign="right"
+                textAlign={isRTL ? "right" : "left"}
                 value={email}
               />
             </View>
@@ -127,7 +128,7 @@ export default function SignInScreen() {
                 returnKeyType="done"
                 secureTextEntry
                 style={styles.input}
-                textAlign="right"
+                textAlign={isRTL ? "right" : "left"}
                 value={password}
               />
             </View>

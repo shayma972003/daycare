@@ -3,9 +3,12 @@ import { isAuthorizedCron, cronUnauthorized } from "@/lib/cron-auth";
 import { formatDate } from "@/lib/utils";
 import { schoolSubscriptionAccess } from "@/lib/school-subscription";
 import { isPlanLimitExceeded } from "@/lib/plan-limits";
+import { withSystemJobRun } from "@/lib/system-job-run";
 
 export async function GET(request: Request) {
   if (!isAuthorizedCron(request)) return cronUnauthorized();
+
+  return withSystemJobRun("subscription_alerts", async () => {
 
   const now = new Date();
   const sevenDaysAhead = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
@@ -179,4 +182,5 @@ export async function GET(request: Request) {
   }
 
   return Response.json({ triggered: results.length, results });
+  });
 }

@@ -1,5 +1,6 @@
 import { runAnonymizationSweep } from "@/lib/anonymization";
 import { isAuthorizedCron, cronUnauthorized } from "@/lib/cron-auth";
+import { withSystemJobRun } from "@/lib/system-job-run";
 
 /**
  * Daily retention sweep. Scheduled in vercel.json at 03:00 UTC.
@@ -17,7 +18,9 @@ export async function GET(request: Request) {
   if (!isAuthorizedCron(request)) return cronUnauthorized();
 
   const ranAt = new Date();
-  const result = await runAnonymizationSweep({ now: ranAt, executedBy: "SYSTEM" });
+  const result = await withSystemJobRun("anonymize", () =>
+    runAnonymizationSweep({ now: ranAt, executedBy: "SYSTEM" })
+  );
 
   return Response.json({
     success: true,

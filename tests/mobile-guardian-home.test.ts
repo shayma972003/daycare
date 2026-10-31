@@ -20,11 +20,14 @@ describe("mobile guardian home", () => {
     expect(screen).not.toContain("تسجيل الخروج");
   });
 
-  it("offers one child-free five-minute arrival action", () => {
-    expect(screen).toContain("سأصل خلال 5 دقائق");
-    expect(screen).toContain("sendArrivalNotice()");
+  it("offers child-free arrival choices for five, ten, fifteen minutes, or arrived", () => {
+    expect(screen).toContain("بعد 15 دقيقة");
+    expect(screen).toContain("بعد 10 دقائق");
+    expect(screen).toContain("بعد 5 دقائق");
+    expect(screen).toContain('label: "وصلت"');
+    expect(screen).toContain("sendArrivalNotice(minutes)");
     expect(screen).toContain("remainingSeconds > 0");
-    expect(api).toContain('request<ArrivalNoticeResponse>("/api/mobile/v1/arrival", { method: "POST" })');
+    expect(api).toContain("body: { minutes }");
     expect(api).not.toContain("studentId");
     expect(api).not.toContain("childId");
   });

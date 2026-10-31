@@ -19,6 +19,20 @@ export type GuardianCareReport = {
   reportedByName: string | null;
   note: string | null;
   photoUrl: string | null;
+  mealSource: "CENTER" | "HOME" | null;
+  mealName: string | null;
+  mealAmount: "ALL" | "HALF" | "LITTLE" | "REFUSED" | null;
+  napMinutes: number | null;
+  napQuality: string | null;
+  toiletKind: "DIAPER" | "POTTY" | null;
+  toiletState: string | null;
+  mood: "HAPPY" | "CALM" | "TIRED" | "UPSET" | "CRYING" | "UNWELL" | null;
+  medicationName: string | null;
+  medicationDose: string | null;
+  temperature: number | null;
+  symptom: string | null;
+  supplyItem: string | null;
+  supplyQuantity: number | null;
   student: { id: string; name: string };
 };
 

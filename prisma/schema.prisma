@@ -177,6 +177,27 @@ enum PushStatus {
   FAILED
 }
 
+enum SystemJobRunStatus {
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+enum SupportTicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_CUSTOMER
+  RESOLVED
+  CLOSED
+}
+
+enum SupportTicketPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
 /// The eight kinds of daily care report a nursery files about a child.
 enum CareReportType {
   MEAL
@@ -374,6 +395,27 @@ model SystemSettings {
   updatedBy String?
 }
 
+/// Operational heartbeat for platform-wide scheduled jobs.
+///
+/// Contains no tenant or child data. The support dashboard only needs to know
+/// when a job started, whether it completed, and how long it took. Keeping the
+/// payload out of this table prevents care-report or account details from
+/// leaking into the super-admin diagnostics surface.
+model SystemJobRun {
+  id String @id @default(cuid())
+
+  jobKey String
+  status SystemJobRunStatus @default(RUNNING)
+
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  durationMs Int?
+  errorCode  String?
+
+  @@index([jobKey, startedAt])
+  @@index([status, startedAt])
+}
+
 /// Append-only record of every anonymisation.
 ///
 /// Anonymisation is irreversible and unattended, so it needs the same
@@ -383,9 +425,9 @@ model SystemSettings {
 model AnonymizationLog {
   id String @id @default(cuid())
 
-  entityType AnonymizedEntity
+  entityType  AnonymizedEntity
   /// Row id in the source table. The row still exists; only its PII is gone.
-  entityId   String
+  entityId    String
   /// Pseudonymous handle that survives anonymisation, so analytics can be traced
   /// back to this log entry without touching the operational id.
   analyticsId String?
@@ -433,7 +475,7 @@ model CareReport {
   /// Snapshot of the class at the time. The child may move rooms later, and a
   /// report belongs to the day it describes.
   classId   String?
-  class     Class? @relation(fields: [classId, schoolId], references: [id, schoolId], onDelete: Restrict)
+  class     Class?  @relation(fields: [classId, schoolId], references: [id, schoolId], onDelete: Restrict)
 
   /// Who filed it. `teacherId` may be null for an office account; the name is
   /// stored alongside so the report still reads correctly after that staff
@@ -489,7 +531,7 @@ model CareReport {
   supplyUrgency  SupplyUrgency?
 
   /// PII — free text about this child's day.
-  note String?
+  note     String?
   /// Today a base64 data URI, like every other upload here. Moves to R2 with
   /// tasks 0.34/0.35, at which point anonymisation must also delete the object.
   photoUrl String?
@@ -522,10 +564,10 @@ model CareReport {
   reviewNote         String?
   guardianNotifiedAt DateTime?
 
+  @@unique([schoolId, dailyBatchId, studentId, dailyItemKey])
   @@index([studentId, occurredAt])
   @@index([schoolId, occurredAt])
   @@index([schoolId, type, occurredAt])
-  @@unique([schoolId, dailyBatchId, studentId, dailyItemKey])
   @@index([schoolId, dailyBatchId])
   @@index([schoolId, reviewStatus, occurredAt])
   /// Drives the nightly digest: unsent reports for a given day.
@@ -557,9 +599,9 @@ model Unit {
   events  CalendarEvent[]
   classes UnitClass[]
 
+  @@unique([id, schoolId])
   @@index([schoolId, archivedAt])
   @@index([schoolId, deletedAt])
-  @@unique([id, schoolId])
 }
 
 /// Which rooms a unit is taught to (task 2.24).
@@ -586,7 +628,7 @@ model Lesson {
   description String?
   /// Explicit ordering: lessons are a sequence, and sorting by creation time
   /// breaks the moment one is inserted between two others.
-  orderIndex  Int    @default(0)
+  orderIndex  Int     @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -607,11 +649,11 @@ model UnitFile {
   unitId String
   unit   Unit   @relation(fields: [unitId], references: [id], onDelete: Cascade)
 
-  name     String
-  mimeType String?
+  name      String
+  mimeType  String?
   sizeBytes Int?
   /// base64 data URI today; an object key once R2 lands.
-  url      String
+  url       String
 
   uploadedByName String?
   createdAt      DateTime @default(now())
@@ -647,10 +689,10 @@ model CalendarEvent {
 
   createdByName String?
   deletedAt     DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
-  classes CalendarEventClass[]
+  classes  CalendarEventClass[]
   messages ActivityMessage[]
 
   @@unique([id, schoolId])
@@ -677,13 +719,13 @@ model CalendarEventClass {
 /// and a recurrence model would spend all its time being overridden. Copying
 /// last week forward is a button, not a data structure.
 model Shift {
-  id        String  @id @default(cuid())
-  schoolId  String
-  school    School  @relation(fields: [schoolId], references: [id])
-  teacherId String
-  teacher   Teacher @relation(fields: [teacherId, schoolId], references: [id, schoolId], onDelete: Cascade)
-  classId   String?
-  class     Class?   @relation(fields: [classId, schoolId], references: [id, schoolId], onDelete: Restrict)
+  id                String  @id @default(cuid())
+  schoolId          String
+  school            School  @relation(fields: [schoolId], references: [id])
+  teacherId         String
+  teacher           Teacher @relation(fields: [teacherId, schoolId], references: [id, schoolId], onDelete: Cascade)
+  classId           String?
+  class             Class?  @relation(fields: [classId, schoolId], references: [id, schoolId], onDelete: Restrict)
   classNameSnapshot String?
 
   /// The rota day. `@db.Date` so it compares by equality, like Attendance.
@@ -728,8 +770,8 @@ model StorageUsage {
   invoiceBytes      Int @default(0)
   otherBytes        Int @default(0)
 
-  totalBytes  Int      @default(0)
-  computedAt  DateTime @default(now())
+  totalBytes Int      @default(0)
+  computedAt DateTime @default(now())
 }
 
 /// The school's academic stages, editable by the school (task 2.44).
@@ -797,6 +839,7 @@ enum StoredFileOwnerType {
   TEACHER
   ENROLLMENT_TOKEN
   ENROLLMENT_SUBMISSION
+  SUPPORT_TICKET
 }
 
 model StoredFile {
@@ -805,18 +848,18 @@ model StoredFile {
   school   School @relation(fields: [schoolId], references: [id])
 
   /// Matches `FileCategory` in src/lib/r2.ts — drives the storage breakdown.
-  category    String
+  category        String
   /// The row this belongs to: a student id, a unit id. Not a foreign key — it
   /// points at six different tables, and a file must outlive nothing but its
   /// tenant.
-  ownerId     String
+  ownerId         String
   /// Explicit lifecycle identity for security-sensitive child files. Rows that
   /// predate ownership tracking stay LEGACY unless a migration can prove their
   /// owner from an existing relation.
-  ownerType   StoredFileOwnerType @default(LEGACY)
-  contentType String
-  sizeBytes   Int
-  createdAt   DateTime @default(now())
+  ownerType       StoredFileOwnerType @default(LEGACY)
+  contentType     String
+  sizeBytes       Int
+  createdAt       DateTime            @default(now())
   /// Set before a cross-system delete. The row remains retryable until R2
   /// confirms deletion; readers refuse files while this marker is present.
   deletePendingAt DateTime?
@@ -862,23 +905,29 @@ model SuperAdmin {
   email         String   @unique
   password_hash String
   created_at    DateTime @default(now())
+
+  supportTicketsCreated  SupportTicket[]           @relation("SupportTicketCreator")
+  supportTicketsAssigned SupportTicket[]           @relation("SupportTicketAssignee")
+  supportTicketNotes     SupportTicketNote[]
+  supportAttachments     SupportTicketAttachment[]
+  supportAccessSessions  SupportAccessSession[]
 }
 
 model SubscriptionPlan {
-  id                     String   @id @default(cuid())
-  name                   String   @unique
-  price                  Decimal  @db.Decimal(18, 2)
-  max_students           Int
-  max_classes            Int
+  id               String                 @id @default(cuid())
+  name             String                 @unique
+  price            Decimal                @db.Decimal(18, 2)
+  max_students     Int
+  max_classes      Int
   /// Storage quota in megabytes (task 2.29). Zero means unlimited, matching how
   /// `max_students` and `max_classes` are already read by the plan-limit layer —
   /// one sentinel across all three rather than three conventions.
-  max_storage_mb         Int      @default(0)
-  is_active              Boolean  @default(true)
+  max_storage_mb   Int                    @default(0)
+  is_active        Boolean                @default(true)
   /// Canonical platform plans. Null is retained for historical plans only.
-  billing_interval       SchoolBillingInterval? @unique
-  created_at             DateTime @default(now())
-  updated_at             DateTime @updatedAt
+  billing_interval SchoolBillingInterval? @unique
+  created_at       DateTime               @default(now())
+  updated_at       DateTime               @updatedAt
 
   schools  School[]
   payments SchoolSubscriptionPayment[]
@@ -958,6 +1007,90 @@ model AdminActivityLog {
   school School? @relation(fields: [school_id], references: [id])
 }
 
+/// A platform-support case. It belongs to the SaaS support team rather than a
+/// school user, so only authenticated super-admin routes may read or mutate it.
+model SupportTicket {
+  id               String      @id @default(cuid())
+  reference        String      @unique
+  schoolId         String?
+  school           School?     @relation(fields: [schoolId], references: [id], onDelete: SetNull)
+  requesterUserId  String?
+  requesterUser    User?       @relation(fields: [requesterUserId], references: [id], onDelete: SetNull)
+  createdByAdminId String
+  createdByAdmin   SuperAdmin  @relation("SupportTicketCreator", fields: [createdByAdminId], references: [id], onDelete: Restrict)
+  assignedAdminId  String?
+  assignedAdmin    SuperAdmin? @relation("SupportTicketAssignee", fields: [assignedAdminId], references: [id], onDelete: SetNull)
+
+  title       String
+  description String
+  category    String?
+  status      SupportTicketStatus   @default(OPEN)
+  priority    SupportTicketPriority @default(NORMAL)
+
+  firstRespondedAt DateTime?
+  resolvedAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  notes          SupportTicketNote[]
+  attachments    SupportTicketAttachment[]
+  accessSessions SupportAccessSession[]
+
+  @@index([status, priority, createdAt])
+  @@index([schoolId, createdAt])
+  @@index([assignedAdminId, status])
+}
+
+model SupportTicketNote {
+  id            String        @id @default(cuid())
+  ticketId      String
+  ticket        SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorAdminId String
+  authorAdmin   SuperAdmin    @relation(fields: [authorAdminId], references: [id], onDelete: Restrict)
+  body          String
+  isInternal    Boolean       @default(true)
+  createdAt     DateTime      @default(now())
+
+  @@index([ticketId, createdAt])
+}
+
+model SupportTicketAttachment {
+  id                String        @id @default(cuid())
+  ticketId          String
+  ticket            SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  uploadedByAdminId String
+  uploadedByAdmin   SuperAdmin    @relation(fields: [uploadedByAdminId], references: [id], onDelete: Restrict)
+  fileName          String
+  fileUrl           String
+  contentType       String
+  sizeBytes         Int
+  createdAt         DateTime      @default(now())
+
+  @@index([ticketId, createdAt])
+}
+
+/// A deliberately narrow alternative to impersonating a school account. The
+/// session only opens the read-only support workspace, expires automatically,
+/// and never becomes an application staff/guardian session.
+model SupportAccessSession {
+  id               String         @id @default(cuid())
+  schoolId         String
+  school           School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  ticketId         String?
+  ticket           SupportTicket? @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  createdByAdminId String
+  createdByAdmin   SuperAdmin     @relation(fields: [createdByAdminId], references: [id], onDelete: Restrict)
+  reason           String
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  lastViewedAt     DateTime?
+  createdAt        DateTime       @default(now())
+
+  @@index([createdByAdminId, expiresAt])
+  @@index([schoolId, createdAt])
+  @@index([ticketId])
+}
+
 model School {
   id String @id @default(cuid())
 
@@ -986,6 +1119,17 @@ model School {
   studentEveningCheckinTime  String?
   studentEveningCheckoutTime String?
 
+  // Optional teacher attendance geofence. The server remains authoritative:
+  // the app submits a device fix, while distance and attendance timestamps are
+  // calculated here. Separate enter/exit radii add hysteresis around the
+  // boundary so normal GPS drift does not flip attendance repeatedly.
+  locationAttendanceEnabled      Boolean @default(false)
+  locationLatitude               Float?
+  locationLongitude              Float?
+  locationCheckinRadiusMeters    Int     @default(100)
+  locationCheckoutRadiusMeters   Int     @default(150)
+  locationMaxAccuracyMeters      Int     @default(100)
+
   // Legacy schedule compatibility. Retained for the previous application
   // version and rollback window; new code reads/writes the period fields above.
   // Remove only in a later reviewed release after the old version is retired.
@@ -1000,27 +1144,27 @@ model School {
   contactNumber          String?
   address                String?
   phoneNumber            String?
-  twoFaEnabled           Boolean  @default(false)
+  twoFaEnabled           Boolean @default(false)
   twoFaPhone             String?
 
   // Business identity (registration wizard — Step 1)
-  legalName              String?
-  nationalUnifiedNumber  String?
-  entityType             String?
-  businessActivities     String?
+  legalName             String?
+  nationalUnifiedNumber String?
+  entityType            String?
+  businessActivities    String?
 
   // School information (registration wizard — Step 2)
-  schoolType             String?
-  educationStages        String[] @default([])
-  licenseNumber          String?
-  branch                 String?
+  schoolType      String?
+  educationStages String[] @default([])
+  licenseNumber   String?
+  branch          String?
 
   // Tax & Zakat (registration wizard — Step 3)
-  vatRegistered          Boolean?
-  zatcaUnifiedNumber     String?
-  zakatStatus            String?  // "yes" | "no" | "needs_review"
-  financialYear          String?
-  taxPeriod              String?
+  vatRegistered      Boolean?
+  zatcaUnifiedNumber String?
+  zakatStatus        String? // "yes" | "no" | "needs_review"
+  financialYear      String?
+  taxPeriod          String?
 
   // Admin panel fields
   plan_id             String?
@@ -1034,77 +1178,79 @@ model School {
   admin_messages    AdminMessageRecipient[]
   activity_logs     AdminActivityLog[]
 
-  users            User[]
-  teachers         Teacher[]
-  classes          Class[]
-  classTeachers    ClassTeacher[]
-  students         Student[]
-  guardians        Guardian[]
-  activities       Activity[]
-  invoices         Invoice[]
-  notificationLogs NotificationLog[]
-  settings         Settings?
-  import_sessions   ImportSession[]
-  financial_reports FinancialReport[]
-  expenses          Expense[]
-  expense_occurrences ExpenseOccurrence[]
-  finance_profile     FinanceProfile?
-  enrollment_tokens       EnrollmentToken[]
-  enrollment_submissions  EnrollmentSubmission[]
-  twoFaSessions           TwoFASession[]
-  admin_invoices          AdminInvoice[]
-  activity_log_entries    ActivityLog[]
-  payment_cycles          PaymentCycle[]
-  export_logs             ExportAuditLog[]
-  roles                   Role[]
-  guardian_accounts       GuardianAccount[]
-  care_reports            CareReport[]
-  units                   Unit[]
-  calendar_events         CalendarEvent[]
-  shifts                  Shift[]
-  storage_usage           StorageUsage?
-  stored_files            StoredFile[]
-  academic_stages         AcademicStageOption[]
-  school_admin_invitations SchoolAdminInvitation[]
-  activity_messages         ActivityMessage[]
+  users                       User[]
+  teachers                    Teacher[]
+  classes                     Class[]
+  classTeachers               ClassTeacher[]
+  students                    Student[]
+  guardians                   Guardian[]
+  activities                  Activity[]
+  invoices                    Invoice[]
+  notificationLogs            NotificationLog[]
+  settings                    Settings?
+  import_sessions             ImportSession[]
+  financial_reports           FinancialReport[]
+  expenses                    Expense[]
+  expense_occurrences         ExpenseOccurrence[]
+  finance_profile             FinanceProfile?
+  enrollment_tokens           EnrollmentToken[]
+  enrollment_submissions      EnrollmentSubmission[]
+  twoFaSessions               TwoFASession[]
+  admin_invoices              AdminInvoice[]
+  activity_log_entries        ActivityLog[]
+  payment_cycles              PaymentCycle[]
+  export_logs                 ExportAuditLog[]
+  roles                       Role[]
+  guardian_accounts           GuardianAccount[]
+  care_reports                CareReport[]
+  units                       Unit[]
+  calendar_events             CalendarEvent[]
+  shifts                      Shift[]
+  storage_usage               StorageUsage?
+  stored_files                StoredFile[]
+  academic_stages             AcademicStageOption[]
+  school_admin_invitations    SchoolAdminInvitation[]
+  activity_messages           ActivityMessage[]
   activity_message_recipients ActivityMessageRecipient[]
   subscription_payments       SchoolSubscriptionPayment[]
   arrival_recipient_settings  ArrivalRecipientSetting[]
   arrival_notices             ArrivalNotice[]
   arrival_notice_recipients   ArrivalNoticeRecipient[]
+  support_tickets             SupportTicket[]
+  support_access_sessions     SupportAccessSession[]
 }
 
 model PaymentCycle {
-  id           String    @id @default(cuid())
+  id           String             @id @default(cuid())
   school_id    String
   student_id   String
   due_date     DateTime
-  amount       Decimal   @db.Decimal(18, 2)
+  amount       Decimal            @db.Decimal(18, 2)
   status       PaymentCycleStatus @default(PENDING)
   paid_at      DateTime?
   paid_by      String?
   cycle_number Int // 1 = first payment, 2 = second, etc.
   notified_at  DateTime?
-  created_at   DateTime  @default(now())
+  created_at   DateTime           @default(now())
 
   school  School  @relation(fields: [school_id], references: [id])
   student Student @relation(fields: [student_id, school_id], references: [id, schoolId], onDelete: Restrict)
 
+  @@unique([student_id, due_date])
   @@index([school_id, due_date])
   @@index([student_id])
-  @@unique([student_id, due_date])
 }
 
 model ActivityLog {
   id           String   @id @default(cuid())
   school_id    String
-  action       String   // نص وصفي للإجراء
-  entity_type  String?  // "student" | "teacher" | "class" | "settings" | "invoice" | "auth" | etc
-  entity_id    String?  // id العنصر المتأثر
-  entity_name  String?  // اسم العنصر للعرض
-  performed_by String   // اسم المستخدم أو "النظام"
+  action       String // نص وصفي للإجراء
+  entity_type  String? // "student" | "teacher" | "class" | "settings" | "invoice" | "auth" | etc
+  entity_id    String? // id العنصر المتأثر
+  entity_name  String? // اسم العنصر للعرض
+  performed_by String // اسم المستخدم أو "النظام"
   ip_address   String?
-  device_info  String?  // User-Agent parsed: "Chrome على Windows"
+  device_info  String? // User-Agent parsed: "Chrome على Windows"
   created_at   DateTime @default(now())
 
   school School @relation(fields: [school_id], references: [id])
@@ -1113,14 +1259,14 @@ model ActivityLog {
 }
 
 model AdminInvoice {
-  id                 String    @id @default(cuid())
-  school_id          String
-  invoice_number     String
-  subscription_type  String?
-  issue_date         DateTime  @default(now())
-  due_date           DateTime?
-  status             AdminInvoiceStatus @default(PENDING)
-  payment_method     String?
+  id                String             @id @default(cuid())
+  school_id         String
+  invoice_number    String
+  subscription_type String?
+  issue_date        DateTime           @default(now())
+  due_date          DateTime?
+  status            AdminInvoiceStatus @default(PENDING)
+  payment_method    String?
 
   // معلومات شركتنا (SaaS provider) — قابلة للتعديل
   our_company_name   String?
@@ -1138,15 +1284,15 @@ model AdminInvoice {
   school_email          String?
   school_address        String?
 
-  line_items   Json // array of line item objects
-  total_amount Decimal @default(0) @db.Decimal(18, 2)
-  file_url     String?
-  idempotency_key String?
-  request_hash String?
-  generation_status InvoiceGenerationStatus @default(COMPLETED)
-  generation_error String?
+  line_items                  Json // array of line item objects
+  total_amount                Decimal                 @default(0) @db.Decimal(18, 2)
+  file_url                    String?
+  idempotency_key             String?
+  request_hash                String?
+  generation_status           InvoiceGenerationStatus @default(COMPLETED)
+  generation_error            String?
   generation_lease_expires_at DateTime?
-  created_at   DateTime @default(now())
+  created_at                  DateTime                @default(now())
 
   school School @relation(fields: [school_id], references: [id])
 
@@ -1157,18 +1303,18 @@ model AdminInvoice {
 }
 
 model TwoFASession {
-  id                 String   @id @default(cuid())
-  schoolId           String
-  school             School   @relation(fields: [schoolId], references: [id])
-  userId             String?  // set for purpose=LOGIN, identifies which User is completing login
-  purpose            String   @default("LOGIN") // "LOGIN" | "ACTIVATE"
-  otpCodeHash        String   // versioned HMAC of the 6-digit OTP, never plaintext
-  attempts           Int      @default(0)
-  verified           Boolean  @default(false)
-  expiresAt          DateTime
-  bypassTokenHash    String?  // SHA-256 of a high-entropy random bypass token
-  bypassExpires      DateTime?
-  createdAt          DateTime @default(now())
+  id              String    @id @default(cuid())
+  schoolId        String
+  school          School    @relation(fields: [schoolId], references: [id])
+  userId          String? // set for purpose=LOGIN, identifies which User is completing login
+  purpose         String    @default("LOGIN") // "LOGIN" | "ACTIVATE"
+  otpCodeHash     String // versioned HMAC of the 6-digit OTP, never plaintext
+  attempts        Int       @default(0)
+  verified        Boolean   @default(false)
+  expiresAt       DateTime
+  bypassTokenHash String? // SHA-256 of a high-entropy random bypass token
+  bypassExpires   DateTime?
+  createdAt       DateTime  @default(now())
 
   // Resend rotates the code on this same row rather than creating a new session,
   // so `attempts` is never reset and the lockout cannot be bypassed.
@@ -1230,25 +1376,25 @@ model Role {
 /// What was missing was not a table but a *role*: every user was an "admin"
 /// string with nothing reading it.
 model User {
-  id        String   @id @default(cuid())
-  name      String
-  email     String   @unique
+  id       String  @id @default(cuid())
+  name     String
+  email    String  @unique
   /// Null between invitation and activation. Nullable rather than a throwaway
   /// hash so the type system forces every comparison site to say what happens
   /// when there is no password yet — a placeholder hash would compile silently
   /// and behave like a real credential nobody knows.
-  password  String?
+  password String?
   /// Legacy free-text role. Kept because sessions and older rows carry it;
   /// `roleId` is what the permission layer reads.
-  role      String   @default("admin")
-  schoolId  String
-  school    School   @relation(fields: [schoolId], references: [id])
+  role     String  @default("admin")
+  schoolId String
+  school   School  @relation(fields: [schoolId], references: [id])
 
   /// Nullable: rows created before this feature have no role yet. The permission
   /// layer treats a missing role as "owner" only for the school's first user —
   /// see resolvePermissions() in src/lib/authz.ts.
-  roleId String?
-  roleRef Role?  @relation(fields: [roleId, schoolId], references: [id, schoolId], onDelete: Restrict)
+  roleId  String?
+  roleRef Role?   @relation(fields: [roleId, schoolId], references: [id, schoolId], onDelete: Restrict)
 
   /// Links the login to the staff record it belongs to, so a teacher signing in
   /// can be scoped to her own classes. Null for an office account with no
@@ -1283,12 +1429,13 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  resetTokens PasswordResetToken[]
-  schoolAdminInvitations SchoolAdminInvitation[]
-  devices DeviceToken[]
+  resetTokens               PasswordResetToken[]
+  schoolAdminInvitations    SchoolAdminInvitation[]
+  devices                   DeviceToken[]
+  supportTickets            SupportTicket[]
   activityMessageRecipients ActivityMessageRecipient[]
-  arrivalRecipientSettings ArrivalRecipientSetting[]
-  arrivalNoticeRecipients ArrivalNoticeRecipient[]
+  arrivalRecipientSettings  ArrivalRecipientSetting[]
+  arrivalNoticeRecipients   ArrivalNoticeRecipient[]
 
   @@unique([id, schoolId])
   @@index([schoolId])
@@ -1299,14 +1446,14 @@ model User {
 /// school. The raw token exists only long enough to be put in the email; this
 /// row stores its SHA-256 digest.
 model SchoolAdminInvitation {
-  id        String   @id @default(cuid())
-  tokenHash String   @unique
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
   schoolId  String
   userId    String
   expiresAt DateTime
   usedAt    DateTime?
   revokedAt DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   user   User   @relation(fields: [userId, schoolId], references: [id, schoolId], onDelete: Cascade)
@@ -1344,24 +1491,24 @@ model GuardianAccount {
   inviteExpiresAt DateTime?
   acceptedAt      DateTime?
 
-  disabledAt DateTime?
-  lastLoginAt DateTime?
+  disabledAt          DateTime?
+  lastLoginAt         DateTime?
   /// Server-authoritative rolling cooldown for the parent arrival button.
   lastArrivalNoticeAt DateTime?
   /// Mobile notification preferences. They only affect notifications created
   /// after the preference is changed; existing inbox rows remain available.
-  notifyActivity   Boolean @default(true)
-  notifyCalendar   Boolean @default(true)
-  notifyAbsence    Boolean @default(true)
-  notifyAttendance Boolean @default(true)
-  notifyCareReport Boolean @default(true)
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  notifyActivity      Boolean   @default(true)
+  notifyCalendar      Boolean   @default(true)
+  notifyAbsence       Boolean   @default(true)
+  notifyAttendance    Boolean   @default(true)
+  notifyCareReport    Boolean   @default(true)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
-  devices DeviceToken[]
-  resetTokens PasswordResetToken[]
+  devices                   DeviceToken[]
+  resetTokens               PasswordResetToken[]
   activityMessageRecipients ActivityMessageRecipient[]
-  arrivalNotices ArrivalNotice[]
+  arrivalNotices            ArrivalNotice[]
 
   @@unique([guardianId, schoolId])
   @@unique([id, schoolId])
@@ -1371,8 +1518,8 @@ model GuardianAccount {
 
 /// Staff accounts selected by the director to receive parent arrival notices.
 model ArrivalRecipientSetting {
-  schoolId String
-  userId   String
+  schoolId  String
+  userId    String
   createdAt DateTime @default(now())
 
   school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
@@ -1386,18 +1533,18 @@ model ArrivalRecipientSetting {
 /// It intentionally has no child relation: the notice identifies the sender,
 /// exactly as the product flow does, and never asks the parent to pick a child.
 model ArrivalNotice {
-  id                String   @id @default(cuid())
+  id                String    @id @default(cuid())
   schoolId          String
   guardianAccountId String
   senderName        String
   expectedAt        DateTime
-  pushQueuedCount   Int      @default(0)
-  pushFailureCount  Int      @default(0)
+  pushQueuedCount   Int       @default(0)
+  pushFailureCount  Int       @default(0)
   pushProcessedAt   DateTime?
-  createdAt         DateTime @default(now())
+  createdAt         DateTime  @default(now())
 
-  school          School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  guardianAccount GuardianAccount @relation(fields: [guardianAccountId, schoolId], references: [id, schoolId], onDelete: Cascade)
+  school          School                   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  guardianAccount GuardianAccount          @relation(fields: [guardianAccountId, schoolId], references: [id, schoolId], onDelete: Cascade)
   recipients      ArrivalNoticeRecipient[]
 
   @@unique([id, schoolId])
@@ -1412,7 +1559,7 @@ model ArrivalNoticeRecipient {
   schoolId  String
   userId    String
   readAt    DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   notice ArrivalNotice @relation(fields: [noticeId, schoolId], references: [id, schoolId], onDelete: Cascade)
   school School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
@@ -1437,7 +1584,7 @@ model DeviceToken {
   guardianAccountId String?
   guardianAccount   GuardianAccount? @relation(fields: [guardianAccountId, schoolId], references: [id, schoolId], onDelete: Cascade)
   userId            String?
-  user              User? @relation(fields: [userId, schoolId], references: [id, schoolId], onDelete: Cascade)
+  user              User?            @relation(fields: [userId, schoolId], references: [id, schoolId], onDelete: Cascade)
 
   platform PushPlatform
   /// The provider's registration token. Unique because the same device
@@ -1447,9 +1594,9 @@ model DeviceToken {
 
   /// Cleared to null on a permanent provider rejection so the sender stops
   /// retrying a token the device will never accept again.
-  failedAt     DateTime?
-  lastSeenAt   DateTime  @default(now())
-  createdAt    DateTime  @default(now())
+  failedAt   DateTime?
+  lastSeenAt DateTime  @default(now())
+  createdAt  DateTime  @default(now())
 
   @@index([schoolId])
   @@index([guardianAccountId])
@@ -1466,20 +1613,20 @@ model PushNotification {
   schoolId String
 
   deviceTokenId String?
-  title    String
-  body     String
+  title         String
+  body          String
   /// Deep-link payload — which screen to open. Never carries the child's health
   /// or contact details: a notification is read on a lock screen.
-  data     Json?
+  data          Json?
 
-  status      PushStatus @default(PENDING)
-  attempts    Int        @default(0)
-  lastError   String?
-  scheduledAt DateTime   @default(now())
+  status         PushStatus @default(PENDING)
+  attempts       Int        @default(0)
+  lastError      String?
+  scheduledAt    DateTime   @default(now())
   leaseToken     String?
   leaseExpiresAt DateTime?
-  sentAt      DateTime?
-  createdAt   DateTime   @default(now())
+  sentAt         DateTime?
+  createdAt      DateTime   @default(now())
 
   @@index([status, scheduledAt])
   @@index([status, leaseExpiresAt])
@@ -1540,52 +1687,52 @@ model PasswordResetToken {
 }
 
 model Settings {
-  id                String   @id @default(cuid())
-  schoolId          String   @unique
-  school            School   @relation(fields: [schoolId], references: [id])
+  id                       String   @id @default(cuid())
+  schoolId                 String   @unique
+  school                   School   @relation(fields: [schoolId], references: [id])
   /// When false, newly submitted care reports are approved and released to
   /// guardians immediately. Existing pending reports are never rewritten when
   /// this setting changes.
-  careReportReviewRequired Boolean @default(true)
-  hourlyLateFee     Decimal  @default(0) @db.Decimal(18, 2)
-  dailyStudentFee   Decimal  @default(0) @db.Decimal(18, 2)
-  weeklyStudentFee  Decimal? @db.Decimal(18, 2)
-  monthlyStudentFee Decimal  @default(0) @db.Decimal(18, 2)
-  yearlyStudentFee  Decimal? @db.Decimal(18, 2)
-  reminderTemplate  String   @default("مرحباً، <guardian_name>، نود إعلامكم بأن الرسوم المستحقة على <child_name> بمبلغ <amount_due> ريال تستحق بتاريخ <due_date>. مع تحيات <school_name>")
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  careReportReviewRequired Boolean  @default(true)
+  hourlyLateFee            Decimal  @default(0) @db.Decimal(18, 2)
+  dailyStudentFee          Decimal  @default(0) @db.Decimal(18, 2)
+  weeklyStudentFee         Decimal? @db.Decimal(18, 2)
+  monthlyStudentFee        Decimal  @default(0) @db.Decimal(18, 2)
+  yearlyStudentFee         Decimal? @db.Decimal(18, 2)
+  reminderTemplate         String   @default("مرحباً، <guardian_name>، نود إعلامكم بأن الرسوم المستحقة على <child_name> بمبلغ <amount_due> ريال تستحق بتاريخ <due_date>. مع تحيات <school_name>")
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
 }
 
 model Class {
-  id               String   @id @default(cuid())
-  name             String
-  schoolId         String
-  school           School   @relation(fields: [schoolId], references: [id])
-  teacherId        String?
-  teacher          Teacher? @relation(fields: [teacherId, schoolId], references: [id, schoolId], onDelete: Restrict)
+  id                 String               @id @default(cuid())
+  name               String
+  schoolId           String
+  school             School               @relation(fields: [schoolId], references: [id])
+  teacherId          String?
+  teacher            Teacher?             @relation(fields: [teacherId, schoolId], references: [id, schoolId], onDelete: Restrict)
   /// All staff assigned to this room. `teacherId` above is retained as the
   /// compatibility primary teacher during the rollout; new authorization and
   /// audience code reads this relation instead.
   teacherAssignments ClassTeacher[]
   /// DEPRECATED — read `stage` instead. Kept until the last reader is gone.
-  group            ClassGroup @default(KG1)
+  group              ClassGroup           @default(KG1)
   /// The school's own academic stage. Nullable because a room need not have one
   /// — and because making it required would have meant guessing for every
   /// existing row rather than carrying its old value across.
-  stageId          String?
-  stage            AcademicStageOption? @relation(fields: [stageId, schoolId], references: [id, schoolId], onDelete: Restrict)
+  stageId            String?
+  stage              AcademicStageOption? @relation(fields: [stageId, schoolId], references: [id, schoolId], onDelete: Restrict)
   /// Age bands this room takes. An array because a small nursery runs one room
   /// for 1–3 year olds and must be able to say so, rather than being forced to
   /// pick the band that fits worst.
-  ageGroups        AgeGroup[] @default([])
+  ageGroups          AgeGroup[]           @default([])
 
   /// How many children the room holds.
   ///
   /// Null means "not set" and is treated as no limit — an existing school must
   /// not start seeing capacity warnings on rooms it never configured. Zero is a
   /// real answer meaning the room is closed.
-  capacity         Int?
+  capacity Int?
 
   period           Period   @default(MORNING)
   registrationDate DateTime @default(now())
@@ -1602,12 +1749,12 @@ model Class {
   /// carry `status` + `leftAt` from the retention work, and "archived" for them
   /// means `status != ACTIVE`. A fourth overlapping flag on those tables would be
   /// the kind of near-duplicate state that eventually disagrees with itself.
-  archivedAt          DateTime?
+  archivedAt DateTime?
 
   deletedAt           DateTime?
-  needsTeacherWarning Boolean  @default(false)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  needsTeacherWarning Boolean   @default(false)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   students        Student[]
   activityInvites ActivityInvite[]
@@ -1630,7 +1777,7 @@ model ClassTeacher {
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   classId String
-  class   Class @relation(fields: [classId, schoolId], references: [id, schoolId], onDelete: Cascade)
+  class   Class  @relation(fields: [classId, schoolId], references: [id, schoolId], onDelete: Cascade)
 
   teacherId String
   teacher   Teacher @relation(fields: [teacherId, schoolId], references: [id, schoolId], onDelete: Restrict)
@@ -1665,11 +1812,11 @@ model Teacher {
   idNumberHash      String?
 
   /// PII
-  dateOfBirth DateTime?
-  nationality String?
-  email       String?
-  phone1      String?
-  phone2      String?
+  dateOfBirth       DateTime?
+  nationality       String?
+  email             String?
+  phone1            String?
+  phone2            String?
   paymentMethod     PaymentMethod @default(CASH)
   joinDate          DateTime      @default(now())
   enrollmentEndDate DateTime?
@@ -1699,12 +1846,12 @@ model Teacher {
   /// Field of study — "طفولة مبكرة", "تربية خاصة".
   specialization String?
 
-  attendanceHours   Float         @default(0)
-  lateHours         Float         @default(0)
-  isActive          Boolean       @default(true)
-  deletedAt         DateTime?
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  attendanceHours Float     @default(0)
+  lateHours       Float     @default(0)
+  isActive        Boolean   @default(true)
+  deletedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   /// Operational — data lifecycle. Same contract as Student; see
   /// docs/DATA_LIFECYCLE.md. Governed by
@@ -1838,7 +1985,7 @@ model Student {
   /// The school's own academic stage (task 2.44).
   stageId       String?
   stage         AcademicStageOption? @relation(fields: [stageId, schoolId], references: [id, schoolId], onDelete: Restrict)
-  period        Period         @default(MORNING)
+  period        Period               @default(MORNING)
 
   /// Sensitive — national ID. See Teacher.idNumberHash for why this is an HMAC.
   idNumber          String?
@@ -1852,36 +1999,36 @@ model Student {
   registrationDate DateTime  @default(now())
 
   /// Operational
-  paymentMethod     PaymentMethod  @default(CASH)
+  paymentMethod PaymentMethod @default(CASH)
 
   /// How this child's fee recurs (task 2.37).
   ///
   /// Defaults to MONTHLY, which is what every existing row already is — the
   /// product had no other option — so the column changes nothing until a nursery
   /// chooses otherwise.
-  billingCycle      BillingCycle   @default(MONTHLY)
+  billingCycle        BillingCycle @default(MONTHLY)
   /// Interval in days, read only when `billingCycle` is CUSTOM.
   billingIntervalDays Int?
   /// Immutable per-cycle price snapshot for the current subscription period.
   /// Null is retained only for legacy/unpriced records and is rejected at the
   /// next supported subscription creation, type change, or renewal boundary.
-  cycleFee          Decimal?      @db.Decimal(18, 2)
+  cycleFee            Decimal?     @db.Decimal(18, 2)
 
-  enrollmentEndDate DateTime?
-  paymentStatus     PaymentStatus  @default(PENDING)
-  attendanceHours   Float          @default(0)
-  lateHours         Float          @default(0)
-  attendanceType    AttendanceType @default(REGULAR)
-  registration_fee  Decimal        @default(0) @db.Decimal(18, 2)
-  additionalFile    String?
+  enrollmentEndDate  DateTime?
+  paymentStatus      PaymentStatus  @default(PENDING)
+  attendanceHours    Float          @default(0)
+  lateHours          Float          @default(0)
+  attendanceType     AttendanceType @default(REGULAR)
+  registration_fee   Decimal        @default(0) @db.Decimal(18, 2)
+  additionalFile     String?
   evaluationFileUrl  String?
   evaluationFileName String?
-  avatarUrl         String?
-  isActive          Boolean       @default(true)
-  deletedAt         DateTime?
-  needsClassWarning Boolean       @default(false)
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  avatarUrl          String?
+  isActive           Boolean        @default(true)
+  deletedAt          DateTime?
+  needsClassWarning  Boolean        @default(false)
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
 
   /// Which weekdays this child attends (task 2.11).
   ///
@@ -1925,11 +2072,11 @@ model Student {
   enrollmentYear        Int?
   leftYear              Int?
 
-  attendances     Attendance[]
-  invoices        Invoice[]
-  payment_cycles  PaymentCycle[]
-  care_reports    CareReport[]
-  guardianLinks   StudentGuardian[]
+  attendances      Attendance[]
+  invoices         Invoice[]
+  payment_cycles   PaymentCycle[]
+  care_reports     CareReport[]
+  guardianLinks    StudentGuardian[]
   activityMessages ActivityMessage[]
 
   @@unique([id, schoolId])
@@ -1946,29 +2093,29 @@ model Student {
 }
 
 model Activity {
-  id            String   @id @default(cuid())
+  id            String               @id @default(cuid())
   name          String
   schoolId      String
-  school        School   @relation(fields: [schoolId], references: [id])
+  school        School               @relation(fields: [schoolId], references: [id])
   teacherId     String?
-  teacher       Teacher? @relation(fields: [teacherId, schoolId], references: [id, schoolId], onDelete: Restrict)
+  teacher       Teacher?             @relation(fields: [teacherId, schoolId], references: [id, schoolId], onDelete: Restrict)
   /// DEPRECATED — read `stage` instead (task 2.44).
-  group         ClassGroup @default(KG1)
+  group         ClassGroup           @default(KG1)
   stageId       String?
   stage         AcademicStageOption? @relation(fields: [stageId, schoolId], references: [id, schoolId], onDelete: Restrict)
-  period        Period   @default(MORNING)
-  childrenCount Int      @default(0)
+  period        Period               @default(MORNING)
+  childrenCount Int                  @default(0)
   startDate     DateTime
   endDate       DateTime
   /// Null marks a legacy date-only activity. New rows explicitly choose an
   /// all-day calendar span or device-local timed instants.
   allDay        Boolean?
-  activityFee   Decimal  @default(0) @db.Decimal(18, 2)
+  activityFee   Decimal              @default(0) @db.Decimal(18, 2)
   imageUrl      String?
   message       String?
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  isActive      Boolean              @default(true)
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
 
   activityInvites ActivityInvite[]
   messages        ActivityMessage[]
@@ -1981,29 +2128,29 @@ model Activity {
 /// A durable in-app activity message. Push is only a signal that this row is
 /// available; it is never the source of the message body.
 model ActivityMessage {
-  id             String   @id @default(cuid())
-  schoolId       String
-  activityId     String?
-  calendarEventId String?
-  studentId       String?
-  absenceDate     DateTime? @db.Date
-  body           String
-  idempotencyKey String
-  requestHash    String
-  targetRevision DateTime
-  guardianRecipientCount Int      @default(0)
-  staffRecipientCount    Int      @default(0)
-  pushQueuedCount        Int      @default(0)
-  pushFailureCount       Int      @default(0)
+  id                     String    @id @default(cuid())
+  schoolId               String
+  activityId             String?
+  calendarEventId        String?
+  studentId              String?
+  absenceDate            DateTime? @db.Date
+  body                   String
+  idempotencyKey         String
+  requestHash            String
+  targetRevision         DateTime
+  guardianRecipientCount Int       @default(0)
+  staffRecipientCount    Int       @default(0)
+  pushQueuedCount        Int       @default(0)
+  pushFailureCount       Int       @default(0)
   pushProcessedAt        DateTime?
-  createdById    String?
-  createdAt      DateTime @default(now())
+  createdById            String?
+  createdAt              DateTime  @default(now())
 
-  school     School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  activity   Activity? @relation(fields: [activityId, schoolId], references: [id, schoolId], onDelete: Cascade)
-  calendarEvent CalendarEvent? @relation(fields: [calendarEventId, schoolId], references: [id, schoolId], onDelete: Cascade)
-  student    Student? @relation(fields: [studentId, schoolId], references: [id, schoolId], onDelete: Cascade)
-  recipients ActivityMessageRecipient[]
+  school        School                     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  activity      Activity?                  @relation(fields: [activityId, schoolId], references: [id, schoolId], onDelete: Cascade)
+  calendarEvent CalendarEvent?             @relation(fields: [calendarEventId, schoolId], references: [id, schoolId], onDelete: Cascade)
+  student       Student?                   @relation(fields: [studentId, schoolId], references: [id, schoolId], onDelete: Cascade)
+  recipients    ActivityMessageRecipient[]
 
   @@unique([id, schoolId])
   @@unique([schoolId, activityId, idempotencyKey])
@@ -2016,13 +2163,13 @@ model ActivityMessage {
 }
 
 model ActivityMessageRecipient {
-  id                String   @id @default(cuid())
+  id                String    @id @default(cuid())
   schoolId          String
   messageId         String
   userId            String?
   guardianAccountId String?
-  readAt             DateTime?
-  createdAt          DateTime @default(now())
+  readAt            DateTime?
+  createdAt         DateTime  @default(now())
 
   school          School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   message         ActivityMessage  @relation(fields: [messageId, schoolId], references: [id, schoolId], onDelete: Cascade)
@@ -2049,14 +2196,14 @@ model ActivityInvite {
 }
 
 model Attendance {
-  id          String    @id @default(cuid())
-  studentId   String
-  student     Student   @relation(fields: [studentId, schoolId], references: [id, schoolId], onDelete: Restrict)
-  classId     String?
-  class       Class?    @relation(fields: [classId, schoolId], references: [id, schoolId], onDelete: Restrict)
-  schoolId    String
-  checkinAt   DateTime?
-  checkoutAt  DateTime?
+  id         String    @id @default(cuid())
+  studentId  String
+  student    Student   @relation(fields: [studentId, schoolId], references: [id, schoolId], onDelete: Restrict)
+  classId    String?
+  class      Class?    @relation(fields: [classId, schoolId], references: [id, schoolId], onDelete: Restrict)
+  schoolId   String
+  checkinAt  DateTime?
+  checkoutAt DateTime?
 
   /// The day's state, stated rather than inferred.
   ///
@@ -2064,15 +2211,15 @@ model Attendance {
   /// "nobody has recorded anything", and a parent seeing a blank row cannot tell
   /// which. Defaults to PRESENT because the overwhelming majority of rows are
   /// created by a check-in.
-  status      AttendanceStatus @default(PRESENT)
+  status     AttendanceStatus @default(PRESENT)
   /// Why, for ABSENT and LEAVE. Free text — a nursery's reasons are its own.
-  statusNote  String?
+  statusNote String?
 
-  lateMinutes Int       @default(0)
-  lateFee     Decimal   @default(0) @db.Decimal(18, 2)
-  date        DateTime  @default(dbgenerated("CURRENT_DATE")) @db.Date
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  lateMinutes Int      @default(0)
+  lateFee     Decimal  @default(0) @db.Decimal(18, 2)
+  date        DateTime @default(dbgenerated("CURRENT_DATE")) @db.Date
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   // One row per child per day. Every check-in path did findFirst-then-create,
   // so a double tap or a retried request silently produced two rows for the
@@ -2092,6 +2239,14 @@ model TeacherAttendance {
   lateMinutes   Int       @default(0)
   requiredHours Float?
   compensated   Boolean   @default(false)
+  checkinSource String    @default("MANUAL")
+  checkoutSource String?
+  checkinDistanceMeters  Float?
+  checkoutDistanceMeters Float?
+  checkinAccuracyMeters  Float?
+  checkoutAccuracyMeters Float?
+  checkinEventId  String? @unique
+  checkoutEventId String? @unique
   date          DateTime  @default(dbgenerated("CURRENT_DATE")) @db.Date
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -2101,30 +2256,30 @@ model TeacherAttendance {
 }
 
 model Invoice {
-  id        String      @id @default(cuid())
-  schoolId  String
-  school    School      @relation(fields: [schoolId], references: [id])
-  type      InvoiceType
-  studentId String?
-  student   Student?    @relation(fields: [studentId, schoolId], references: [id, schoolId], onDelete: Restrict)
-  teacherId String?
-  teacher   Teacher?    @relation(fields: [teacherId, schoolId], references: [id, schoolId], onDelete: Restrict)
-  amount    Decimal     @db.Decimal(18, 2)
-  vat_amount Decimal    @default(0) @db.Decimal(18, 2)
-  pdfUrl    String?
-  data      Json
-  idempotencyKey String?
-  operationKind String?
-  requestHash String?
-  generationStatus InvoiceGenerationStatus @default(COMPLETED)
-  generationError String?
+  id                       String                  @id @default(cuid())
+  schoolId                 String
+  school                   School                  @relation(fields: [schoolId], references: [id])
+  type                     InvoiceType
+  studentId                String?
+  student                  Student?                @relation(fields: [studentId, schoolId], references: [id, schoolId], onDelete: Restrict)
+  teacherId                String?
+  teacher                  Teacher?                @relation(fields: [teacherId, schoolId], references: [id, schoolId], onDelete: Restrict)
+  amount                   Decimal                 @db.Decimal(18, 2)
+  vat_amount               Decimal                 @default(0) @db.Decimal(18, 2)
+  pdfUrl                   String?
+  data                     Json
+  idempotencyKey           String?
+  operationKind            String?
+  requestHash              String?
+  generationStatus         InvoiceGenerationStatus @default(COMPLETED)
+  generationError          String?
   generationLeaseExpiresAt DateTime?
-  createdAt DateTime    @default(now())
+  createdAt                DateTime                @default(now())
 
+  @@unique([schoolId, operationKind, idempotencyKey])
   @@index([schoolId, createdAt])
   @@index([studentId])
   @@index([teacherId])
-  @@unique([schoolId, operationKind, idempotencyKey])
   @@index([schoolId, generationStatus, createdAt])
   @@index([generationStatus, generationLeaseExpiresAt])
 }
@@ -2157,20 +2312,20 @@ model NotificationLog {
 }
 
 model Expense {
-  id           String    @id @default(cuid())
-  school_id    String
-  title        String
-  description  String?
-  amount       Decimal   @db.Decimal(18, 2)
-  type         String    // "one_time" | "monthly"
-  start_date   DateTime
-  end_date     DateTime? // تاريخ انتهاء الاشتراك الشهري (اختياري)
-  is_active    Boolean   @default(true)
-  stopped_at   DateTime?
-  created_at   DateTime  @default(now())
-  updated_at   DateTime  @updatedAt
+  id          String    @id @default(cuid())
+  school_id   String
+  title       String
+  description String?
+  amount      Decimal   @db.Decimal(18, 2)
+  type        String // "one_time" | "monthly"
+  start_date  DateTime
+  end_date    DateTime? // تاريخ انتهاء الاشتراك الشهري (اختياري)
+  is_active   Boolean   @default(true)
+  stopped_at  DateTime?
+  created_at  DateTime  @default(now())
+  updated_at  DateTime  @updatedAt
 
-  school School @relation(fields: [school_id], references: [id])
+  school      School              @relation(fields: [school_id], references: [id])
   occurrences ExpenseOccurrence[]
 
   @@unique([id, school_id])
@@ -2181,16 +2336,16 @@ model Expense {
 /// rule; each month has its own settlement state so paying September cannot
 /// silently mark October paid too.
 model ExpenseOccurrence {
-  id          String                  @id @default(cuid())
-  school_id   String
-  expense_id  String
-  due_date    DateTime                @db.Date
-  amount      Decimal                 @db.Decimal(18, 2)
-  status      ExpenseOccurrenceStatus @default(PENDING)
-  paid_at     DateTime?
-  paid_by     String?
-  created_at  DateTime                @default(now())
-  updated_at  DateTime                @updatedAt
+  id         String                  @id @default(cuid())
+  school_id  String
+  expense_id String
+  due_date   DateTime                @db.Date
+  amount     Decimal                 @db.Decimal(18, 2)
+  status     ExpenseOccurrenceStatus @default(PENDING)
+  paid_at    DateTime?
+  paid_by    String?
+  created_at DateTime                @default(now())
+  updated_at DateTime                @updatedAt
 
   school  School  @relation(fields: [school_id], references: [id], onDelete: Cascade)
   expense Expense @relation(fields: [expense_id, school_id], references: [id, school_id], onDelete: Cascade)
@@ -2203,12 +2358,12 @@ model ExpenseOccurrence {
 /// Later changes are audited by the route and are never inferred from current
 /// students or staff, whose lifecycle must not rewrite financial history.
 model FinanceProfile {
-  id                   String   @id @default(cuid())
-  school_id            String   @unique
-  opening_balance      Decimal  @default(0) @db.Decimal(18, 2)
+  id                   String    @id @default(cuid())
+  school_id            String    @unique
+  opening_balance      Decimal   @default(0) @db.Decimal(18, 2)
   opening_balance_date DateTime? @db.Date
-  created_at           DateTime @default(now())
-  updated_at           DateTime @updatedAt
+  created_at           DateTime  @default(now())
+  updated_at           DateTime  @updatedAt
 
   school School @relation(fields: [school_id], references: [id], onDelete: Cascade)
 }
@@ -2279,7 +2434,7 @@ model EnrollmentToken {
   /// It survives only to mask the recipient on links issued before the change.
   sent_to_phone String?
   sent_to_email String?
-  status        String @default("pending") // "pending" | "active" | "completed" | "expired"
+  status        String  @default("pending") // "pending" | "active" | "completed" | "expired"
 
   // Versioned HMAC of the OTP. It used to be stored in plaintext and compared with !==,
   // with no attempt counter, against a token that stayed valid for 24 hours.
@@ -2305,24 +2460,24 @@ model EnrollmentToken {
 }
 
 model EnrollmentSubmission {
-  id              String    @id @default(cuid())
-  token_id        String
-  school_id       String
-  status          String    @default("pending_review") // "pending_review" | "approved" | "rejected"
+  id        String @id @default(cuid())
+  token_id  String
+  school_id String
+  status    String @default("pending_review") // "pending_review" | "approved" | "rejected"
 
-  full_name        String
-  id_number        String?
+  full_name           String
+  id_number           String?
   encrypted_id_number String?
   id_number_hash      String?
-  nationality      String?
-  academic_stage   String?
-  gender           String?
-  period           String?
-  date_of_birth    DateTime?
-  health_condition String?
-  allergies        String?
-  attendance_type  String?
-  payment_method   String?
+  nationality         String?
+  academic_stage      String?
+  gender              String?
+  period              String?
+  date_of_birth       DateTime?
+  health_condition    String?
+  allergies           String?
+  attendance_type     String?
+  payment_method      String?
 
   guardian_name    String?
   guardian_phone_1 String?
@@ -2333,9 +2488,9 @@ model EnrollmentSubmission {
   guardian_phone_4 String?
   guardian_email_2 String?
 
-  enrollment_date       DateTime?
-  evaluation_file_url   String?
-  evaluation_file_name  String?
+  enrollment_date      DateTime?
+  evaluation_file_url  String?
+  evaluation_file_name String?
 
   submitted_at DateTime  @default(now())
   reviewed_at  DateTime?

@@ -13,6 +13,12 @@ vi.mock("@/lib/mobile-guard", () => ({
 }));
 vi.mock("@/lib/arrival-notifications", () => ({
   createGuardianArrivalNotice: mocks.create,
+  arrivalMinutesFromDates: (expectedAt: Date, createdAt: Date) =>
+    Math.max(0, Math.round((expectedAt.getTime() - createdAt.getTime()) / 60_000)),
+  arrivalNoticeMessage: (senderName: string, minutes: number) =>
+    minutes === 0
+      ? `ولي الأمر ${senderName} وصل`
+      : `سيصل ${senderName} خلال ${minutes} دقائق`,
 }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -47,7 +53,42 @@ describe("mobile arrival route", () => {
     expect(mocks.create).toHaveBeenCalledWith({
       schoolId: "school-1",
       guardianAccountId: "guardian-account-1",
+      arrivalMinutes: 5,
     });
+  });
+
+  it("passes an arrived choice through without accepting arbitrary minutes", async () => {
+    mocks.auth.mockResolvedValue({
+      schoolId: "school-1",
+      claims: { sub: "guardian-account-1", kind: "guardian" },
+    });
+    mocks.create.mockResolvedValue({
+      created: true,
+      noticeId: "arrival-now",
+      message: "ولي الأمر سارة وصل",
+      expectedAt: new Date("2026-09-29T09:00:00.000Z"),
+      cooldownUntil: new Date("2026-09-29T09:05:00.000Z"),
+      recipients: 1,
+      pushQueued: 1,
+    });
+
+    const response = await POST(new Request("http://localhost/api/mobile/v1/arrival", {
+      method: "POST",
+      body: JSON.stringify({ minutes: 0 }),
+    }));
+
+    expect(response.status).toBe(201);
+    expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({ arrivalMinutes: 0 }));
+    await expect(response.json()).resolves.toMatchObject({
+      message: "ولي الأمر سارة وصل",
+      cooldownUntil: "2026-09-29T09:05:00.000Z",
+    });
+
+    const invalid = await POST(new Request("http://localhost/api/mobile/v1/arrival", {
+      method: "POST",
+      body: JSON.stringify({ minutes: 20 }),
+    }));
+    expect(invalid.status).toBe(422);
   });
 
   it("returns Retry-After when the five-minute window is still active", async () => {
@@ -90,6 +131,8 @@ describe("mobile arrival route", () => {
       where: { schoolId: "school-1", userId: "staff-1", readAt: null },
     }));
     expect((await response.json()).notices).toHaveLength(1);
+    expect((await GET(new Request("http://localhost/api/mobile/v1/arrival")).then((result) => result.json())).notices[0])
+      .toMatchObject({ message: "سيصل سارة خلال 5 دقائق" });
   });
 
   it("acknowledges only the signed-in staff account's own unread notice", async () => {

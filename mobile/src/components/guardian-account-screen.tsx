@@ -1,8 +1,10 @@
 import { useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
 
 import { AppScreen, cardStyles } from "@/components/app-screen";
+import { LanguageSettingsCard } from "@/components/language-settings-card";
 import { NotificationSettingsCard } from "@/components/notification-settings-card";
+import { Text, useLanguage } from "@/language";
 import { useSession } from "@/session";
 import { colors, radius, spacing, touchTarget } from "@/theme";
 
@@ -14,6 +16,7 @@ function periodLabel(period: "MORNING" | "EVENING" | null) {
 
 export function GuardianAccountScreen() {
   const { account, signOut } = useSession();
+  const { isRTL } = useLanguage();
   const [signingOut, setSigningOut] = useState(false);
   if (!account || account.kind !== "guardian") return null;
 
@@ -42,7 +45,7 @@ export function GuardianAccountScreen() {
         ) : (
           <View style={styles.list}>
             {account.children.map((child) => (
-              <View key={child.id} style={styles.childRow}>
+              <View key={child.id} style={[styles.childRow, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
                 <View style={styles.avatar}>
                   <Text style={styles.avatarText}>{child.name.trim().slice(0, 1) || "ط"}</Text>
                 </View>
@@ -55,6 +58,8 @@ export function GuardianAccountScreen() {
           </View>
         )}
       </View>
+
+      <LanguageSettingsCard />
 
       <NotificationSettingsCard kind="guardian" />
 
@@ -73,8 +78,9 @@ export function GuardianAccountScreen() {
 }
 
 function AccountRow({ label, value }: { label: string; value: string }) {
+  const { isRTL } = useLanguage();
   return (
-    <View style={styles.accountRow}>
+    <View style={[styles.accountRow, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
       <Text style={styles.accountValue}>{value}</Text>
       <Text style={styles.accountLabel}>{label}</Text>
     </View>

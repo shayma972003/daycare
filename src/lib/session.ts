@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { grants, ALL_PERMISSIONS } from "@/lib/permissions";
 import { requirementFor, isUngated } from "@/lib/route-permissions";
 import { schoolSubscriptionAccess, type SchoolSubscriptionAccess } from "@/lib/school-subscription";
+import { SUPPORT_VIEW_PERMISSIONS } from "@/lib/support-access";
+import { getActiveSupportView } from "@/lib/support-view-session";
 
 export type AuthSession = {
   user: {
@@ -28,6 +30,9 @@ export type AuthSession = {
   teacherClassIds: string[] | null;
   subscription: SchoolSubscriptionAccess;
   can: (permission: string) => boolean;
+  isSupportAccess?: boolean;
+  supportAccessId?: string | null;
+  supportAccessExpiresAt?: Date | null;
 };
 
 /**
@@ -128,11 +133,40 @@ async function resolvePermissions(
  *    the path and method the middleware forwards.
  */
 export async function requireSession(): Promise<AuthSession> {
-  const session = await getServerSession(authOptions);
-
-  if (!session?.user) {
-    throw new UnauthorizedError();
+  const supportView = await getActiveSupportView();
+  if (supportView) {
+    const school = await prisma.school.findUnique({
+      where: { id: supportView.schoolId },
+      select: { name: true, subscription_status: true, renewal_date: true, createdAt: true },
+    });
+    if (!school) throw new UnauthorizedError("الحضانة لم تعد موجودة");
+    const subscription = schoolSubscriptionAccess(school);
+    const permissions = [...SUPPORT_VIEW_PERMISSIONS];
+    await enforceRoutePermission(permissions);
+    await enforceSubscriptionAccess(subscription);
+    return {
+      user: {
+        id: `support:${supportView.id}`,
+        name: "الدعم الفني",
+        email: null,
+        schoolId: supportView.schoolId,
+        schoolName: supportView.schoolName,
+        role: "support_read_only",
+        authVersion: 0,
+      },
+      permissions,
+      teacherId: null,
+      teacherClassIds: null,
+      subscription,
+      can: (permission: string) => grants(permissions, permission),
+      isSupportAccess: true,
+      supportAccessId: supportView.id,
+      supportAccessExpiresAt: supportView.expiresAt,
+    };
   }
+
+  const session = await getServerSession(authOptions);
+  if (!session?.user) throw new UnauthorizedError();
 
   const claims = session.user as Partial<AuthSession["user"]>;
 
@@ -209,6 +243,9 @@ export async function requireSession(): Promise<AuthSession> {
     teacherClassIds,
     subscription,
     can: (permission: string) => grants(permissions, permission),
+    isSupportAccess: false,
+    supportAccessId: null,
+    supportAccessExpiresAt: null,
   };
 }
 

@@ -15,7 +15,7 @@ describe("mobile guardian notifications", () => {
 
   it("adds a dedicated guardian notifications tab", () => {
     expect(layout).toContain('name="notifications"');
-    expect(layout).toContain('tabBarAccessibilityLabel: "الإشعارات"');
+    expect(layout).toContain('tabBarAccessibilityLabel: t("الإشعارات")');
     expect(route).toContain("GuardianNotificationsScreen");
   });
 

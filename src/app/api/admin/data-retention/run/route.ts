@@ -2,6 +2,7 @@ import { verifyAdminSessionFromRequest } from "@/lib/admin-auth";
 import { runAnonymizationSweep } from "@/lib/anonymization";
 import { z } from "zod";
 import { logSafeError } from "@/lib/safe-logger";
+import { prisma } from "@/lib/prisma";
 
 /**
  * Runs the retention sweep on demand.
@@ -34,6 +35,19 @@ export async function POST(request: Request) {
 
   try {
     const result = await runAnonymizationSweep({ executedBy: session.adminId });
+    await prisma.adminActivityLog.create({
+      data: {
+        action: "data_retention_sweep_run",
+        performed_by: session.adminId,
+        metadata: {
+          students: result.students,
+          teachers: result.teachers,
+          guardians: result.guardians,
+          failures: result.failures,
+          skipped: result.skipped,
+        },
+      },
+    });
     return Response.json({ success: true, ...result });
   } catch (error) {
     logSafeError("admin-data-retention-run", error);

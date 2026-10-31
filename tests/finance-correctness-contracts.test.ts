@@ -70,6 +70,7 @@ describe("finance correctness contracts", () => {
     const route = source("src/app/api/expenses/[id]/route.ts");
     expect(route).toContain('status: "PAID"');
     expect(route).toContain('code: "EXPENSE_HAS_PAYMENT_HISTORY"');
-    expect(route.indexOf("expenseOccurrence.count")).toBeLessThan(route.indexOf("prisma.expense.delete"));
+    expect(route.indexOf("tx.expenseOccurrence.count")).toBeLessThan(route.indexOf("tx.expense.deleteMany"));
+    expect(route).toContain('where: { id, school_id: schoolId }');
   });
 });

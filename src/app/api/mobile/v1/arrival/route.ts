@@ -1,8 +1,17 @@
-import { createGuardianArrivalNotice } from "@/lib/arrival-notifications";
+import {
+  arrivalMinutesFromDates,
+  arrivalNoticeMessage,
+  createGuardianArrivalNotice,
+} from "@/lib/arrival-notifications";
 import { requireMobileAuth, mobileAuthResponse } from "@/lib/mobile-guard";
 import { prisma } from "@/lib/prisma";
+import { z } from "zod";
 
-/** Parent action: a single button with no request fields and no child picker. */
+const arrivalRequestSchema = z.object({
+  minutes: z.union([z.literal(0), z.literal(5), z.literal(10), z.literal(15)]),
+}).strict();
+
+/** Parent action: one arrival choice and no child picker. */
 export async function POST(request: Request) {
   let context;
   try {
@@ -11,9 +20,18 @@ export async function POST(request: Request) {
     return mobileAuthResponse(error) ?? Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Body-free requests remain five-minute notices so already-installed builds
+  // keep working while the new choice button rolls out.
+  const body = await request.json().catch(() => null);
+  const parsed = arrivalRequestSchema.safeParse(body ?? { minutes: 5 });
+  if (!parsed.success) {
+    return Response.json({ error: "خيار وقت الوصول غير صحيح" }, { status: 422 });
+  }
+
   const result = await createGuardianArrivalNotice({
     schoolId: context.schoolId,
     guardianAccountId: context.claims.sub,
+    arrivalMinutes: parsed.data.minutes,
   });
 
   if (!result.created) {
@@ -44,6 +62,7 @@ export async function POST(request: Request) {
       noticeId: result.noticeId,
       message: result.message,
       expectedAt: result.expectedAt,
+      cooldownUntil: result.cooldownUntil,
       recipients: result.recipients,
     },
     { status: 201, headers: { "Cache-Control": "private, no-store" } }
@@ -82,7 +101,14 @@ export async function GET(request: Request) {
 
   return Response.json(
     {
-      notices: recipients.map(({ notice, readAt }) => ({ ...notice, readAt })),
+      notices: recipients.map(({ notice, readAt }) => ({
+        ...notice,
+        readAt,
+        message: arrivalNoticeMessage(
+          notice.senderName,
+          arrivalMinutesFromDates(notice.expectedAt, notice.createdAt)
+        ),
+      })),
     },
     { headers: { "Cache-Control": "private, no-store" } }
   );

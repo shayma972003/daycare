@@ -1,6 +1,7 @@
 import { Tabs } from "expo-router";
-import { StyleSheet, Text, View, type ColorValue } from "react-native";
+import { StyleSheet, View, type ColorValue } from "react-native";
 
+import { Text, useLanguage } from "@/language";
 import { colors } from "@/theme";
 
 function TabIcon({ label, color, focused }: { label: string; color: ColorValue; focused: boolean }) {
@@ -12,6 +13,7 @@ function TabIcon({ label, color, focused }: { label: string; color: ColorValue; 
 }
 
 export default function StaffLayout() {
+  const { t } = useLanguage();
   return (
     <Tabs
       screenOptions={{
@@ -26,32 +28,32 @@ export default function StaffLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "الرئيسية",
-          tabBarAccessibilityLabel: "الرئيسية",
+          title: t("الرئيسية"),
+          tabBarAccessibilityLabel: t("الرئيسية"),
           tabBarIcon: ({ color, focused }) => <TabIcon color={color} focused={focused} label="⌂" />,
         }}
       />
       <Tabs.Screen
         name="calendar"
         options={{
-          title: "التقويم",
-          tabBarAccessibilityLabel: "التقويم",
+          title: t("التقويم"),
+          tabBarAccessibilityLabel: t("التقويم"),
           tabBarIcon: ({ color, focused }) => <TabIcon color={color} focused={focused} label="□" />,
         }}
       />
       <Tabs.Screen
         name="care"
         options={{
-          title: "الرعاية",
-          tabBarAccessibilityLabel: "تقارير الرعاية",
+          title: t("الرعاية"),
+          tabBarAccessibilityLabel: t("تقارير الرعاية"),
           tabBarIcon: ({ color, focused }) => <TabIcon color={color} focused={focused} label="♡" />,
         }}
       />
       <Tabs.Screen
         name="attendance"
         options={{
-          title: "الحضور",
-          tabBarAccessibilityLabel: "الحضور",
+          title: t("الحضور"),
+          tabBarAccessibilityLabel: t("الحضور"),
           tabBarIcon: ({ color, focused }) => <TabIcon color={color} focused={focused} label="✓" />,
         }}
       />
@@ -64,8 +66,8 @@ export default function StaffLayout() {
       <Tabs.Screen
         name="account"
         options={{
-          title: "حسابي",
-          tabBarAccessibilityLabel: "حسابي",
+          title: t("حسابي"),
+          tabBarAccessibilityLabel: t("حسابي"),
           tabBarIcon: ({ color, focused }) => <TabIcon color={color} focused={focused} label="●" />,
         }}
       />

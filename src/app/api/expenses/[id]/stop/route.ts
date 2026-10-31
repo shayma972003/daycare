@@ -1,8 +1,9 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { activityLogData } from "@/lib/activity-logger";
 
 export async function PUT(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   let session;
@@ -18,15 +19,31 @@ export async function PUT(
   const schoolId = (session.user as { schoolId: string }).schoolId;
   const { id } = await params;
 
-  const expense = await prisma.expense.findFirst({
-    where: { id, school_id: schoolId, type: "monthly" },
+  const updated = await prisma.$transaction(async (tx) => {
+    const expense = await tx.expense.findFirst({
+      where: { id, school_id: schoolId, type: "monthly" },
+    });
+    if (!expense) return null;
+    const claimed = await tx.expense.updateMany({
+      where: { id, school_id: schoolId, type: "monthly" },
+      data: { is_active: false, stopped_at: new Date() },
+    });
+    if (claimed.count !== 1) return null;
+    const saved = await tx.expense.findFirstOrThrow({ where: { id, school_id: schoolId } });
+    await tx.activityLog.create({
+      data: activityLogData({
+        school_id: schoolId,
+        action: "monthly expense stopped",
+        entity_type: "expense",
+        entity_id: saved.id,
+        entity_name: saved.title,
+        performed_by: session.user.name ?? "admin",
+        request,
+      }),
+    });
+    return saved;
   });
-  if (!expense) return Response.json({ error: "Not found" }, { status: 404 });
-
-  const updated = await prisma.expense.update({
-    where: { id },
-    data: { is_active: false, stopped_at: new Date() },
-  });
+  if (!updated) return Response.json({ error: "Not found" }, { status: 404 });
 
   return Response.json(updated);
 }

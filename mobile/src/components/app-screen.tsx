@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { Text, useLanguage } from "@/language";
 import { colors, radius, shadow, spacing } from "@/theme";
 
 type AppScreenProps = {
@@ -12,6 +13,7 @@ type AppScreenProps = {
 };
 
 export function AppScreen({ title, subtitle, children, action }: AppScreenProps) {
+  const { isRTL } = useLanguage();
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "right", "left"]}>
       <ScrollView
@@ -19,7 +21,7 @@ export function AppScreen({ title, subtitle, children, action }: AppScreenProps)
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.header}>
+        <View style={[styles.header, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
           <View pointerEvents="none" style={styles.headerOrbLarge} />
           <View pointerEvents="none" style={styles.headerOrbSmall} />
           <View style={styles.logo}>

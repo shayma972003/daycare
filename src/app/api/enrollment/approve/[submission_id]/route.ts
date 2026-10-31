@@ -82,6 +82,12 @@ export async function POST(
   }
   const parsed = schema.safeParse(body);
   const overrides = parsed.success ? parsed.data : {};
+  if (
+    ("health_condition" in overrides || "allergies" in overrides) &&
+    !session.can("students.health")
+  ) {
+    return Response.json({ error: "Forbidden", code: "HEALTH_ACCESS_REQUIRED" }, { status: 403 });
+  }
 
   let ownedClassId: string | null;
   let ownedStageId: string | null;

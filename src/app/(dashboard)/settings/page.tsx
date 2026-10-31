@@ -12,6 +12,7 @@ import { isPasswordAcceptable, PASSWORD_MIN_MESSAGE } from "@/lib/password-polic
 import { PasswordRules } from "@/components/ui/PasswordRules";
 import { useT, useLocale } from "@/lib/i18n-provider";
 import { AcademicStagesPanel } from "@/components/settings/AcademicStagesPanel";
+import { LocationAttendanceSettingsPanel } from "@/components/settings/LocationAttendanceSettingsPanel";
 import { formatAst } from "@/lib/datetime";
 import { describeApiError } from "@/lib/api-error";
 import { usePermissions } from "@/lib/use-permissions";
@@ -801,7 +802,7 @@ export default function SettingsPage() {
   const categories = useMemo(
     () => [
       { id: "school", title: t("settings.schoolInfo"), sections: ["school-info"] },
-      { id: "hours", title: t("settings.schoolHours"), sections: ["school-hours"] },
+      { id: "hours", title: t("settings.schoolHours"), sections: ["school-hours", "location-attendance"] },
       { id: "fees", title: t("settings.fees.title"), sections: ["fees"] },
       { id: "stages", title: t("settings.stages.title"), sections: ["academic-stages"] },
       { id: "security", title: t("settings.accountSecurity"), sections: ["password", "security"] },
@@ -1148,6 +1149,12 @@ export default function SettingsPage() {
                   </div>
                   {sectionSaveAction("hours")}
                 </div>
+              </SettingsSection>
+            )}
+
+            {showSection("location-attendance") && canManageSettings && (
+              <SettingsSection id="location-attendance" title={t("settings.locationAttendance.title")}>
+                <LocationAttendanceSettingsPanel />
               </SettingsSection>
             )}
 

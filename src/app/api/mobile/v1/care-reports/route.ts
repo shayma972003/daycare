@@ -36,19 +36,53 @@ export async function GET(request: Request) {
   const day = date ? new Date(date) : null;
   const validDay = day && !Number.isNaN(day.getTime()) ? day : null;
 
+  const reportScope = {
+    schoolId: context.schoolId,
+    deletedAt: null,
+    reviewStatus: "APPROVED" as const,
+    ...(validDay
+      ? { occurredAt: { gte: astDayStart(validDay), lt: astDayEnd(validDay) } }
+      : {}),
+  };
+
+  /**
+   * The guardian app is a current hand-off, not the permanent care archive.
+   * Keep the newest complete submission for every linked child on screen until
+   * a newer approved submission replaces it. A unified daily form is stored as
+   * several rows sharing `dailyBatchId`, so selecting only the newest row would
+   * silently drop the meal, nap, mood, or toilet details beside it.
+   *
+   * The rows themselves are never deleted here. Managers continue to see the
+   * complete history from the student's profile in the dashboard.
+   */
+  const latestSubmissions = (
+    await Promise.all(
+      studentIds.map((studentId) =>
+        prisma.careReport.findFirst({
+          where: { ...reportScope, studentId },
+          // A newer submission must replace the previous batch as a whole.
+          // `occurredAt` belongs to each individual section (meal, nap, etc.),
+          // so ordering by it first can accidentally revive sections from an
+          // older batch when one of those sections has a later event time.
+          orderBy: [{ createdAt: "desc" }, { occurredAt: "desc" }],
+          select: { id: true, studentId: true, dailyBatchId: true },
+        })
+      )
+    )
+  ).filter((report): report is NonNullable<typeof report> => report !== null);
+
+  if (latestSubmissions.length === 0) return Response.json([]);
+
   const reports = await prisma.careReport.findMany({
     where: {
-      studentId: { in: studentIds },
-      // Belt and braces: the child ids already imply the tenant, but a report is
-      // the most privacy-sensitive row in the product.
-      schoolId: context.schoolId,
-      deletedAt: null,
-      reviewStatus: "APPROVED",
-      ...(validDay
-        ? { occurredAt: { gte: astDayStart(validDay), lt: astDayEnd(validDay) } }
-        : {}),
+      ...reportScope,
+      OR: latestSubmissions.map((report) =>
+        report.dailyBatchId
+          ? { studentId: report.studentId, dailyBatchId: report.dailyBatchId }
+          : { studentId: report.studentId, id: report.id }
+      ),
     },
-    orderBy: { occurredAt: "desc" },
+    orderBy: [{ occurredAt: "desc" }, { createdAt: "desc" }],
     take: 100,
     select: {
       id: true,
@@ -57,9 +91,11 @@ export async function GET(request: Request) {
       note: true,
       photoUrl: true,
       reportedByName: true,
+      mealSource: true,
       mealName: true,
       mealAmount: true,
       napMinutes: true,
+      napQuality: true,
       toiletKind: true,
       toiletState: true,
       mood: true,

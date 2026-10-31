@@ -148,6 +148,7 @@ export default function StudentsPage() {
   const { can } = usePermissions();
   const canManageEnrollment = can(ENROLLMENT_MANAGE_PERMISSION);
   const canManageAttendance = can("attendance.students");
+  const canManageHealth = can("students.health");
   const [students, setStudents] = useState<Student[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
   const [listStatus, setListStatus] = useState<CollectionStatus>("loading");
@@ -467,9 +468,10 @@ export default function StudentsPage() {
     if (!canManageEnrollment || !reviewModalSub) return;
     setReviewApproving(true);
     try {
-      const { date_of_birth_str, ...rest } = reviewEdit as Record<string, string>;
+      const { date_of_birth_str, health_condition, allergies, ...rest } = reviewEdit as Record<string, string>;
       await axios.post(`/api/enrollment/approve/${reviewModalSub.id}`, {
         ...rest,
+        ...(canManageHealth ? { health_condition, allergies } : {}),
         class_id: reviewClassId || undefined,
         stage_id: reviewStageId || undefined,
         date_of_birth: date_of_birth_str || undefined,
@@ -1344,7 +1346,7 @@ export default function StudentsPage() {
             </div>
 
             {/* Health Info */}
-            <div className="bg-red-50 rounded-xl p-4 mb-4 space-y-3">
+            {canManageHealth && <div className="bg-red-50 rounded-xl p-4 mb-4 space-y-3">
               <h3 className="text-sm font-bold text-gray-700">{t("fields.healthInfo")}</h3>
               <div>
                 <label className="block text-xs text-gray-500 mb-1">{t("fields.healthCondition")}</label>
@@ -1354,7 +1356,7 @@ export default function StudentsPage() {
                 <label className="block text-xs text-gray-500 mb-1">{t("fields.allergies")}</label>
                 <textarea className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#5B14D1] resize-none h-16" value={reviewEdit.allergies ?? ""} onChange={(e) => setRE("allergies", e.target.value)} />
               </div>
-            </div>
+            </div>}
 
             {/* Guardian Info */}
             <div className="bg-blue-50 rounded-xl p-4 mb-4 space-y-3">

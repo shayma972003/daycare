@@ -67,6 +67,12 @@ export const PERMISSIONS: PermissionDefinition[] = [
 
   { key: "students.view", category: "students", labelAr: "عرض الأطفال" },
   { key: "students.manage", category: "students", labelAr: "إدارة الأطفال", hintAr: "إضافة وتعديل" },
+  {
+    key: "students.health",
+    category: "students",
+    labelAr: "البيانات الصحية الحساسة",
+    hintAr: "عرض وتعديل الحالة الصحية والحساسيات",
+  },
   { key: "students.archive", category: "students", labelAr: "أرشفة الأطفال" },
   { key: "students.delete", category: "students", labelAr: "حذف الأطفال" },
   { key: "students.guardians", category: "students", labelAr: "صفحة أولياء الأمور" },
@@ -95,6 +101,12 @@ export const PERMISSIONS: PermissionDefinition[] = [
 
   { key: "settings.manage", category: "settings", labelAr: "إعدادات الحضانة" },
   { key: "settings.storage", category: "settings", labelAr: "مساحة التخزين" },
+  {
+    key: "settings.ai",
+    category: "settings",
+    labelAr: "استخدام المساعد الذكي",
+    hintAr: "قراءة الملخصات المجمعة دون بيانات شخصية",
+  },
 ];
 
 export const PERMISSION_KEYS = PERMISSIONS.map((p) => p.key);
@@ -187,7 +199,7 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
     descriptionAr: "مثل المعلمة، مع تعديل ملفات الأطفال",
     // The distinguishing permission: special-needs staff maintain the child's
     // health and support notes, which an ordinary class teacher only reads.
-    permissions: [...TEACHER_BASE, "students.manage"],
+    permissions: [...TEACHER_BASE, "students.manage", "students.health"],
   },
   {
     key: "early_childhood",
@@ -234,6 +246,7 @@ export const CAPABILITY_BUNDLES: CapabilityBundle[] = [
   { key: "signIn", keys: ["auth.portal", "auth.app"] },
   { key: "viewChildren", keys: ["students.view"] },
   { key: "editChildren", keys: ["students.manage", "students.archive"] },
+  { key: "childHealth", keys: ["students.health"] },
   { key: "childFiles", keys: ["students.files", "students.guardians"] },
   { key: "childAttendance", keys: ["attendance.students"] },
   { key: "manageClasses", keys: ["classes.view", "classes.assign", "classes.manage", "classes.archive"] },

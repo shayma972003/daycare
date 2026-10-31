@@ -3,6 +3,28 @@ import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { schoolSubscriptionAccess, schoolSubscriptionType } from "@/lib/school-subscription";
 
+function pushFailureLabel(error: string | null): string | null {
+  if (!error) return null;
+  const value = error.toLowerCase();
+  if (value.includes("not registered") || value.includes("unregistered") || value.includes("invalid token")) {
+    return "رمز الجهاز غير صالح أو أُلغي تسجيله";
+  }
+  if (value.includes("credential") || value.includes("authentication") || value.includes("unauthorized")) {
+    return "تعذر التحقق من بيانات مزود الإشعارات";
+  }
+  if (value.includes("timeout") || value.includes("network") || value.includes("fetch")) {
+    return "تعذر الاتصال بمزود الإشعارات";
+  }
+  return "فشل لدى مزود الإشعارات";
+}
+
+function maskEmail(email: string | null | undefined): string | null {
+  if (!email) return null;
+  const [local, domain] = email.split("@");
+  if (!domain) return null;
+  return `${local.slice(0, 2)}***@${domain}`;
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -31,7 +53,22 @@ export async function GET(
   if (!school) return Response.json({ error: "Not found" }, { status: 404 });
   const subscriptionAccess = schoolSubscriptionAccess(school);
 
-  const [activityLogs, messages] = await Promise.all([
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const [
+    activityLogs,
+    messages,
+    staffAccounts,
+    guardianAccounts,
+    devices,
+    pushByStatus,
+    recentPushFailures,
+    deliveryByStatus,
+    recentDeliveries,
+    settings,
+    storageUsage,
+    arrivalRecipientCount,
+    pendingCareReportCount,
+  ] = await Promise.all([
     prisma.adminActivityLog.findMany({
       where: { school_id: id },
       orderBy: { performed_at: "desc" },
@@ -43,7 +80,97 @@ export async function GET(
       orderBy: { message: { sent_at: "desc" } },
       take: 20,
     }),
+    prisma.user.findMany({
+      where: { schoolId: id },
+      select: {
+        acceptedAt: true,
+        disabledAt: true,
+        inviteExpiresAt: true,
+      },
+    }),
+    prisma.guardianAccount.findMany({
+      where: { schoolId: id },
+      select: {
+        acceptedAt: true,
+        disabledAt: true,
+        inviteExpiresAt: true,
+        lastLoginAt: true,
+      },
+    }),
+    prisma.deviceToken.findMany({
+      where: { schoolId: id },
+      select: {
+        id: true,
+        platform: true,
+        failedAt: true,
+        lastSeenAt: true,
+        createdAt: true,
+        user: { select: { name: true, email: true, acceptedAt: true, disabledAt: true } },
+        guardianAccount: {
+          select: {
+            email: true,
+            acceptedAt: true,
+            disabledAt: true,
+            guardian: { select: { name: true } },
+          },
+        },
+      },
+      orderBy: { lastSeenAt: "desc" },
+    }),
+    prisma.pushNotification.groupBy({
+      by: ["status"],
+      where: { schoolId: id, createdAt: { gte: thirtyDaysAgo } },
+      _count: { _all: true },
+    }),
+    prisma.pushNotification.findMany({
+      where: { schoolId: id, status: "FAILED" },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, lastError: true, createdAt: true, deviceTokenId: true },
+      take: 10,
+    }),
+    prisma.notificationLog.groupBy({
+      by: ["status"],
+      where: { schoolId: id, sentAt: { gte: thirtyDaysAgo } },
+      _count: { _all: true },
+    }),
+    prisma.notificationLog.findMany({
+      where: { schoolId: id },
+      orderBy: { sentAt: "desc" },
+      select: { id: true, type: true, status: true, source: true, sentAt: true },
+      take: 20,
+    }),
+    prisma.settings.findUnique({
+      where: { schoolId: id },
+      select: { careReportReviewRequired: true },
+    }),
+    prisma.storageUsage.findUnique({ where: { schoolId: id } }),
+    prisma.arrivalRecipientSetting.count({ where: { schoolId: id } }),
+    prisma.careReport.count({
+      where: { schoolId: id, deletedAt: null, reviewStatus: "PENDING_REVIEW" },
+    }),
   ]);
+
+  const accountSummary = <T extends { acceptedAt: Date | null; disabledAt: Date | null; inviteExpiresAt: Date | null }>(accounts: T[]) => ({
+    total: accounts.length,
+    active: accounts.filter((account) => account.acceptedAt && !account.disabledAt).length,
+    pending: accounts.filter((account) => !account.acceptedAt && !account.disabledAt).length,
+    expiredInvitations: accounts.filter((account) => !account.acceptedAt && !account.disabledAt && account.inviteExpiresAt && account.inviteExpiresAt < new Date()).length,
+    disabled: accounts.filter((account) => account.disabledAt).length,
+  });
+
+  const pushCounts = Object.fromEntries(pushByStatus.map((row) => [row.status, row._count._all]));
+  const deliveryCounts = Object.fromEntries(deliveryByStatus.map((row) => [row.status, row._count._all]));
+  const latestDeviceSeenAt = devices.reduce<Date | null>(
+    (latest, device) => !latest || device.lastSeenAt > latest ? device.lastSeenAt : latest,
+    null
+  );
+  const latestGuardianLoginAt = guardianAccounts.reduce<Date | null>(
+    (latest, account) => account.lastLoginAt && (!latest || account.lastLoginAt > latest) ? account.lastLoginAt : latest,
+    null
+  );
+  const maxStorageBytes = school.subscription_plan?.max_storage_mb
+    ? school.subscription_plan.max_storage_mb * 1024 * 1024
+    : null;
 
   return Response.json({
     school: {
@@ -86,6 +213,80 @@ export async function GET(
       classes: school._count.classes,
       invoices: school._count.invoices,
       notifications: school._count.notificationLogs,
+    },
+    support: {
+      accounts: {
+        staff: accountSummary(staffAccounts),
+        guardians: accountSummary(guardianAccounts),
+        latestGuardianLoginAt,
+      },
+      devices: {
+        total: devices.length,
+        healthy: devices.filter((device) => !device.failedAt).length,
+        failed: devices.filter((device) => device.failedAt).length,
+        expo: devices.filter((device) => device.platform === "EXPO").length,
+        web: devices.filter((device) => device.platform === "WEB").length,
+        lastSeenAt: latestDeviceSeenAt,
+        items: devices.map((device) => {
+          const owner = device.user ?? device.guardianAccount;
+          return {
+            id: device.id,
+            ownerKind: device.user ? "staff" : "guardian",
+            ownerName: device.user?.name ?? device.guardianAccount?.guardian.name ?? "حساب غير معروف",
+            ownerEmail: maskEmail(owner?.email),
+            platform: device.platform,
+            status: device.failedAt ? "failed" : "healthy",
+            lastSeenAt: device.lastSeenAt,
+            registeredAt: device.createdAt,
+            canTest: !device.failedAt && Boolean(owner?.acceptedAt) && !owner?.disabledAt,
+          };
+        }),
+      },
+      notifications: {
+        windowDays: 30,
+        push: {
+          pending: pushCounts.PENDING ?? 0,
+          sent: pushCounts.SENT ?? 0,
+          failed: pushCounts.FAILED ?? 0,
+          latestFailureAt: recentPushFailures[0]?.createdAt ?? null,
+          latestFailure: pushFailureLabel(recentPushFailures[0]?.lastError ?? null),
+          recentFailures: recentPushFailures.map((failure) => ({
+            id: failure.id,
+            deviceId: failure.deviceTokenId,
+            occurredAt: failure.createdAt,
+            reason: pushFailureLabel(failure.lastError),
+          })),
+        },
+        outbound: {
+          sent: deliveryCounts.SENT ?? 0,
+          failed: deliveryCounts.FAILED ?? 0,
+          recent: recentDeliveries.map((delivery) => ({
+            id: delivery.id,
+            type: delivery.type,
+            status: delivery.status,
+            source: delivery.source,
+            sentAt: delivery.sentAt,
+          })),
+        },
+      },
+      storage: {
+        totalBytes: storageUsage?.totalBytes ?? 0,
+        maxBytes: maxStorageBytes,
+        computedAt: storageUsage?.computedAt ?? null,
+        breakdown: {
+          studentFilesBytes: storageUsage?.studentFilesBytes ?? 0,
+          careReportBytes: storageUsage?.careReportBytes ?? 0,
+          staffFilesBytes: storageUsage?.staffFilesBytes ?? 0,
+          unitFilesBytes: storageUsage?.unitFilesBytes ?? 0,
+          invoiceBytes: storageUsage?.invoiceBytes ?? 0,
+          otherBytes: storageUsage?.otherBytes ?? 0,
+        },
+      },
+      configuration: {
+        careReportReviewRequired: settings?.careReportReviewRequired ?? true,
+        arrivalRecipientCount,
+        pendingCareReportCount,
+      },
     },
     activityLogs,
     messages: messages.map((r) => ({

@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { isPublicEnrollmentRoute } from "@/lib/enrollment-access";
+import { SUPPORT_VIEW_COOKIE_NAME, verifySupportViewToken } from "@/lib/support-view-token";
 
 /**
  * Edge gate for the dashboard and the tenant API.
@@ -57,6 +58,28 @@ function isPublicApi(pathname: string, method: string): boolean {
   );
 }
 
+function isSensitiveSupportPath(pathname: string): boolean {
+  if (/^\/(?:care|settings|subscription|assistant|statistics)(?:\/|$)/.test(pathname)) return true;
+  if (/^\/(?:students|teachers)\/[^/]+(?:\/|$)/.test(pathname)) return true;
+  if (/^\/api\/(?:students|teachers)\/[^/]+(?:\/|$)/.test(pathname)) return true;
+  return [
+    "/api/care-reports",
+    "/api/files",
+    "/api/guardian-accounts",
+    "/api/guardians",
+    "/api/invoices",
+    "/api/expenses",
+    "/api/finance",
+    "/api/financial-reports",
+    "/api/statistics/dashboard",
+    "/api/statistics/export",
+    "/api/settings",
+    "/api/notifications",
+    "/api/search",
+    "/api/assistant",
+  ].some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
 
@@ -79,6 +102,24 @@ export async function proxy(request: NextRequest) {
   forwarded.set("x-pathname", pathname);
   forwarded.set("x-method", request.method);
   const withContext = { request: { headers: forwarded } };
+
+  const supportCookie = request.cookies.get(SUPPORT_VIEW_COOKIE_NAME)?.value;
+  const supportView = supportCookie ? await verifySupportViewToken(supportCookie) : null;
+  if (supportView) {
+    if (isSensitiveSupportPath(pathname)) {
+      if (pathname.startsWith("/api/")) {
+        return NextResponse.json({ error: "البيانات الحساسة محجوبة في وضع الدعم", code: "SUPPORT_SENSITIVE_DATA_BLOCKED" }, { status: 403 });
+      }
+      const safeUrl = new URL("/dashboard", request.url);
+      safeUrl.searchParams.set("supportBlocked", "sensitive");
+      return NextResponse.redirect(safeUrl);
+    }
+    const supportAuditRequest = pathname === "/api/support-presence";
+    if (pathname.startsWith("/api/") && request.method !== "GET" && !supportAuditRequest) {
+      return NextResponse.json({ error: "جلسة الدعم للقراءة فقط", code: "SUPPORT_READ_ONLY" }, { status: 403 });
+    }
+    return NextResponse.next(withContext);
+  }
 
   const token = await getToken({
     req: request,

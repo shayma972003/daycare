@@ -136,7 +136,7 @@ export async function GET(
           },
           {
             contact: session.can("students.guardians") || session.can("students.manage"),
-            health: session.can("students.manage"),
+            health: session.can("students.health"),
             financial: session.can("finance.view") || session.can("finance.manage"),
             revealIdentity,
           },
@@ -202,6 +202,12 @@ export async function PUT(
   }
 
   const data = parsed.data;
+  if (
+    ("healthCondition" in data || "allergies" in data) &&
+    !session.can("students.health")
+  ) {
+    return Response.json({ error: "Forbidden", code: "HEALTH_ACCESS_REQUIRED" }, { status: 403 });
+  }
   const financialFields = [
     "billingCycle",
     "billingIntervalDays",
@@ -511,7 +517,7 @@ export async function PUT(
         },
         {
           contact: true,
-          health: true,
+          health: session.can("students.health"),
           financial: session.can("finance.view") || session.can("finance.manage"),
           revealIdentity: false,
         },

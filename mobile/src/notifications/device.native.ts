@@ -58,3 +58,28 @@ export async function unregisterDeviceForPush(): Promise<void> {
   }).catch(() => undefined);
   registeredToken = null;
 }
+
+export async function notifyLocalAttendanceRecorded(action: "checkin" | "checkout") {
+  if (Platform.OS === "android") {
+    await Notifications.setNotificationChannelAsync(ANDROID_ALERT_CHANNEL_ID, {
+      name: "الإشعارات",
+      importance: Notifications.AndroidImportance.MAX,
+      sound: "default",
+      enableVibrate: true,
+      vibrationPattern: [0, 250, 250, 250],
+    });
+  }
+  const permission = await Notifications.getPermissionsAsync();
+  if (permission.status !== "granted") return;
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: action === "checkin" ? "تم تسجيل الدخول" : "تم تسجيل الخروج",
+      body: action === "checkin"
+        ? "تم تسجيل دخولك تلقائيًا عند وصولك إلى المدرسة."
+        : "تم تسجيل خروجك تلقائيًا بعد مغادرة نطاق المدرسة.",
+      sound: "default",
+      data: { kind: "teacher-location-attendance", action },
+    },
+    trigger: null,
+  });
+}

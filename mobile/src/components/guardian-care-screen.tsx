@@ -1,16 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
 
 import { loadGuardianCareReports, type GuardianCareReport } from "@/api/care";
 import { AppScreen, cardStyles } from "@/components/app-screen";
 import { PrimaryButton, TextButton } from "@/components/buttons";
+import { careReportSummary, careReportTypeLabel } from "@/care-report-display";
+import { Text, useLanguage } from "@/language";
 import { useSession } from "@/session";
 import { colors, radius, spacing, touchTarget } from "@/theme";
 
 const RIYADH_ZONE = "Asia/Riyadh";
 
-function reportDate(value: string) {
-  return new Intl.DateTimeFormat("ar-SA-u-ca-gregory-nu-latn", {
+function reportDate(value: string, locale: string) {
+  return new Intl.DateTimeFormat(locale, {
     timeZone: RIYADH_ZONE,
     weekday: "long",
     day: "numeric",
@@ -22,6 +24,7 @@ function reportDate(value: string) {
 
 export function GuardianCareScreen() {
   const { account, signOut } = useSession();
+  const { isRTL, language, locale, t } = useLanguage();
   const [selectedChild, setSelectedChild] = useState<string | null>(null);
   const [reports, setReports] = useState<GuardianCareReport[]>([]);
   const [loading, setLoading] = useState(true);
@@ -80,7 +83,7 @@ export function GuardianCareScreen() {
       title="تقارير الرعاية"
     >
       {account.children.length > 1 ? (
-        <View style={styles.filters}>
+        <View style={[styles.filters, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
           <FilterChip
             active={selectedChild === null}
             label="الكل"
@@ -98,7 +101,7 @@ export function GuardianCareScreen() {
       ) : null}
 
       <Pressable
-        accessibilityLabel="تحديث تقارير الرعاية"
+        accessibilityLabel={t("تحديث تقارير الرعاية")}
         accessibilityRole="button"
         disabled={loading}
         onPress={() => void refresh()}
@@ -131,6 +134,7 @@ export function GuardianCareScreen() {
         <View style={styles.reportList}>
           {reports.map((report) => {
             const expanded = expandedId === report.id;
+            const localizedSummary = careReportSummary(report, language);
             return (
               <Pressable
                 accessibilityRole="button"
@@ -139,17 +143,17 @@ export function GuardianCareScreen() {
                 onPress={() => setExpandedId(expanded ? null : report.id)}
                 style={({ pressed }) => [styles.reportCard, pressed && styles.pressed]}
               >
-                <View style={styles.reportHeader}>
+                <View style={[styles.reportHeader, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
                   <View style={styles.reportCopy}>
-                    <Text style={styles.reportType}>{report.typeLabel}</Text>
+                    <Text style={styles.reportType}>{careReportTypeLabel(report, language)}</Text>
                     <Text style={styles.reportChild}>
                       {childNames.get(report.student.id) ?? report.student.name}
                     </Text>
                   </View>
                   <Text style={styles.chevron}>{expanded ? "⌃" : "⌄"}</Text>
                 </View>
-                <Text style={styles.summary}>{report.summary}</Text>
-                <Text style={styles.meta}>{reportDate(report.occurredAt)}</Text>
+                <Text style={styles.summary}>{localizedSummary}</Text>
+                <Text style={styles.meta}>{reportDate(report.occurredAt, locale)}</Text>
                 {expanded ? (
                   <View style={styles.details}>
                     {report.note && report.note !== report.summary ? (

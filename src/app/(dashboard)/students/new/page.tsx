@@ -66,6 +66,7 @@ export default function NewStudentPage() {
   const router = useRouter();
   const { can } = usePermissions();
   const canManageFinance = can("finance.manage");
+  const canManageHealth = can("students.health");
   const [classes, setClasses] = useState<Class[]>([]);
   const [classesLoading, setClassesLoading] = useState(false);
   const [classesError, setClassesError] = useState<string | null>(null);
@@ -217,14 +218,14 @@ export default function NewStudentPage() {
       await axios.post("/api/students", {
         name: data.name,
         classId: data.classId || undefined,
-        healthCondition: data.healthCondition || undefined,
+        ...(canManageHealth ? { healthCondition: data.healthCondition || undefined } : {}),
         stageId: data.stageId || undefined,
         period: data.period,
         idNumber: data.idNumber || undefined,
         dateOfBirth: data.dateOfBirth || undefined,
         nationality: data.nationality || undefined,
         gender: data.gender,
-        allergies: data.allergies || undefined,
+        ...(canManageHealth ? { allergies: data.allergies || undefined } : {}),
         billingCycle: data.billingCycle,
         ...(data.billingCycle === "CUSTOM" && canManageFinance
           ? { cycleFee: Number(data.cycleFee) }
@@ -343,7 +344,7 @@ export default function NewStudentPage() {
           </div>
 
           {/* Card 2: المعلومات الصحية */}
-          <div className="bg-white rounded-xl shadow-md p-6">
+          {canManageHealth && <div className="bg-white rounded-xl shadow-md p-6">
             <h2 className="text-base font-bold text-[#111111] mb-5">{t("fields.healthInfo")}</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label={t("students.profile.healthCondition")}>
@@ -353,7 +354,7 @@ export default function NewStudentPage() {
                 <input {...register("allergies")} type="text" className={inputCls} />
               </Field>
             </div>
-          </div>
+          </div>}
 
           {/* Card 3: معلومات ولي الأمر */}
           <div className="bg-white rounded-xl shadow-md p-6">

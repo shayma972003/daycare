@@ -1,5 +1,6 @@
-import { ActivityIndicator, Pressable, StyleSheet, Text } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet } from "react-native";
 
+import { Text, useLanguage } from "@/language";
 import { colors, shadow, spacing, touchTarget } from "@/theme";
 
 type PrimaryButtonProps = {
@@ -10,11 +11,12 @@ type PrimaryButtonProps = {
 };
 
 export function PrimaryButton({ label, onPress, loading = false, disabled = false }: PrimaryButtonProps) {
+  const { t } = useLanguage();
   const inactive = disabled || loading;
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={t(label)}
       disabled={inactive}
       onPress={onPress}
       style={({ pressed }) => [styles.primary, inactive && styles.disabled, pressed && styles.pressed]}
@@ -25,10 +27,11 @@ export function PrimaryButton({ label, onPress, loading = false, disabled = fals
 }
 
 export function TextButton({ label, onPress }: { label: string; onPress: () => void }) {
+  const { t } = useLanguage();
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={t(label)}
       onPress={onPress}
       style={({ pressed }) => [styles.textButton, pressed && styles.pressed]}
     >

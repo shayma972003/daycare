@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
 
-import { sendArrivalNotice } from "@/api/arrival";
+import { sendArrivalNotice, type ArrivalMinutes } from "@/api/arrival";
 import { loadCalendar, type CalendarEventType, type MobileCalendarEvent } from "@/api/calendar";
 import { loadGuardianCareReportsForDate, type GuardianCareReport } from "@/api/care";
 import { ApiError } from "@/api/client";
 import { riyadhDateKey } from "@/calendar/week";
 import { AppScreen } from "@/components/app-screen";
+import { Text, useLanguage } from "@/language";
 import { useSession } from "@/session";
 import { colors, radius, shadow, spacing, touchTarget } from "@/theme";
 
@@ -20,15 +21,26 @@ const TYPE_LABELS: Record<CalendarEventType, string> = {
   UNIT: "وحدة",
 };
 
+const ARRIVAL_OPTIONS: { minutes: ArrivalMinutes; label: string }[] = [
+  { minutes: 15, label: "بعد 15 دقيقة" },
+  { minutes: 10, label: "بعد 10 دقائق" },
+  { minutes: 5, label: "بعد 5 دقائق" },
+  { minutes: 0, label: "وصلت" },
+];
+
 function countdownLabel(seconds: number) {
   const minutes = Math.floor(seconds / 60);
   const rest = seconds % 60;
   return `${minutes}:${String(rest).padStart(2, "0")}`;
 }
 
-function eventTime(event: MobileCalendarEvent) {
+function currentTimestamp() {
+  return Date.now();
+}
+
+function eventTime(event: MobileCalendarEvent, locale: string) {
   if (event.allDay) return "طوال اليوم";
-  const formatter = new Intl.DateTimeFormat("ar-SA", {
+  const formatter = new Intl.DateTimeFormat(locale, {
     timeZone: RIYADH_ZONE,
     hour: "numeric",
     minute: "2-digit",
@@ -39,11 +51,13 @@ function eventTime(event: MobileCalendarEvent) {
 
 export function GuardianHomeScreen() {
   const { account } = useSession();
+  const { isRTL, locale, t } = useLanguage();
   const router = useRouter();
   const today = useMemo(() => riyadhDateKey(new Date()), []);
   const [sending, setSending] = useState(false);
+  const [arrivalOptionsOpen, setArrivalOptionsOpen] = useState(false);
   const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
-  const [clock, setClock] = useState(() => Date.now());
+  const [clock, setClock] = useState(currentTimestamp);
   const [message, setMessage] = useState<string | null>(null);
   const [arrivalError, setArrivalError] = useState<string | null>(null);
   const [events, setEvents] = useState<MobileCalendarEvent[] | null>(null);
@@ -123,21 +137,23 @@ export function GuardianHomeScreen() {
     }
   };
 
-  const send = async () => {
+  const send = async (minutes: ArrivalMinutes) => {
     if (sending || remainingSeconds > 0) return;
     setSending(true);
+    setArrivalOptionsOpen(false);
     setMessage(null);
     setArrivalError(null);
     try {
-      const result = await sendArrivalNotice();
-      setCooldownUntil(new Date(result.expectedAt).getTime());
-      setClock(Date.now());
+      const result = await sendArrivalNotice(minutes);
+      setCooldownUntil(new Date(result.cooldownUntil).getTime());
+      setClock(currentTimestamp());
       setMessage("تم إرسال إشعار الوصول");
     } catch (caught) {
       if (caught instanceof ApiError && caught.code === "ARRIVAL_COOLDOWN") {
         const wait = caught.retryAfterSeconds ?? 300;
-        setCooldownUntil(Date.now() + wait * 1_000);
-        setClock(Date.now());
+        const now = currentTimestamp();
+        setCooldownUntil(now + wait * 1_000);
+        setClock(now);
       }
       setArrivalError(caught instanceof Error ? caught.message : "تعذّر إرسال الإشعار");
     } finally {
@@ -149,7 +165,7 @@ export function GuardianHomeScreen() {
     <AppScreen
       action={(
         <Pressable
-          accessibilityLabel="تحديث الرئيسية"
+          accessibilityLabel={t("تحديث الرئيسية")}
           accessibilityRole="button"
           disabled={refreshing}
           onPress={() => void refresh()}
@@ -164,7 +180,7 @@ export function GuardianHomeScreen() {
       title="الرئيسية"
     >
       <View style={styles.arrivalCard}>
-        <View style={styles.arrivalHeader}>
+        <View style={[styles.arrivalHeader, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
           <View style={styles.arrivalIcon}>
             <Text style={styles.arrivalIconText}>⌁</Text>
           </View>
@@ -176,7 +192,7 @@ export function GuardianHomeScreen() {
         <Pressable
           accessibilityRole="button"
           disabled={sending || remainingSeconds > 0}
-          onPress={() => void send()}
+          onPress={() => setArrivalOptionsOpen((current) => !current)}
           style={({ pressed }) => [
             styles.arrivalButton,
             remainingSeconds > 0 && styles.arrivalButtonDisabled,
@@ -189,10 +205,34 @@ export function GuardianHomeScreen() {
             <Text style={styles.arrivalButtonText}>
               {remainingSeconds > 0
                 ? `يمكن الإرسال بعد ${countdownLabel(remainingSeconds)}`
-                : "سأصل خلال 5 دقائق"}
+                : `اختاري وقت الوصول ${arrivalOptionsOpen ? "⌃" : "⌄"}`}
             </Text>
           )}
         </Pressable>
+        {arrivalOptionsOpen && remainingSeconds === 0 ? (
+          <View style={[styles.arrivalOptions, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
+            {ARRIVAL_OPTIONS.map((option) => (
+              <Pressable
+                accessibilityRole="button"
+                disabled={sending}
+                key={option.minutes}
+                onPress={() => void send(option.minutes)}
+                style={({ pressed }) => [
+                  styles.arrivalOption,
+                  option.minutes === 0 && styles.arrivedOption,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Text style={[
+                  styles.arrivalOptionText,
+                  option.minutes === 0 && styles.arrivedOptionText,
+                ]}>
+                  {option.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
         {message ? <Text style={styles.successMessage}>{message}</Text> : null}
         {arrivalError ? <Text style={styles.errorMessage}>{arrivalError}</Text> : null}
       </View>
@@ -217,7 +257,7 @@ export function GuardianHomeScreen() {
       ) : null}
 
       <View style={styles.eventsCard}>
-        <View style={styles.sectionHeader}>
+        <View style={[styles.sectionHeader, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
           <Text style={styles.sectionTitle}>أحداث اليوم</Text>
           {events?.length ? (
             <Pressable accessibilityRole="button" onPress={() => router.push("/(guardian)/calendar")}>
@@ -234,13 +274,13 @@ export function GuardianHomeScreen() {
         ) : events?.length ? (
           <View style={styles.eventsList}>
             {events.map((event) => (
-              <View key={event.id} style={styles.eventRow}>
+              <View key={event.id} style={[styles.eventRow, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
                 <View style={styles.eventType}>
                   <Text style={styles.eventTypeText}>{TYPE_LABELS[event.type]}</Text>
                 </View>
                 <View style={styles.eventCopy}>
                   <Text style={styles.eventTitle}>{event.title}</Text>
-                  <Text style={styles.eventTime}>{eventTime(event)}</Text>
+                  <Text style={styles.eventTime}>{eventTime(event, locale)}</Text>
                 </View>
               </View>
             ))}
@@ -289,6 +329,22 @@ const styles = StyleSheet.create({
   arrivalButton: { minHeight: touchTarget + 8, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.md, borderRadius: radius.md, backgroundColor: colors.primary },
   arrivalButtonDisabled: { backgroundColor: colors.muted },
   arrivalButtonText: { color: colors.surface, fontSize: 16, fontWeight: "900" },
+  arrivalOptions: { flexDirection: "row-reverse", flexWrap: "wrap", gap: spacing.sm },
+  arrivalOption: {
+    minWidth: "47%",
+    minHeight: touchTarget,
+    flexGrow: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    borderRadius: radius.md,
+    backgroundColor: colors.primarySoft,
+  },
+  arrivalOptionText: { color: colors.primary, fontSize: 14, fontWeight: "900" },
+  arrivedOption: { borderColor: colors.success, backgroundColor: colors.successSoft },
+  arrivedOptionText: { color: colors.success },
   pressed: { opacity: 0.75 },
   successMessage: { color: colors.success, fontSize: 14, fontWeight: "800", textAlign: "center" },
   errorMessage: { color: colors.danger, fontSize: 13, fontWeight: "700", textAlign: "center" },

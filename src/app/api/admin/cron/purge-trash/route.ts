@@ -12,10 +12,13 @@ import {
 } from "@/lib/stored-files";
 import { runBoundedRetention } from "@/lib/bounded-retention";
 import { logSafeError } from "@/lib/safe-logger";
+import { withSystemJobRun } from "@/lib/system-job-run";
 
 /** Nightly housekeeping. Scheduled in vercel.json. */
 export async function GET(request: Request) {
   if (!isAuthorizedCron(request)) return cronUnauthorized();
+
+  return withSystemJobRun("purge_trash", async () => {
 
   const now = new Date();
   const trash = await cleanupExpiredTrash();
@@ -69,5 +72,6 @@ export async function GET(request: Request) {
     enrollmentTokens,
     storageComputed,
     storageFailures,
+  });
   });
 }

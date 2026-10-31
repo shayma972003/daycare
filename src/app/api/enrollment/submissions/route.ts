@@ -41,6 +41,10 @@ export async function GET() {
     };
     delete (publicFields as Partial<typeof submission>).encrypted_id_number;
     delete (publicFields as Partial<typeof submission>).id_number_hash;
+    if (!session.can("students.health")) {
+      delete (publicFields as Partial<typeof submission>).health_condition;
+      delete (publicFields as Partial<typeof submission>).allergies;
+    }
     return publicFields;
   }));
 }

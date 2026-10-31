@@ -95,6 +95,37 @@ describe("guardian arrival notifications", () => {
     });
   });
 
+  it.each([
+    { minutes: 15 as const, expectedAt: "2026-09-29T09:15:00.000Z", message: "سيصل سارة أحمد خلال 15 دقائق" },
+    { minutes: 10 as const, expectedAt: "2026-09-29T09:10:00.000Z", message: "سيصل سارة أحمد خلال 10 دقائق" },
+    { minutes: 0 as const, expectedAt: "2026-09-29T09:00:00.000Z", message: "ولي الأمر سارة أحمد وصل" },
+  ])("formats the $minutes-minute choice and keeps the resend cooldown at five minutes", async ({
+    minutes,
+    expectedAt,
+    message,
+  }) => {
+    mocks.createNotice.mockImplementation(async ({ data }) => ({
+      id: `arrival-${minutes}`,
+      senderName: data.senderName,
+      expectedAt: data.expectedAt,
+      recipients: [],
+    }));
+
+    const result = await createGuardianArrivalNotice({
+      schoolId: "school-1",
+      guardianAccountId: "guardian-account-1",
+      arrivalMinutes: minutes,
+      now: new Date("2026-09-29T09:00:00.000Z"),
+    });
+
+    expect(result).toMatchObject({
+      created: true,
+      message,
+      expectedAt: new Date(expectedAt),
+      cooldownUntil: new Date("2026-09-29T09:05:00.000Z"),
+    });
+  });
+
   it("rejects a repeat inside five minutes without creating or pushing another notice", async () => {
     mocks.claim.mockResolvedValue({ count: 0 });
     mocks.currentAccount.mockResolvedValue({

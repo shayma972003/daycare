@@ -1,6 +1,7 @@
 import { sendDailyDigests } from "@/lib/care-report-digest";
 import { isAuthorizedCron, cronUnauthorized } from "@/lib/cron-auth";
 import { withMonitoring } from "@/lib/monitoring";
+import { withSystemJobRun } from "@/lib/system-job-run";
 
 /**
  * End-of-day care summary for guardians.
@@ -15,7 +16,9 @@ export async function GET(request: Request) {
   if (!isAuthorizedCron(request)) return cronUnauthorized();
 
   const ranAt = new Date();
-  const result = await withMonitoring("cron/care-digest", () => sendDailyDigests(ranAt));
+  const result = await withSystemJobRun("care_digest", () =>
+    withMonitoring("cron/care-digest", () => sendDailyDigests(ranAt))
+  );
 
   return Response.json({ success: true, ran_at: ranAt.toISOString(), ...result });
 }

@@ -212,6 +212,13 @@ export async function POST(request: Request) {
   } = parsed.data;
 
   if (
+    (healthCondition !== undefined || allergies !== undefined) &&
+    !session.can("students.health")
+  ) {
+    return Response.json({ error: "Forbidden", code: "HEALTH_ACCESS_REQUIRED" }, { status: 403 });
+  }
+
+  if (
     [paymentMethod, enrollmentDate, enrollmentEndDate, paymentStatus, registration_fee, cycleFee].some(
       (value) => value !== undefined
     ) &&
@@ -345,7 +352,7 @@ export async function POST(request: Request) {
         },
         {
           contact: session.can("students.guardians") || session.can("students.manage"),
-          health: session.can("students.manage"),
+          health: session.can("students.health"),
           financial: session.can("finance.view") || session.can("finance.manage"),
           revealIdentity: false,
         },

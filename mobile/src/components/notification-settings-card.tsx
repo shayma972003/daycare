@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
 
 import {
   loadNotificationSettings,
@@ -7,6 +7,7 @@ import {
   type GuardianNotificationPreferences,
   type StaffNotificationPreferences,
 } from "@/api/notification-settings";
+import { Text, useLanguage } from "@/language";
 import { colors, radius, spacing, touchTarget } from "@/theme";
 
 type Kind = "guardian" | "staff";
@@ -31,10 +32,11 @@ const staffRows: {
 }[] = [
   { key: "activity", title: "الإعلانات", subtitle: "رسائل المدرسة والأنشطة المرسلة لك" },
   { key: "calendar", title: "التقويم", subtitle: "الأحداث المرتبطة بك أو بفصولك" },
-  { key: "arrival", title: "وصول أولياء الأمور", subtitle: "إشعار «سيصل خلال 5 دقائق»" },
+  { key: "arrival", title: "وصول أولياء الأمور", subtitle: "عند إرسال ولي الأمر وقت وصوله" },
 ];
 
 export function NotificationSettingsCard({ kind }: { kind: Kind }) {
+  const { isRTL, t } = useLanguage();
   const [preferences, setPreferences] = useState<Preferences | null>(null);
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState<string | null>(null);
@@ -108,9 +110,16 @@ export function NotificationSettingsCard({ kind }: { kind: Kind }) {
             const enabled = Boolean((preferences as Record<string, boolean>)[row.key]);
             const saving = savingKey === row.key;
             return (
-              <View key={row.key} style={[styles.row, index > 0 && styles.rowBorder]}>
+              <View
+                key={row.key}
+                style={[
+                  styles.row,
+                  { flexDirection: isRTL ? "row" : "row-reverse" },
+                  index > 0 && styles.rowBorder,
+                ]}
+              >
                 <Pressable
-                  accessibilityLabel={`${row.title}: ${enabled ? "مفعّل" : "متوقف"}`}
+                  accessibilityLabel={`${t(row.title)}: ${t(enabled ? "مفعّل" : "متوقف")}`}
                   accessibilityRole="switch"
                   accessibilityState={{ checked: enabled, disabled: Boolean(savingKey) }}
                   disabled={Boolean(savingKey)}

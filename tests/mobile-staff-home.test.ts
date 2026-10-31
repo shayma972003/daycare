@@ -32,7 +32,7 @@ describe("mobile staff home", () => {
 
   it("keeps selected parent arrivals visible until staff acknowledges them", () => {
     const api = source("mobile", "src", "api", "arrival.ts");
-    expect(screen).toContain("سيصل {arrivalNotice.senderName} خلال 5 دقائق");
+    expect(screen).toContain("{arrivalNotice.message}");
     expect(screen).toContain("حسنًا");
     expect(screen).toContain("acknowledgeArrivalNotice(notice.id)");
     expect(screen).toContain("15_000");

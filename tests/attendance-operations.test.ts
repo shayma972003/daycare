@@ -112,6 +112,28 @@ describe("shared attendance operations", () => {
     }));
   });
 
+  it("persists location verification metadata on automatic teacher check-in", async () => {
+    mocks.teacherAttendanceCreate.mockResolvedValue({ id: "teacher-attendance-location" });
+
+    await checkInTeacher({
+      teacherId: "person-1",
+      schoolId: "school-1",
+      date: new Date("2026-09-01T00:00:00.000Z"),
+      now: new Date("2026-09-01T08:00:00.000Z"),
+      timeZone: "UTC",
+      location: { eventId: "event-checkin-1", distanceMeters: 42, accuracyMeters: 9 },
+    });
+
+    expect(mocks.teacherAttendanceCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        checkinSource: "LOCATION",
+        checkinEventId: "event-checkin-1",
+        checkinDistanceMeters: 42,
+        checkinAccuracyMeters: 9,
+      }),
+    }));
+  });
+
   it("allows teacher check-in on the device-local contract end day and rejects the next day", async () => {
     const contractEnd = new Date("2026-09-01T00:00:00.000Z");
     mocks.teacherFind.mockImplementation(async ({ where }: { where: {
@@ -264,6 +286,34 @@ describe("shared attendance operations", () => {
     });
     expect(result.totalHours).toBe(4);
     expect(mocks.teacherUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it("persists location verification metadata on automatic teacher checkout", async () => {
+    mocks.teacherAttendanceFindMany.mockResolvedValue([{
+      id: "teacher-attendance-1",
+      date: new Date("2026-08-27T00:00:00.000Z"),
+      checkinAt: new Date("2026-08-27T22:00:00.000Z"),
+      lateMinutes: 0,
+    }]);
+    mocks.teacherAttendanceUpdateMany.mockResolvedValue({ count: 1 });
+    mocks.teacherUpdate.mockResolvedValue({});
+
+    await checkoutTeacher({
+      teacherId: "person-1",
+      schoolId: "school-1",
+      now: new Date("2026-08-28T02:00:00.000Z"),
+      timeZone: "UTC",
+      location: { eventId: "event-checkout-1", distanceMeters: 176, accuracyMeters: 11 },
+    });
+
+    expect(mocks.teacherAttendanceUpdateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        checkoutSource: "LOCATION",
+        checkoutEventId: "event-checkout-1",
+        checkoutDistanceMeters: 176,
+        checkoutAccuracyMeters: 11,
+      }),
+    }));
   });
 
   it("propagates a totals write failure from the transaction", async () => {

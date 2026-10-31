@@ -110,8 +110,8 @@ import { POST as logoutAdmin } from "@/app/api/admin/auth/logout/route";
 import {
   GET as listSchools,
   POST as createSchool,
-  schoolAdminInvitationStatus,
 } from "@/app/api/admin/schools/route";
+import { schoolAdminInvitationStatus } from "@/lib/school-admin-invitation-status";
 import { POST as resendSchoolInvite } from "@/app/api/admin/schools/[id]/invite/route";
 import { POST as changeAdminPassword } from "@/app/api/admin/settings/password/route";
 

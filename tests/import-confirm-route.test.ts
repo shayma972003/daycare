@@ -53,7 +53,7 @@ beforeEach(() => {
   for (const mock of Object.values(mocks)) mock.mockReset();
   mocks.requireSession.mockResolvedValue({
     user: { schoolId: 'school-1', name: 'Manager' },
-    can: (permission: string) => permission === 'students.manage',
+    can: (permission: string) => permission === 'students.manage' || permission === 'students.health',
   });
   mocks.sessionUpdateMany.mockResolvedValue({ count: 1 });
   mocks.queryRaw.mockResolvedValue([{ id: 'row-1' }]);

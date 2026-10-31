@@ -214,6 +214,10 @@ export const ROUTE_PERMISSIONS: Record<string, RouteRule> = {
   // permissions that caller holds, so the gate here is "signed in".
   "/api/me": { default: null },
   "/api/dashboard/tasks": { default: null },
+  "/api/support-presence": { default: null },
+  // The assistant has an additional per-tool permission check. This first gate
+  // keeps the whole surface manager-only unless a school explicitly grants it.
+  "/api/assistant": { default: "settings.ai" },
   "/api/search": { default: null },
   "/api/storage": { methods: { GET: null, POST: "settings.storage" } },
   "/api/units/:id/files": { default: "units.manage" },
@@ -293,6 +297,7 @@ export const ROUTE_PERMISSIONS: Record<string, RouteRule> = {
   // every screen, and a teacher who cannot read them sees an empty timetable.
   "/api/settings": { methods: { GET: null, PUT: "settings.manage" } },
   "/api/settings/arrival-recipients": { default: "settings.manage" },
+  "/api/settings/location-attendance": { default: "settings.manage" },
   /**
    * Academic stages (task 2.44).
    *

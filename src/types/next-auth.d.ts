@@ -8,6 +8,8 @@ declare module "next-auth" {
       schoolName: string;
       role: string;
       authVersion: number;
+      supportAccessId?: string;
+      supportAccessExpiresAt?: string;
     };
   }
 
@@ -16,6 +18,8 @@ declare module "next-auth" {
     schoolName: string;
     role: string;
     authVersion: number;
+    supportAccessId?: string;
+    supportAccessExpiresAt?: string;
   }
 }
 
@@ -26,5 +30,7 @@ declare module "next-auth/jwt" {
     schoolName: string;
     role: string;
     authVersion: number;
+    supportAccessId?: string;
+    supportAccessExpiresAt?: string;
   }
 }

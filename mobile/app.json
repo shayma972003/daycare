@@ -36,6 +36,15 @@
       ],
       "expo-secure-store",
       [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "يستخدم طفولة تيك موقعك لتسجيل دخولك تلقائيًا عند وصولك إلى المدرسة.",
+          "locationAlwaysAndWhenInUsePermission": "يستخدم طفولة تيك موقعك في الخلفية لتسجيل الدخول والخروج تلقائيًا من نطاق المدرسة.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true
+        }
+      ],
+      [
         "expo-notifications",
         {
           "defaultChannel": "daycare-alerts-v2",

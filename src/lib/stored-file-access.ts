@@ -7,6 +7,7 @@ import { requireSession } from "@/lib/session";
 import { STORED_FILE_OWNER, type StoredFileOwner } from "@/lib/stored-file-ownership";
 import { ALL_PERMISSIONS } from "@/lib/permissions";
 import { mayAccessStudent, scopedClassIds } from "@/lib/student-access-scope";
+import { verifyAdminSessionFromRequest } from "@/lib/admin-auth";
 
 export interface StoredFileAccessRecord {
   key: string;
@@ -39,6 +40,11 @@ async function explicitOwnerExists(file: StoredFileAccessRecord): Promise<boolea
   if (file.ownerType === STORED_FILE_OWNER.ENROLLMENT_SUBMISSION) {
     return (await prisma.enrollmentSubmission.count({
       where: { id: file.ownerId, school_id: file.schoolId },
+    })) === 1;
+  }
+  if (file.ownerType === STORED_FILE_OWNER.SUPPORT_TICKET) {
+    return (await prisma.supportTicket.count({
+      where: { id: file.ownerId, schoolId: file.schoolId },
     })) === 1;
   }
   // LEGACY is deliberately not interpreted from the shape of ownerId. A signed
@@ -94,6 +100,12 @@ export async function mayReadStoredFile(
 
   const grant = new URL(request.url).searchParams.get("t");
   if (verifyFileToken(file.key, grant)) return true;
+
+  // Support screenshots are platform-administration evidence. They are never
+  // readable through a school, guardian, or staff session.
+  if (file.ownerType === STORED_FILE_OWNER.SUPPORT_TICKET) {
+    return Boolean(await verifyAdminSessionFromRequest(request));
+  }
 
   // Ambiguous pre-migration ownership never becomes authority merely because a
   // same-tenant user learned the key. Legacy files require an exact grant minted

@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import { currentAccount, signOut as revokeSession, type Account } from "@/api/auth";
 import { registerDeviceForPush, unregisterDeviceForPush } from "@/notifications/device";
+import { stopLocationAttendance, syncLocationAttendance } from "@/location-attendance";
 
 type SessionContextValue = {
   account: Account | null;
@@ -34,9 +35,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!account) return;
     void registerDeviceForPush().catch(() => undefined);
+    if (account.kind === "staff" && account.teacherId) {
+      void syncLocationAttendance().catch(() => undefined);
+    }
   }, [account]);
 
   const signOut = useCallback(async () => {
+    await stopLocationAttendance().catch(() => undefined);
     await unregisterDeviceForPush();
     await revokeSession();
     setAccount(null);

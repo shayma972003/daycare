@@ -130,6 +130,7 @@ export default function StudentProfilePage({
   const router = useRouter();
   const { can } = usePermissions();
   const canViewFinance = can("finance.view") || can("finance.manage");
+  const canManageHealth = can("students.health");
   const [studentFees, setStudentFees] = useState<StudentFeeSettings | null>(null);
   const canManageGuardians = can("students.guardians") || can("students.manage");
   const [classes, setClasses] = useState<Class[]>([]);
@@ -399,14 +400,14 @@ export default function StudentProfilePage({
         expectedUpdatedAt: student?.updatedAt,
         name: data.name,
         classId: data.classId || null,
-        healthCondition: data.healthCondition || null,
+        ...(canManageHealth ? { healthCondition: data.healthCondition || null } : {}),
         stageId: data.stageId || null,
         period: data.period,
         idNumber: data.idNumber || null,
         dateOfBirth: data.dateOfBirth || null,
         nationality: data.nationality || null,
         gender: data.gender,
-        allergies: data.allergies || null,
+        ...(canManageHealth ? { allergies: data.allergies || null } : {}),
         ...(data.billingCycle && { billingCycle: data.billingCycle }),
         ...(data.billingIntervalDays !== undefined && { billingIntervalDays: data.billingIntervalDays }),
         ...(canViewFinance && data.billingCycle === "CUSTOM"
@@ -916,7 +917,7 @@ export default function StudentProfilePage({
               </div>
 
               {/* Card 2: المعلومات الصحية */}
-              <div className="bg-white rounded-xl shadow-md p-6">
+              {canManageHealth && <div className="bg-white rounded-xl shadow-md p-6">
                 <h2 className="text-base font-bold text-[#111111] mb-5">{t("fields.healthInfo")}</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
@@ -928,7 +929,7 @@ export default function StudentProfilePage({
                     <input {...register("allergies")} type="text" className={inputCls} />
                   </div>
                 </div>
-              </div>
+              </div>}
 
               {/* Card 3: معلومات ولي الأمر */}
               <div className="bg-white rounded-xl shadow-md p-6">

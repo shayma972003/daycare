@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
 
 import {
@@ -12,6 +12,7 @@ import { loadCalendar, type CalendarEventType, type MobileCalendarEvent } from "
 import { loadReturnedDailyCareReports, type ReturnedDailyCareBatch } from "@/api/care";
 import { riyadhDateKey } from "@/calendar/week";
 import { AppScreen } from "@/components/app-screen";
+import { Text, useLanguage } from "@/language";
 import { useSession } from "@/session";
 import { colors, radius, shadow, spacing, touchTarget } from "@/theme";
 
@@ -37,9 +38,9 @@ function errorMessage(reason: unknown, fallback: string) {
   return reason instanceof Error ? reason.message : fallback;
 }
 
-function eventTime(event: MobileCalendarEvent) {
+function eventTime(event: MobileCalendarEvent, locale: string) {
   if (event.allDay) return "طوال اليوم";
-  const formatter = new Intl.DateTimeFormat("ar-SA", {
+  const formatter = new Intl.DateTimeFormat(locale, {
     timeZone: RIYADH_ZONE,
     hour: "numeric",
     minute: "2-digit",
@@ -54,6 +55,7 @@ function returnedStudentNames(batches: ReturnedDailyCareBatch[]) {
 
 export function StaffHomeScreen() {
   const { account } = useSession();
+  const { isRTL, locale, t } = useLanguage();
   const router = useRouter();
   const today = useMemo(() => riyadhDateKey(new Date()), []);
   const [arrivalNotices, setArrivalNotices] = useState<StaffArrivalNotice[]>([]);
@@ -182,7 +184,7 @@ export function StaffHomeScreen() {
     <AppScreen
       action={(
         <Pressable
-          accessibilityLabel="تحديث الرئيسية"
+          accessibilityLabel={t("تحديث الرئيسية")}
           accessibilityRole="button"
           disabled={refreshing}
           onPress={() => void refresh()}
@@ -197,15 +199,13 @@ export function StaffHomeScreen() {
       title="الرئيسية"
     >
       {arrivalNotice ? (
-        <View style={styles.arrivalNotice}>
+        <View style={[styles.arrivalNotice, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
           <View style={styles.arrivalIcon}>
             <Text style={styles.arrivalIconText}>!</Text>
           </View>
           <View style={styles.arrivalCopy}>
             <Text style={styles.arrivalLabel}>إشعار وصول</Text>
-            <Text style={styles.arrivalMessage}>
-              سيصل {arrivalNotice.senderName} خلال 5 دقائق
-            </Text>
+            <Text style={styles.arrivalMessage}>{arrivalNotice.message}</Text>
             {arrivalNotices.length > 1 ? (
               <Text style={styles.arrivalMore}>يتبقى {arrivalNotices.length - 1} إشعار آخر</Text>
             ) : null}
@@ -234,7 +234,7 @@ export function StaffHomeScreen() {
         ) : errors.attendance ? (
           <ErrorState message={errors.attendance} />
         ) : (
-          <View style={styles.attendanceSummary}>
+          <View style={[styles.attendanceSummary, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
             <SummaryItem color={colors.text} label="الإجمالي" value={attendance.total} />
             <SummaryItem color={colors.success} label="حاضر" value={attendance.present} />
             <SummaryItem color={colors.muted} label="غادر" value={attendance.left} />
@@ -253,7 +253,7 @@ export function StaffHomeScreen() {
         ) : errors.care ? (
           <ErrorState message={errors.care} />
         ) : returnedReports?.length ? (
-          <View style={styles.returnedNotice}>
+          <View style={[styles.returnedNotice, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
             <View style={styles.noticeCount}>
               <Text style={styles.noticeCountText}>{returnedNames.length}</Text>
             </View>
@@ -285,13 +285,13 @@ export function StaffHomeScreen() {
         ) : events?.length ? (
           <View style={styles.eventsList}>
             {events.map((event) => (
-              <View key={event.id} style={styles.eventRow}>
+              <View key={event.id} style={[styles.eventRow, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
                 <View style={styles.eventType}>
                   <Text style={styles.eventTypeText}>{TYPE_LABELS[event.type]}</Text>
                 </View>
                 <View style={styles.eventCopy}>
                   <Text style={styles.eventTitle}>{event.title}</Text>
-                  <Text style={styles.eventTime}>{eventTime(event)}</Text>
+                  <Text style={styles.eventTime}>{eventTime(event, locale)}</Text>
                 </View>
               </View>
             ))}
@@ -313,9 +313,10 @@ function SectionCard({ actionLabel, children, onPress, title }: {
   onPress?: () => void;
   title: string;
 }) {
+  const { isRTL } = useLanguage();
   return (
     <View style={styles.sectionCard}>
-      <View style={styles.sectionHeader}>
+      <View style={[styles.sectionHeader, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
         <Text style={styles.sectionTitle}>{title}</Text>
         {actionLabel && onPress ? (
           <Pressable accessibilityRole="button" onPress={onPress}>

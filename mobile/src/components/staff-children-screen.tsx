@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Pressable,
   StyleSheet,
-  Text,
   TextInput,
   View,
 } from "react-native";
@@ -11,6 +10,7 @@ import { useRouter } from "expo-router";
 
 import { loadTodayAttendance, type AttendanceChild } from "@/api/attendance";
 import { AppScreen } from "@/components/app-screen";
+import { Text, useLanguage } from "@/language";
 import { useSession } from "@/session";
 import { colors, radius, spacing, touchTarget } from "@/theme";
 
@@ -39,6 +39,7 @@ export function StaffChildrenScreen() {
 
 export function StaffChildrenSection() {
   const router = useRouter();
+  const { isRTL, t } = useLanguage();
   const [children, setChildren] = useState<AttendanceChild[]>([]);
   const [search, setSearch] = useState("");
   const [selectedClass, setSelectedClass] = useState<string | null>(null);
@@ -89,34 +90,34 @@ export function StaffChildrenSection() {
   }, [children]);
 
   const filteredChildren = useMemo(() => {
-    const query = search.trim().toLocaleLowerCase("ar");
+    const query = search.trim().toLowerCase();
     return children.filter((child) => {
       const matchesClass = !selectedClass || child.classId === selectedClass;
       const matchesSearch = !query
-        || child.name.toLocaleLowerCase("ar").includes(query)
-        || child.className?.toLocaleLowerCase("ar").includes(query);
+        || child.name.toLowerCase().includes(query)
+        || child.className?.toLowerCase().includes(query);
       return matchesClass && matchesSearch;
     });
   }, [children, search, selectedClass]);
 
   return (
     <View style={styles.section}>
-      <View style={styles.searchBox}>
+      <View style={[styles.searchBox, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
         <TextInput
-          accessibilityLabel="البحث عن طفل"
+          accessibilityLabel={t("البحث عن طفل")}
           onChangeText={setSearch}
-          placeholder="البحث بالاسم…"
+          placeholder={t("البحث بالاسم…")}
           placeholderTextColor={colors.muted}
           returnKeyType="search"
           style={styles.searchInput}
-          textAlign="right"
+          textAlign={isRTL ? "right" : "left"}
           value={search}
         />
         <Text style={styles.searchIcon}>⌕</Text>
       </View>
 
       {classes.length > 1 ? (
-        <View style={styles.filters}>
+        <View style={[styles.filters, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
           <FilterChip
             active={selectedClass === null}
             label="كل الفصول"
@@ -133,7 +134,7 @@ export function StaffChildrenSection() {
         </View>
       ) : null}
 
-      <View style={styles.listHeading}>
+      <View style={[styles.listHeading, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
         <Text style={styles.count}>{filteredChildren.length}</Text>
         <Text style={styles.heading}>أطفالي</Text>
       </View>
@@ -202,6 +203,7 @@ function ChildCard({ child, expanded, onAttendance, onCare, onToggle }: {
   onCare: () => void;
   onToggle: () => void;
 }) {
+  const { isRTL } = useLanguage();
   const attendance = attendanceLabel(child);
   return (
     <View style={styles.childCard}>
@@ -209,7 +211,11 @@ function ChildCard({ child, expanded, onAttendance, onCare, onToggle }: {
         accessibilityRole="button"
         accessibilityState={{ expanded }}
         onPress={onToggle}
-        style={({ pressed }) => [styles.childHeader, pressed && styles.pressed]}
+        style={({ pressed }) => [
+          styles.childHeader,
+          { flexDirection: isRTL ? "row-reverse" : "row" },
+          pressed && styles.pressed,
+        ]}
       >
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>{child.name.trim().slice(0, 1) || "ط"}</Text>
@@ -236,12 +242,12 @@ function ChildCard({ child, expanded, onAttendance, onCare, onToggle }: {
 
       {expanded ? (
         <View style={styles.details}>
-          <View style={styles.detailsRow}>
+          <View style={[styles.detailsRow, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
             <Detail label="الفصل" value={child.className ?? "بدون فصل"} />
             <View style={styles.detailsDivider} />
             <Detail label="الفترة" value={periodLabel(child.period)} />
           </View>
-          <View style={styles.actions}>
+          <View style={[styles.actions, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
             <CardAction label="فتح الحضور" onPress={onAttendance} />
             <CardAction label="تقرير الرعاية" onPress={onCare} />
           </View>

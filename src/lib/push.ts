@@ -144,6 +144,57 @@ export async function enqueuePush(
   return devices.length;
 }
 
+/**
+ * Queues one diagnostic notification for one installed device.
+ *
+ * The super-admin support screen uses this instead of `enqueuePush`, because a
+ * test intended for one phone must not buzz every device owned by the account.
+ * The device is still tenant-scoped and its owner must remain active.
+ */
+export async function enqueuePushToDevice(
+  target: { schoolId: string; deviceTokenId: string },
+  payload: PushPayload
+): Promise<boolean> {
+  const device = await prisma.deviceToken.findFirst({
+    where: {
+      id: target.deviceTokenId,
+      schoolId: target.schoolId,
+      failedAt: null,
+      OR: [
+        {
+          guardianAccount: {
+            disabledAt: null,
+            acceptedAt: { not: null },
+            school: { subscription_status: { notIn: ["suspended", "cancelled", "expired"] } },
+          },
+        },
+        {
+          user: {
+            disabledAt: null,
+            acceptedAt: { not: null },
+            school: { subscription_status: { notIn: ["suspended", "cancelled", "expired"] } },
+          },
+        },
+      ],
+    },
+    select: { id: true },
+  });
+
+  if (!device) return false;
+
+  await prisma.pushNotification.create({
+    data: {
+      schoolId: target.schoolId,
+      deviceTokenId: device.id,
+      title: payload.title,
+      body: payload.body,
+      data: payload.data ?? undefined,
+    },
+  });
+  schedulePushDrain();
+  return true;
+}
+
 export interface SendResult {
   ok: boolean;
   /** True when the token will never work again — uninstalled, or rotated away. */

@@ -3,15 +3,17 @@ import {
   ActivityIndicator,
   Pressable,
   StyleSheet,
-  Text,
   View,
 } from "react-native";
 
 import { loadMessages, markMessageRead, type MobileMessage } from "@/api/messages";
 import { AppScreen, cardStyles } from "@/components/app-screen";
 import { TextButton } from "@/components/buttons";
+import { LanguageSettingsCard } from "@/components/language-settings-card";
+import { LocationAttendanceSettingsCard } from "@/components/location-attendance-settings-card";
 import { NotificationSettingsCard } from "@/components/notification-settings-card";
 import { StaffChildrenSection } from "@/components/staff-children-screen";
+import { Text, useLanguage } from "@/language";
 import { useSession } from "@/session";
 import { colors, radius, spacing, touchTarget } from "@/theme";
 
@@ -29,8 +31,8 @@ function kindLabel(kind: MobileMessage["kind"]) {
   return "إعلان";
 }
 
-function formatMessageDate(value: string) {
-  return new Intl.DateTimeFormat("ar-SA", {
+function formatMessageDate(value: string, locale: string) {
+  return new Intl.DateTimeFormat(locale, {
     timeZone: "Asia/Riyadh",
     day: "numeric",
     month: "short",
@@ -41,6 +43,7 @@ function formatMessageDate(value: string) {
 
 export function StaffAccountScreen() {
   const { account, signOut } = useSession();
+  const { locale } = useLanguage();
   const [section, setSection] = useState<Section>("account");
   const [messages, setMessages] = useState<MobileMessage[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -166,6 +169,7 @@ export function StaffAccountScreen() {
                 <MessageCard
                   expanded={expandedId === message.recipientId}
                   key={message.recipientId}
+                  locale={locale}
                   message={message}
                   onPress={() => void openMessage(message)}
                 />
@@ -187,6 +191,10 @@ export function StaffAccountScreen() {
           </View>
 
           <StaffChildrenSection />
+
+          <LanguageSettingsCard />
+
+          {account.teacherId ? <LocationAttendanceSettingsCard /> : null}
 
           <NotificationSettingsCard kind="staff" />
 
@@ -225,8 +233,9 @@ function SectionTab({ active, count, label, onPress }: {
   );
 }
 
-function MessageCard({ expanded, message, onPress }: {
+function MessageCard({ expanded, locale, message, onPress }: {
   expanded: boolean;
+  locale: string;
   message: MobileMessage;
   onPress: () => void;
 }) {
@@ -241,7 +250,7 @@ function MessageCard({ expanded, message, onPress }: {
         {!message.readAt ? <View style={styles.unreadDot} /> : null}
         <View style={styles.messageCopy}>
           <Text style={styles.messageTitle}>{messageTitle(message)}</Text>
-          <Text style={styles.messageDate}>{formatMessageDate(message.createdAt)}</Text>
+          <Text style={styles.messageDate}>{formatMessageDate(message.createdAt, locale)}</Text>
         </View>
         <View style={styles.kindBadge}>
           <Text style={styles.kindText}>{kindLabel(message.kind)}</Text>
@@ -253,8 +262,9 @@ function MessageCard({ expanded, message, onPress }: {
 }
 
 function AccountRow({ label, value }: { label: string; value: string }) {
+  const { isRTL } = useLanguage();
   return (
-    <View style={styles.accountRow}>
+    <View style={[styles.accountRow, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
       <Text style={styles.accountValue}>{value}</Text>
       <Text style={styles.accountLabel}>{label}</Text>
     </View>

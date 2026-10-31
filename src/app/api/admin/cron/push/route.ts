@@ -1,5 +1,6 @@
 import { drainPushQueue } from "@/lib/push";
 import { isAuthorizedCron, cronUnauthorized } from "@/lib/cron-auth";
+import { withSystemJobRun } from "@/lib/system-job-run";
 
 /**
  * Drains the push queue.
@@ -16,7 +17,7 @@ export async function GET(request: Request) {
   if (!isAuthorizedCron(request)) return cronUnauthorized();
 
   const ranAt = new Date();
-  const result = await drainPushQueue();
+  const result = await withSystemJobRun("push_queue", () => drainPushQueue());
 
   return Response.json({ success: true, ran_at: ranAt.toISOString(), ...result });
 }

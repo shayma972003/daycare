@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Pressable,
   StyleSheet,
-  Text,
   TextInput,
   View,
 } from "react-native";
@@ -15,6 +14,7 @@ import {
 } from "@/api/attendance";
 import { AppScreen } from "@/components/app-screen";
 import { PrimaryButton } from "@/components/buttons";
+import { Text, useLanguage } from "@/language";
 import { useSession } from "@/session";
 import { colors, radius, spacing, touchTarget } from "@/theme";
 
@@ -24,18 +24,18 @@ const actionLabels: Record<AttendanceAction, string> = {
   done: "اكتمل اليوم",
 };
 
-function formatTime(value: string | null) {
+function formatTime(value: string | null, locale: string) {
   if (!value) return "—";
-  return new Intl.DateTimeFormat("ar-SA", {
+  return new Intl.DateTimeFormat(locale, {
     timeZone: "Asia/Riyadh",
     hour: "numeric",
     minute: "2-digit",
   }).format(new Date(value));
 }
 
-function formatDate(value: string | null) {
+function formatDate(value: string | null, locale: string) {
   if (!value) return "اليوم";
-  return new Intl.DateTimeFormat("ar-SA", {
+  return new Intl.DateTimeFormat(locale, {
     timeZone: "Asia/Riyadh",
     weekday: "long",
     day: "numeric",
@@ -51,6 +51,7 @@ function statusLabel(action: AttendanceAction) {
 
 export function StaffAttendanceScreen() {
   const { account } = useSession();
+  const { isRTL, locale, t } = useLanguage();
   const [date, setDate] = useState<string | null>(null);
   const [children, setChildren] = useState<AttendanceChild[]>([]);
   const [loading, setLoading] = useState(true);
@@ -105,11 +106,11 @@ export function StaffAttendanceScreen() {
   }), [children]);
 
   const filteredChildren = useMemo(() => {
-    const query = search.trim().toLocaleLowerCase("ar");
+    const query = search.trim().toLowerCase();
     if (!query) return children;
     return children.filter((child) => (
-      child.name.toLocaleLowerCase("ar").includes(query)
-      || child.className?.toLocaleLowerCase("ar").includes(query)
+      child.name.toLowerCase().includes(query)
+      || child.className?.toLowerCase().includes(query)
     ));
   }, [children, search]);
 
@@ -144,7 +145,7 @@ export function StaffAttendanceScreen() {
     <AppScreen
       action={(
         <Pressable
-          accessibilityLabel="تحديث الحضور"
+          accessibilityLabel={t("تحديث الحضور")}
           accessibilityRole="button"
           disabled={refreshing}
           onPress={() => void load(true)}
@@ -155,24 +156,24 @@ export function StaffAttendanceScreen() {
             : <Text style={styles.refreshIcon}>↻</Text>}
         </Pressable>
       )}
-      subtitle={`${account.schoolName} · ${formatDate(date)}`}
+      subtitle={`${account.schoolName} · ${formatDate(date, locale)}`}
       title="الحضور"
     >
-      <View style={styles.summary}>
+      <View style={[styles.summary, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
         <SummaryItem color={colors.success} label="حاضر" value={summary.present} />
         <SummaryItem color={colors.muted} label="غادر" value={summary.left} />
         <SummaryItem color={colors.danger} label="لم يحضر" value={summary.absent} />
       </View>
 
-      <View style={styles.searchBox}>
+      <View style={[styles.searchBox, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
         <TextInput
-          accessibilityLabel="البحث في الحضور"
+          accessibilityLabel={t("البحث في الحضور")}
           onChangeText={setSearch}
-          placeholder="البحث بالاسم أو الفصل…"
+          placeholder={t("البحث بالاسم أو الفصل…")}
           placeholderTextColor={colors.muted}
           returnKeyType="search"
           style={styles.searchInput}
-          textAlign="right"
+          textAlign={isRTL ? "right" : "left"}
           value={search}
         />
         <Text style={styles.searchIcon}>⌕</Text>
@@ -228,10 +229,11 @@ function AttendanceRow({ busy, child, onPress }: {
   child: AttendanceChild;
   onPress: () => void;
 }) {
+  const { isRTL, locale } = useLanguage();
   const done = child.nextAction === "done";
   return (
     <View style={styles.childCard}>
-      <View style={styles.childHeader}>
+      <View style={[styles.childHeader, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>{child.name.trim().slice(0, 1) || "ط"}</Text>
         </View>
@@ -252,15 +254,15 @@ function AttendanceRow({ busy, child, onPress }: {
         </View>
       </View>
 
-      <View style={styles.times}>
+      <View style={[styles.times, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
         <View style={styles.timeCell}>
           <Text style={styles.timeLabel}>الدخول</Text>
-          <Text style={styles.timeValue}>{formatTime(child.checkedInAt)}</Text>
+          <Text style={styles.timeValue}>{formatTime(child.checkedInAt, locale)}</Text>
         </View>
         <View style={styles.timeDivider} />
         <View style={styles.timeCell}>
           <Text style={styles.timeLabel}>الخروج</Text>
-          <Text style={styles.timeValue}>{formatTime(child.checkedOutAt)}</Text>
+          <Text style={styles.timeValue}>{formatTime(child.checkedOutAt, locale)}</Text>
         </View>
       </View>
 

@@ -199,7 +199,7 @@ export async function POST(request: Request) {
 
   await logAction({
     school_id: schoolId,
-    action: `إضافة معلم جديد: ${teacher.name}`,
+    action: `إضافة موظف جديد: ${teacher.name}`,
     entity_type: "teacher",
     entity_id: teacher.id,
     entity_name: teacher.name,

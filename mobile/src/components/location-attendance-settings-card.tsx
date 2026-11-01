@@ -55,7 +55,7 @@ export function LocationAttendanceSettingsCard({ linked }: { linked: boolean }) 
       <Text style={styles.title}>الحضور التلقائي بالموقع</Text>
       <Text style={styles.copy}>يسجل دخولك عند وصولك إلى نطاق المدرسة وخروجك عند مغادرته. لا يحفظ التطبيق مسار حركتك.</Text>
       {!linked ? (
-        <Text style={styles.status}>اربطي حساب التطبيق بملف المعلمة من حسابات الموظفين في النظام أولًا.</Text>
+        <Text style={styles.status}>اربط حساب التطبيق بملف الموظف من حسابات الموظفين في النظام أولًا.</Text>
       ) : loading ? <ActivityIndicator color={colors.primary} /> : (
         <>
           <Text style={[styles.status, status === "active" && styles.active]}>

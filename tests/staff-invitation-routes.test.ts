@@ -139,6 +139,7 @@ beforeEach(() => {
   mocks.sessionErrorResponse.mockReturnValue(null);
   mocks.roleFindFirst.mockResolvedValue({
     id: "role-1",
+    key: "teacher",
     nameAr: "موظف",
     permissions: ["students.view"],
   });

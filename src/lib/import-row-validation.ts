@@ -39,7 +39,7 @@ export function validateImportRow(
   if (!name) {
     errors.push({
       field: 'full_name',
-      message: isStudent ? 'اسم الطالب مطلوب' : 'اسم المعلم مطلوب',
+      message: isStudent ? 'اسم الطالب مطلوب' : 'اسم الموظف مطلوب',
       type: 'error',
     });
   }

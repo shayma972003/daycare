@@ -193,10 +193,12 @@ export function StaffAccountScreen() {
             <View style={styles.divider} />
             <AccountRow label="المدرسة" value={account.schoolName} />
             <View style={styles.divider} />
-            <AccountRow label="ملف المعلم" value={account.teacherId ? "مرتبط" : "غير مرتبط"} />
+            <AccountRow label="ملف الموظف" value={account.teacherId ? "مرتبط" : "غير مرتبط"} />
           </View>
 
-          <StaffChildrenSection refreshSequence={childrenRefreshSequence} />
+          {account.permissions.includes("*") || account.permissions.includes("students.view") ? (
+            <StaffChildrenSection refreshSequence={childrenRefreshSequence} />
+          ) : null}
 
           <LanguageSettingsCard />
 

@@ -10,12 +10,19 @@ export interface TeacherScopedAccess {
 }
 
 /**
- * Returns `null` for an unscoped office/owner account, or the exact active room
- * ids for an account linked to a teacher. Missing scope data fails closed.
+ * Returns `null` for office/owner accounts and for roles with explicit
+ * school-wide child access. A linked classroom employee is limited to the
+ * exact active room ids; missing assignment data for that employee fails closed.
  */
 export function scopedClassIds(access: TeacherScopedAccess): readonly string[] | null {
   const permissions = access.permissions ?? [];
-  if (!access.teacherId || permissions.includes(ALL_PERMISSIONS)) return null;
+  if (
+    !access.teacherId ||
+    permissions.includes(ALL_PERMISSIONS) ||
+    permissions.includes("students.all")
+  ) {
+    return null;
+  }
   return access.teacherClassIds ?? [];
 }
 

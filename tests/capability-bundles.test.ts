@@ -6,6 +6,8 @@ import {
   ROLE_TEMPLATES,
   ALL_PERMISSIONS,
   isPermissionKey,
+  ASSIGNABLE_ROLE_KEYS,
+  isAssignableRoleKey,
 } from "@/lib/permissions";
 
 /**
@@ -29,6 +31,26 @@ function toggleOff(draft: string[], keys: string[]): string[] {
 }
 
 describe("capability bundles", () => {
+  it("keeps the manager protected and exposes only the five approved staff roles", () => {
+    expect(ASSIGNABLE_ROLE_KEYS).toEqual([
+      "admin_assistant",
+      "teacher",
+      "teacher_assistant",
+      "accountant",
+      "hr",
+    ]);
+    expect(isAssignableRoleKey("manager")).toBe(false);
+    expect(isAssignableRoleKey("special_ed")).toBe(false);
+    expect(ROLE_TEMPLATES.map((role) => role.key)).toEqual([
+      "manager",
+      "admin_assistant",
+      "hr",
+      "teacher",
+      "teacher_assistant",
+      "accountant",
+    ]);
+  });
+
   it("only names permissions that exist", () => {
     // A typo here is a checkbox that appears to work and grants nothing.
     for (const bundle of CAPABILITY_BUNDLES) {

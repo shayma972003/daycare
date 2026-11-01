@@ -8,14 +8,12 @@ function source(path: string): string {
 }
 
 describe("sensitive child health information", () => {
-  it("uses a dedicated permission and only grants it to the intended default roles", () => {
+  it("uses a dedicated permission and does not grant it to assignable default roles", () => {
     expect(PERMISSIONS.some((permission) => permission.key === "students.health")).toBe(true);
-    expect(ROLE_TEMPLATES.find((role) => role.key === "special_ed")?.permissions)
-      .toContain("students.health");
-    expect(ROLE_TEMPLATES.find((role) => role.key === "teacher")?.permissions)
-      .not.toContain("students.health");
-    expect(ROLE_TEMPLATES.find((role) => role.key === "accountant")?.permissions)
-      .not.toContain("students.health");
+    for (const role of ROLE_TEMPLATES) {
+      if (role.key === "manager") continue;
+      expect(role.permissions, role.key).not.toContain("students.health");
+    }
   });
 
   it("gates child responses, updates, imports and enrolment review health fields", () => {
@@ -64,5 +62,15 @@ describe("administrative change logging", () => {
     const run = source("src/app/api/admin/data-retention/run/route.ts");
     expect(run).toContain("prisma.adminActivityLog.create");
     expect(run).toContain("data_retention_sweep_run");
+  });
+});
+
+describe("fixed employee roles", () => {
+  it("adds the two new roles and safely migrates retired teaching-specialty accounts", () => {
+    const migration = source("prisma/migrations/20261101120000_employee_roles/migration.sql");
+    expect(migration).toContain("'admin_assistant'");
+    expect(migration).toContain("'teacher_assistant'");
+    expect(migration).toContain("legacy_role.\"key\" IN ('special_ed', 'early_childhood')");
+    expect(migration).toContain("teacher_role.\"key\" = 'teacher'");
   });
 });

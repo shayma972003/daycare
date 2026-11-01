@@ -65,6 +65,15 @@ export function StaffHomeScreen() {
   const [events, setEvents] = useState<MobileCalendarEvent[] | null>(null);
   const [errors, setErrors] = useState<HomeErrors>(EMPTY_ERRORS);
   const [refreshing, setRefreshing] = useState(false);
+  const can = useCallback(
+    (permission: string) =>
+      account?.kind === "staff" &&
+      (account.permissions.includes("*") || account.permissions.includes(permission)),
+    [account]
+  );
+  const canUseStudentAttendance = can("attendance.students");
+  const canUseCare = canUseStudentAttendance && account?.kind === "staff" && Boolean(account.teacherId);
+  const canUseCalendar = can("schedule.view");
 
   const applyResults = useCallback((results: [
     PromiseSettledResult<Awaited<ReturnType<typeof loadArrivalNotices>>>,
@@ -97,16 +106,20 @@ export function StaffHomeScreen() {
     let active = true;
     void Promise.allSettled([
       loadArrivalNotices(),
-      loadTodayAttendance(),
-      loadReturnedDailyCareReports(),
-      loadCalendar(today, today),
+      canUseStudentAttendance
+        ? loadTodayAttendance()
+        : Promise.resolve({ date: today, children: [] }),
+      canUseCare ? loadReturnedDailyCareReports() : Promise.resolve([]),
+      canUseCalendar
+        ? loadCalendar(today, today)
+        : Promise.resolve({ from: today, to: today, events: [] }),
     ]).then((results) => {
       if (active) applyResults(results);
     });
     return () => {
       active = false;
     };
-  }, [applyResults, today]);
+  }, [applyResults, canUseCalendar, canUseCare, canUseStudentAttendance, today]);
 
   useEffect(() => {
     let active = true;
@@ -139,15 +152,19 @@ export function StaffHomeScreen() {
     try {
       const results = await Promise.allSettled([
         loadArrivalNotices(),
-        loadTodayAttendance(),
-        loadReturnedDailyCareReports(),
-        loadCalendar(today, today),
+        canUseStudentAttendance
+          ? loadTodayAttendance()
+          : Promise.resolve({ date: today, children: [] }),
+        canUseCare ? loadReturnedDailyCareReports() : Promise.resolve([]),
+        canUseCalendar
+          ? loadCalendar(today, today)
+          : Promise.resolve({ from: today, to: today, events: [] }),
       ]);
       applyResults(results);
     } finally {
       setRefreshing(false);
     }
-  }, [applyResults, today]);
+  }, [applyResults, canUseCalendar, canUseCare, canUseStudentAttendance, today]);
 
   const attendance = useMemo(() => ({
     total: children?.length ?? 0,
@@ -213,7 +230,7 @@ export function StaffHomeScreen() {
       ) : null}
       {errors.arrival ? <ErrorState message={errors.arrival} /> : null}
 
-      <SectionCard
+      {canUseStudentAttendance ? <SectionCard
         actionLabel="فتح الحضور"
         onPress={() => router.push("/(staff)/attendance")}
         title="حضور اليوم"
@@ -230,9 +247,9 @@ export function StaffHomeScreen() {
             <SummaryItem color={colors.danger} label="لم يحضر" value={attendance.absent} />
           </View>
         )}
-      </SectionCard>
+      </SectionCard> : null}
 
-      <SectionCard
+      {canUseCare ? <SectionCard
         actionLabel={returnedReports?.length ? "فتح التقارير" : undefined}
         onPress={returnedReports?.length ? () => router.push("/(staff)/care") : undefined}
         title="تقارير الرعاية المرجعة"
@@ -260,9 +277,9 @@ export function StaffHomeScreen() {
             <Text style={styles.clearText}>لا توجد تقارير مرجعة</Text>
           </View>
         )}
-      </SectionCard>
+      </SectionCard> : null}
 
-      <SectionCard
+      {canUseCalendar ? <SectionCard
         actionLabel={events?.length ? "فتح التقويم" : undefined}
         onPress={events?.length ? () => router.push("/(staff)/calendar") : undefined}
         title="أحداث اليوم"
@@ -291,7 +308,7 @@ export function StaffHomeScreen() {
             <Text style={styles.clearText}>لا توجد أحداث اليوم</Text>
           </View>
         )}
-      </SectionCard>
+      </SectionCard> : null}
     </AppScreen>
   );
 }

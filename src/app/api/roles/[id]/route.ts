@@ -1,4 +1,5 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
+import { assertCan } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
 import { sanitizePermissions, ALL_PERMISSIONS } from "@/lib/permissions";
@@ -16,6 +17,7 @@ export async function PUT(
   let session;
   try {
     session = await requireSession();
+    assertCan(session, "staff.manage");
   } catch (error) {
     return (
       sessionErrorResponse(error) ??
@@ -55,7 +57,11 @@ export async function PUT(
   }
 
   const data: { nameAr?: string; permissions?: string[] } = {};
-  if (parsed.data.nameAr !== undefined) data.nameAr = parsed.data.nameAr;
+  // Seeded role names are product vocabulary. Managers may tune permissions,
+  // but the five assignable choices and the protected manager name stay fixed.
+  if (parsed.data.nameAr !== undefined && !existing.isSystem) {
+    data.nameAr = parsed.data.nameAr;
+  }
   if (parsed.data.permissions !== undefined) {
     // Escalation guard: the wildcard cannot be granted through this route, so a
     // manager cannot mint a second all-powerful role.
@@ -86,6 +92,7 @@ export async function DELETE(
   let session;
   try {
     session = await requireSession();
+    assertCan(session, "staff.manage");
   } catch (error) {
     return (
       sessionErrorResponse(error) ??

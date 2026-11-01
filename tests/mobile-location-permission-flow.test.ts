@@ -15,7 +15,7 @@ describe("mobile location attendance permission flow", () => {
     const account = source("mobile", "src", "components", "staff-account-screen.tsx");
     const card = source("mobile", "src", "components", "location-attendance-settings-card.tsx");
     expect(account).toContain("<LocationAttendanceSettingsCard linked={Boolean(account.teacherId)} />");
-    expect(card).toContain("اربطي حساب التطبيق بملف المعلمة");
+    expect(card).toContain("اربط حساب التطبيق بملف الموظف");
   });
 
   it("declares foreground and background location support in the native build", () => {

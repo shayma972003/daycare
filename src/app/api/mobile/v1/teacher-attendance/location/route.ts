@@ -47,7 +47,7 @@ export async function GET(request: Request) {
     return authFailure(error);
   }
   if (!context) {
-    return Response.json({ error: "حساب التطبيق غير مرتبط بملف معلمة", code: "TEACHER_NOT_LINKED" }, { status: 409 });
+    return Response.json({ error: "حساب التطبيق غير مرتبط بملف موظف", code: "EMPLOYEE_NOT_LINKED" }, { status: 409 });
   }
 
   const [school, openAttendance] = await Promise.all([
@@ -86,7 +86,7 @@ export async function POST(request: Request) {
     return authFailure(error);
   }
   if (!context) {
-    return Response.json({ error: "حساب التطبيق غير مرتبط بملف معلمة", code: "TEACHER_NOT_LINKED" }, { status: 409 });
+    return Response.json({ error: "حساب التطبيق غير مرتبط بملف موظف", code: "EMPLOYEE_NOT_LINKED" }, { status: 409 });
   }
 
   let body: unknown;
@@ -166,7 +166,7 @@ export async function POST(request: Request) {
       });
       await logAction({
         school_id: context.schoolId,
-        action: `تسجيل دخول المعلمة تلقائيًا بالموقع: ${attendance.personName}`,
+        action: `تسجيل دخول الموظف تلقائيًا بالموقع: ${attendance.personName}`,
         entity_type: "teacher_attendance",
         entity_id: attendance.id,
         entity_name: attendance.personName,
@@ -192,7 +192,7 @@ export async function POST(request: Request) {
     });
     await logAction({
       school_id: context.schoolId,
-      action: `تسجيل خروج المعلمة تلقائيًا بالموقع: ${attendance.personName}`,
+      action: `تسجيل خروج الموظف تلقائيًا بالموقع: ${attendance.personName}`,
       entity_type: "teacher_attendance",
       entity_id: attendance.attendanceId,
       entity_name: attendance.personName,

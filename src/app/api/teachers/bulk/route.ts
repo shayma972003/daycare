@@ -115,7 +115,7 @@ export async function POST(request: Request) {
 
   await logAction({
     school_id: schoolId,
-    action: `تأكيد استيراد المعلمين: ${valid.length} معلم مستورد`,
+    action: `تأكيد استيراد الموظفين: ${valid.length} موظف مستورد`,
     entity_type: "import",
     performed_by: session.user.name ?? "المدير",
     request,

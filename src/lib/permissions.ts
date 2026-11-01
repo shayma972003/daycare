@@ -66,6 +66,12 @@ export const PERMISSIONS: PermissionDefinition[] = [
   { key: "staff.delete", category: "staff", labelAr: "حذف الموظفين" },
 
   { key: "students.view", category: "students", labelAr: "عرض الأطفال" },
+  {
+    key: "students.all",
+    category: "students",
+    labelAr: "الوصول إلى جميع الأطفال",
+    hintAr: "عرض أطفال جميع الفصول بدل الاكتفاء بالفصول المرتبطة بالموظف",
+  },
   { key: "students.manage", category: "students", labelAr: "إدارة الأطفال", hintAr: "إضافة وتعديل" },
   {
     key: "students.health",
@@ -146,20 +152,40 @@ export interface RoleTemplate {
   permissions: string[];
 }
 
-const TEACHER_BASE = [
+const CLASSROOM_STAFF_BASE = [
   "auth.portal",
   "auth.app",
   "students.view",
   "students.files",
   "classes.view",
-  "classes.assign",
   "units.view",
   "schedule.view",
   "attendance.students",
 ];
 
+export const MANAGER_ROLE_KEY = "manager";
+
+/** The only roles a manager may assign to staff accounts. */
+export const ASSIGNABLE_ROLE_KEYS = [
+  "admin_assistant",
+  "teacher",
+  "teacher_assistant",
+  "accountant",
+  "hr",
+] as const;
+
+export type AssignableRoleKey = (typeof ASSIGNABLE_ROLE_KEYS)[number];
+
+const ASSIGNABLE_ROLE_KEY_SET = new Set<string>(ASSIGNABLE_ROLE_KEYS);
+
+export function isAssignableRoleKey(key: string): key is AssignableRoleKey {
+  return ASSIGNABLE_ROLE_KEY_SET.has(key);
+}
+
+export const SUPPORTED_ROLE_KEYS = [MANAGER_ROLE_KEY, ...ASSIGNABLE_ROLE_KEYS] as const;
+
 /**
- * The six roles every school starts with.
+ * The manager role plus the five assignable employee roles every school starts with.
  *
  * Seeded per school rather than shared globally, because a nursery will want to
  * adjust what its own teachers can see without changing it for every other
@@ -167,10 +193,28 @@ const TEACHER_BASE = [
  */
 export const ROLE_TEMPLATES: RoleTemplate[] = [
   {
-    key: "manager",
+    key: MANAGER_ROLE_KEY,
     nameAr: "مدير",
     descriptionAr: "صلاحيات كاملة على الحضانة",
     permissions: [ALL_PERMISSIONS],
+  },
+  {
+    key: "admin_assistant",
+    nameAr: "مساعد إداري",
+    descriptionAr: "متابعة الأطفال والفصول وتسجيل الحضور لجميع الأطفال",
+    permissions: [
+      "auth.portal",
+      "auth.app",
+      "students.view",
+      "students.all",
+      "students.manage",
+      "students.guardians",
+      "students.files",
+      "classes.view",
+      "classes.assign",
+      "schedule.view",
+      "attendance.students",
+    ],
   },
   {
     key: "hr",
@@ -189,23 +233,15 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
   },
   {
     key: "teacher",
-    nameAr: "معلم/ة",
-    descriptionAr: "أطفال فصلها وحضورهم",
-    permissions: TEACHER_BASE,
+    nameAr: "معلم",
+    descriptionAr: "أطفال الفصول المرتبطة به وحضورهم والمحتوى التعليمي",
+    permissions: [...CLASSROOM_STAFF_BASE, "units.manage", "schedule.manage"],
   },
   {
-    key: "special_ed",
-    nameAr: "معلم/ة تربية خاصة",
-    descriptionAr: "مثل المعلمة، مع تعديل ملفات الأطفال",
-    // The distinguishing permission: special-needs staff maintain the child's
-    // health and support notes, which an ordinary class teacher only reads.
-    permissions: [...TEACHER_BASE, "students.manage", "students.health"],
-  },
-  {
-    key: "early_childhood",
-    nameAr: "معلم/ة طفولة مبكرة",
-    descriptionAr: "مثل المعلمة، مع الوحدات التعليمية",
-    permissions: [...TEACHER_BASE, "units.manage", "schedule.manage"],
+    key: "teacher_assistant",
+    nameAr: "مساعد معلم",
+    descriptionAr: "أطفال الفصول المرتبطة به وحضورهم دون إدارة المحتوى التعليمي",
+    permissions: CLASSROOM_STAFF_BASE,
   },
   {
     key: "accountant",
@@ -215,6 +251,7 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
     // to know who is billable, not what a child is allergic to.
     permissions: [
       "auth.portal",
+      "auth.app",
       "students.view",
       "finance.view",
       "finance.manage",
@@ -245,6 +282,7 @@ export interface CapabilityBundle {
 export const CAPABILITY_BUNDLES: CapabilityBundle[] = [
   { key: "signIn", keys: ["auth.portal", "auth.app"] },
   { key: "viewChildren", keys: ["students.view"] },
+  { key: "allChildren", keys: ["students.all"] },
   { key: "editChildren", keys: ["students.manage", "students.archive"] },
   { key: "childHealth", keys: ["students.health"] },
   { key: "childFiles", keys: ["students.files", "students.guardians"] },

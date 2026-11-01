@@ -30,7 +30,7 @@ export async function POST(
     const { personName, ...attendance } = await checkInTeacher({ teacherId: id, schoolId, date, now, timeZone });
     await logAction({
       school_id: schoolId,
-      action: "تسجيل وصول المعلم: " + personName,
+      action: "تسجيل وصول الموظف: " + personName,
       entity_type: "teacher",
       entity_id: id,
       entity_name: personName,

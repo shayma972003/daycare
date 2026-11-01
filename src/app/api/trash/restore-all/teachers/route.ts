@@ -22,7 +22,7 @@ export async function POST(request: Request) {
 
   await logAction({
     school_id: schoolId,
-    action: "استعادة جميع المعلمين من سلة المحذوفات",
+    action: "استعادة جميع الموظفين من سلة المحذوفات",
     entity_type: "teacher",
     performed_by: session.user.name ?? "المدير",
     request,

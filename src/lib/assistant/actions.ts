@@ -4,7 +4,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { AuthSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { grants } from "@/lib/permissions";
+import { ASSIGNABLE_ROLE_KEYS, grants } from "@/lib/permissions";
 import {
   addDateDays,
   calendarToday,
@@ -879,7 +879,18 @@ export async function prepareAssistantAction(input: {
     let roleId: string | null = null;
     if (proposal.action === "create") {
       const role = await prisma.role.findFirst({
-        where: { schoolId, ...(proposal.roleName ? { OR: [{ nameAr: { equals: proposal.roleName, mode: "insensitive" } }, { key: { equals: proposal.roleName, mode: "insensitive" } }] } : { key: "teacher" }) },
+        where: {
+          schoolId,
+          key: { in: [...ASSIGNABLE_ROLE_KEYS] },
+          ...(proposal.roleName
+            ? {
+                OR: [
+                  { nameAr: { equals: proposal.roleName, mode: "insensitive" } },
+                  { key: { equals: proposal.roleName, mode: "insensitive" } },
+                ],
+              }
+            : { key: "teacher" }),
+        },
         select: { id: true },
       });
       if (!role) throw new AssistantActionError("ROLE_NOT_FOUND", 404);
@@ -887,7 +898,7 @@ export async function prepareAssistantAction(input: {
     }
     const approval = await issueAssistantApproval({ schoolId, userId: session.user.id, tool: "staff_account", args: { action: proposal.action, userId: accounts[0]?.id ?? null, staffId: staff.id, staffName: staff.name, email: proposal.email?.toLowerCase() ?? null, roleId } });
     const labels = { create: "إنشاء حساب وإرسال دعوة", resend: "إعادة إرسال الدعوة", disable: "تعطيل الحساب", enable: "تفعيل الحساب" } as const;
-    return { token: approval.token, expiresAt: approval.expiresAt.toISOString(), title: labels[proposal.action], summary: `${labels[proposal.action]} للمعلم «${staff.name}».`, tool: "staff_account" };
+    return { token: approval.token, expiresAt: approval.expiresAt.toISOString(), title: labels[proposal.action], summary: `${labels[proposal.action]} للموظف «${staff.name}».`, tool: "staff_account" };
   }
 
   if (proposal.kind === "class_update") {

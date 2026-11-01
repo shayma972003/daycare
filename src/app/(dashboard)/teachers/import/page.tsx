@@ -115,8 +115,8 @@ function downloadErrorCsv(rows: ImportRow[], fileLanguage: string) {
   const headers = isAr
     // Deliberately not the interface language: this file is handed back to
     // whoever produced the upload, and its headers should match theirs.
-    ? ["رقم الصف", "اسم المعلم", "رسالة الخطأ"]
-    : ["Row Number", "Teacher Name", "Error Message"];
+    ? ["رقم الصف", "اسم الموظف", "رسالة الخطأ"]
+    : ["Row Number", "Employee Name", "Error Message"];
   const lines = [headers.join(",")];
   for (const row of rows) {
     const mapped = row.mapped_data as Record<string, unknown> | null;

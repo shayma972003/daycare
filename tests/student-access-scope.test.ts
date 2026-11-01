@@ -26,13 +26,32 @@ const teacher = {
   permissions: ["students.view"],
 };
 
+const administrativeAssistant = {
+  teacherId: "employee-1",
+  teacherClassIds: ["class-1"],
+  permissions: ["students.view", "students.all", "attendance.students"],
+};
+
 describe("teacher student access scope", () => {
   beforeEach(() => studentFindFirst.mockReset());
 
-  it("keeps owners and office accounts school-wide", () => {
+  it("keeps owners school-wide", () => {
     expect(scopedClassIds(manager)).toBeNull();
     expect(studentClassWhere(manager)).toEqual({});
     expect(classIdWhere(manager)).toEqual({});
+  });
+
+  it("keeps an administrative assistant school-wide even when linked for location attendance", () => {
+    expect(scopedClassIds(administrativeAssistant)).toBeNull();
+    expect(studentClassWhere(administrativeAssistant)).toEqual({});
+
+    const unscopedOfficeAccount = {
+      teacherId: null,
+      teacherClassIds: null,
+      permissions: ["students.view", "attendance.students"],
+    };
+    expect(scopedClassIds(unscopedOfficeAccount)).toBeNull();
+    expect(studentClassWhere(unscopedOfficeAccount)).toEqual({});
   });
 
   it("uses the exact assigned class set for a linked classroom account", () => {

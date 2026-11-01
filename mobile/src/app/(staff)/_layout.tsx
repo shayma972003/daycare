@@ -2,6 +2,7 @@ import { Tabs } from "expo-router";
 import { StyleSheet, View, type ColorValue } from "react-native";
 
 import { Text, useLanguage } from "@/language";
+import { useSession } from "@/session";
 import { colors } from "@/theme";
 
 function TabIcon({ label, color, focused }: { label: string; color: ColorValue; focused: boolean }) {
@@ -14,6 +15,12 @@ function TabIcon({ label, color, focused }: { label: string; color: ColorValue; 
 
 export default function StaffLayout() {
   const { isRTL, t } = useLanguage();
+  const { account } = useSession();
+  const permissions = account?.kind === "staff" ? account.permissions : [];
+  const can = (permission: string) => permissions.includes("*") || permissions.includes(permission);
+  const hasEmployeeProfile = account?.kind === "staff" && Boolean(account.teacherId);
+  const canUseStudentAttendance = can("attendance.students");
+  const canUseCare = canUseStudentAttendance && hasEmployeeProfile;
   return (
     <Tabs
       screenOptions={{
@@ -36,6 +43,7 @@ export default function StaffLayout() {
       <Tabs.Screen
         name="calendar"
         options={{
+          href: can("schedule.view") ? undefined : null,
           title: t("التقويم"),
           tabBarAccessibilityLabel: t("التقويم"),
           tabBarIcon: ({ color, focused }) => <TabIcon color={color} focused={focused} label="□" />,
@@ -44,6 +52,7 @@ export default function StaffLayout() {
       <Tabs.Screen
         name="care"
         options={{
+          href: canUseCare ? undefined : null,
           title: t("الرعاية"),
           tabBarAccessibilityLabel: t("تقارير الرعاية"),
           tabBarIcon: ({ color, focused }) => <TabIcon color={color} focused={focused} label="♡" />,
@@ -52,6 +61,7 @@ export default function StaffLayout() {
       <Tabs.Screen
         name="attendance"
         options={{
+          href: canUseStudentAttendance ? undefined : null,
           title: t("الحضور"),
           tabBarAccessibilityLabel: t("الحضور"),
           tabBarIcon: ({ color, focused }) => <TabIcon color={color} focused={focused} label="✓" />,

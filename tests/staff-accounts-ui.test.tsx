@@ -54,14 +54,16 @@ const rolesResponse = {
       nameAr: "Teacher",
       permissions: ["students.view"],
       isSystem: false,
+      assignable: true,
       userCount: 1,
     },
     {
       id: "role-2",
-      key: "office",
+      key: "admin_assistant",
       nameAr: "Office",
       permissions: ["staff.view"],
       isSystem: false,
+      assignable: true,
       userCount: 0,
     },
     {
@@ -70,6 +72,7 @@ const rolesResponse = {
       nameAr: "Owner",
       permissions: ["*"],
       isSystem: true,
+      assignable: false,
       userCount: 1,
     },
   ],
@@ -291,14 +294,14 @@ describe("staff invitation states and account actions", () => {
     );
   });
 
-  it("links an existing app account to a teacher record", async () => {
+  it("links an existing app account to an employee profile", async () => {
     const user = userEvent.setup();
     teacherRows = [{ id: "teacher-1", name: "Sarah Teacher" }];
     staffRows = [staff("staff-1", "Staff One", "active")];
     renderPage();
 
     const teacher = await screen.findByRole("combobox", {
-      name: "Change the teacher record linked to Staff One's account",
+      name: "Change the employee profile linked to Staff One",
     });
     await user.selectOptions(teacher, "teacher-1");
 
@@ -307,6 +310,6 @@ describe("staff invitation states and account actions", () => {
         teacherId: "teacher-1",
       })
     );
-    expect(await screen.findByText("The teacher record linked to Staff One's account was updated")).not.toBeNull();
+    expect(await screen.findByText("The employee profile linked to Staff One was updated")).not.toBeNull();
   });
 });

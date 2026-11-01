@@ -9,7 +9,7 @@
     "students": "Students",
     "classes": "Classes",
     "statistics": "Statistics",
-    "teachers": "Teachers",
+    "teachers": "Employees",
     "assistant": "AI Assistant",
     "settings": "Settings",
     "care": "Care Reports",
@@ -585,8 +585,8 @@
     "noneYet": "No classes yet — add one from the Classes page"
   },
   "teachers": {
-    "title": "Teachers",
-    "addTeacher": "Add Teacher",
+    "title": "Employees",
+    "addTeacher": "Add Employee",
     "columns": {
       "name": "Name",
       "period": "Period",
@@ -600,7 +600,7 @@
       "checkout": "Check Out"
     },
     "profile": {
-      "title": "Teacher Profile",
+      "title": "Employee Profile",
       "name": "Full Name",
       "period": "Period",
       "class": "Class",
@@ -635,19 +635,19 @@
         "netSalary": "Net Salary"
       }
     },
-    "emptyTitle": "No teachers yet",
-    "emptyHint": "Add your first teacher to see them here",
+    "emptyTitle": "No employees yet",
+    "emptyHint": "Add your first employee to see them here",
     "checkedOut": "✓ Out",
-    "addNew": "Add a new teacher",
-    "data": "Teacher details",
+    "addNew": "Add a new employee",
+    "data": "Employee details",
     "nationalId": "National ID / Iqama",
     "joinDate": "Join date",
     "contractEnd": "Contract end date",
     "lateDeductionRate": "Late deduction (SAR/hour)",
-    "saveAndAdd": "Save and add the teacher",
+    "saveAndAdd": "Save and add the employee",
     "deleteWarning": "After deletion these classes will have no lead teacher,\nand a warning will show on them until one is assigned.",
-    "addNewShort": "Add a new teacher",
-    "uploadFile": "Upload the teachers file",
+    "addNewShort": "Add a new employee",
+    "uploadFile": "Upload the employees file",
     "leftAt": "Out {time}"
   },
   "statistics": {
@@ -1489,7 +1489,7 @@
     "failedCount": "· failed:",
     "addedCount": "Added:",
     "backToStudents": "Back to the children list",
-    "backToTeachers": "Back to the teachers list",
+    "backToTeachers": "Back to the employees list",
     "backAStep": "Back a step",
     "backToReview": "Back to review",
     "downloadErrors": "Download the error report",
@@ -1502,7 +1502,7 @@
     "confirmStudentImport": "Confirm the import ({n} children)",
     "continueAction": "Continue",
     "rowCount": "{n} rows",
-    "teacherCount": "{n} teachers",
+    "teacherCount": "{n} employees",
     "rowsSuffix": "rows",
     "rowLabel": "Row {n}:"
   },
@@ -1546,7 +1546,7 @@
     "loadFailed": "Could not load the permissions",
     "updateFailed": "Could not update the account",
     "roleChangeFailed": "Could not change the role",
-    "teacherLinkChangeFailed": "Could not update the linked teacher record",
+    "teacherLinkChangeFailed": "Could not update the linked employee profile",
     "staffAccounts": "Staff accounts",
     "noRole": "No role",
     "disabled": "Disabled",
@@ -1578,12 +1578,12 @@
     "changeRoleFor": "Change role for {name}",
     "enableAccountFor": "Enable account for {name}",
     "disableAccountFor": "Disable account for {name}",
-    "linkTeacher": "Link to a teacher record",
+    "linkTeacher": "Link employee profile",
     "optional": "(optional)",
-    "administrativeAccount": "Administrative account — no teacher record",
-    "teacherLinkHelp": "A linked teacher sees only children in their classes in the app, and care reports are attributed to them.",
-    "changeTeacherFor": "Change the teacher record linked to {name}'s account",
-    "teacherLinkUpdated": "The teacher record linked to {name}'s account was updated",
+    "administrativeAccount": "No linked employee profile",
+    "teacherLinkHelp": "Link an employee profile to enable location attendance. Teachers and assistants see assigned classes; administrative assistants see all children.",
+    "changeTeacherFor": "Change the employee profile linked to {name}",
+    "teacherLinkUpdated": "The employee profile linked to {name} was updated",
     "accountStates": {
       "invited": "Awaiting invitation acceptance",
       "expired": "Invitation expired",
@@ -1930,6 +1930,7 @@
   },
   "capabilities": {
     "viewChildren": "View children",
+    "allChildren": "Access children in every class",
     "editChildren": "Edit and archive children",
     "childHealth": "View and edit sensitive health information",
     "childFiles": "Children's files and guardians",

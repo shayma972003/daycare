@@ -2,7 +2,7 @@ import { requireSession, sessionErrorResponse } from "@/lib/session";
 import { assertCan } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
-import { ALL_PERMISSIONS } from "@/lib/permissions";
+import { ALL_PERMISSIONS, isAssignableRoleKey } from "@/lib/permissions";
 import { z } from "zod";
 
 const updateSchema = z
@@ -77,12 +77,18 @@ export async function PUT(
   if (parsed.data.roleId) {
     const role = await prisma.role.findFirst({
       where: { id: parsed.data.roleId, schoolId },
-      select: { id: true, permissions: true },
+      select: { id: true, key: true, permissions: true },
     });
     if (!role) return Response.json({ error: "الدور غير موجود" }, { status: 404 });
     // Same escalation guard as creation: the wildcard is not grantable here.
     if (role.permissions.includes(ALL_PERMISSIONS)) {
       return Response.json({ error: "لا يمكن منح دور المدير من هنا" }, { status: 403 });
+    }
+    if (!isAssignableRoleKey(role.key)) {
+      return Response.json(
+        { error: "اختاري أحد أدوار الموظفين المعتمدة" },
+        { status: 422 }
+      );
     }
     data.roleId = role.id;
   }
@@ -93,7 +99,7 @@ export async function PUT(
         where: { id: parsed.data.teacherId, schoolId, deletedAt: null },
         select: { id: true },
       });
-      if (!teacher) return Response.json({ error: "المعلم غير موجود" }, { status: 404 });
+      if (!teacher) return Response.json({ error: "الموظف غير موجود" }, { status: 404 });
       data.teacherId = teacher.id;
     } else {
       data.teacherId = null;

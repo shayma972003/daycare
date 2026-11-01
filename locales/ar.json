@@ -9,7 +9,7 @@
     "students": "الطلاب",
     "classes": "الفصول",
     "statistics": "المالية",
-    "teachers": "المعلم",
+    "teachers": "الموظفون",
     "assistant": "المساعد الذكي",
     "settings": "الإعدادات",
     "care": "تقارير الرعاية",
@@ -585,8 +585,8 @@
     "noneYet": "لا توجد فصول بعد — أضيفيها من صفحة الفصول"
   },
   "teachers": {
-    "title": "المعلم",
-    "addTeacher": "أضف معلم",
+    "title": "الموظفون",
+    "addTeacher": "إضافة موظف",
     "columns": {
       "name": "الاسم",
       "period": "الفترة",
@@ -600,7 +600,7 @@
       "checkout": "تسجيل الخروج"
     },
     "profile": {
-      "title": "ملف المعلم",
+      "title": "ملف الموظف",
       "name": "الاسم الكامل",
       "period": "الفترة",
       "class": "الفصل",
@@ -635,19 +635,19 @@
         "netSalary": "صافي الراتب"
       }
     },
-    "emptyTitle": "لا يوجد معلمون بعد",
-    "emptyHint": "ابدأ بإضافة أول معلم لعرضه هنا",
+    "emptyTitle": "لا يوجد موظفون بعد",
+    "emptyHint": "ابدأ بإضافة أول موظف لعرضه هنا",
     "checkedOut": "✓ خرج",
-    "addNew": "إضافة معلم جديد",
-    "data": "بيانات المعلم",
+    "addNew": "إضافة موظف جديد",
+    "data": "بيانات الموظف",
     "nationalId": "رقم الهوية / الإقامة",
     "joinDate": "تاريخ الانضمام",
     "contractEnd": "تاريخ انتهاء العقد",
     "lateDeductionRate": "خصم التأخير (ر.س/ساعة)",
-    "saveAndAdd": "حفظ وإضافة المعلم",
+    "saveAndAdd": "حفظ وإضافة الموظف",
     "deleteWarning": "عند الحذف ستبقى هذه الفصول بدون معلم مسؤول\nوسيظهر تنبيه عليها حتى يتم التعيين.",
-    "addNewShort": "أضف معلم جديد",
-    "uploadFile": "ارفع ملف المعلمين",
+    "addNewShort": "أضف موظفًا جديدًا",
+    "uploadFile": "ارفع ملف الموظفين",
     "leftAt": "خرج {time}"
   },
   "statistics": {
@@ -859,7 +859,7 @@
     "showMore": "عرض المزيد ({n} متبقي)",
     "restoreAllStudents": "هل تريد استعادة جميع الطلاب المحذوفين؟ ({n} طلاب)",
     "restoreAllClasses": "هل تريد استعادة جميع الفصول المحذوفة؟ ({n} فصول)",
-    "restoreAllTeachers": "هل تريد استعادة جميع المعلمين المحذوفين؟ ({n} معلمين)",
+    "restoreAllTeachers": "هل تريد استعادة جميع الموظفين المحذوفين؟ ({n} موظفين)",
     "codeWillBeSentTo": "سيتم إرسال رمز تحقق إلى بريد حسابك المسجل",
     "daysCount": "{n} يوم"
   },
@@ -1100,7 +1100,7 @@
     "empty": "لا توجد عناصر في هذه الفترة",
     "sendAudience": "إرسال الإعلان داخل التطبيق إلى",
     "guardians": "أولياء الأمور",
-    "staff": "المعلمين والمعلمات",
+    "staff": "الموظفون",
     "saveAndSend": "حفظ وإرسال الإعلان"
   },
   "units": {
@@ -1201,7 +1201,7 @@
     "salaries": "الرواتب",
     "noManualExpenses": "لا توجد مصاريف مضافة يدويًا خلال هذه الفترة",
     "totalExpenses": "إجمالي المصروفات",
-    "totalSalaries": "إجمالي الرواتب (حسب عقود المعلمين النشطين)",
+    "totalSalaries": "إجمالي الرواتب (حسب عقود الموظفين النشطين)",
     "salaryInvoicesIssued": "فواتير رواتب صادرة (ليست إثبات دفع)",
     "remaining": "متبقي",
     "cashFlow": "التدفق النقدي",
@@ -1415,7 +1415,7 @@
   },
   "importFields": {
     "full_name": "اسم الطالب",
-    "teacher_full_name": "اسم المعلم الكامل",
+    "teacher_full_name": "اسم الموظف الكامل",
     "date_of_birth": "تاريخ الميلاد",
     "gender": "الجنس",
     "nationality": "الجنسية",
@@ -1444,7 +1444,7 @@
   },
   "importer": {
     "studentsTitle": "استيراد الطلاب من ملف",
-    "teachersTitle": "استيراد المعلمين من ملف",
+    "teachersTitle": "استيراد الموظفين من ملف",
     "stepUpload": "رفع الملف",
     "stepPreview": "المعاينة",
     "stepMap": "تعيين الأعمدة",
@@ -1458,7 +1458,7 @@
     "mappingFailed": "فشل تحليل الأعمدة",
     "validateFailed": "فشل التحقق",
     "uploadStudents": "رفع ملف الطلاب",
-    "uploadTeachers": "رفع ملف المعلمين",
+    "uploadTeachers": "رفع ملف الموظفين",
     "supports": "يدعم النظام ملفات .xlsx و .csv",
     "dropHere": "اسحب الملف هنا أو انقر للاختيار",
     "formats": "الصيغ المدعومة: .xlsx, .csv",
@@ -1489,7 +1489,7 @@
     "failedCount": "· فشل:",
     "addedCount": "تمت الإضافة:",
     "backToStudents": "العودة إلى قائمة الطلاب",
-    "backToTeachers": "العودة إلى قائمة المعلمين",
+    "backToTeachers": "العودة إلى قائمة الموظفين",
     "backAStep": "العودة للخطوة السابقة",
     "backToReview": "العودة للمراجعة",
     "downloadErrors": "تنزيل تقرير الأخطاء",
@@ -1502,7 +1502,7 @@
     "confirmStudentImport": "تأكيد الاستيراد ({n} طالب)",
     "continueAction": "المتابعة",
     "rowCount": "{n} صف",
-    "teacherCount": "{n} معلم",
+    "teacherCount": "{n} موظف",
     "rowsSuffix": "صف",
     "rowLabel": "صف {n}:"
   },
@@ -1546,7 +1546,7 @@
     "loadFailed": "تعذر تحميل الصلاحيات",
     "updateFailed": "تعذر تحديث الحساب",
     "roleChangeFailed": "تعذر تغيير الدور",
-    "teacherLinkChangeFailed": "تعذر تحديث ربط ملف المعلمة",
+    "teacherLinkChangeFailed": "تعذر تحديث ربط ملف الموظف",
     "staffAccounts": "حسابات الموظفين",
     "noRole": "بلا دور",
     "disabled": "معطَّل",
@@ -1578,12 +1578,12 @@
     "changeRoleFor": "تغيير دور {name}",
     "enableAccountFor": "تفعيل حساب {name}",
     "disableAccountFor": "تعطيل حساب {name}",
-    "linkTeacher": "ربط بسجلّ معلّمة",
+    "linkTeacher": "ربط بملف موظف",
     "optional": "(اختياري)",
-    "administrativeAccount": "حساب إداري — بلا سجلّ معلّمة",
-    "teacherLinkHelp": "المعلّمة المرتبطة ترى أطفال فصولها فقط في التطبيق، وتُنسب تقارير الرعاية إليها.",
-    "changeTeacherFor": "تغيير ملف المعلمة المرتبط بحساب {name}",
-    "teacherLinkUpdated": "تم تحديث ملف المعلمة المرتبط بحساب {name}",
+    "administrativeAccount": "بلا ملف موظف مرتبط",
+    "teacherLinkHelp": "اربط الحساب بملف الموظف لتفعيل حضور الموقع. المعلم ومساعد المعلم يريان أطفال الفصول المرتبطة بهما، بينما المساعد الإداري يرى جميع الأطفال.",
+    "changeTeacherFor": "تغيير ملف الموظف المرتبط بحساب {name}",
+    "teacherLinkUpdated": "تم تحديث ملف الموظف المرتبط بحساب {name}",
     "accountStates": {
       "invited": "بانتظار قبول الدعوة",
       "expired": "انتهت صلاحية الدعوة",
@@ -1930,6 +1930,7 @@
   },
   "capabilities": {
     "viewChildren": "الاطلاع على الأطفال",
+    "allChildren": "الوصول إلى أطفال جميع الفصول",
     "editChildren": "تعديل بيانات الأطفال وأرشفتهم",
     "childHealth": "عرض وتعديل البيانات الصحية الحساسة",
     "childFiles": "ملفات الأطفال وأولياء الأمور",

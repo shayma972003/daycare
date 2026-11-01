@@ -1396,14 +1396,15 @@ model User {
   roleId  String?
   roleRef Role?   @relation(fields: [roleId, schoolId], references: [id, schoolId], onDelete: Restrict)
 
-  /// Links the login to the staff record it belongs to, so a teacher signing in
-  /// can be scoped to her own classes. Null for an office account with no
-  /// teaching record.
+  /// Links the login to the employee profile it belongs to. Classroom roles are
+  /// scoped through that profile's class assignments, and every linked employee
+  /// can use automatic location attendance. The legacy field name is retained
+  /// for database and API compatibility.
   teacherId String?
   teacher   Teacher? @relation(fields: [teacherId, schoolId], references: [id, schoolId], onDelete: Restrict)
 
-  /// Set when the account is suspended without being deleted — a teacher on
-  /// leave keeps her history but cannot sign in.
+  /// Set when the account is suspended without being deleted — an employee on
+  /// leave keeps their history but cannot sign in.
   disabledAt DateTime?
 
   /// Invitation lifecycle — the same three columns, with the same meanings, as

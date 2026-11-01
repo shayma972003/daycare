@@ -43,6 +43,7 @@ interface RoleRow {
   nameAr: string;
   permissions: string[];
   isSystem: boolean;
+  assignable: boolean;
   userCount: number;
 }
 
@@ -310,7 +311,7 @@ export default function PermissionsPage() {
                               >
                                 <option value="" disabled>{t("permissions.noRole")}</option>
                                 {data.roles
-                                  .filter((role) => !role.permissions.includes(OWNER_WILDCARD))
+                                  .filter((role) => role.assignable)
                                   .map((role) => (
                                     <option key={role.id} value={role.id}>{role.nameAr}</option>
                                   ))}
@@ -447,7 +448,7 @@ export default function PermissionsPage() {
 
       {showInvite && data && (
         <InviteStaffModal
-          roles={data.roles.filter((r) => !r.permissions.includes(OWNER_WILDCARD))}
+          roles={data.roles.filter((role) => role.assignable)}
           teachers={teachers}
           returnFocusRef={inviteTriggerRef}
           onClose={() => setShowInvite(false)}

@@ -1,8 +1,15 @@
 import { requireSession, sessionErrorResponse } from "@/lib/session";
+import { assertCan } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/activity-logger";
 import { ensureSchoolRoles } from "@/lib/role-seeding";
-import { sanitizePermissions, PERMISSIONS, CATEGORY_LABELS } from "@/lib/permissions";
+import {
+  sanitizePermissions,
+  PERMISSIONS,
+  CATEGORY_LABELS,
+  isAssignableRoleKey,
+  SUPPORTED_ROLE_KEYS,
+} from "@/lib/permissions";
 import { z } from "zod";
 
 /**
@@ -17,6 +24,7 @@ export async function GET() {
   let session;
   try {
     session = await requireSession();
+    assertCan(session, "staff.view");
   } catch (error) {
     return (
       sessionErrorResponse(error) ??
@@ -30,7 +38,7 @@ export async function GET() {
   await ensureSchoolRoles(schoolId);
 
   const roles = await prisma.role.findMany({
-    where: { schoolId },
+    where: { schoolId, key: { in: [...SUPPORTED_ROLE_KEYS] } },
     orderBy: [{ isSystem: "desc" }, { createdAt: "asc" }],
     select: {
       id: true,
@@ -41,6 +49,14 @@ export async function GET() {
       _count: { select: { users: true } },
     },
   });
+  const roleOrder = new Map<string, number>(
+    SUPPORTED_ROLE_KEYS.map((key, index) => [key, index])
+  );
+  roles.sort(
+    (left, right) =>
+      (roleOrder.get(left.key) ?? Number.MAX_SAFE_INTEGER) -
+      (roleOrder.get(right.key) ?? Number.MAX_SAFE_INTEGER)
+  );
 
   return Response.json({
     roles: roles.map((role) => ({
@@ -49,6 +65,7 @@ export async function GET() {
       nameAr: role.nameAr,
       permissions: role.permissions,
       isSystem: role.isSystem,
+      assignable: isAssignableRoleKey(role.key),
       userCount: role._count.users,
     })),
     catalogue: PERMISSIONS,
@@ -65,6 +82,7 @@ export async function POST(request: Request) {
   let session;
   try {
     session = await requireSession();
+    assertCan(session, "staff.manage");
   } catch (error) {
     return (
       sessionErrorResponse(error) ??

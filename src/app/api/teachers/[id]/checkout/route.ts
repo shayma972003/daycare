@@ -25,7 +25,7 @@ export async function POST(
     const result = await checkoutTeacher({ teacherId: id, schoolId, now: new Date(), timeZone });
     await logAction({
       school_id: schoolId,
-      action: "تسجيل خروج المعلم: " + result.personName,
+      action: "تسجيل خروج الموظف: " + result.personName,
       entity_type: "teacher",
       entity_id: id,
       entity_name: result.personName,

@@ -3,7 +3,7 @@ import { assertCan } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { activityLogData } from "@/lib/activity-logger";
 import { sendEmail } from "@/lib/notifications";
-import { ALL_PERMISSIONS } from "@/lib/permissions";
+import { ALL_PERMISSIONS, isAssignableRoleKey } from "@/lib/permissions";
 import { mintInvite, accountState } from "@/lib/invitations";
 import { env } from "@/lib/env";
 import { z } from "zod";
@@ -20,6 +20,7 @@ export async function GET() {
   let session;
   try {
     session = await requireSession();
+    assertCan(session, "staff.view");
   } catch (error) {
     return (
       sessionErrorResponse(error) ??
@@ -134,7 +135,7 @@ export async function POST(request: Request) {
   // The role must belong to this school — an id from the client is not proof.
   const role = await prisma.role.findFirst({
     where: { id: parsed.data.roleId, schoolId },
-    select: { id: true, nameAr: true, permissions: true },
+    select: { id: true, key: true, nameAr: true, permissions: true },
   });
   if (!role) {
     return Response.json({ error: "الدور غير موجود" }, { status: 404 });
@@ -149,6 +150,12 @@ export async function POST(request: Request) {
       { status: 403 }
     );
   }
+  if (!isAssignableRoleKey(role.key)) {
+    return Response.json(
+      { error: "اختاري أحد أدوار الموظفين المعتمدة" },
+      { status: 422 }
+    );
+  }
 
   if (parsed.data.teacherId) {
     const teacher = await prisma.teacher.findFirst({
@@ -156,7 +163,7 @@ export async function POST(request: Request) {
       select: { id: true },
     });
     if (!teacher) {
-      return Response.json({ error: "المعلم غير موجود" }, { status: 404 });
+      return Response.json({ error: "الموظف غير موجود" }, { status: 404 });
     }
   }
 

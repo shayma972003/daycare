@@ -229,7 +229,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ session
     school_id: schoolId,
     action: importSession.type === 'students'
       ? `تأكيد استيراد الطلاب: ${importedCount} طالب مستورد`
-      : `تأكيد استيراد المعلمين: ${importedCount} معلم مستورد`,
+      : `تأكيد استيراد الموظفين: ${importedCount} موظف مستورد`,
     entity_type: 'import',
     entity_id: sessionId,
     performed_by: session.user.name ?? 'المدير',

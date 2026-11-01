@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
 
 import { loadGuardianCareReports, type GuardianCareReport } from "@/api/care";
 import { AppScreen, cardStyles } from "@/components/app-screen";
-import { PrimaryButton, TextButton } from "@/components/buttons";
+import { PrimaryButton } from "@/components/buttons";
 import { careReportSummary, careReportTypeLabel } from "@/care-report-display";
 import { Text, useLanguage } from "@/language";
 import { useSession } from "@/session";
@@ -23,23 +23,24 @@ function reportDate(value: string, locale: string) {
 }
 
 export function GuardianCareScreen() {
-  const { account, signOut } = useSession();
-  const { isRTL, language, locale, t } = useLanguage();
+  const { account } = useSession();
+  const { isRTL, language, locale } = useLanguage();
   const [selectedChild, setSelectedChild] = useState<string | null>(null);
   const [reports, setReports] = useState<GuardianCareReport[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    setLoading(true);
+    setRefreshing(true);
     setError(null);
     try {
       setReports(await loadGuardianCareReports(selectedChild ?? undefined));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "تعذّر تحميل التقارير");
     } finally {
-      setLoading(false);
+      setRefreshing(false);
     }
   }, [selectedChild]);
 
@@ -78,7 +79,8 @@ export function GuardianCareScreen() {
 
   return (
     <AppScreen
-      action={<TextButton label="تسجيل الخروج" onPress={() => void signOut()} />}
+      onRefresh={() => void refresh()}
+      refreshing={refreshing}
       subtitle={account.schoolName}
       title="تقارير الرعاية"
     >
@@ -99,20 +101,6 @@ export function GuardianCareScreen() {
           ))}
         </View>
       ) : null}
-
-      <Pressable
-        accessibilityLabel={t("تحديث تقارير الرعاية")}
-        accessibilityRole="button"
-        disabled={loading}
-        onPress={() => void refresh()}
-        style={({ pressed }) => [styles.refreshButton, pressed && styles.pressed]}
-      >
-        {loading ? (
-          <ActivityIndicator color={colors.primary} size="small" />
-        ) : (
-          <Text style={styles.refreshIcon}>↻</Text>
-        )}
-      </Pressable>
 
       {loading ? (
         <View style={styles.stateCard}>
@@ -200,18 +188,6 @@ const styles = StyleSheet.create({
   filterChipActive: { borderColor: colors.primary, backgroundColor: colors.primary },
   filterText: { color: colors.text, fontSize: 14, fontWeight: "700" },
   filterTextActive: { color: colors.surface },
-  refreshButton: {
-    width: touchTarget,
-    height: touchTarget,
-    alignItems: "center",
-    justifyContent: "center",
-    alignSelf: "flex-start",
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 999,
-    backgroundColor: colors.surface,
-  },
-  refreshIcon: { color: colors.primary, fontSize: 25, fontWeight: "800" },
   stateCard: {
     minHeight: 220,
     alignItems: "center",

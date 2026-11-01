@@ -15,8 +15,9 @@ function periodLabel(period: "MORNING" | "EVENING" | null) {
 }
 
 export function GuardianAccountScreen() {
-  const { account, signOut } = useSession();
+  const { account, refreshAccount, signOut } = useSession();
   const { isRTL } = useLanguage();
+  const [refreshing, setRefreshing] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   if (!account || account.kind !== "guardian") return null;
 
@@ -29,8 +30,22 @@ export function GuardianAccountScreen() {
     }
   };
 
+  const refresh = async () => {
+    setRefreshing(true);
+    try {
+      await refreshAccount();
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   return (
-    <AppScreen subtitle={account.schoolName} title="حسابي">
+    <AppScreen
+      onRefresh={() => void refresh()}
+      refreshing={refreshing}
+      subtitle={account.schoolName}
+      title="حسابي"
+    >
       <View style={cardStyles.card}>
         <Text style={cardStyles.heading}>{account.name}</Text>
         <AccountRow label="البريد" value={account.email} />

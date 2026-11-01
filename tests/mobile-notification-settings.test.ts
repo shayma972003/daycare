@@ -139,7 +139,7 @@ describe("mobile notification settings", () => {
     const layout = source("mobile", "src", "app", "(staff)", "_layout.tsx");
     expect(guardianAccount).toContain('<NotificationSettingsCard kind="guardian" />');
     expect(guardianAccount).toContain("أطفالي");
-    expect(staffAccount).toContain("<StaffChildrenSection />");
+    expect(staffAccount).toContain("<StaffChildrenSection refreshSequence={childrenRefreshSequence} />");
     expect(staffAccount).toContain('<NotificationSettingsCard kind="staff" />');
     expect(settings).toContain('accessibilityRole="switch"');
     expect(settings).toContain("الحضور والانصراف");

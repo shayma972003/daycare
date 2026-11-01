@@ -13,7 +13,7 @@ function TabIcon({ label, color, focused }: { label: string; color: ColorValue; 
 }
 
 export default function StaffLayout() {
-  const { t } = useLanguage();
+  const { isRTL, t } = useLanguage();
   return (
     <Tabs
       screenOptions={{
@@ -21,7 +21,7 @@ export default function StaffLayout() {
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.muted,
         tabBarLabelStyle: styles.label,
-        tabBarStyle: styles.bar,
+        tabBarStyle: [styles.bar, { direction: isRTL ? "rtl" : "ltr" }],
         tabBarItemStyle: styles.item,
       }}
     >

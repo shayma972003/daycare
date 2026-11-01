@@ -16,6 +16,8 @@ export type LocationAttendanceSetupStatus =
 
 export type LocationAttendanceSetupResult = {
   status: LocationAttendanceSetupStatus;
+  attendanceOpen?: boolean;
+  checkedInAt?: string | null;
 };
 
 function regions(settings: LocationAttendanceSettings): Location.LocationRegion[] {
@@ -101,7 +103,12 @@ export async function syncLocationAttendance(options: { requestPermissions?: boo
 
   await Location.startGeofencingAsync(LOCATION_ATTENDANCE_TASK, regions(settings));
   await reconcile(settings).catch(() => undefined);
-  return { status: "active" };
+  const current = await loadLocationAttendanceSettings().catch(() => settings);
+  return {
+    status: "active",
+    attendanceOpen: current.attendanceOpen,
+    checkedInAt: current.checkedInAt,
+  };
 }
 
 export async function stopLocationAttendance() {

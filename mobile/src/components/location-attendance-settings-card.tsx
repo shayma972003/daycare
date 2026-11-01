@@ -5,7 +5,7 @@ import {
   syncLocationAttendance,
   type LocationAttendanceSetupStatus,
 } from "@/location-attendance";
-import { Text } from "@/language";
+import { Text, useLanguage } from "@/language";
 import { colors, radius, spacing, touchTarget } from "@/theme";
 
 const statusCopy: Record<LocationAttendanceSetupStatus, string> = {
@@ -16,7 +16,9 @@ const statusCopy: Record<LocationAttendanceSetupStatus, string> = {
 };
 
 export function LocationAttendanceSettingsCard({ linked }: { linked: boolean }) {
+  const { isRTL } = useLanguage();
   const [status, setStatus] = useState<LocationAttendanceSetupStatus | null>(null);
+  const [attendanceOpen, setAttendanceOpen] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(linked);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,7 +26,11 @@ export function LocationAttendanceSettingsCard({ linked }: { linked: boolean }) 
     if (!linked) return;
     let active = true;
     syncLocationAttendance()
-      .then((result) => { if (active) setStatus(result.status); })
+      .then((result) => {
+        if (!active) return;
+        setStatus(result.status);
+        setAttendanceOpen(result.attendanceOpen ?? null);
+      })
       .catch(() => { if (active) setError("تعذر التحقق من إعدادات الموقع"); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
@@ -36,6 +42,7 @@ export function LocationAttendanceSettingsCard({ linked }: { linked: boolean }) 
     try {
       const result = await syncLocationAttendance({ requestPermissions: true });
       setStatus(result.status);
+      setAttendanceOpen(result.attendanceOpen ?? null);
     } catch {
       setError("تعذر تفعيل الحضور بالموقع. تحققي من اتصال الخادم وإذن الموقع.");
     } finally {
@@ -50,13 +57,26 @@ export function LocationAttendanceSettingsCard({ linked }: { linked: boolean }) 
       {!linked ? (
         <Text style={styles.status}>اربطي حساب التطبيق بملف المعلمة من حسابات الموظفين في النظام أولًا.</Text>
       ) : loading ? <ActivityIndicator color={colors.primary} /> : (
-        <Text style={[styles.status, status === "active" && styles.active]}>
-          {error ?? (status ? statusCopy[status] : "غير معروف")}
-        </Text>
+        <>
+          <Text style={[styles.status, status === "active" && styles.active]}>
+            {error ?? (status ? statusCopy[status] : "غير معروف")}
+          </Text>
+          {status === "active" && attendanceOpen !== null ? (
+            <View style={[styles.attendanceState, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
+              <Text style={styles.stateLabel}>حالتك الآن</Text>
+              <Text style={[styles.stateValue, attendanceOpen ? styles.checkedIn : styles.checkedOut]}>
+                {attendanceOpen ? "مسجلة دخول" : "مسجلة خروج"}
+              </Text>
+            </View>
+          ) : null}
+          {status === "active" ? (
+            <Text style={styles.noticeHint}>سيصلك إشعار عند تسجيل دخولك أو خروجك تلقائيًا.</Text>
+          ) : null}
+        </>
       )}
-      {linked && status !== "disabled" && status !== "unavailable" ? (
+      {linked && status !== "active" && status !== "disabled" && status !== "unavailable" ? (
         <Pressable accessibilityRole="button" disabled={loading} onPress={() => void enable()} style={({ pressed }) => [styles.button, pressed && styles.pressed]}>
-          <Text style={styles.buttonText}>{status === "active" ? "تحديث إعداد الموقع" : "تفعيل إذن الموقع"}</Text>
+          <Text style={styles.buttonText}>تفعيل إذن الموقع</Text>
         </Pressable>
       ) : null}
       {linked && status === "permission-required" ? (
@@ -74,6 +94,12 @@ const styles = StyleSheet.create({
   copy: { color: colors.muted, fontSize: 13, lineHeight: 21, textAlign: "right" },
   status: { color: colors.danger, fontSize: 13, fontWeight: "800", textAlign: "right" },
   active: { color: colors.success },
+  attendanceState: { alignItems: "center", justifyContent: "space-between", padding: spacing.sm, borderRadius: radius.md, backgroundColor: colors.background },
+  stateLabel: { color: colors.muted, fontSize: 12, fontWeight: "700" },
+  stateValue: { fontSize: 14, fontWeight: "900" },
+  checkedIn: { color: colors.success },
+  checkedOut: { color: colors.muted },
+  noticeHint: { color: colors.muted, fontSize: 12, lineHeight: 19 },
   button: { minHeight: touchTarget, alignItems: "center", justifyContent: "center", borderRadius: radius.md, backgroundColor: colors.primary },
   buttonText: { color: colors.surface, fontSize: 14, fontWeight: "900" },
   link: { color: colors.primary, fontSize: 13, fontWeight: "800", textAlign: "center", textDecorationLine: "underline" },

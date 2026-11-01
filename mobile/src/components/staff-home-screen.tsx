@@ -55,7 +55,7 @@ function returnedStudentNames(batches: ReturnedDailyCareBatch[]) {
 
 export function StaffHomeScreen() {
   const { account } = useSession();
-  const { isRTL, locale, t } = useLanguage();
+  const { isRTL, locale } = useLanguage();
   const router = useRouter();
   const today = useMemo(() => riyadhDateKey(new Date()), []);
   const [arrivalNotices, setArrivalNotices] = useState<StaffArrivalNotice[]>([]);
@@ -182,19 +182,8 @@ export function StaffHomeScreen() {
 
   return (
     <AppScreen
-      action={(
-        <Pressable
-          accessibilityLabel={t("تحديث الرئيسية")}
-          accessibilityRole="button"
-          disabled={refreshing}
-          onPress={() => void refresh()}
-          style={({ pressed }) => [styles.refreshButton, pressed && styles.pressed]}
-        >
-          {refreshing
-            ? <ActivityIndicator color={colors.primary} size="small" />
-            : <Text style={styles.refreshIcon}>↻</Text>}
-        </Pressable>
-      )}
+      onRefresh={() => void refresh()}
+      refreshing={refreshing}
       subtitle={account.schoolName}
       title="الرئيسية"
     >
@@ -352,17 +341,6 @@ function ErrorState({ message }: { message: string }) {
 }
 
 const styles = StyleSheet.create({
-  refreshButton: {
-    width: touchTarget,
-    height: touchTarget,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.55)",
-    borderRadius: 999,
-    backgroundColor: colors.surface,
-  },
-  refreshIcon: { color: colors.primary, fontSize: 27, fontWeight: "800" },
   pressed: { opacity: 0.72 },
   arrivalNotice: {
     ...shadow.card,

@@ -25,7 +25,7 @@ const kinds: { value: AccountKind; label: string }[] = [
 
 export default function SignInScreen() {
   const { setAccount } = useSession();
-  const { isRTL } = useLanguage();
+  const { isRTL, language, setLanguage } = useLanguage();
   const [kind, setKind] = useState<AccountKind>("guardian");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -57,16 +57,28 @@ export default function SignInScreen() {
         style={styles.keyboard}
       >
         <ScrollView
-          contentContainerStyle={styles.page}
+          contentContainerStyle={[styles.page, { direction: isRTL ? "rtl" : "ltr" }]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.intro}>
+          <View style={[styles.languageRow, { flexDirection: isRTL ? "row" : "row-reverse" }]}>
+            <Pressable
+              accessibilityLabel={language === "ar" ? "English" : "العربية"}
+              accessibilityRole="button"
+              onPress={() => void setLanguage(language === "ar" ? "en" : "ar")}
+              style={({ pressed }) => [styles.languageButton, pressed && styles.pressed]}
+            >
+              <Text style={styles.languageIcon}>◎</Text>
+              <Text style={styles.languageText}>{language === "ar" ? "English" : "العربية"}</Text>
+            </Pressable>
+          </View>
+
+          <View style={[styles.intro, { direction: isRTL ? "rtl" : "ltr" }]}>
             <View style={[styles.brandRow, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
               <View style={styles.logo}>
                 <Text style={styles.logoText}>ر</Text>
               </View>
-              <View style={styles.brandCopy}>
+              <View style={[styles.brandCopy, { alignItems: isRTL ? "flex-end" : "flex-start" }]}>
                 <Text style={styles.brandName}>طفولة تيك</Text>
                 <Text style={styles.brandTagline}>مدرستك أقرب إليك</Text>
               </View>
@@ -76,7 +88,7 @@ export default function SignInScreen() {
             <Text style={styles.subtitle}>تطبيق المدرسة لولي الأمر والمعلم</Text>
           </View>
 
-          <View style={styles.card}>
+          <View style={[styles.card, { direction: isRTL ? "rtl" : "ltr" }]}>
             <Text style={styles.sectionTitle}>نوع الحساب</Text>
             <View style={[styles.segmented, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
               {kinds.map((item) => {
@@ -110,7 +122,7 @@ export default function SignInScreen() {
                 placeholder="name@example.com"
                 placeholderTextColor={colors.muted}
                 returnKeyType="next"
-                style={styles.input}
+                style={[styles.input, { writingDirection: isRTL ? "rtl" : "ltr" }]}
                 textAlign={isRTL ? "right" : "left"}
                 value={email}
               />
@@ -127,7 +139,7 @@ export default function SignInScreen() {
                 placeholderTextColor={colors.muted}
                 returnKeyType="done"
                 secureTextEntry
-                style={styles.input}
+                style={[styles.input, { writingDirection: isRTL ? "rtl" : "ltr" }]}
                 textAlign={isRTL ? "right" : "left"}
                 value={password}
               />
@@ -163,6 +175,24 @@ const styles = StyleSheet.create({
     gap: spacing.lg,
   },
   intro: { alignItems: "stretch", gap: spacing.sm },
+  languageRow: {
+    width: "100%",
+  },
+  languageButton: {
+    minHeight: touchTarget,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderRadius: 999,
+    backgroundColor: colors.surface,
+  },
+  languageIcon: { color: colors.primary, fontSize: 18, fontWeight: "900" },
+  languageText: { color: colors.primary, fontSize: 13, fontWeight: "900" },
+  pressed: { opacity: 0.72 },
   brandRow: {
     flexDirection: "row-reverse",
     alignItems: "center",

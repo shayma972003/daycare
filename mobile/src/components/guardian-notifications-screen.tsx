@@ -45,7 +45,7 @@ function formatAbsenceDate(value: string | null, locale: string) {
 
 export function GuardianNotificationsScreen() {
   const { account } = useSession();
-  const { isRTL, locale, t } = useLanguage();
+  const { isRTL, locale } = useLanguage();
   const router = useRouter();
   const [messages, setMessages] = useState<MobileMessage[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -129,19 +129,8 @@ export function GuardianNotificationsScreen() {
 
   return (
     <AppScreen
-      action={(
-        <Pressable
-          accessibilityLabel={t("تحديث الإشعارات")}
-          accessibilityRole="button"
-          disabled={refreshing}
-          onPress={() => void reload()}
-          style={({ pressed }) => [styles.refreshButton, pressed && styles.pressed]}
-        >
-          {refreshing
-            ? <ActivityIndicator color={colors.primary} size="small" />
-            : <Text style={styles.refreshIcon}>↻</Text>}
-        </Pressable>
-      )}
+      onRefresh={() => void reload()}
+      refreshing={refreshing}
       subtitle={unreadCount ? `${account.schoolName} · ${unreadCount} غير مقروء` : account.schoolName}
       title="الإشعارات"
     >
@@ -230,8 +219,6 @@ function MessageCard({ expanded, isRTL, locale, message, onOpenCalendar, onPress
 }
 
 const styles = StyleSheet.create({
-  refreshButton: { width: touchTarget, height: touchTarget, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.border, borderRadius: 999, backgroundColor: colors.surface },
-  refreshIcon: { color: colors.primary, fontSize: 27, fontWeight: "800" },
   actions: { minHeight: touchTarget, flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },
   unreadText: { color: colors.primary, fontSize: 13, fontWeight: "900", textAlign: "right" },
   list: { gap: spacing.sm },

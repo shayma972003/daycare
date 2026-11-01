@@ -63,13 +63,15 @@ describe("mobile calendar contracts", () => {
     expect(staffLayout).not.toContain('name="nfc"');
   });
 
-  it("offers week and month views with an icon-only refresh control", () => {
+  it("offers week and month views with pull-to-refresh", () => {
     const screen = source("mobile", "src", "components", "calendar-screen.tsx");
 
     expect(screen).toContain("هذا الأسبوع");
     expect(screen).toContain("الشهر");
     expect(screen).toContain("currentMonthGrid");
-    expect(screen).toContain('accessibilityLabel={t("تحديث التقويم")}');
+    expect(screen).toContain("refreshing={refreshing}");
+    expect(screen).toContain("onRefresh={() => void refresh()}");
+    expect(screen).not.toContain('accessibilityLabel={t("تحديث التقويم")}');
     expect(screen).not.toContain("الأسبوع القادم");
     expect(screen).not.toContain("أحداث الأسبوع");
   });

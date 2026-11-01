@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
+import { RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Text, useLanguage } from "@/language";
@@ -9,16 +9,26 @@ type AppScreenProps = {
   title: string;
   subtitle?: string;
   children: ReactNode;
-  action?: ReactNode;
+  refreshing?: boolean;
+  onRefresh?: () => void;
 };
 
-export function AppScreen({ title, subtitle, children, action }: AppScreenProps) {
+export function AppScreen({ title, subtitle, children, refreshing = false, onRefresh }: AppScreenProps) {
   const { isRTL } = useLanguage();
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "right", "left"]}>
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { direction: isRTL ? "rtl" : "ltr" }]}
         keyboardShouldPersistTaps="handled"
+        refreshControl={onRefresh ? (
+          <RefreshControl
+            colors={[colors.primary]}
+            onRefresh={onRefresh}
+            progressBackgroundColor={colors.surface}
+            refreshing={refreshing}
+            tintColor={colors.primary}
+          />
+        ) : undefined}
         showsVerticalScrollIndicator={false}
       >
         <View style={[styles.header, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
@@ -27,11 +37,10 @@ export function AppScreen({ title, subtitle, children, action }: AppScreenProps)
           <View style={styles.logo}>
             <Text style={styles.logoText}>ر</Text>
           </View>
-          <View style={styles.headerCopy}>
+          <View style={[styles.headerCopy, { alignItems: isRTL ? "flex-end" : "flex-start" }]}>
             <Text style={styles.title}>{title}</Text>
             {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
           </View>
-          {action ? <View style={styles.action}>{action}</View> : null}
         </View>
         {children}
       </ScrollView>
@@ -77,52 +86,52 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   header: {
-    minHeight: 156,
+    minHeight: 116,
     overflow: "hidden",
     flexDirection: "row-reverse",
     alignItems: "center",
     gap: spacing.md,
     marginHorizontal: -spacing.md,
     marginBottom: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
     borderBottomLeftRadius: radius.xl,
     borderBottomRightRadius: radius.xl,
     backgroundColor: colors.primary,
   },
   headerOrbLarge: {
     position: "absolute",
-    width: 190,
-    height: 190,
-    top: -78,
-    left: -38,
-    borderRadius: 95,
+    width: 150,
+    height: 150,
+    top: -72,
+    left: -34,
+    borderRadius: 75,
     backgroundColor: colors.lilac,
     opacity: 0.22,
   },
   headerOrbSmall: {
     position: "absolute",
-    width: 88,
-    height: 88,
-    right: 112,
-    bottom: -38,
-    borderRadius: 44,
+    width: 68,
+    height: 68,
+    right: 92,
+    bottom: -32,
+    borderRadius: 34,
     backgroundColor: colors.accent,
     opacity: 0.13,
   },
   logo: {
-    width: 54,
-    height: 54,
+    width: 44,
+    height: 44,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 18,
+    borderRadius: 15,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.55)",
     backgroundColor: "rgba(255,255,255,0.18)",
   },
   logoText: {
     color: colors.surface,
-    fontSize: 22,
+    fontSize: 19,
     fontWeight: "800",
   },
   headerCopy: {
@@ -131,19 +140,15 @@ const styles = StyleSheet.create({
   },
   title: {
     color: colors.surface,
-    fontSize: 27,
+    fontSize: 22,
     fontWeight: "800",
     textAlign: "right",
     writingDirection: "rtl",
   },
   subtitle: {
     color: "rgba(255,255,255,0.76)",
-    fontSize: 14,
+    fontSize: 12,
     textAlign: "right",
     writingDirection: "rtl",
-  },
-  action: {
-    minWidth: 48,
-    alignItems: "flex-start",
   },
 });

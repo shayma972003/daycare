@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import {
+  I18nManager,
   Platform,
   StyleSheet,
   Text as NativeText,
@@ -19,6 +20,9 @@ import * as SecureStore from "expo-secure-store";
 export type AppLanguage = "ar" | "en";
 
 const LANGUAGE_KEY = "tofolatech.app-language";
+
+I18nManager.allowRTL(true);
+I18nManager.swapLeftAndRightInRTL(true);
 
 const english: Record<string, string> = {
   "أحداث اليوم": "Today's events",
@@ -271,6 +275,10 @@ const english: Record<string, string> = {
   "تحديث إعداد الموقع": "Update location settings",
   "تفعيل إذن الموقع": "Enable location permission",
   "فتح إعدادات الهاتف": "Open phone settings",
+  "حالتك الآن": "Your current status",
+  "مسجلة دخول": "Checked in",
+  "مسجلة خروج": "Checked out",
+  "سيصلك إشعار عند تسجيل دخولك أو خروجك تلقائيًا.": "You will receive a notification when you are checked in or out automatically.",
 };
 
 function translateDynamic(value: string): string {
@@ -353,6 +361,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     let active = true;
     void readStoredLanguage().then((stored) => {
       if (active) {
+        I18nManager.forceRTL(stored === "ar");
         setCurrentLanguage(stored);
         setLoading(false);
       }
@@ -363,6 +372,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setLanguage = useCallback(async (next: AppLanguage) => {
+    I18nManager.forceRTL(next === "ar");
     setCurrentLanguage(next);
     try {
       await persistLanguage(next);

@@ -42,13 +42,14 @@ function formatMessageDate(value: string, locale: string) {
 }
 
 export function StaffAccountScreen() {
-  const { account, signOut } = useSession();
+  const { account, refreshAccount, signOut } = useSession();
   const { locale } = useLanguage();
   const [section, setSection] = useState<Section>("account");
   const [messages, setMessages] = useState<MobileMessage[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [childrenRefreshSequence, setChildrenRefreshSequence] = useState(0);
   const [signingOut, setSigningOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -62,11 +63,12 @@ export function StaffAccountScreen() {
     else setLoading(true);
     setError(null);
     try {
-      const result = await loadMessages();
+      const [result] = await Promise.all([loadMessages(), refreshAccount()]);
       setMessages(result.messages);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "تعذّر تحميل الإشعارات");
     } finally {
+      if (refresh) setChildrenRefreshSequence((current) => current + 1);
       setLoading(false);
       setRefreshing(false);
     }
@@ -127,7 +129,12 @@ export function StaffAccountScreen() {
   };
 
   return (
-    <AppScreen subtitle={account.schoolName} title="حسابي">
+    <AppScreen
+      onRefresh={() => void reload(true)}
+      refreshing={refreshing}
+      subtitle={account.schoolName}
+      title="حسابي"
+    >
       <View accessibilityRole="tablist" style={styles.sections}>
         <SectionTab
           active={section === "notifications"}
@@ -147,7 +154,6 @@ export function StaffAccountScreen() {
       {section === "notifications" ? (
         <View style={styles.stack}>
           <View style={styles.notificationActions}>
-            <TextButton label={refreshing ? "جارٍ التحديث…" : "تحديث"} onPress={() => void reload(true)} />
             {unreadCount > 0 ? (
               <TextButton label="تحديد الكل كمقروء" onPress={() => void markAll()} />
             ) : null}
@@ -190,7 +196,7 @@ export function StaffAccountScreen() {
             <AccountRow label="ملف المعلم" value={account.teacherId ? "مرتبط" : "غير مرتبط"} />
           </View>
 
-          <StaffChildrenSection />
+          <StaffChildrenSection refreshSequence={childrenRefreshSequence} />
 
           <LanguageSettingsCard />
 

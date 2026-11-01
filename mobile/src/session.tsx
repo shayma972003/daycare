@@ -9,6 +9,7 @@ type SessionContextValue = {
   account: Account | null;
   loading: boolean;
   setAccount: (account: Account | null) => void;
+  refreshAccount: () => Promise<Account | null>;
   signOut: () => Promise<void>;
 };
 
@@ -45,6 +46,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     })();
   }, [account]);
 
+  const refreshAccount = useCallback(async () => {
+    const current = await currentAccount();
+    setAccount(current);
+    return current;
+  }, []);
+
   const signOut = useCallback(async () => {
     await stopLocationAttendance().catch(() => undefined);
     await unregisterDeviceForPush();
@@ -53,8 +60,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ account, loading, setAccount, signOut }),
-    [account, loading, signOut]
+    () => ({ account, loading, setAccount, refreshAccount, signOut }),
+    [account, loading, refreshAccount, signOut]
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

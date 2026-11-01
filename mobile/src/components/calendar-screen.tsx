@@ -82,7 +82,7 @@ function eventTime(event: MobileCalendarEvent, locale: string) {
 
 export function CalendarScreen() {
   const { account } = useSession();
-  const { isRTL, locale, t } = useLanguage();
+  const { isRTL, locale } = useLanguage();
   const firstWeekStart = useMemo(() => currentWeekStart(), []);
   const today = useMemo(() => riyadhDateKey(new Date()), []);
   const month = useMemo(() => currentMonthGrid(today), [today]);
@@ -93,11 +93,12 @@ export function CalendarScreen() {
   const [selectedDay, setSelectedDay] = useState(today);
   const [events, setEvents] = useState<MobileCalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    setLoading(true);
+    setRefreshing(true);
     setError(null);
     try {
       const response = await loadCalendar(rangeFrom, rangeTo);
@@ -105,7 +106,7 @@ export function CalendarScreen() {
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "تعذّر تحميل التقويم");
     } finally {
-      setLoading(false);
+      setRefreshing(false);
     }
   }, [rangeFrom, rangeTo]);
 
@@ -144,21 +145,8 @@ export function CalendarScreen() {
 
   return (
     <AppScreen
-      action={(
-        <Pressable
-          accessibilityLabel={t("تحديث التقويم")}
-          accessibilityRole="button"
-          disabled={loading}
-          onPress={() => void refresh()}
-          style={({ pressed }) => [styles.refreshButton, pressed && !loading && styles.pressed]}
-        >
-          {loading ? (
-            <ActivityIndicator color={colors.primary} size="small" />
-          ) : (
-            <Text style={styles.refreshIcon}>↻</Text>
-          )}
-        </Pressable>
-      )}
+      onRefresh={() => void refresh()}
+      refreshing={refreshing}
       subtitle={account.schoolName}
       title="التقويم"
     >
@@ -336,21 +324,6 @@ export function CalendarScreen() {
 }
 
 const styles = StyleSheet.create({
-  refreshButton: {
-    width: touchTarget,
-    height: touchTarget,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.55)",
-    borderRadius: 999,
-    backgroundColor: colors.surface,
-  },
-  refreshIcon: {
-    color: colors.primary,
-    fontSize: 25,
-    fontWeight: "800",
-  },
   weekSwitch: {
     flexDirection: "row-reverse",
     padding: 4,

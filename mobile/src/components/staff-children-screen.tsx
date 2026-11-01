@@ -30,14 +30,14 @@ export function StaffChildrenScreen() {
   const { account } = useSession();
   if (!account || account.kind !== "staff") return null;
 
-  return (
-    <AppScreen subtitle={account.schoolName} title="أطفالي">
-      <StaffChildrenSection />
-    </AppScreen>
-  );
+  return <StaffChildrenSection schoolName={account.schoolName} standalone />;
 }
 
-export function StaffChildrenSection() {
+export function StaffChildrenSection({ refreshSequence = 0, standalone = false, schoolName }: {
+  refreshSequence?: number;
+  standalone?: boolean;
+  schoolName?: string;
+} = {}) {
   const router = useRouter();
   const { isRTL, t } = useLanguage();
   const [children, setChildren] = useState<AttendanceChild[]>([]);
@@ -45,10 +45,12 @@ export function StaffChildrenSection() {
   const [selectedClass, setSelectedClass] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const reload = async () => {
-    setLoading(true);
+  const reload = async (pullToRefresh = false) => {
+    if (pullToRefresh) setRefreshing(true);
+    else setLoading(true);
     setError(null);
     try {
       const result = await loadTodayAttendance();
@@ -57,6 +59,7 @@ export function StaffChildrenSection() {
       setError(caught instanceof Error ? caught.message : "تعذّر تحميل الأطفال");
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -79,7 +82,7 @@ export function StaffChildrenSection() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [refreshSequence]);
 
   const classes = useMemo(() => {
     const values = new Map<string, string>();
@@ -100,7 +103,7 @@ export function StaffChildrenSection() {
     });
   }, [children, search, selectedClass]);
 
-  return (
+  const content = (
     <View style={styles.section}>
       <View style={[styles.searchBox, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
         <TextInput
@@ -176,6 +179,18 @@ export function StaffChildrenSection() {
         </View>
       )}
     </View>
+  );
+
+  if (!standalone) return content;
+  return (
+    <AppScreen
+      onRefresh={() => void reload(true)}
+      refreshing={refreshing}
+      subtitle={schoolName}
+      title="أطفالي"
+    >
+      {content}
+    </AppScreen>
   );
 }
 

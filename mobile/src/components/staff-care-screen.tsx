@@ -151,7 +151,7 @@ function freshEntries(students: CareStudent[], returned?: ReturnedDailyCareBatch
 }
 
 export function StaffCareScreen() {
-  const { account, signOut } = useSession();
+  const { account } = useSession();
   const { isRTL } = useLanguage();
   const [activeTab, setActiveTab] = useState<"create" | "returned">("create");
   const [students, setStudents] = useState<CareStudent[]>([]);
@@ -160,33 +160,34 @@ export function StaffCareScreen() {
   const [reviewRequired, setReviewRequired] = useState(true);
   const [loadingStudents, setLoadingStudents] = useState(true);
   const [loadingReturned, setLoadingReturned] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const reportableStudents = useMemo(
     () => students.filter((student) => !student.hasDailyCareReportToday),
     [students]
   );
 
-  const loadStudents = useCallback(async () => {
-    setLoadingStudents(true);
+  const loadStudents = useCallback(async (showLoading = true) => {
+    if (showLoading) setLoadingStudents(true);
     setLoadError(null);
     try {
       setStudents(await loadCareStudents());
     } catch (caught) {
       setLoadError(caught instanceof Error ? caught.message : "تعذّر تحميل الأطفال");
     } finally {
-      setLoadingStudents(false);
+      if (showLoading) setLoadingStudents(false);
     }
   }, []);
 
-  const loadReturned = useCallback(async () => {
-    setLoadingReturned(true);
+  const loadReturned = useCallback(async (showLoading = true) => {
+    if (showLoading) setLoadingReturned(true);
     setLoadError(null);
     try {
       setReturned(await loadReturnedDailyCareReports());
     } catch (caught) {
       setLoadError(caught instanceof Error ? caught.message : "تعذّر تحميل التقارير المرتجعة");
     } finally {
-      setLoadingReturned(false);
+      if (showLoading) setLoadingReturned(false);
     }
   }, []);
 
@@ -222,9 +223,20 @@ export function StaffCareScreen() {
 
   if (!account || account.kind !== "staff") return null;
 
+  const refresh = async () => {
+    setRefreshing(true);
+    try {
+      if (activeTab === "create") await loadStudents(false);
+      else await loadReturned(false);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   return (
     <AppScreen
-      action={<TextButton label="تسجيل الخروج" onPress={() => void signOut()} />}
+      onRefresh={() => void refresh()}
+      refreshing={refreshing}
       subtitle={account.schoolName}
       title="تقارير الرعاية"
     >
@@ -289,10 +301,9 @@ export function StaffCareScreen() {
         <View style={styles.emptyPanel}>
           <Text style={styles.emptyTitle}>لا توجد تقارير مرتجعة</Text>
           <Text style={styles.emptyCopy}>ستظهر هنا التقارير التي تعيدها الإدارة للتعديل.</Text>
-          <TextButton label="تحديث" onPress={() => void loadReturned()} />
         </View>
       ) : (
-        <ReturnedList batches={returned} onOpen={setSelectedReturned} onRefresh={loadReturned} />
+        <ReturnedList batches={returned} onOpen={setSelectedReturned} />
       )}
     </AppScreen>
   );
@@ -335,10 +346,9 @@ function EmptyState({ label, onRetry }: { label: string; onRetry: () => Promise<
   );
 }
 
-function ReturnedList({ batches, onOpen, onRefresh }: {
+function ReturnedList({ batches, onOpen }: {
   batches: ReturnedDailyCareBatch[];
   onOpen: (batch: ReturnedDailyCareBatch) => void;
-  onRefresh: () => Promise<void>;
 }) {
   const { isRTL, locale } = useLanguage();
   return (
@@ -365,7 +375,6 @@ function ReturnedList({ batches, onOpen, onRefresh }: {
           <PrimaryButton label="فتح وتعديل التقرير" onPress={() => onOpen(batch)} />
         </View>
       ))}
-      <TextButton label="تحديث القائمة" onPress={() => void onRefresh()} />
     </View>
   );
 }

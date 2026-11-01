@@ -143,19 +143,8 @@ export function StaffAttendanceScreen() {
 
   return (
     <AppScreen
-      action={(
-        <Pressable
-          accessibilityLabel={t("تحديث الحضور")}
-          accessibilityRole="button"
-          disabled={refreshing}
-          onPress={() => void load(true)}
-          style={({ pressed }) => [styles.refreshButton, pressed && styles.pressed]}
-        >
-          {refreshing
-            ? <ActivityIndicator color={colors.primary} size="small" />
-            : <Text style={styles.refreshIcon}>↻</Text>}
-        </Pressable>
-      )}
+      onRefresh={() => void load(true)}
+      refreshing={refreshing}
       subtitle={`${account.schoolName} · ${formatDate(date, locale)}`}
       title="الحضور"
     >
@@ -290,17 +279,6 @@ function AttendanceRow({ busy, child, onPress }: {
 }
 
 const styles = StyleSheet.create({
-  refreshButton: {
-    width: touchTarget,
-    height: touchTarget,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 999,
-    backgroundColor: colors.surface,
-  },
-  refreshIcon: { color: colors.primary, fontSize: 27, fontWeight: "800" },
   pressed: { opacity: 0.72 },
   summary: {
     flexDirection: "row-reverse",

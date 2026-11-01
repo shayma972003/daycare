@@ -194,7 +194,7 @@ export function StaffAccountScreen() {
 
           <LanguageSettingsCard />
 
-          {account.teacherId ? <LocationAttendanceSettingsCard /> : null}
+          <LocationAttendanceSettingsCard linked={Boolean(account.teacherId)} />
 
           <NotificationSettingsCard kind="staff" />
 

@@ -64,6 +64,11 @@ interface StaffRow {
   role: { id: string; nameAr: string; isOwner: boolean } | null;
 }
 
+interface TeacherOption {
+  id: string;
+  name: string;
+}
+
 interface PageNotice {
   message: string;
   tone: "success" | "warning";
@@ -90,6 +95,7 @@ export default function PermissionsPage() {
   const t = useT();
   const [data, setData] = useState<RolesResponse | null>(null);
   const [staff, setStaff] = useState<StaffRow[]>([]);
+  const [teachers, setTeachers] = useState<TeacherOption[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<PageNotice | null>(null);
 
@@ -102,12 +108,14 @@ export default function PermissionsPage() {
 
   const load = useCallback(async () => {
     try {
-      const [rolesRes, staffRes] = await Promise.all([
+      const [rolesRes, staffRes, teachersRes] = await Promise.all([
         axios.get<RolesResponse>("/api/roles"),
         axios.get<StaffRow[]>("/api/staff-accounts"),
+        axios.get<{ teachers?: TeacherOption[] } | TeacherOption[]>("/api/teachers"),
       ]);
       setData(rolesRes.data);
       setStaff(staffRes.data);
+      setTeachers(Array.isArray(teachersRes.data) ? teachersRes.data : (teachersRes.data.teachers ?? []));
       setError(null);
       setSelectedRoleId((current) => current ?? rolesRes.data.roles[0]?.id ?? null);
     } catch (err) {
@@ -120,11 +128,13 @@ export default function PermissionsPage() {
     Promise.all([
       axios.get<RolesResponse>("/api/roles"),
       axios.get<StaffRow[]>("/api/staff-accounts"),
+      axios.get<{ teachers?: TeacherOption[] } | TeacherOption[]>("/api/teachers"),
     ])
-      .then(([rolesRes, staffRes]) => {
+      .then(([rolesRes, staffRes, teachersRes]) => {
         if (cancelled) return;
         setData(rolesRes.data);
         setStaff(staffRes.data);
+        setTeachers(Array.isArray(teachersRes.data) ? teachersRes.data : (teachersRes.data.teachers ?? []));
         setSelectedRoleId(rolesRes.data.roles[0]?.id ?? null);
       })
       .catch((err) => {
@@ -199,6 +209,20 @@ export default function PermissionsPage() {
     }
   }
 
+  async function changeTeacher(user: StaffRow, teacherId: string) {
+    setError(null);
+    try {
+      await axios.put(`/api/staff-accounts/${user.id}`, { teacherId: teacherId || null });
+      setNotice({
+        message: t("permissions.teacherLinkUpdated", { name: user.name }),
+        tone: "success",
+      });
+      await load();
+    } catch (err) {
+      setError(describeApiError(err, t("permissions.teacherLinkChangeFailed")));
+    }
+  }
+
   const grouped = data
     ? data.catalogue.reduce<Record<string, PermissionDefinition[]>>((acc, permission) => {
         (acc[permission.category] ??= []).push(permission);
@@ -252,7 +276,7 @@ export default function PermissionsPage() {
                 <table className="w-full text-sm min-w-[620px]">
                   <thead>
                     <tr className="border-b border-gray-100 text-gray-500">
-                      {[t("students.columns.name"), t("fields.mail"), t("fields.role"), t("home.status"), ""].map((h) => (
+                      {[t("students.columns.name"), t("fields.mail"), t("fields.role"), t("permissions.linkTeacher"), t("home.status"), ""].map((h) => (
                         <th key={h} className="px-3 py-2 text-start font-medium">{h}</th>
                       ))}
                     </tr>
@@ -293,6 +317,28 @@ export default function PermissionsPage() {
                               </select>
                             </PermissionGate>
                           )}
+                        </td>
+                        <td className="px-3 py-3">
+                          <PermissionGate
+                            permission="staff.manage"
+                            fallback={
+                              <span className="text-gray-500">
+                                {teachers.find((teacher) => teacher.id === user.teacherId)?.name ?? t("permissions.administrativeAccount")}
+                              </span>
+                            }
+                          >
+                            <select
+                              aria-label={t("permissions.changeTeacherFor", { name: user.name })}
+                              value={user.teacherId ?? ""}
+                              onChange={(event) => void changeTeacher(user, event.target.value)}
+                              className="max-w-48 rounded-lg border border-gray-200 px-2 py-1 text-sm"
+                            >
+                              <option value="">{t("permissions.administrativeAccount")}</option>
+                              {teachers.map((teacher) => (
+                                <option key={teacher.id} value={teacher.id}>{teacher.name}</option>
+                              ))}
+                            </select>
+                          </PermissionGate>
                         </td>
                         <td className="px-3 py-3">
                           <span className={STATE_CLASS[user.state]}>
@@ -402,6 +448,7 @@ export default function PermissionsPage() {
       {showInvite && data && (
         <InviteStaffModal
           roles={data.roles.filter((r) => !r.permissions.includes(OWNER_WILDCARD))}
+          teachers={teachers}
           returnFocusRef={inviteTriggerRef}
           onClose={() => setShowInvite(false)}
           onCreated={(message, delivered) => {
@@ -575,11 +622,13 @@ function RolePermissionEditor({
 
 function InviteStaffModal({
   roles,
+  teachers,
   returnFocusRef,
   onClose,
   onCreated,
 }: {
   roles: RoleRow[];
+  teachers: TeacherOption[];
   returnFocusRef: RefObject<HTMLButtonElement | null>;
   onClose: () => void;
   onCreated: (message: string, delivered: boolean) => void;
@@ -591,29 +640,6 @@ function InviteStaffModal({
   const [teacherId, setTeacherId] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [teachers, setTeachers] = useState<{ id: string; name: string }[]>([]);
-
-  // Loaded here rather than by the page: only this form needs them, and a list
-  // that is empty simply leaves the account unlinked.
-  useEffect(() => {
-    let cancelled = false;
-    axios
-      .get<{ teachers?: { id: string; name: string }[] } | { id: string; name: string }[]>(
-        "/api/teachers"
-      )
-      .then((res) => {
-        if (cancelled) return;
-        const body = res.data;
-        const list = Array.isArray(body) ? body : (body.teachers ?? []);
-        setTeachers(list.map((row) => ({ id: row.id, name: row.name })));
-      })
-      .catch(() => {
-        // Not fatal: the picker is optional, so it degrades to "no link".
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

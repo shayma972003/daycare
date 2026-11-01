@@ -34,10 +34,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!account) return;
-    void registerDeviceForPush().catch(() => undefined);
-    if (account.kind === "staff" && account.teacherId) {
-      void syncLocationAttendance().catch(() => undefined);
-    }
+    void (async () => {
+      // Ask for one system permission at a time. Android may dismiss one of two
+      // overlapping permission dialogs, which previously made location setup
+      // appear to do nothing immediately after sign-in.
+      await registerDeviceForPush().catch(() => undefined);
+      if (account.kind === "staff" && account.teacherId) {
+        await syncLocationAttendance({ requestPermissions: true }).catch(() => undefined);
+      }
+    })();
   }, [account]);
 
   const signOut = useCallback(async () => {

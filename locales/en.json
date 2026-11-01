@@ -1546,6 +1546,7 @@
     "loadFailed": "Could not load the permissions",
     "updateFailed": "Could not update the account",
     "roleChangeFailed": "Could not change the role",
+    "teacherLinkChangeFailed": "Could not update the linked teacher record",
     "staffAccounts": "Staff accounts",
     "noRole": "No role",
     "disabled": "Disabled",
@@ -1581,6 +1582,8 @@
     "optional": "(optional)",
     "administrativeAccount": "Administrative account — no teacher record",
     "teacherLinkHelp": "A linked teacher sees only children in their classes in the app, and care reports are attributed to them.",
+    "changeTeacherFor": "Change the teacher record linked to {name}'s account",
+    "teacherLinkUpdated": "The teacher record linked to {name}'s account was updated",
     "accountStates": {
       "invited": "Awaiting invitation acceptance",
       "expired": "Invitation expired",

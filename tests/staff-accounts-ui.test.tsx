@@ -78,6 +78,7 @@ const rolesResponse = {
 };
 
 let staffRows: StaffFixture[] = [];
+let teacherRows: { id: string; name: string }[] = [];
 
 function staff(
   id: string,
@@ -120,10 +121,11 @@ afterEach(cleanup);
 beforeEach(() => {
   vi.clearAllMocks();
   staffRows = [];
+  teacherRows = [];
   axiosMocks.get.mockImplementation((url: string) => {
     if (url === "/api/roles") return Promise.resolve({ data: rolesResponse });
     if (url === "/api/staff-accounts") return Promise.resolve({ data: staffRows });
-    if (url === "/api/teachers") return Promise.resolve({ data: { teachers: [] } });
+    if (url === "/api/teachers") return Promise.resolve({ data: { teachers: teacherRows } });
     return Promise.reject(new Error(`Unexpected GET in staff account UI test: ${url}`));
   });
   axiosMocks.put.mockResolvedValue({ status: 200, data: {} });
@@ -287,5 +289,24 @@ describe("staff invitation states and account actions", () => {
         disabled: true,
       })
     );
+  });
+
+  it("links an existing app account to a teacher record", async () => {
+    const user = userEvent.setup();
+    teacherRows = [{ id: "teacher-1", name: "Sarah Teacher" }];
+    staffRows = [staff("staff-1", "Staff One", "active")];
+    renderPage();
+
+    const teacher = await screen.findByRole("combobox", {
+      name: "Change the teacher record linked to Staff One's account",
+    });
+    await user.selectOptions(teacher, "teacher-1");
+
+    await waitFor(() =>
+      expect(axiosMocks.put).toHaveBeenCalledWith("/api/staff-accounts/staff-1", {
+        teacherId: "teacher-1",
+      })
+    );
+    expect(await screen.findByText("The teacher record linked to Staff One's account was updated")).not.toBeNull();
   });
 });

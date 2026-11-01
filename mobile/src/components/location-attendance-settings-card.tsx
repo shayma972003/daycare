@@ -15,19 +15,20 @@ const statusCopy: Record<LocationAttendanceSetupStatus, string> = {
   unavailable: "الحضور بالموقع غير متاح على هذا الجهاز",
 };
 
-export function LocationAttendanceSettingsCard() {
+export function LocationAttendanceSettingsCard({ linked }: { linked: boolean }) {
   const [status, setStatus] = useState<LocationAttendanceSetupStatus | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(linked);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!linked) return;
     let active = true;
     syncLocationAttendance()
       .then((result) => { if (active) setStatus(result.status); })
       .catch(() => { if (active) setError("تعذر التحقق من إعدادات الموقع"); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, []);
+  }, [linked]);
 
   const enable = async () => {
     setLoading(true);
@@ -46,17 +47,19 @@ export function LocationAttendanceSettingsCard() {
     <View style={styles.card}>
       <Text style={styles.title}>الحضور التلقائي بالموقع</Text>
       <Text style={styles.copy}>يسجل دخولك عند وصولك إلى نطاق المدرسة وخروجك عند مغادرته. لا يحفظ التطبيق مسار حركتك.</Text>
-      {loading ? <ActivityIndicator color={colors.primary} /> : (
+      {!linked ? (
+        <Text style={styles.status}>اربطي حساب التطبيق بملف المعلمة من حسابات الموظفين في النظام أولًا.</Text>
+      ) : loading ? <ActivityIndicator color={colors.primary} /> : (
         <Text style={[styles.status, status === "active" && styles.active]}>
           {error ?? (status ? statusCopy[status] : "غير معروف")}
         </Text>
       )}
-      {status !== "disabled" && status !== "unavailable" ? (
+      {linked && status !== "disabled" && status !== "unavailable" ? (
         <Pressable accessibilityRole="button" disabled={loading} onPress={() => void enable()} style={({ pressed }) => [styles.button, pressed && styles.pressed]}>
           <Text style={styles.buttonText}>{status === "active" ? "تحديث إعداد الموقع" : "تفعيل إذن الموقع"}</Text>
         </Pressable>
       ) : null}
-      {status === "permission-required" ? (
+      {linked && status === "permission-required" ? (
         <Pressable accessibilityRole="link" onPress={() => void Linking.openSettings()}>
           <Text style={styles.link}>فتح إعدادات الهاتف</Text>
         </Pressable>

@@ -1546,6 +1546,7 @@
     "loadFailed": "تعذر تحميل الصلاحيات",
     "updateFailed": "تعذر تحديث الحساب",
     "roleChangeFailed": "تعذر تغيير الدور",
+    "teacherLinkChangeFailed": "تعذر تحديث ربط ملف المعلمة",
     "staffAccounts": "حسابات الموظفين",
     "noRole": "بلا دور",
     "disabled": "معطَّل",
@@ -1581,6 +1582,8 @@
     "optional": "(اختياري)",
     "administrativeAccount": "حساب إداري — بلا سجلّ معلّمة",
     "teacherLinkHelp": "المعلّمة المرتبطة ترى أطفال فصولها فقط في التطبيق، وتُنسب تقارير الرعاية إليها.",
+    "changeTeacherFor": "تغيير ملف المعلمة المرتبط بحساب {name}",
+    "teacherLinkUpdated": "تم تحديث ملف المعلمة المرتبط بحساب {name}",
     "accountStates": {
       "invited": "بانتظار قبول الدعوة",
       "expired": "انتهت صلاحية الدعوة",

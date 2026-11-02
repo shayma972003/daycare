@@ -66,6 +66,9 @@ export class SubscriptionLockedError extends Error {
 
 const LOCKED_ACCESS_ALLOWLIST = [
   "/api/subscription",
+  // The school must still be told when platform support is looking at its
+  // account, even if its subscription is currently read-only.
+  "/api/support-presence",
 ];
 
 async function enforceSubscriptionAccess(access: SchoolSubscriptionAccess): Promise<void> {
@@ -143,7 +146,10 @@ export async function requireSession(): Promise<AuthSession> {
     const subscription = schoolSubscriptionAccess(school);
     const permissions = [...SUPPORT_VIEW_PERMISSIONS];
     await enforceRoutePermission(permissions);
-    await enforceSubscriptionAccess(subscription);
+    // Support access is a separate, short-lived platform session. It must stay
+    // usable when the tenant subscription is locked; otherwise even the
+    // presence heartbeat returns 423 and the read-only banner disappears.
+    // Mutations are still rejected by proxy.ts for the entire support session.
     return {
       user: {
         id: `support:${supportView.id}`,

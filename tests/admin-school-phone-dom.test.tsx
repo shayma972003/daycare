@@ -144,6 +144,17 @@ describe("Super Admin school phone fields", () => {
     expect(screen.getByText("رمز الجهاز غير صالح أو أُلغي تسجيله", { exact: false })).toBeTruthy();
   });
 
+  it("opens the general information editor when the top edit button is pressed", async () => {
+    render(<SchoolDetailPage />);
+
+    expect(await screen.findByText("ملخص الدعم الفني")).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "تعديل" }));
+
+    expect(screen.getByRole("tab", { name: "معلومات عامة" }).getAttribute("data-state")).toBe("active");
+    expect(screen.getByLabelText("رقم التواصل الإداري")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "حفظ" })).toBeTruthy();
+  });
+
   it("diagnoses a registered device and queues a scoped test notification", async () => {
     render(<SchoolDetailPage />);
     await userEvent.click(await screen.findByRole("tab", { name: "تشخيص الإرسال" }));

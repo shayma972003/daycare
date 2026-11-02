@@ -185,6 +185,8 @@ export const ROUTE_PERMISSIONS: Record<string, RouteRule> = {
   "/api/financial-reports/generate": { default: "finance.manage" },
   "/api/statistics/dashboard": { default: "finance.view" },
   "/api/statistics/export/excel": { default: "finance.view" },
+  "/api/subscription": { methods: { GET: "finance.subscriptions" } },
+  "/api/subscription/checkout": { default: "finance.subscriptions" },
 
   // ── Calendar and teaching units ─────────────────────────────────────────
   "/api/calendar": {

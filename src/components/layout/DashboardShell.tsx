@@ -71,7 +71,7 @@ export function DashboardShell({
   return (
     <DashboardNavigationContext.Provider value={navigation}>
       <div className="min-h-screen w-full overflow-x-clip bg-brand-bg">
-        <Sidebar schoolName={schoolName} schoolLogo={schoolLogo} subscriptionAccess={supportAccess ? undefined : subscriptionAccess} />
+        <Sidebar schoolName={schoolName} schoolLogo={schoolLogo} subscriptionAccess={supportAccess ? undefined : subscriptionAccess} supportReadOnly={Boolean(supportAccess)} />
         <MobileSidebar
           open={mobileOpen}
           onClose={closeMobile}
@@ -79,6 +79,7 @@ export function DashboardShell({
           schoolName={schoolName}
           schoolLogo={schoolLogo}
           subscriptionAccess={supportAccess ? undefined : subscriptionAccess}
+          supportReadOnly={Boolean(supportAccess)}
         />
         <main
           id="dashboard-main"

@@ -7,6 +7,7 @@ import { useLocale } from "@/lib/i18n-provider";
 import { describeApiError } from "@/lib/api-error";
 import { MoyasarPaymentForm } from "@/components/subscription/MoyasarPaymentForm";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { usePermissions } from "@/lib/use-permissions";
 
 type Interval = "MONTHLY" | "YEARLY";
 type SubscriptionData = {
@@ -18,6 +19,8 @@ type SubscriptionData = {
 
 export default function SubscriptionPage() {
   const { t, locale } = useLocale();
+  const { me } = usePermissions();
+  const supportReadOnly = me?.role === "support_read_only";
   const [data, setData] = useState<SubscriptionData | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedPayment, setSelectedPayment] = useState<Interval | null>(null);
@@ -67,8 +70,8 @@ export default function SubscriptionPage() {
                 <div className="text-sm font-semibold text-indigo-700">{t(monthly ? "schoolSubscription.monthly" : "schoolSubscription.yearly")}</div>
                 <div className="mt-4 text-4xl font-black text-gray-950" dir="ltr">{formatCurrency(plan.price, locale)}</div>
                 <p className="mt-2 text-sm text-gray-500">{t(monthly ? "schoolSubscription.perMonth" : "schoolSubscription.perYear")}</p>
-                <button type="button" disabled={!data?.configured} onClick={() => setSelectedPayment(plan.billing_interval)} className="mt-6 w-full rounded-xl bg-gray-950 px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40">
-                  {selectedPayment === plan.billing_interval ? t("schoolSubscription.paymentFormOpen") : t("schoolSubscription.renew")}
+                <button type="button" disabled={!data?.configured || supportReadOnly} onClick={() => setSelectedPayment(plan.billing_interval)} className="mt-6 w-full rounded-xl bg-gray-950 px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40">
+                  {supportReadOnly ? "للقراءة فقط" : selectedPayment === plan.billing_interval ? t("schoolSubscription.paymentFormOpen") : t("schoolSubscription.renew")}
                 </button>
               </article>
             );
@@ -76,7 +79,7 @@ export default function SubscriptionPage() {
           {loading && <div className="col-span-full rounded-2xl bg-white p-8 text-center text-sm text-gray-500">{t("common.loading")}</div>}
         </section>
 
-        {selectedPayment && data?.configured && (
+        {selectedPayment && data?.configured && !supportReadOnly && (
           <MoyasarPaymentForm
             key={selectedPayment}
             billingInterval={selectedPayment}

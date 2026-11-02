@@ -49,6 +49,7 @@ describe("tenant support presence", () => {
 
     expect(response.status).toBe(200);
     expect(body).toMatchObject({ active: true, isSupportViewer: false });
+    expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
   });
 
   it("records every dashboard path viewed by support", async () => {
@@ -87,5 +88,17 @@ describe("tenant support presence", () => {
       where: { id: "access-1" },
       data: { revokedAt: expect.any(Date) },
     }));
+  });
+
+  it("clears a stale local support overlay even after the database session ended", async () => {
+    mocks.requireSession.mockRejectedValue(new Error("expired support session"));
+
+    const response = await DELETE();
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({ success: true, cleared: true });
+    expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
+    expect(mocks.accessUpdate).not.toHaveBeenCalled();
   });
 });

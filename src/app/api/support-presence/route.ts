@@ -23,7 +23,16 @@ export async function GET() {
     active: Boolean(active),
     expiresAt: active?.expiresAt ?? null,
     isSupportViewer: session.isSupportAccess,
-  }, { headers: { "Cache-Control": "no-store" } });
+  }, {
+    headers: {
+      "Cache-Control": "no-store",
+      // If a support session was revoked from the admin workspace, the signed
+      // token can outlive the database row for a few minutes. Once the request
+      // resolves as a normal school session, clear that stale browser overlay
+      // so the school cannot remain trapped in read-only mode.
+      ...(!session.isSupportAccess ? { "Set-Cookie": clearSupportViewCookie() } : {}),
+    },
+  });
 }
 
 export async function POST(request: Request) {
@@ -73,11 +82,19 @@ export async function DELETE() {
   let session;
   try {
     session = await requireSession();
-  } catch (error) {
-    return sessionErrorResponse(error) ?? Response.json({ error: "Unauthorized" }, { status: 401 });
+  } catch {
+    // Clearing a local support overlay is always safe. This is also the escape
+    // hatch for a token whose database session was revoked in another tab.
+    return Response.json(
+      { success: true, cleared: true },
+      { headers: { "Cache-Control": "no-store", "Set-Cookie": clearSupportViewCookie() } },
+    );
   }
   if (!session.isSupportAccess || !session.supportAccessId) {
-    return Response.json({ error: "هذا الإجراء مخصص لجلسة الدعم" }, { status: 403 });
+    return Response.json(
+      { success: true, cleared: true },
+      { headers: { "Cache-Control": "no-store", "Set-Cookie": clearSupportViewCookie() } },
+    );
   }
   const now = new Date();
   const access = await prisma.supportAccessSession.findFirst({

@@ -172,6 +172,7 @@ export default function SchoolDetailPage() {
   const [subscriptionType, setSubscriptionType] = useState<SubscriptionType>("TRIAL");
   const [subscriptionSaving, setSubscriptionSaving] = useState(false);
   const [identitySaving, setIdentitySaving] = useState(false);
+  const [activeTab, setActiveTab] = useState("support");
 
   // Edit form state
   const [editing, setEditing] = useState(false);
@@ -463,7 +464,18 @@ export default function SchoolDetailPage() {
           <h1 className="text-2xl font-bold text-white">{school.name}</h1>
         </div>
         <div className="flex gap-3">
-          {!editing && <button onClick={() => setEditing(true)} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-xl">تعديل</button>}
+          {!editing && (
+            <button
+              type="button"
+              onClick={() => {
+                setEditing(true);
+                setActiveTab("info");
+              }}
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-xl"
+            >
+              تعديل
+            </button>
+          )}
           {isSuspended
             ? <button onClick={onReactivate} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm rounded-xl">إعادة تفعيل</button>
             : <button onClick={() => setSuspendOpen(true)} className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm rounded-xl">إيقاف مؤقت</button>
@@ -507,7 +519,7 @@ export default function SchoolDetailPage() {
         </button>
       </section>
 
-      <Tabs.Root defaultValue="support">
+      <Tabs.Root value={activeTab} onValueChange={setActiveTab}>
         <Tabs.List className="flex gap-1 bg-[#1e1e2e] p-1 rounded-xl w-fit border border-white/5 mb-6">
           {[
             { value: "support", label: "الدعم 360" },

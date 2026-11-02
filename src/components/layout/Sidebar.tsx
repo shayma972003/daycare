@@ -18,12 +18,14 @@ interface SidebarProps {
   schoolName?: string | null;
   schoolLogo?: string | null;
   subscriptionAccess?: SchoolSubscriptionAccess;
+  supportReadOnly?: boolean;
 }
 
 function SidebarContent({
   schoolName: schoolNameProp,
   schoolLogo,
   subscriptionAccess,
+  supportReadOnly = false,
   onNavigate,
 }: SidebarProps & { onNavigate?: () => void }) {
   // Locale-aware translation — see src/lib/i18n.tsx.
@@ -83,6 +85,7 @@ function SidebarContent({
              no permission. Filling a short menu in reads better than showing
              everything and taking entries away a moment later. */
           const visible = group.items.filter((item) => {
+            if (supportReadOnly) return item.href !== "/assistant";
             if (subscriptionAccess?.mode === "locked" && item.href !== "/subscription") return false;
             return item.permission === null || (!permissionsLoading && can(item.permission));
           });
@@ -137,7 +140,7 @@ function SidebarContent({
                     </Link>
                   );
 
-                  return item.permission === null ? (
+                  return supportReadOnly || item.permission === null ? (
                     <div key={item.href}>{link}</div>
                   ) : (
                     <PermissionGate key={item.href} permission={item.permission}>
@@ -154,7 +157,11 @@ function SidebarContent({
       {/* Language and logout */}
       <div className="relative space-y-1 border-t border-[#EEEAF2] p-3">
         <LanguageSwitcher />
-        <button
+        {supportReadOnly ? (
+          <p className="rounded-xl bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-900">
+            أنهي المعاينة من الشريط الأصفر أعلى الصفحة للعودة إلى لوحة الدعم.
+          </p>
+        ) : <button
           onClick={() => {
             clearPermissions();
             void signOut({ callbackUrl: "/login", redirect: false });
@@ -163,7 +170,7 @@ function SidebarContent({
         >
           <div className="h-2 w-2 flex-shrink-0 rounded-full border border-[#B8AFBF]" />
           <span>{t("auth.logout")}</span>
-        </button>
+        </button>}
       </div>
     </div>
   );

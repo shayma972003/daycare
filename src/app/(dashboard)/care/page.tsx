@@ -289,6 +289,22 @@ export default function CarePage() {
     }
   }
 
+  if (me?.role === "support_read_only") {
+    return (
+      <div dir={locale === "ar" ? "rtl" : "ltr"} className="min-h-screen bg-[#F8F7FA]">
+        <Topbar title={t("care.title")} />
+        <main className="mx-auto max-w-[900px] p-4 sm:p-6 lg:p-8">
+          <section className="rounded-2xl border border-amber-200 bg-white p-6 shadow-sm">
+            <h1 className="text-lg font-bold text-[#2D2238]">تقارير الرعاية</h1>
+            <p className="mt-2 text-sm leading-7 text-[#6F6379]">
+              التبويب متاح في وضع الدعم، لكن تفاصيل تقارير الأطفال محجوبة لأنها بيانات حساسة. يمكنك التحقق من أن القسم موجود والتنقل إليه دون تعديل أي بيانات.
+            </p>
+          </section>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div dir={locale === "ar" ? "rtl" : "ltr"} className="min-h-screen bg-[#F8F7FA]">
       <Topbar title={t("care.title")} />

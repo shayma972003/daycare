@@ -3,7 +3,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { LocaleProvider } from "@/lib/i18n-provider";
-import { HourGrid, MonthGrid } from "@/app/(dashboard)/calendar/page";
+import { HourGrid, MonthGrid } from "@/components/calendar/CalendarGrids";
 import type { CalendarEventType } from "@/generated/prisma/enums";
 
 afterEach(cleanup);

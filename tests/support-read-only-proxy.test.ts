@@ -43,11 +43,21 @@ describe("support view edge guard", () => {
     expect(childDetail.status).toBe(403);
   });
 
+  it("keeps every dashboard page navigable instead of redirecting to a look-alike dashboard", async () => {
+    for (const path of ["/care", "/statistics", "/settings", "/subscription"]) {
+      const response = await proxy(request(path));
+      expect(response.status).toBe(200);
+      expect(response.headers.get("location")).toBeNull();
+    }
+  });
+
   it("allows safe read-only tenant routes and the audit endpoint", async () => {
     const safeRead = await proxy(request("/api/classes"));
+    const financeSummary = await proxy(request("/api/statistics/dashboard"));
     const auditWrite = await proxy(request("/api/support-presence", "POST"));
 
     expect(safeRead.status).toBe(200);
+    expect(financeSummary.status).toBe(200);
     expect(auditWrite.status).toBe(200);
   });
 });

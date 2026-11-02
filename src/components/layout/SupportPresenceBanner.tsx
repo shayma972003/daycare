@@ -26,12 +26,21 @@ export function SupportPresenceBanner({ initial }: { initial?: Presence | null }
     const refresh = () => {
       axios.get<Presence>("/api/support-presence")
         .then((response) => { if (active) setPresence(response.data); })
-        .catch(() => { if (active && presence?.isSupportViewer) setPresence(null); });
+        .catch((error: unknown) => {
+          if (!active) return;
+          const status = axios.isAxiosError(error) ? error.response?.status : undefined;
+          // A temporary network/server failure must not make the visible safety
+          // indicator vanish. Hide it only when the server confirms that this
+          // support identity is no longer usable.
+          if (status === 401 || status === 410) {
+            setPresence((current) => current?.isSupportViewer ? null : current);
+          }
+        });
     };
     refresh();
     const timer = window.setInterval(refresh, 10_000);
     return () => { active = false; window.clearInterval(timer); };
-  }, [presence?.isSupportViewer]);
+  }, []);
 
   useEffect(() => {
     if (!presence?.active || !presence.isSupportViewer) return;

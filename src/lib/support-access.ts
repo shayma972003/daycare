@@ -30,4 +30,6 @@ export const SUPPORT_VIEW_PERMISSIONS = [
   "schedule.view",
   "attendance.students",
   "attendance.staff",
+  "finance.view",
+  "finance.subscriptions",
 ] as const;

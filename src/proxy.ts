@@ -58,22 +58,17 @@ function isPublicApi(pathname: string, method: string): boolean {
   );
 }
 
-function isSensitiveSupportPath(pathname: string): boolean {
-  if (/^\/(?:care|settings|subscription|assistant|statistics)(?:\/|$)/.test(pathname)) return true;
-  if (/^\/(?:students|teachers)\/[^/]+(?:\/|$)/.test(pathname)) return true;
+function isSensitiveSupportApiPath(pathname: string): boolean {
+  // Page navigation remains available so support never lands on a look-alike
+  // dashboard after a redirect. Sensitive records are blocked at the API
+  // boundary instead, while safe aggregate/read-only screens keep working.
   if (/^\/api\/(?:students|teachers)\/[^/]+(?:\/|$)/.test(pathname)) return true;
   return [
     "/api/care-reports",
     "/api/files",
     "/api/guardian-accounts",
     "/api/guardians",
-    "/api/invoices",
-    "/api/expenses",
-    "/api/finance",
-    "/api/financial-reports",
-    "/api/statistics/dashboard",
     "/api/statistics/export",
-    "/api/settings",
     "/api/notifications",
     "/api/search",
     "/api/assistant",
@@ -106,13 +101,8 @@ export async function proxy(request: NextRequest) {
   const supportCookie = request.cookies.get(SUPPORT_VIEW_COOKIE_NAME)?.value;
   const supportView = supportCookie ? await verifySupportViewToken(supportCookie) : null;
   if (supportView) {
-    if (isSensitiveSupportPath(pathname)) {
-      if (pathname.startsWith("/api/")) {
-        return NextResponse.json({ error: "البيانات الحساسة محجوبة في وضع الدعم", code: "SUPPORT_SENSITIVE_DATA_BLOCKED" }, { status: 403 });
-      }
-      const safeUrl = new URL("/dashboard", request.url);
-      safeUrl.searchParams.set("supportBlocked", "sensitive");
-      return NextResponse.redirect(safeUrl);
+    if (isSensitiveSupportApiPath(pathname)) {
+      return NextResponse.json({ error: "البيانات الحساسة محجوبة في وضع الدعم", code: "SUPPORT_SENSITIVE_DATA_BLOCKED" }, { status: 403 });
     }
     const supportAuditRequest = pathname === "/api/support-presence";
     if (pathname.startsWith("/api/") && request.method !== "GET" && !supportAuditRequest) {

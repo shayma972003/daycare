@@ -9,18 +9,27 @@ describe("mobile shared shell UX", () => {
   const language = source("mobile", "src", "language.tsx");
 
   it("mirrors Arabic layout and text instead of only translating labels", () => {
-    expect(language).toContain("I18nManager.allowRTL(true)");
-    expect(language).toContain('I18nManager.forceRTL(next === "ar")');
-    expect(appScreen).toContain('direction: isRTL ? "rtl" : "ltr"');
+    expect(language).toContain("I18nManager.allowRTL(false)");
+    expect(language).toContain("I18nManager.forceRTL(false)");
+    expect(language).toContain("I18nManager.swapLeftAndRightInRTL(false)");
+    expect(appScreen).not.toContain('direction: isRTL ? "rtl" : "ltr"');
+    expect(appScreen).toContain('flexDirection: isRTL ? "row-reverse" : "row"');
     expect(language).toContain('textAlign: centered ? "center" : isRTL ? "right" : "left"');
   });
 
-  it("offers language switching on sign-in with language-aware field direction", () => {
+  it("offers a keyboard-safe bilingual sign-in with password visibility", () => {
     const signIn = source("mobile", "src", "app", "sign-in.tsx");
+    const appConfig = source("mobile", "app.json");
     expect(signIn).toContain('setLanguage(language === "ar" ? "en" : "ar")');
-    expect(signIn).toContain('direction: isRTL ? "rtl" : "ltr"');
+    expect(signIn).toContain('behavior={Platform.OS === "ios" ? "padding" : "height"}');
+    expect(signIn).toContain("automaticallyAdjustKeyboardInsets");
+    expect(signIn).toContain('keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}');
+    expect(signIn).toContain("secureTextEntry={!passwordVisible}");
+    expect(signIn).toContain('android: passwordVisible ? "visibility_off" : "visibility"');
     expect(signIn).toContain('writingDirection: isRTL ? "rtl" : "ltr"');
     expect(signIn).toContain('textAlign={isRTL ? "right" : "left"}');
+    expect(signIn).toContain('alignItems: isRTL ? "flex-start" : "flex-end"');
+    expect(appConfig).toContain('"softwareKeyboardLayoutMode": "resize"');
   });
 
   it("uses the native pull-to-refresh gesture in the shared page container", () => {

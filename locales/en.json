@@ -640,6 +640,10 @@
     "checkedOut": "✓ Out",
     "addNew": "Add a new employee",
     "data": "Employee details",
+    "jobTitle": "Job title",
+    "selectJobTitle": "Select a job title",
+    "educationLevel": "Education level",
+    "specialization": "Specialization",
     "nationalId": "National ID / Iqama",
     "joinDate": "Join date",
     "contractEnd": "Contract end date",
@@ -649,6 +653,21 @@
     "addNewShort": "Add a new employee",
     "uploadFile": "Upload the employees file",
     "leftAt": "Out {time}"
+  },
+  "employeeRoles": {
+    "admin_assistant": "Administrative assistant",
+    "teacher": "Teacher",
+    "teacher_assistant": "Assistant teacher",
+    "accountant": "Accountant",
+    "hr": "Human resources"
+  },
+  "educationLevels": {
+    "HIGH_SCHOOL": "High school",
+    "DIPLOMA": "Diploma",
+    "BACHELOR": "Bachelor's degree",
+    "MASTER": "Master's degree",
+    "PHD": "Doctorate",
+    "OTHER": "Other"
   },
   "statistics": {
     "title": "Statistics",

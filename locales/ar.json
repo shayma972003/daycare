@@ -640,6 +640,10 @@
     "checkedOut": "✓ خرج",
     "addNew": "إضافة موظف جديد",
     "data": "بيانات الموظف",
+    "jobTitle": "المسمى الوظيفي",
+    "selectJobTitle": "اختر المسمى الوظيفي",
+    "educationLevel": "المستوى التعليمي",
+    "specialization": "التخصص",
     "nationalId": "رقم الهوية / الإقامة",
     "joinDate": "تاريخ الانضمام",
     "contractEnd": "تاريخ انتهاء العقد",
@@ -649,6 +653,21 @@
     "addNewShort": "أضف موظفًا جديدًا",
     "uploadFile": "ارفع ملف الموظفين",
     "leftAt": "خرج {time}"
+  },
+  "employeeRoles": {
+    "admin_assistant": "مساعد إداري",
+    "teacher": "معلم",
+    "teacher_assistant": "مساعد معلم",
+    "accountant": "محاسب",
+    "hr": "موارد بشرية"
+  },
+  "educationLevels": {
+    "HIGH_SCHOOL": "ثانوي",
+    "DIPLOMA": "دبلوم",
+    "BACHELOR": "بكالوريوس",
+    "MASTER": "ماجستير",
+    "PHD": "دكتوراه",
+    "OTHER": "أخرى"
   },
   "statistics": {
     "title": "الإحصائيات",

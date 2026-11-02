@@ -11,7 +11,7 @@ import "@/location-attendance/task";
 
 function SessionGate() {
   const { account, loading } = useSession();
-  const { isRTL, loading: languageLoading } = useLanguage();
+  const { loading: languageLoading } = useLanguage();
   const segments = useSegments();
   const router = useRouter();
 
@@ -42,7 +42,7 @@ function SessionGate() {
     <Stack
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: colors.background, direction: isRTL ? "rtl" : "ltr" },
+        contentStyle: { backgroundColor: colors.background },
       }}
     />
   );

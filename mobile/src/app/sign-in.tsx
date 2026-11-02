@@ -9,6 +9,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { SymbolView } from "expo-symbols";
 
 import { signIn } from "@/api/auth";
 import { ApiError, type AccountKind } from "@/api/client";
@@ -29,6 +30,7 @@ export default function SignInScreen() {
   const [kind, setKind] = useState<AccountKind>("guardian");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [passwordVisible, setPasswordVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -53,27 +55,17 @@ export default function SignInScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboard}
       >
         <ScrollView
-          contentContainerStyle={[styles.page, { direction: isRTL ? "rtl" : "ltr" }]}
+          automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
+          contentContainerStyle={styles.page}
+          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={[styles.languageRow, { flexDirection: isRTL ? "row" : "row-reverse" }]}>
-            <Pressable
-              accessibilityLabel={language === "ar" ? "English" : "العربية"}
-              accessibilityRole="button"
-              onPress={() => void setLanguage(language === "ar" ? "en" : "ar")}
-              style={({ pressed }) => [styles.languageButton, pressed && styles.pressed]}
-            >
-              <Text style={styles.languageIcon}>◎</Text>
-              <Text style={styles.languageText}>{language === "ar" ? "English" : "العربية"}</Text>
-            </Pressable>
-          </View>
-
-          <View style={[styles.intro, { direction: isRTL ? "rtl" : "ltr" }]}>
+          <View style={styles.intro}>
             <View style={[styles.brandRow, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
               <View style={styles.logo}>
                 <Text style={styles.logoText}>ر</Text>
@@ -88,7 +80,19 @@ export default function SignInScreen() {
             <Text style={styles.subtitle}>تطبيق المدرسة لولي الأمر والمعلم</Text>
           </View>
 
-          <View style={[styles.card, { direction: isRTL ? "rtl" : "ltr" }]}>
+          <View style={styles.card}>
+            <View style={[styles.languageRow, { alignItems: isRTL ? "flex-start" : "flex-end" }]}>
+              <Pressable
+                accessibilityLabel={language === "ar" ? "English" : "العربية"}
+                accessibilityRole="button"
+                onPress={() => void setLanguage(language === "ar" ? "en" : "ar")}
+                style={({ pressed }) => [styles.languageButton, pressed && styles.pressed]}
+              >
+                <Text style={styles.languageIcon}>◎</Text>
+                <Text style={styles.languageText}>{language === "ar" ? "English" : "العربية"}</Text>
+              </Pressable>
+            </View>
+
             <Text style={styles.sectionTitle}>نوع الحساب</Text>
             <View style={[styles.segmented, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
               {kinds.map((item) => {
@@ -130,19 +134,48 @@ export default function SignInScreen() {
 
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>كلمة المرور</Text>
-              <TextInput
-                autoCapitalize="none"
-                autoComplete="current-password"
-                onChangeText={setPassword}
-                onSubmitEditing={submit}
-                placeholder="••••••••"
-                placeholderTextColor={colors.muted}
-                returnKeyType="done"
-                secureTextEntry
-                style={[styles.input, { writingDirection: isRTL ? "rtl" : "ltr" }]}
-                textAlign={isRTL ? "right" : "left"}
-                value={password}
-              />
+              <View style={styles.passwordField}>
+                <TextInput
+                  autoCapitalize="none"
+                  autoComplete="current-password"
+                  onChangeText={setPassword}
+                  onSubmitEditing={submit}
+                  placeholder="••••••••"
+                  placeholderTextColor={colors.muted}
+                  returnKeyType="done"
+                  secureTextEntry={!passwordVisible}
+                  style={[
+                    styles.input,
+                    styles.passwordInput,
+                    isRTL ? styles.passwordInputRtl : styles.passwordInputLtr,
+                    { writingDirection: isRTL ? "rtl" : "ltr" },
+                  ]}
+                  textAlign={isRTL ? "right" : "left"}
+                  value={password}
+                />
+                <Pressable
+                  accessibilityLabel={passwordVisible ? "إخفاء كلمة المرور" : "إظهار كلمة المرور"}
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: passwordVisible }}
+                  hitSlop={8}
+                  onPress={() => setPasswordVisible((visible) => !visible)}
+                  style={({ pressed }) => [
+                    styles.passwordToggle,
+                    isRTL ? styles.passwordToggleRtl : styles.passwordToggleLtr,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <SymbolView
+                    name={{
+                      ios: passwordVisible ? "eye.slash" : "eye",
+                      android: passwordVisible ? "visibility_off" : "visibility",
+                      web: passwordVisible ? "visibility_off" : "visibility",
+                    }}
+                    size={22}
+                    tintColor={colors.primary}
+                  />
+                </Pressable>
+              </View>
             </View>
 
             {error ? (
@@ -170,8 +203,10 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 520,
     alignSelf: "center",
-    justifyContent: "center",
-    padding: spacing.lg,
+    justifyContent: "flex-start",
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.xl * 2,
     gap: spacing.lg,
   },
   intro: { alignItems: "stretch", gap: spacing.sm },
@@ -283,6 +318,28 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     backgroundColor: colors.background,
   },
+  passwordField: {
+    position: "relative",
+  },
+  passwordInput: {
+    width: "100%",
+  },
+  passwordInputRtl: {
+    paddingLeft: touchTarget + spacing.sm,
+  },
+  passwordInputLtr: {
+    paddingRight: touchTarget + spacing.sm,
+  },
+  passwordToggle: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    width: touchTarget,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  passwordToggleRtl: { left: spacing.xs },
+  passwordToggleLtr: { right: spacing.xs },
   errorBox: {
     padding: spacing.md,
     borderRadius: radius.md,

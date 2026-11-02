@@ -18,7 +18,7 @@ export function AppScreen({ title, subtitle, children, refreshing = false, onRef
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "right", "left"]}>
       <ScrollView
-        contentContainerStyle={[styles.content, { direction: isRTL ? "rtl" : "ltr" }]}
+        contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
         refreshControl={onRefresh ? (
           <RefreshControl

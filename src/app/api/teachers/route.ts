@@ -9,6 +9,10 @@ import { optionalPhone } from "@/lib/form-schemas";
 import { normalizePhone } from "@/lib/phone-normalizer";
 import { z } from "zod";
 import { assertClassOwned, crossTenantResponse } from "@/lib/tenant-guard";
+import {
+  EDUCATION_LEVEL_VALUES,
+  EMPLOYEE_JOB_TITLE_VALUES,
+} from "@/lib/employee-role-options";
 
 const createTeacherSchema = z.object({
   name: z.string().min(1),
@@ -34,9 +38,19 @@ const createTeacherSchema = z.object({
   monthlySalary: z.number().min(0).max(1_000_000).optional(),
   /** A percentage. Above 100 would deduct more than the hour is worth. */
   lateDeductionRate: z.number().min(0).max(100).optional(),
+  jobTitle: z.enum(EMPLOYEE_JOB_TITLE_VALUES),
+  educationLevel: z.enum(EDUCATION_LEVEL_VALUES).nullish(),
+  specialization: z.string().trim().max(120).nullish(),
   qualification1: z.string().optional(),
   qualification2: z.string().optional(),
   qualification3: z.string().optional(),
+  qualification4: z.string().optional(),
+  qualification5: z.string().optional(),
+  qualification6: z.string().optional(),
+  qualification7: z.string().optional(),
+  qualification8: z.string().optional(),
+  qualification9: z.string().optional(),
+  qualification10: z.string().optional(),
   enrollmentEndDate: z.string().optional(),
 });
 
@@ -129,9 +143,19 @@ export async function POST(request: Request) {
     joinDate,
     monthlySalary,
     lateDeductionRate,
+    jobTitle,
+    educationLevel,
+    specialization,
     qualification1,
     qualification2,
     qualification3,
+    qualification4,
+    qualification5,
+    qualification6,
+    qualification7,
+    qualification8,
+    qualification9,
+    qualification10,
     enrollmentEndDate,
   } = parsed.data;
 
@@ -169,9 +193,19 @@ export async function POST(request: Request) {
         ...(joinDate !== undefined && { joinDate: new Date(joinDate) }),
         ...(monthlySalary !== undefined && { monthlySalary }),
         ...(lateDeductionRate !== undefined && { lateDeductionRate }),
+        jobTitle,
+        ...(educationLevel != null && { educationLevel }),
+        ...(specialization != null && { specialization }),
         ...(qualification1 !== undefined && { qualification1 }),
         ...(qualification2 !== undefined && { qualification2 }),
         ...(qualification3 !== undefined && { qualification3 }),
+        ...(qualification4 !== undefined && { qualification4 }),
+        ...(qualification5 !== undefined && { qualification5 }),
+        ...(qualification6 !== undefined && { qualification6 }),
+        ...(qualification7 !== undefined && { qualification7 }),
+        ...(qualification8 !== undefined && { qualification8 }),
+        ...(qualification9 !== undefined && { qualification9 }),
+        ...(qualification10 !== undefined && { qualification10 }),
         ...(enrollmentEndDate !== undefined && {
           enrollmentEndDate: new Date(enrollmentEndDate),
         }),

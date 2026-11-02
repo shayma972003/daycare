@@ -14,6 +14,7 @@
 
 import { z } from "zod";
 import { normalizeNumerals } from "@/lib/phone-normalizer";
+import { EMPLOYEE_JOB_TITLE_VALUES } from "@/lib/employee-role-options";
 
 /**
  * A Saudi mobile number in any of the forms people actually type.
@@ -161,8 +162,11 @@ export const teacherFormSchema = z
     enrollmentEndDate: optionalDate,
     monthlySalary: optionalMoney,
     lateDeductionRate: optionalMoney,
-    // Task 2.39.
-    jobTitle: z.string().trim().max(80).optional().nullable(),
+    // Fixed product roles. This is required on both create and edit so a new
+    // employee cannot be saved without the job title the school agreed on.
+    jobTitle: z.enum(EMPLOYEE_JOB_TITLE_VALUES, {
+      error: "المسمى الوظيفي مطلوب",
+    }),
     educationLevel: z
       .union([
         z.literal(""),

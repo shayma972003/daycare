@@ -21,6 +21,15 @@ import { PermissionGate } from "@/components/auth/PermissionGate";
 import { usePermissions } from "@/lib/use-permissions";
 import { deviceDateInputValue, deviceTimeZone } from "@/lib/device-date";
 import { isTeacherOperational } from "@/lib/teacher-lifecycle";
+import type { AssignableRoleKey } from "@/lib/permissions";
+import {
+  EDUCATION_LEVEL_LABEL_KEYS,
+  EDUCATION_LEVEL_VALUES,
+  EMPLOYEE_JOB_TITLE_LABEL_KEYS,
+  EMPLOYEE_JOB_TITLE_VALUES,
+  normalizeEmployeeJobTitle,
+  type EducationLevelValue,
+} from "@/lib/employee-role-options";
 
 /** Every reason except "still employed", which is the reactivate action. */
 type TeacherDepartureStatus = Exclude<EmploymentStatus, "ACTIVE">;
@@ -43,6 +52,8 @@ interface Teacher {
   paymentMethod?: "CASH" | "TRANSFER" | "CARD" | null;
   joinDate?: string | null; enrollmentEndDate?: string | null;
   monthlySalary?: number | null; lateDeductionRate?: number | null;
+  jobTitle?: string | null; educationLevel?: EducationLevelValue | null;
+  specialization?: string | null;
   qualification1?: string | null; qualification2?: string | null; qualification3?: string | null;
   qualification4?: string | null; qualification5?: string | null; qualification6?: string | null;
   qualification7?: string | null; qualification8?: string | null; qualification9?: string | null;
@@ -54,11 +65,13 @@ interface Teacher {
 
 interface FormValues {
   name: string; period: "MORNING" | "EVENING" | "";
+  jobTitle: AssignableRoleKey | "";
   idNumber: string; dateOfBirth: string; nationality: string;
   email: string; phone1: string; phone2: string;
   paymentMethod: "CASH" | "TRANSFER" | "";
   joinDate: string; enrollmentEndDate: string;
   monthlySalary: number; lateDeductionRate: number;
+  educationLevel: EducationLevelValue | ""; specialization: string;
   qualification1: string; qualification2: string; qualification3: string;
 }
 
@@ -112,9 +125,11 @@ export default function TeacherProfilePage() {
     resolver: zodResolver(teacherFormSchema) as Resolver<FormValues>,
     defaultValues: {
       name: "", period: "", idNumber: "", dateOfBirth: "",
+      jobTitle: "",
       nationality: "", email: "", phone1: "", phone2: "",
       paymentMethod: "", joinDate: "", enrollmentEndDate: "",
       monthlySalary: 0, lateDeductionRate: 0,
+      educationLevel: "", specialization: "",
       qualification1: "", qualification2: "", qualification3: "",
     },
   });
@@ -133,6 +148,7 @@ export default function TeacherProfilePage() {
       }
       reset({
         name: data.name ?? "", period: (data.period as "MORNING" | "EVENING") ?? "",
+        jobTitle: normalizeEmployeeJobTitle(data.jobTitle),
         idNumber: data.idNumber ?? "",
         dateOfBirth: data.dateOfBirth ? data.dateOfBirth.slice(0, 10) : "",
         nationality: data.nationality ?? "", email: data.email ?? "",
@@ -141,6 +157,8 @@ export default function TeacherProfilePage() {
         joinDate: data.joinDate ? data.joinDate.slice(0, 10) : "",
         enrollmentEndDate: data.enrollmentEndDate ? data.enrollmentEndDate.slice(0, 10) : "",
         monthlySalary: data.monthlySalary ?? 0, lateDeductionRate: data.lateDeductionRate ?? 0,
+        educationLevel: data.educationLevel ?? "",
+        specialization: data.specialization ?? "",
         qualification1: data.qualification1 ?? "",
         qualification2: data.qualification2 ?? "",
         qualification3: data.qualification3 ?? "",
@@ -180,6 +198,7 @@ export default function TeacherProfilePage() {
       await axios.put(`/api/teachers/${id}`, {
         expectedUpdatedAt: teacher.updatedAt,
         name: values.name, period: values.period || null,
+        jobTitle: values.jobTitle,
         idNumber: values.idNumber || null, dateOfBirth: values.dateOfBirth || null,
         nationality: values.nationality || null, email: values.email || null,
         phone1: values.phone1 || null, phone2: values.phone2 || null,
@@ -191,6 +210,8 @@ export default function TeacherProfilePage() {
             }
           : {}),
         joinDate: values.joinDate || null, enrollmentEndDate: values.enrollmentEndDate || null,
+        educationLevel: values.educationLevel || null,
+        specialization: values.specialization || null,
         qualification1: values.qualification1 || null,
         qualification2: values.qualification2 || null,
         qualification3: values.qualification3 || null,
@@ -419,6 +440,22 @@ export default function TeacherProfilePage() {
                   )}
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="sm:col-span-2">
+                    <label className={labelCls}>{t("teachers.jobTitle")}</label>
+                    <select {...register("jobTitle")} className={selectCls}>
+                      <option value="">{t("teachers.selectJobTitle")}</option>
+                      {EMPLOYEE_JOB_TITLE_VALUES.map((value) => (
+                        <option key={value} value={value}>
+                          {t(EMPLOYEE_JOB_TITLE_LABEL_KEYS[value])}
+                        </option>
+                      ))}
+                    </select>
+                    {errors.jobTitle?.message && (
+                      <p role="alert" className="mt-1 text-xs text-red-600">
+                        {String(errors.jobTitle.message)}
+                      </p>
+                    )}
+                  </div>
                   <div>
                     <label className={labelCls}>{t("fields.joinDate")}</label>
                     <LocalizedDateTimeInput nativeType="date" {...register("joinDate")} className={inputCls} dir="ltr" />
@@ -467,6 +504,23 @@ export default function TeacherProfilePage() {
               <div className="bg-white rounded-xl shadow-md p-6 space-y-4">
                 <h2 className="font-bold text-[#111111] text-base border-b border-gray-100 pb-3">{t("fields.qualifications")}</h2>
                 <div className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className={labelCls}>{t("teachers.educationLevel")}</label>
+                      <select {...register("educationLevel")} className={selectCls}>
+                        <option value="">{t("common.select")}</option>
+                        {EDUCATION_LEVEL_VALUES.map((value) => (
+                          <option key={value} value={value}>
+                            {t(EDUCATION_LEVEL_LABEL_KEYS[value])}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className={labelCls}>{t("teachers.specialization")}</label>
+                      <input {...register("specialization")} className={inputCls} />
+                    </div>
+                  </div>
                   {([1, 2, 3] as const).map((n) => (
                     <div key={n}>
                       <label className={labelCls}>{t("teacherProfile.qualificationN", { n: String(n) })}</label>

@@ -122,30 +122,13 @@ export const EDUCATION_LEVEL_LABELS: Record<EducationLevel, string> = {
   OTHER: "أخرى",
 };
 
-/**
- * Suggested job titles (task 2.39).
- *
- * A datalist, not a `<select>`: the column is free text on purpose, because a
- * nursery's own words for its posts vary and an enum would force "مساعدة معلمة"
- * into whichever option fits worst. These are the common ones, offered as
- * autocomplete so most entries land on a consistent spelling anyway.
- */
+/** Legacy display suggestions kept for import compatibility. */
 export const JOB_TITLE_SUGGESTIONS = [
-  "مديرة",
-  "مساعدة مديرة",
-  "معلمة",
-  "مساعدة معلمة",
-  "معلمة تربية خاصة",
-  "معلمة طفولة مبكرة",
-  "أخصائية نفسية",
-  "ممرضة",
+  "مساعد إداري",
+  "معلم",
+  "مساعد معلم",
+  "محاسب",
   "موارد بشرية",
-  "محاسبة",
-  "إدارية",
-  "مشرفة",
-  "عاملة",
-  "سائق",
-  "حارس",
 ];
 
 /** Common specialisations, offered the same way and for the same reason. */

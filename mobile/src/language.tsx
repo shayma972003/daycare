@@ -21,8 +21,9 @@ export type AppLanguage = "ar" | "en";
 
 const LANGUAGE_KEY = "tofolatech.app-language";
 
-I18nManager.allowRTL(true);
-I18nManager.swapLeftAndRightInRTL(true);
+I18nManager.allowRTL(false);
+I18nManager.forceRTL(false);
+I18nManager.swapLeftAndRightInRTL(false);
 
 const english: Record<string, string> = {
   "أحداث اليوم": "Today's events",
@@ -34,6 +35,8 @@ const english: Record<string, string> = {
   "إشعار جديد": "New notification",
   "إعادة الإرسال للمراجعة": "Resend for review",
   "إعادة المحاولة": "Try again",
+  "إظهار كلمة المرور": "Show password",
+  "إخفاء كلمة المرور": "Hide password",
   "إعلان": "Announcement",
   "إعلان جديد": "New announcement",
   "إلغاء": "Cancel",
@@ -363,7 +366,6 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     let active = true;
     void readStoredLanguage().then((stored) => {
       if (active) {
-        I18nManager.forceRTL(stored === "ar");
         setCurrentLanguage(stored);
         setLoading(false);
       }
@@ -374,7 +376,6 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setLanguage = useCallback(async (next: AppLanguage) => {
-    I18nManager.forceRTL(next === "ar");
     setCurrentLanguage(next);
     try {
       await persistLanguage(next);

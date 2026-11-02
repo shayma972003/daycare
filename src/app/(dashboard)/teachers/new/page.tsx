@@ -13,12 +13,21 @@ import { useT } from "@/lib/i18n-provider";
 import { FormErrors, collectMessages } from "@/components/ui/FormErrors";
 import { astDateInputValue } from "@/lib/datetime";
 import { usePermissions } from "@/lib/use-permissions";
+import type { AssignableRoleKey } from "@/lib/permissions";
+import {
+  EDUCATION_LEVEL_LABEL_KEYS,
+  EDUCATION_LEVEL_VALUES,
+  EMPLOYEE_JOB_TITLE_LABEL_KEYS,
+  EMPLOYEE_JOB_TITLE_VALUES,
+  type EducationLevelValue,
+} from "@/lib/employee-role-options";
 
 
 type Class = { id: string; name: string };
 
 type TeacherFormData = {
   name: string;
+  jobTitle: AssignableRoleKey | "";
   period: "MORNING" | "EVENING";
   classId: string;
   idNumber: string;
@@ -35,7 +44,11 @@ type TeacherFormData = {
   enrollmentEndDate: string;
   monthlySalary: number;
   lateDeductionRate: number;
+  educationLevel: EducationLevelValue | "";
+  specialization: string;
 };
+
+const MAX_EXTRA_QUALIFICATIONS = 7; // qualification4–10
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -57,6 +70,7 @@ export default function NewTeacherPage() {
   const [classes, setClasses] = useState<Class[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [extraQualifications, setExtraQualifications] = useState<string[]>([]);
 
   // Shared schema — see the note on the student form and task 2.41.
   /* A blocked submit used to do nothing and say nothing — see FormErrors. */
@@ -68,15 +82,20 @@ export default function NewTeacherPage() {
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<TeacherFormData>({
     resolver: zodResolver(teacherFormSchema) as Resolver<TeacherFormData>,
     defaultValues: {
+      jobTitle: "",
       period: "MORNING",
       paymentMethod: "CASH",
       joinDate: astDateInputValue(),
       monthlySalary: 0,
       lateDeductionRate: 0,
+      educationLevel: "",
+      specialization: "",
     },
   });
 
   const period = watch("period");
+  const jobTitle = watch("jobTitle");
+  const classroomRole = jobTitle === "teacher" || jobTitle === "teacher_assistant";
 
   useEffect(() => {
     axios
@@ -89,12 +108,28 @@ export default function NewTeacherPage() {
     setSaving(true);
     setError(null);
     try {
-      const { paymentMethod, monthlySalary, lateDeductionRate, ...basic } = data;
+      const {
+        paymentMethod,
+        monthlySalary,
+        lateDeductionRate,
+        educationLevel,
+        specialization,
+        ...basic
+      } = data;
+      const extraPayload = Object.fromEntries(
+        extraQualifications.map((value, index) => [
+          `qualification${index + 4}`,
+          value.trim() || undefined,
+        ])
+      );
       await axios.post("/api/teachers", {
         ...basic,
         dateOfBirth: data.dateOfBirth || undefined,
         enrollmentEndDate: data.enrollmentEndDate || undefined,
-        classId: data.classId || undefined,
+        classId: classroomRole && data.classId ? data.classId : undefined,
+        educationLevel: educationLevel || undefined,
+        specialization: specialization.trim() || undefined,
+        ...extraPayload,
         ...(canManageFinance
           ? {
               paymentMethod,
@@ -135,6 +170,31 @@ export default function NewTeacherPage() {
                 <input {...register("name", { required: true })} type="text" className={`${inputCls} ${errors.name ? "border-red-400" : ""}`} />
               </Field>
 
+              <Field label={t("teachers.jobTitle")}>
+                <select
+                  {...register("jobTitle")}
+                  className={`${inputCls} ${errors.jobTitle ? "border-red-400" : ""}`}
+                  onChange={(event) => {
+                    register("jobTitle").onChange(event);
+                    if (event.target.value !== "teacher" && event.target.value !== "teacher_assistant") {
+                      setValue("classId", "");
+                    }
+                  }}
+                >
+                  <option value="">— {t("teachers.selectJobTitle")} —</option>
+                  {EMPLOYEE_JOB_TITLE_VALUES.map((value) => (
+                    <option key={value} value={value}>
+                      {t(EMPLOYEE_JOB_TITLE_LABEL_KEYS[value])}
+                    </option>
+                  ))}
+                </select>
+                {errors.jobTitle?.message && (
+                  <p role="alert" className="mt-1 text-xs text-red-600">
+                    {String(errors.jobTitle.message)}
+                  </p>
+                )}
+              </Field>
+
               <Field label={t("teachers.columns.period")}>
                 <select
                   {...register("period")}
@@ -149,12 +209,14 @@ export default function NewTeacherPage() {
                 </select>
               </Field>
 
-              <Field label={t("fields.classroom")}>
-                <select {...register("classId")} className={inputCls}>
-                  <option value="">— {t("common.select")} —</option>
-                  {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-              </Field>
+              {classroomRole && (
+                <Field label={t("fields.classroom")}>
+                  <select {...register("classId")} className={inputCls}>
+                    <option value="">— {t("common.select")} —</option>
+                    {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </Field>
+              )}
 
               <Field label={t("teachers.nationalId")}>
                 <input {...register("idNumber")} type="text" className={inputCls} />
@@ -192,6 +254,38 @@ export default function NewTeacherPage() {
                 <input {...register("qualification3")} type="text" className={inputCls} />
               </Field>
 
+              <Field label={t("teachers.educationLevel")}>
+                <select {...register("educationLevel")} className={inputCls}>
+                  <option value="">— {t("common.select")} —</option>
+                  {EDUCATION_LEVEL_VALUES.map((value) => (
+                    <option key={value} value={value}>
+                      {t(EDUCATION_LEVEL_LABEL_KEYS[value])}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+
+              <Field label={t("teachers.specialization")}>
+                <input {...register("specialization")} type="text" className={inputCls} />
+              </Field>
+
+              {extraQualifications.map((value, index) => (
+                <Field key={index + 4} label={t("teacherProfile.qualificationN", { n: String(index + 4) })}>
+                  <input
+                    value={value}
+                    onChange={(event) =>
+                      setExtraQualifications((current) => {
+                        const next = [...current];
+                        next[index] = event.target.value;
+                        return next;
+                      })
+                    }
+                    type="text"
+                    className={inputCls}
+                  />
+                </Field>
+              ))}
+
               <Field label={t("fields.paymentMethod")}>
                 <select {...register("paymentMethod")} className={inputCls}>
                   <option value="CASH">{t("paymentMethod.CASH")}</option>
@@ -217,6 +311,16 @@ export default function NewTeacherPage() {
               </Field>
 
             </div>
+
+            {extraQualifications.length < MAX_EXTRA_QUALIFICATIONS && (
+              <button
+                type="button"
+                onClick={() => setExtraQualifications((current) => [...current, ""])}
+                className="mt-4 text-sm font-medium text-[#5B14D1] hover:underline"
+              >
+                {t("teacherProfile.addQualification")}
+              </button>
+            )}
 
             <div className="mt-6 flex gap-3">
               <FormErrors messages={invalidFields} />

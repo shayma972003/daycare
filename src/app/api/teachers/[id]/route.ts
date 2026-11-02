@@ -16,6 +16,10 @@ import {
 } from "@/lib/data-retention";
 import { z } from "zod";
 import { detachTeacherFromClasses } from "@/lib/class-teacher-assignments";
+import {
+  EDUCATION_LEVEL_VALUES,
+  EMPLOYEE_JOB_TITLE_VALUES,
+} from "@/lib/employee-role-options";
 
 const updateTeacherSchema = z.object({
   expectedUpdatedAt: z.iso.datetime(),
@@ -48,10 +52,8 @@ const updateTeacherSchema = z.object({
   enrollmentEndDate: z.string().nullish(),
   isActive: z.boolean().optional(),
   /** Post, qualification and field of study (task 2.39). */
-  jobTitle: z.string().max(80).nullish(),
-  educationLevel: z
-    .enum(["HIGH_SCHOOL", "DIPLOMA", "BACHELOR", "MASTER", "PHD", "OTHER"])
-    .nullish(),
+  jobTitle: z.enum(EMPLOYEE_JOB_TITLE_VALUES).optional(),
+  educationLevel: z.enum(EDUCATION_LEVEL_VALUES).nullish(),
   specialization: z.string().max(120).nullish(),
   /** Employment lifecycle. Anything but ACTIVE starts the retention clock. */
   status: z.enum(EMPLOYMENT_STATUSES as [string, ...string[]]).optional(),

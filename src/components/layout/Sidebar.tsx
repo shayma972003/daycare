@@ -103,6 +103,10 @@ function SidebarContent({
                   const isActive =
                     item.href === "/dashboard"
                       ? pathname === "/dashboard"
+                      : item.href === "/settings"
+                        ? pathname === "/settings" ||
+                          (pathname.startsWith("/settings/") &&
+                            !pathname.startsWith("/settings/permissions"))
                       : pathname.startsWith(item.href);
 
                   const link = (

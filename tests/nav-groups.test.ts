@@ -63,6 +63,15 @@ describe("sidebar grouping", () => {
     expect(openToAccountant.length).toBe(financeGroup.items.length);
   });
 
+  it("places staff accounts and permissions under administration", () => {
+    const admin = NAV_GROUPS.find((group) => group.key === "nav.groupAdmin");
+    expect(admin?.items).toContainEqual({
+      href: "/settings/permissions",
+      key: "nav.permissions",
+      permission: "settings.manage",
+    });
+  });
+
   it("lets the owner reach every screen", () => {
     const owner = ROLE_TEMPLATES.find((role) => role.permissions.includes(ALL_PERMISSIONS))!;
     const hidden = NAV_GROUPS.flatMap((group) =>

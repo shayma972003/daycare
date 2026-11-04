@@ -59,6 +59,7 @@ export const NAV_GROUPS: NavGroup[] = [
     key: "nav.groupAdmin",
     items: [
       { href: "/teachers", key: "nav.teachers", permission: "staff.view" },
+      { href: "/settings/permissions", key: "nav.permissions", permission: "settings.manage" },
       /* The rota lost its own entry: it is opened from the staff list it
          describes (`/teachers?drawer=rota`) and from each teacher's profile. */
       { href: "/settings", key: "nav.settings", permission: "settings.manage" },

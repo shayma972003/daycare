@@ -16,7 +16,7 @@ import type { ReactNode } from "react";
 
 type LoadState = "loading" | "refreshing" | "ready" | "error";
 
-interface DashboardTask { key: string; count: number; href: string }
+interface DashboardTask { key: string; count: number; href: string; className?: string }
 interface TasksData { tasks: DashboardTask[] }
 interface AttendancePerson {
   id: string;
@@ -263,7 +263,12 @@ export function SchoolDashboard() {
 
         <section aria-labelledby="dashboard-attention" className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6">
           <div className="mb-4 flex items-center justify-between gap-3"><h2 id="dashboard-attention" className="text-base font-semibold text-slate-900">{t("dashboard.attentionTitle")}</h2><span className="h-2 w-2 rounded-full bg-[#f2aa0a]" aria-hidden="true" /></div>
-          <ResourceState resource={tasks} retry={retryTasks} retryLabel={retryLabel}>{(data) => data.tasks.filter((task) => task.count > 0).length === 0 ? <p className="rounded-xl bg-[#f4fbf6] px-4 py-3 text-sm text-[#2d7a4f]">{t("dashboard.allClear")}</p> : <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{data.tasks.filter((task) => task.count > 0).map((task) => <Link key={task.key} href={task.href} className="flex min-h-16 items-center gap-3 rounded-xl border border-slate-100 px-4 transition-colors hover:border-[#4f00c1]/30 hover:bg-[#4f00c1]/5"><span className="text-xl font-semibold text-[#4f00c1]">{task.count}</span><span className="text-sm text-slate-700">{t(`todo.${task.key}`, { count: task.count })}</span></Link>)}</div>}</ResourceState>
+          <ResourceState resource={tasks} retry={retryTasks} retryLabel={retryLabel}>{(data) => {
+            const visibleTasks = data.tasks.filter((task) => task.key === "lowClassCapacity" || task.count > 0);
+            return visibleTasks.length === 0
+              ? <p className="rounded-xl bg-[#f4fbf6] px-4 py-3 text-sm text-[#2d7a4f]">{t("dashboard.allClear")}</p>
+              : <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{visibleTasks.map((task) => <Link key={`${task.key}-${task.href}`} href={task.href} className="flex min-h-16 items-center gap-3 rounded-xl border border-slate-100 px-4 transition-colors hover:border-[#4f00c1]/30 hover:bg-[#4f00c1]/5"><span className="text-xl font-semibold text-[#4f00c1]">{task.count}</span><span className="text-sm text-slate-700">{t(`todo.${task.key}`, { count: task.count, name: task.className ?? "" })}</span></Link>)}</div>;
+          }}</ResourceState>
         </section>
 
         <section aria-labelledby="dashboard-events" className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6">

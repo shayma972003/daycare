@@ -29,6 +29,7 @@ import {
   closeDialogOnOpenChange,
 } from "@/components/ui/Dialog";
 import { TeacherMultiSelect, type ClassTeacherOption } from "@/components/classes/TeacherMultiSelect";
+import { sanitizeIntegerInput } from "@/lib/numeric-input";
 
 const inputCls =
   "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#5B14D1]";
@@ -51,6 +52,7 @@ export function QuickAddClass({
   const [name, setName] = useState("");
   const [stageId, setStageId] = useState("");
   const [period, setPeriod] = useState<"" | "MORNING" | "EVENING">("");
+  const [capacity, setCapacity] = useState("");
   const [teachers, setTeachers] = useState<ClassTeacherOption[]>([]);
   const [teacherIds, setTeacherIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
@@ -78,6 +80,7 @@ export function QuickAddClass({
         name: name.trim(),
         ...(stageId && { stageId }),
         ...(period && { period }),
+        ...(capacity !== "" && { capacity: Number(capacity) }),
         teacherIds,
       });
       // Cleared so the drawer is ready for the next room — the case this exists
@@ -85,6 +88,7 @@ export function QuickAddClass({
       setName("");
       setStageId("");
       setPeriod("");
+      setCapacity("");
       setTeacherIds([]);
       onCreated();
     } catch (err) {
@@ -159,6 +163,19 @@ export function QuickAddClass({
             <option value="MORNING">{t("fields.morning")}</option>
             <option value="EVENING">{t("fields.evening")}</option>
           </select>
+        </div>
+
+        <div>
+          <label className="block text-xs text-gray-500 mb-1.5">{t("classes.form.capacity")}</label>
+          <input
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            value={capacity}
+            onChange={(event) => setCapacity(sanitizeIntegerInput(event.target.value))}
+            placeholder={t("classes.form.capacityPlaceholder")}
+            className={inputCls}
+          />
         </div>
 
         <div>

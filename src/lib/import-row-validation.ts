@@ -1,5 +1,6 @@
 import { normalizePhone } from './phone-normalizer';
 import type { ImportRowIssue, ImportRowPayload } from './import-row-payload';
+import { normalizeEducationLevel, normalizeEmployeeJobTitle } from './employee-role-options';
 
 export type ImportMappingEntry = {
   uploadedColumn: string;
@@ -69,15 +70,40 @@ export function validateImportRow(
     }
   }
 
-  const phone2Field = isStudent ? 'guardian_phone_2' : 'phone_2';
-  if (mapped[phone2Field] !== undefined && mapped[phone2Field] !== null && mapped[phone2Field] !== '') {
-    const normalized = normalizePhone(mapped[phone2Field] as string | number);
-    if (normalized) mapped[phone2Field] = normalized;
+  const optionalPhoneFields = isStudent
+    ? ['guardian_phone_2', 'guardian_phone_3', 'guardian_phone_4']
+    : ['phone_2'];
+  for (const phoneField of optionalPhoneFields) {
+    if (mapped[phoneField] !== undefined && mapped[phoneField] !== null && mapped[phoneField] !== '') {
+      const normalized = normalizePhone(mapped[phoneField] as string | number);
+      if (normalized) mapped[phoneField] = normalized;
+      else mapped[phoneField] = null;
+    }
   }
 
   const emailField = isStudent ? 'guardian_email' : 'email';
   if (mapped[emailField] && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(mapped[emailField]))) {
     warnings.push({ field: emailField, message: 'البريد الإلكتروني غير صحيح', type: 'warning' });
+  }
+
+  if (!isStudent && mapped.job_title !== undefined && mapped.job_title !== null && mapped.job_title !== '') {
+    const jobTitle = normalizeEmployeeJobTitle(String(mapped.job_title));
+    if (!jobTitle) {
+      warnings.push({ field: 'job_title', message: 'المسمى الوظيفي غير معروف وسيحتاج تعبئة يدوية', type: 'warning' });
+      mapped.job_title = null;
+    } else {
+      mapped.job_title = jobTitle;
+    }
+  }
+
+  if (!isStudent && mapped.education_level !== undefined && mapped.education_level !== null && mapped.education_level !== '') {
+    const educationLevel = normalizeEducationLevel(String(mapped.education_level));
+    if (!educationLevel) {
+      warnings.push({ field: 'education_level', message: 'المستوى التعليمي غير معروف وسيحتاج تعبئة يدوية', type: 'warning' });
+      mapped.education_level = null;
+    } else {
+      mapped.education_level = educationLevel;
+    }
   }
 
   if (!isStudent && mapped.monthly_salary !== undefined && mapped.monthly_salary !== null && mapped.monthly_salary !== '') {

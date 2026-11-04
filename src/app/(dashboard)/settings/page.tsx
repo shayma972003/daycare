@@ -18,6 +18,7 @@ import { describeApiError } from "@/lib/api-error";
 import { usePermissions } from "@/lib/use-permissions";
 import { PermissionGate } from "@/components/auth/PermissionGate";
 import { SchoolLogo } from "@/components/layout/SchoolLogo";
+import { moneyInputValue, sanitizeMoneyInput } from "@/lib/numeric-input";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -187,11 +188,11 @@ export default function SettingsPage() {
   const logoInputRef = useRef<HTMLInputElement>(null);
 
   const [loginEmail, setLoginEmail] = useState("");
-  const [hourlyLateFee, setHourlyLateFee] = useState(0);
-  const [dailyStudentFee, setDailyStudentFee] = useState(0);
-  const [weeklyStudentFee, setWeeklyStudentFee] = useState<number | "">("");
-  const [monthlyStudentFee, setMonthlyStudentFee] = useState(0);
-  const [yearlyStudentFee, setYearlyStudentFee] = useState<number | "">("");
+  const [hourlyLateFee, setHourlyLateFee] = useState("0");
+  const [dailyStudentFee, setDailyStudentFee] = useState("0");
+  const [weeklyStudentFee, setWeeklyStudentFee] = useState("");
+  const [monthlyStudentFee, setMonthlyStudentFee] = useState("0");
+  const [yearlyStudentFee, setYearlyStudentFee] = useState("");
   const [reminderTemplate, setReminderTemplate] = useState("");
 
   // School hours state
@@ -284,11 +285,11 @@ export default function SettingsPage() {
         setSettingsData(d);
         setLogoUrl(d.logoUrl ?? null);
         setLoginEmail(d.loginEmail ?? "");
-        setHourlyLateFee(d.settings.hourlyLateFee);
-        setDailyStudentFee(d.settings.dailyStudentFee);
-        setWeeklyStudentFee(d.settings.weeklyStudentFee ?? "");
-        setMonthlyStudentFee(d.settings.monthlyStudentFee);
-        setYearlyStudentFee(d.settings.yearlyStudentFee ?? "");
+        setHourlyLateFee(String(d.settings.hourlyLateFee));
+        setDailyStudentFee(String(d.settings.dailyStudentFee));
+        setWeeklyStudentFee(d.settings.weeklyStudentFee === null ? "" : String(d.settings.weeklyStudentFee));
+        setMonthlyStudentFee(String(d.settings.monthlyStudentFee));
+        setYearlyStudentFee(d.settings.yearlyStudentFee === null ? "" : String(d.settings.yearlyStudentFee));
         setReminderTemplate(d.settings.reminderTemplate);
         setTeacherMorningCheckinTime(d.teacherMorningCheckinTime ?? "");
         setTeacherMorningCheckoutTime(d.teacherMorningCheckoutTime ?? "");
@@ -436,11 +437,11 @@ export default function SettingsPage() {
       changed(payload, "studentEveningCheckinTime", nullable(studentEveningCheckinTime), nullable(settingsData.studentEveningCheckinTime ?? ""));
       changed(payload, "studentEveningCheckoutTime", nullable(studentEveningCheckoutTime), nullable(settingsData.studentEveningCheckoutTime ?? ""));
     } else if (section === "fees") {
-      changed(payload, "hourlyLateFee", hourlyLateFee, Number(settingsData.settings.hourlyLateFee));
-      changed(payload, "dailyStudentFee", dailyStudentFee, Number(settingsData.settings.dailyStudentFee));
-      changed(payload, "weeklyStudentFee", weeklyStudentFee === "" ? null : weeklyStudentFee, settingsData.settings.weeklyStudentFee);
-      changed(payload, "monthlyStudentFee", monthlyStudentFee, Number(settingsData.settings.monthlyStudentFee));
-      changed(payload, "yearlyStudentFee", yearlyStudentFee === "" ? null : yearlyStudentFee, settingsData.settings.yearlyStudentFee);
+      changed(payload, "hourlyLateFee", moneyInputValue(hourlyLateFee, 0), Number(settingsData.settings.hourlyLateFee));
+      changed(payload, "dailyStudentFee", moneyInputValue(dailyStudentFee, 0), Number(settingsData.settings.dailyStudentFee));
+      changed(payload, "weeklyStudentFee", moneyInputValue(weeklyStudentFee, null), settingsData.settings.weeklyStudentFee);
+      changed(payload, "monthlyStudentFee", moneyInputValue(monthlyStudentFee, 0), Number(settingsData.settings.monthlyStudentFee));
+      changed(payload, "yearlyStudentFee", moneyInputValue(yearlyStudentFee, null), settingsData.settings.yearlyStudentFee);
     } else {
       changed(payload, "reminderTemplate", reminderTemplate, settingsData.settings.reminderTemplate);
     }
@@ -466,7 +467,14 @@ export default function SettingsPage() {
       if (section === "fees") {
         return {
           ...current,
-          settings: { ...current.settings, hourlyLateFee, dailyStudentFee, weeklyStudentFee: weeklyStudentFee === "" ? null : weeklyStudentFee, monthlyStudentFee, yearlyStudentFee: yearlyStudentFee === "" ? null : yearlyStudentFee },
+          settings: {
+            ...current.settings,
+            hourlyLateFee: moneyInputValue(hourlyLateFee, 0),
+            dailyStudentFee: moneyInputValue(dailyStudentFee, 0),
+            weeklyStudentFee: moneyInputValue(weeklyStudentFee, null),
+            monthlyStudentFee: moneyInputValue(monthlyStudentFee, 0),
+            yearlyStudentFee: moneyInputValue(yearlyStudentFee, null),
+          },
         };
       }
       return { ...current, settings: { ...current.settings, reminderTemplate } };
@@ -1403,12 +1411,11 @@ export default function SettingsPage() {
                   <FormField label={t("settings.fees.hourlyLateFee")}>
                     <div className="relative">
                       <input
-                        type="number"
-                        min={0}
+                        type="text"
+                        inputMode="decimal"
+                        dir="ltr"
                         value={hourlyLateFee}
-                        onChange={(e) =>
-                          setHourlyLateFee(parseFloat(e.target.value) || 0)
-                        }
+                        onChange={(e) => setHourlyLateFee(sanitizeMoneyInput(e.target.value))}
                         disabled={!canManageSettings}
                         className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                       />
@@ -1420,12 +1427,11 @@ export default function SettingsPage() {
                   <FormField label={t("settings.fees.dailyStudentFee")}>
                     <div className="relative">
                       <input
-                        type="number"
-                        min={0}
+                        type="text"
+                        inputMode="decimal"
+                        dir="ltr"
                         value={dailyStudentFee}
-                        onChange={(e) =>
-                          setDailyStudentFee(parseFloat(e.target.value) || 0)
-                        }
+                        onChange={(e) => setDailyStudentFee(sanitizeMoneyInput(e.target.value))}
                         disabled={!canManageSettings}
                         className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                       />
@@ -1437,10 +1443,11 @@ export default function SettingsPage() {
                   <FormField label={t("settings.fees.weeklyStudentFee")}>
                     <div className="relative">
                       <input
-                        type="number"
-                        min={0}
+                        type="text"
+                        inputMode="decimal"
+                        dir="ltr"
                         value={weeklyStudentFee}
-                        onChange={(e) => setWeeklyStudentFee(e.target.value === "" ? "" : Number(e.target.value))}
+                        onChange={(e) => setWeeklyStudentFee(sanitizeMoneyInput(e.target.value))}
                         disabled={!canManageSettings}
                         className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                       />
@@ -1450,12 +1457,11 @@ export default function SettingsPage() {
                   <FormField label={t("settings.fees.monthlyStudentFee")}>
                     <div className="relative">
                       <input
-                        type="number"
-                        min={0}
+                        type="text"
+                        inputMode="decimal"
+                        dir="ltr"
                         value={monthlyStudentFee}
-                        onChange={(e) =>
-                          setMonthlyStudentFee(parseFloat(e.target.value) || 0)
-                        }
+                        onChange={(e) => setMonthlyStudentFee(sanitizeMoneyInput(e.target.value))}
                         disabled={!canManageSettings}
                         className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                       />
@@ -1467,10 +1473,11 @@ export default function SettingsPage() {
                   <FormField label={t("settings.fees.yearlyStudentFee")}>
                     <div className="relative">
                       <input
-                        type="number"
-                        min={0}
+                        type="text"
+                        inputMode="decimal"
+                        dir="ltr"
                         value={yearlyStudentFee}
-                        onChange={(e) => setYearlyStudentFee(e.target.value === "" ? "" : Number(e.target.value))}
+                        onChange={(e) => setYearlyStudentFee(sanitizeMoneyInput(e.target.value))}
                         disabled={!canManageSettings}
                         className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#111111] text-sm"
                       />

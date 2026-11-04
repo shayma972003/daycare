@@ -4,6 +4,7 @@ import { logAction } from '@/lib/activity-logger';
 import { MAX_SPREADSHEET_BYTES } from '@/lib/file-upload';
 import { protectedImportRowPayload } from '@/lib/import-row-payload';
 import { scopedClassIds } from '@/lib/student-access-scope';
+import { prepareImportRows } from '@/lib/import-spreadsheet';
 
 /** Upper bound on rows accepted from one uploaded file. */
 const MAX_IMPORT_ROWS = 2000;
@@ -20,10 +21,6 @@ function isArabic(s: string): boolean {
 function detectLanguage(headers: string[]): 'ar' | 'en' {
   const arabicCount = headers.filter(isArabic).length;
   return arabicCount / headers.length > 0.5 ? 'ar' : 'en';
-}
-
-function isEmptyRow(row: Record<string, unknown>): boolean {
-  return Object.values(row).every((v) => v === null || v === undefined || String(v).trim() === '');
 }
 
 export async function POST(request: Request) {
@@ -87,13 +84,15 @@ export async function POST(request: Request) {
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const raw = XLSX.utils.sheet_to_json(sheet, { defval: null }) as Record<string, unknown>[];
     headers = raw.length > 0 ? Object.keys(raw[0]) : [];
-    rows = raw.filter((r) => !isEmptyRow(r));
+    rows = raw;
   } else {
     const content = buffer.toString('utf-8');
     const result = Papa.parse<Record<string, unknown>>(content, { header: true, skipEmptyLines: true });
     headers = result.meta.fields ?? [];
-    rows = result.data.filter((r) => !isEmptyRow(r));
+    rows = result.data;
   }
+
+  ({ rows, headers } = prepareImportRows(rows, headers));
 
   // Bounded so one import cannot fan out into tens of thousands of sequential
   // inserts during the confirm step.
@@ -103,17 +102,6 @@ export async function POST(request: Request) {
       { status: 413 }
     );
   }
-
-  // Remove blank columns
-  const nonBlankHeaders = headers.filter((h) =>
-    rows.some((r) => r[h] !== null && r[h] !== undefined && String(r[h]).trim() !== '')
-  );
-  rows = rows.map((r) => {
-    const cleaned: Record<string, unknown> = {};
-    for (const h of nonBlankHeaders) cleaned[h] = r[h];
-    return cleaned;
-  });
-  headers = nonBlankHeaders;
 
   const fileLanguage = detectLanguage(headers);
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);

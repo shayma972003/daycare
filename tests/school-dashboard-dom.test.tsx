@@ -88,6 +88,22 @@ describe("school dashboard", () => {
     expect(mocks.get.mock.calls.filter(([url]) => url === "/api/dashboard/tasks")).toHaveLength(2);
   });
 
+  it("shows a class with fewer than five seats even when no seats remain", async () => {
+    mocks.get.mockImplementation((url: string) => {
+      if (url === "/api/dashboard/tasks") return Promise.resolve({ data: { tasks: [{ key: "lowClassCapacity", count: 0, className: "Red", href: "/classes/class-red" }] } });
+      if (url === "/api/attendance/page-data") return Promise.resolve({ data: attendance.data });
+      if (url.startsWith("/api/calendar?")) return Promise.resolve({ data: [] });
+      return Promise.resolve({ data: { logs: [] } });
+    });
+
+    render(<SchoolDashboard />);
+    await act(async () => { await Promise.resolve(); });
+
+    expect(screen.getByText("todo.lowClassCapacity:Red")).toBeTruthy();
+    expect(screen.getByRole("link", { name: /todo.lowClassCapacity:Red/ }).getAttribute("href")).toBe("/classes/class-red");
+    expect(screen.queryByText("dashboard.allClear")).toBeNull();
+  });
+
   it("aborts every in-flight section request on unmount", () => {
     const signals: AbortSignal[] = [];
     mocks.get.mockImplementation((_url: string, options?: { signal?: AbortSignal }) => {

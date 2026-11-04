@@ -65,5 +65,39 @@ export function normalizeEmployeeJobTitle(
   const normalized = value?.trim();
   if (!normalized) return "";
   if (isAssignableRoleKey(normalized)) return normalized;
+  const lower = normalized.toLowerCase();
+  if (isAssignableRoleKey(lower)) return lower;
   return LEGACY_JOB_TITLES[normalized] ?? "";
+}
+
+const EDUCATION_LEVEL_ALIASES: Record<string, EducationLevelValue> = {
+  HIGH_SCHOOL: "HIGH_SCHOOL",
+  "high school": "HIGH_SCHOOL",
+  "ثانوي": "HIGH_SCHOOL",
+  "الثانوية": "HIGH_SCHOOL",
+  DIPLOMA: "DIPLOMA",
+  diploma: "DIPLOMA",
+  "دبلوم": "DIPLOMA",
+  BACHELOR: "BACHELOR",
+  bachelor: "BACHELOR",
+  "بكالوريوس": "BACHELOR",
+  MASTER: "MASTER",
+  master: "MASTER",
+  "ماجستير": "MASTER",
+  PHD: "PHD",
+  phd: "PHD",
+  doctorate: "PHD",
+  "دكتوراه": "PHD",
+  OTHER: "OTHER",
+  other: "OTHER",
+  "أخرى": "OTHER",
+  "اخرى": "OTHER",
+};
+
+export function normalizeEducationLevel(
+  value: string | null | undefined
+): EducationLevelValue | null {
+  const normalized = value?.trim();
+  if (!normalized) return null;
+  return EDUCATION_LEVEL_ALIASES[normalized] ?? EDUCATION_LEVEL_ALIASES[normalized.toLowerCase()] ?? null;
 }

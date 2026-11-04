@@ -136,6 +136,42 @@ describe('import confirmation route', () => {
     expect(payload.errors).toEqual([{ message: 'تعذر استيراد هذا الصف', type: 'error' }]);
   });
 
+  it('imports a partial child even when the school fee is not configured', async () => {
+    const encryptedRow = row({
+      full_name: 'Partial Child',
+      guardian_name: 'Primary Guardian',
+      guardian_name_2: 'Second Guardian',
+      guardian_phone_3: '+966569874652',
+      date_of_birth: null,
+      nationality: null,
+    });
+    mocks.sessionFindFirst.mockResolvedValue({
+      id: 'import-1', school_id: 'school-1', type: 'students', rows: [{ id: 'row-1', status: 'valid' }],
+    });
+    mocks.rowFindFirst.mockResolvedValue(encryptedRow);
+    mocks.settingsFindUnique.mockResolvedValue(null);
+
+    const response = await confirm();
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ imported: 1, skipped: 0 });
+    expect(mocks.guardianCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        name: 'Primary Guardian',
+        name_2: 'Second Guardian',
+        phone_3: '+966569874652',
+      }),
+    });
+    expect(mocks.studentCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        name: 'Partial Child',
+        dateOfBirth: null,
+        nationality: null,
+        cycleFee: null,
+      }),
+    });
+  });
+
   it('rejects a second confirmation before touching any row', async () => {
     mocks.sessionUpdateMany.mockResolvedValue({ count: 0 });
     mocks.sessionFindFirst.mockResolvedValue({ status: 'confirming', expires_at: new Date(Date.now() + 60_000) });

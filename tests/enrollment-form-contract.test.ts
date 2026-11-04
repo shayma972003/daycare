@@ -64,7 +64,9 @@ describe("public enrollment form contract", () => {
     expect(page).not.toContain('label="المرحلة الدراسية"');
     expect(page).not.toContain('label="رقم الجوال 3"');
     expect(page).not.toContain('label="رقم الجوال 4"');
-    expect(page).toContain("إضافة تقييم الطفل");
+    expect(page).toContain("إضافة ملف تقييم الطفل المتوفر عبر تطبيق توكلنا");
+    expect(page).toContain("تم إرفاق الملف");
+    expect(page).toContain('className="sr-only"');
   });
 
   it("keeps a local-only preview without exposing invitation URLs in production", () => {

@@ -2,7 +2,7 @@
 
 import { LocalizedDateTimeInput } from "@/components/ui/LocalizedDateTimeInput";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import axios from "axios";
 import { astDateInputValue } from "@/lib/datetime";
@@ -124,6 +124,7 @@ function EnrollmentForm({
   const [evaluationFile, setEvaluationFile] = useState<{ name: string; url: string } | null>(null);
   const [evaluationError, setEvaluationError] = useState("");
   const [evaluationUploading, setEvaluationUploading] = useState(false);
+  const evaluationInputRef = useRef<HTMLInputElement>(null);
 
   function set(key: string, val: string) {
     setForm((prev) => ({ ...prev, [key]: val }));
@@ -269,9 +270,10 @@ function EnrollmentForm({
         </Field>
         <div className="flex flex-col gap-1">
           <label className="text-sm font-medium text-gray-700 mb-1.5 block">
-            إضافة تقييم الطفل <span className="text-gray-400 text-xs">(اختياري)</span>
+            إضافة ملف تقييم الطفل المتوفر عبر تطبيق توكلنا <span className="text-gray-400 text-xs">(اختياري)</span>
           </label>
           <input
+            ref={evaluationInputRef}
             type="file"
             accept=".pdf,.png,.jpg,.jpeg"
             disabled={evaluationUploading}
@@ -280,13 +282,18 @@ function EnrollmentForm({
               e.target.value = "";
               if (file) void uploadEvaluation(file);
             }}
-            className={inputCls}
+            className="sr-only"
           />
-          {evaluationUploading && (
-            <p className="text-xs text-gray-500 text-right">جارٍ رفع الملف…</p>
-          )}
+          <button
+            type="button"
+            disabled={evaluationUploading}
+            onClick={() => evaluationInputRef.current?.click()}
+            className={`${inputCls} text-right disabled:cursor-wait disabled:opacity-60`}
+          >
+            {evaluationUploading ? "جارٍ رفع الملف…" : evaluationFile ? "تم إرفاق الملف" : "اختيار ملف"}
+          </button>
           {evaluationFile && !evaluationUploading && (
-            <p className="text-xs text-green-700 text-right">تم إرفاق: {evaluationFile.name}</p>
+            <p className="text-xs text-green-700 text-right">تم إرفاق الملف: {evaluationFile.name}</p>
           )}
           {evaluationError && (
             <p className="text-xs text-red-600 text-right">{evaluationError}</p>

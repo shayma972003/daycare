@@ -14,6 +14,7 @@ import { useAcademicStages, useStageName } from "@/lib/use-academic-stages";
 import { formatAst } from "@/lib/datetime";
 import { describeApiError } from "@/lib/api-error";
 import { TeacherMultiSelect } from "@/components/classes/TeacherMultiSelect";
+import { sanitizeIntegerInput } from "@/lib/numeric-input";
 
 
 type Teacher = { id: string; name: string };
@@ -44,6 +45,13 @@ type ClassData = {
   period: "MORNING" | "EVENING" | null;
   registrationDate: string | null;
   notes: string | null;
+  capacity: number | null;
+  capacityState: {
+    count: number;
+    capacity: number | null;
+    over: boolean;
+    remaining: number | null;
+  };
   students: ClassStudent[];
   _count: { students: number };
 };
@@ -79,6 +87,7 @@ export default function ClassProfilePage({
     period: "" as "" | "MORNING" | "EVENING",
     registrationDate: "",
     notes: "",
+    capacity: "",
   });
 
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string; studentsCount: number } | null>(null);
@@ -102,6 +111,7 @@ export default function ClassProfilePage({
       period: (c.period as "MORNING" | "EVENING") ?? "",
       registrationDate: c.registrationDate ? c.registrationDate.slice(0, 10) : "",
       notes: c.notes ?? "",
+      capacity: c.capacity === null ? "" : String(c.capacity),
     });
   }
 
@@ -222,6 +232,7 @@ export default function ClassProfilePage({
         period: form.period || null,
         registrationDate: form.registrationDate || null,
         notes: form.notes || null,
+        capacity: form.capacity === "" ? null : Number(form.capacity),
       });
       setCls(res.data);
       fillForm(res.data);
@@ -388,6 +399,27 @@ export default function ClassProfilePage({
               <p className="w-full border border-gray-100 bg-gray-50 rounded-lg px-3 py-2 text-sm text-gray-500">
                 {cls._count.students}
               </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">{t("classes.form.capacity")}</label>
+              {editing ? (
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={form.capacity}
+                  onChange={(e) => setForm((f) => ({ ...f, capacity: sanitizeIntegerInput(e.target.value) }))}
+                  placeholder={t("classes.form.capacityPlaceholder")}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111111]"
+                />
+              ) : (
+                <p className="w-full border border-gray-100 bg-gray-50 rounded-lg px-3 py-2 text-sm text-gray-500">
+                  {cls.capacity === null
+                    ? "—"
+                    : t("classes.capacityOccupancy", { count: cls._count.students, capacity: cls.capacity })}
+                </p>
+              )}
             </div>
 
             <div>

@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GET as list } from "@/app/api/students/route";
 import { GET as tasks } from "@/app/api/dashboard/tasks/route";
-const mocks = vi.hoisted(() => ({ list: vi.fn(), count: vi.fn(), expenseCount: vi.fn(async () => 2), session: vi.fn() }));
+const mocks = vi.hoisted(() => ({ list: vi.fn(), count: vi.fn(), classList: vi.fn(), expenseCount: vi.fn(async () => 2), session: vi.fn() }));
 vi.mock("@/lib/session", () => ({ requireSession: mocks.session, sessionErrorResponse: () => null }));
 vi.mock("@/lib/prisma", () => ({ prisma: {
   student: { findMany: mocks.list, count: mocks.count },
   attendance: { count: vi.fn(async () => 0) }, enrollmentSubmission: { count: vi.fn(async () => 0) },
-  class: { count: vi.fn(async () => 0) }, careReport: { count: vi.fn(async () => 0) },
+  class: { count: vi.fn(async () => 0), findMany: mocks.classList }, careReport: { count: vi.fn(async () => 0) },
   expenseOccurrence: { count: mocks.expenseCount },
   teacher: { count: vi.fn(async () => 0) }, enrollmentToken: { count: vi.fn(async () => 0) },
   school: { findUnique: vi.fn(async () => null) }, $transaction: (queries: Promise<unknown>[]) => Promise.all(queries),
@@ -14,7 +14,7 @@ vi.mock("@/lib/prisma", () => ({ prisma: {
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date("2026-08-27T22:30:00Z"));
   vi.clearAllMocks();
-  mocks.list.mockResolvedValue([]); mocks.count.mockResolvedValue(1);
+  mocks.list.mockResolvedValue([]); mocks.count.mockResolvedValue(1); mocks.classList.mockResolvedValue([]);
   mocks.session.mockResolvedValue({ user: { schoolId: "tenant-a" }, can: () => true, permissions: ["*"] });
 });
 afterEach(() => vi.useRealTimers());
@@ -40,6 +40,19 @@ describe("subscription lists and dashboard alerts", () => {
     expect(weekWhere).toEqual(listWhere);
     expect(weekWhere.enrollmentEndDate.lt).toEqual(new Date("2026-09-05"));
     expect(response.headers.get("Cache-Control")).toContain("no-store");
+  });
+  it("adds one attention item per class with fewer than five seats remaining", async () => {
+    mocks.classList.mockResolvedValue([
+      { id: "class-low", name: "Low", capacity: 12, _count: { students: 8 } },
+      { id: "class-five", name: "Five", capacity: 10, _count: { students: 5 } },
+      { id: "class-full", name: "Full", capacity: 8, _count: { students: 10 } },
+    ]);
+    const response = await tasks(req());
+    const body = await response.json();
+    expect(body.tasks.filter((task: { key: string }) => task.key === "lowClassCapacity")).toEqual([
+      { key: "lowClassCapacity", count: 4, className: "Low", href: "/classes/class-low" },
+      { key: "lowClassCapacity", count: 0, className: "Full", href: "/classes/class-full" },
+    ]);
   });
   it("combines name/class/payment filters without losing current-subscription constraints", async () => {
     await list(req("?subscription=current&search=test&classId=class-a&paymentStatus=PENDING"));

@@ -4,7 +4,7 @@ import { parseAcademicStage, parsePaymentStatus } from '@/lib/enum-labels';
 import { normalizePhone } from '@/lib/phone-normalizer';
 import { logAction } from '@/lib/activity-logger';
 import { protectIdNumber } from '@/lib/pii-crypto';
-import { requireStudentCycleFee, studentFeeSettingsSelect } from '@/lib/student-cycle-fee';
+import { resolveStudentCycleFee, studentFeeSettingsSelect } from '@/lib/student-cycle-fee';
 import {
   clearedImportRowPayload,
   lockImportRow,
@@ -13,6 +13,7 @@ import {
   updateImportRowPayload,
 } from '@/lib/import-row-payload';
 import { scopedClassIds } from '@/lib/student-access-scope';
+import { normalizeEducationLevel, normalizeEmployeeJobTitle } from '@/lib/employee-role-options';
 
 function parseDate(value: unknown): Date | null {
   if (value === null || value === undefined || value === '') return null;
@@ -110,10 +111,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ session
         if (importSession.type === 'students') {
           let guardianId: string | null = null;
           const guardianName = String(data.guardian_name ?? '').trim();
+          const guardianName2 = String(data.guardian_name_2 ?? '').trim();
           const phone1 = data.guardian_phone_1 ? normalizePhone(data.guardian_phone_1 as string) : null;
           const phone2 = data.guardian_phone_2 ? normalizePhone(data.guardian_phone_2 as string) : null;
+          const phone3 = data.guardian_phone_3 ? normalizePhone(data.guardian_phone_3 as string) : null;
+          const phone4 = data.guardian_phone_4 ? normalizePhone(data.guardian_phone_4 as string) : null;
           const guardianEmail = data.guardian_email ? String(data.guardian_email).trim() : null;
-          if (guardianName || phone1) {
+          const guardianEmail2 = data.guardian_email_2 ? String(data.guardian_email_2).trim() : null;
+          if (guardianName || guardianName2 || phone1 || phone3) {
             const conditions: object[] = [];
             if (phone1) conditions.push({ phone1 });
             if (guardianEmail) conditions.push({ email: guardianEmail });
@@ -125,7 +130,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ session
               reusedGuardian = true;
             } else {
               guardianId = (await tx.guardian.create({
-                data: { schoolId, name: guardianName || 'غير محدد', phone1, phone2, email: guardianEmail },
+                data: {
+                  schoolId,
+                  name: guardianName || 'غير محدد',
+                  phone1,
+                  phone2,
+                  email: guardianEmail,
+                  name_2: guardianName2 || null,
+                  phone_3: phone3,
+                  phone_4: phone4,
+                  email_2: guardianEmail2,
+                },
               })).id;
             }
           }
@@ -150,7 +165,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ session
               paymentStatus: parsePaymentStatus(data.payment_status ? String(data.payment_status) : null) ?? 'PENDING',
               registration_fee: 0,
               billingCycle: 'MONTHLY',
-              cycleFee: requireStudentCycleFee('MONTHLY', studentSettings),
+              // Roster intake must not drop an otherwise valid child just
+              // because finance setup is still incomplete. The nullable fee
+              // is resolved later when the subscription is configured or
+              // renewed, where the normal fee requirement still applies.
+              cycleFee: resolveStudentCycleFee('MONTHLY', null, studentSettings),
             },
           });
         } else {
@@ -167,10 +186,24 @@ export async function POST(req: Request, { params }: { params: Promise<{ session
               phone1: data.phone_1 ? String(data.phone_1).trim() : null,
               phone2: data.phone_2 ? String(data.phone_2).trim() : null,
               period: (PERIOD_MAP[String(data.period ?? '').trim()] ?? 'MORNING') as 'MORNING' | 'EVENING',
+              paymentMethod: (PAY_MAP[String(data.payment_method ?? '').trim()] ?? 'CASH') as 'CASH' | 'TRANSFER' | 'CARD',
               monthlySalary: Number.isNaN(salary) ? 0 : salary,
               lateDeductionRate: Number.isNaN(deductionRate) ? 0 : deductionRate,
+              jobTitle: normalizeEmployeeJobTitle(data.job_title ? String(data.job_title) : null) || null,
+              educationLevel: normalizeEducationLevel(data.education_level ? String(data.education_level) : null),
+              specialization: data.specialization ? String(data.specialization).trim() : null,
               qualification1: data.qualification_1 ? String(data.qualification_1).trim() : null,
+              qualification2: data.qualification_2 ? String(data.qualification_2).trim() : null,
+              qualification3: data.qualification_3 ? String(data.qualification_3).trim() : null,
+              qualification4: data.qualification_4 ? String(data.qualification_4).trim() : null,
+              qualification5: data.qualification_5 ? String(data.qualification_5).trim() : null,
+              qualification6: data.qualification_6 ? String(data.qualification_6).trim() : null,
+              qualification7: data.qualification_7 ? String(data.qualification_7).trim() : null,
+              qualification8: data.qualification_8 ? String(data.qualification_8).trim() : null,
+              qualification9: data.qualification_9 ? String(data.qualification_9).trim() : null,
+              qualification10: data.qualification_10 ? String(data.qualification_10).trim() : null,
               joinDate: parseDate(data.join_date) ?? new Date(),
+              enrollmentEndDate: parseDate(data.enrollment_end_date),
             },
           });
         }

@@ -9,6 +9,7 @@ import { Topbar } from "@/components/layout/Topbar";
 import { useT } from "@/lib/i18n-provider";
 import { useAcademicStages, useStageName } from "@/lib/use-academic-stages";
 import { TeacherMultiSelect } from "@/components/classes/TeacherMultiSelect";
+import { sanitizeIntegerInput } from "@/lib/numeric-input";
 
 
 type Teacher = { id: string; name: string };
@@ -30,6 +31,7 @@ export default function NewClassPage() {
     period: "" as "" | "MORNING" | "EVENING",
     registrationDate: "",
     notes: "",
+    capacity: "",
   });
 
   useEffect(() => {
@@ -54,6 +56,7 @@ export default function NewClassPage() {
         ...(form.period && { period: form.period }),
         ...(form.registrationDate && { registrationDate: form.registrationDate }),
         ...(form.notes && { notes: form.notes }),
+        ...(form.capacity !== "" && { capacity: Number(form.capacity) }),
       });
       router.push(`/classes/${res.data.id}`);
     } catch {
@@ -121,6 +124,19 @@ export default function NewClassPage() {
               <option value="MORNING">{t("periods.MORNING")}</option>
               <option value="EVENING">{t("periods.EVENING")}</option>
             </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">{t("classes.form.capacity")}</label>
+            <input
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={form.capacity}
+              onChange={(e) => setForm((f) => ({ ...f, capacity: sanitizeIntegerInput(e.target.value) }))}
+              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#5B14D1] text-sm"
+              placeholder={t("classes.form.capacityPlaceholder")}
+            />
           </div>
 
           <div>

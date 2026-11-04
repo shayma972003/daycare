@@ -7,6 +7,7 @@ import { Topbar } from "@/components/layout/Topbar";
 import { TEACHER_FIELD_ALIASES } from "@/lib/import-mapper";
 import { useT } from "@/lib/i18n-provider";
 import { importConfirmationPaths } from "@/lib/import-session";
+import { ImportColumnsHelp } from "@/components/import/ImportColumnsHelp";
 
 const ALL_TEACHER_FIELDS = Object.keys(TEACHER_FIELD_ALIASES);
 
@@ -281,7 +282,10 @@ export default function TeachersImportPage() {
         {/* STEP 1: Upload */}
         {step === 1 && (
           <div className="bg-white rounded-2xl shadow-md p-8">
-            <h2 className="text-xl font-bold text-[#111111] mb-2">{t("importer.uploadTeachers")}</h2>
+            <div className="mb-2 flex items-center gap-2">
+              <h2 className="text-xl font-bold text-[#111111]">{t("importer.uploadTeachers")}</h2>
+              <ImportColumnsHelp type="teachers" />
+            </div>
             <p className="text-sm text-gray-500 mb-6">{t("importer.supports")}</p>
             <div
               className={`border-2 border-dashed rounded-2xl p-12 text-center transition-colors cursor-pointer ${

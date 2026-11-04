@@ -29,6 +29,13 @@ interface ClassItem {
   teachers: { id: string; name: string }[];
   students: { id: string }[];
   needsTeacherWarning?: boolean;
+  capacity: number | null;
+  capacityState: {
+    count: number;
+    capacity: number | null;
+    over: boolean;
+    remaining: number | null;
+  };
 }
 
 export default function ClassesPage() {
@@ -226,8 +233,13 @@ export default function ClassesPage() {
                     {cls.period && <PeriodBadge period={cls.period} />}
                   </div>
 
-                  <p className="text-xs text-gray-500">
-                    {cls.students.length} {t("classes.children")}
+                  <p className={`text-xs ${cls.capacityState.remaining !== null && cls.capacityState.remaining < 5 ? "font-medium text-amber-700" : "text-gray-500"}`}>
+                    {cls.capacity === null
+                      ? `${cls.students.length} ${t("classes.children")}`
+                      : t("classes.capacityOccupancy", {
+                          count: cls.capacityState.count,
+                          capacity: cls.capacity,
+                        })}
                   </p>
                 </div>
               </button>

@@ -6,6 +6,7 @@ import axios from "axios";
 import { Topbar } from "@/components/layout/Topbar";
 import { STUDENT_FIELD_ALIASES } from "@/lib/import-mapper";
 import { useT } from "@/lib/i18n-provider";
+import { ImportColumnsHelp } from "@/components/import/ImportColumnsHelp";
 
 // All possible field names from STUDENT_FIELD_ALIASES
 const ALL_STUDENT_FIELDS = Object.keys(STUDENT_FIELD_ALIASES);
@@ -271,7 +272,7 @@ export default function StudentsImportPage() {
     setError(null);
     try {
       await axios.put(`/api/import/${sessionId}/mapping`, { mapping });
-      const valRes = await axios.post<{ valid_rows: number; error_rows: number }>(
+      await axios.post<{ valid_rows: number; error_rows: number }>(
         `/api/import/${sessionId}/validate`
       );
       // Load full session for review
@@ -311,7 +312,10 @@ export default function StudentsImportPage() {
         {/* STEP 1: Upload */}
         {step === 1 && (
           <div className="bg-white rounded-2xl shadow-md p-8">
-            <h2 className="text-xl font-bold text-[#111111] mb-2">{t("importer.uploadStudents")}</h2>
+            <div className="mb-2 flex items-center gap-2">
+              <h2 className="text-xl font-bold text-[#111111]">{t("importer.uploadStudents")}</h2>
+              <ImportColumnsHelp type="students" />
+            </div>
             <p className="text-sm text-gray-500 mb-6">{t("importer.supports")}</p>
             <div
               className={`border-2 border-dashed rounded-2xl p-12 text-center transition-colors cursor-pointer ${

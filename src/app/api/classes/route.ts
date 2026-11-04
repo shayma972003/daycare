@@ -6,6 +6,7 @@ import { assertClassCapacity, planLimitResponse } from "@/lib/plan-limits";
 import { parseClassGroup } from "@/lib/enum-labels";
 import { z } from "zod";
 import { classIdWhere } from "@/lib/student-access-scope";
+import { capacityState } from "@/lib/attendance-schedule";
 
 const createClassSchema = z.object({
   name: z.string().min(1),
@@ -19,6 +20,7 @@ const createClassSchema = z.object({
   period: z.enum(["MORNING", "EVENING"]).optional(),
   registrationDate: z.string().optional(),
   notes: z.string().optional(),
+  capacity: z.number().int().min(0).max(500).optional(),
 });
 
 export async function GET(request: Request) {
@@ -74,9 +76,10 @@ export async function GET(request: Request) {
         orderBy: { createdAt: "asc" },
       },
       needsTeacherWarning: true,
+      capacity: true,
       // Only ids are needed for the list's student count — full student rows
       // (with base64 avatar/evaluation blobs) are never needed here.
-      students: { where: { deletedAt: null }, select: { id: true } },
+      students: { where: { deletedAt: null, isActive: true }, select: { id: true } },
     },
     orderBy: { name: "asc" },
   });
@@ -85,6 +88,7 @@ export async function GET(request: Request) {
     ...room,
     teachers: teacherAssignments.map((assignment) => assignment.teacher),
     needsTeacherWarning: teacherAssignments.length === 0,
+    capacityState: capacityState(room.students.length, room.capacity),
   })), { status: 200 });
 }
 
@@ -113,7 +117,7 @@ export async function POST(request: Request) {
     return Response.json({ error: parsed.error.flatten() }, { status: 422 });
   }
 
-  const { name, teacherId, teacherIds, group, stageId, period, registrationDate, notes } = parsed.data;
+  const { name, teacherId, teacherIds, group, stageId, period, registrationDate, notes, capacity } = parsed.data;
 
   // Proven to belong to this school before it is stored: the id comes from the
   // client, and a room pointing at another tenant's stage would render that
@@ -164,6 +168,7 @@ export async function POST(request: Request) {
         ...(period !== undefined && { period }),
         ...(registrationDate !== undefined && { registrationDate: new Date(registrationDate) }),
         ...(notes !== undefined && { notes }),
+        ...(capacity !== undefined && { capacity }),
       },
       select: { id: true },
     });

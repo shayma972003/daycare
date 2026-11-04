@@ -60,6 +60,7 @@ export async function GET(request: Request) {
     pendingExpenses,
     pendingEnrolments,
     classesWithoutTeacher,
+    lowCapacityClasses,
     careReportsToday,
     expiringSoon,
     expiredSubscriptions,
@@ -137,6 +138,29 @@ export async function GET(request: Request) {
         })
       : prisma.class.count({ where: { id: "" } }),
 
+    canClasses
+      ? prisma.class.findMany({
+          where: {
+            schoolId,
+            deletedAt: null,
+            archivedAt: null,
+            capacity: { not: null },
+            ...classIdWhere(session),
+          },
+          select: {
+            id: true,
+            name: true,
+            capacity: true,
+            _count: {
+              select: {
+                students: { where: { deletedAt: null, isActive: true } },
+              },
+            },
+          },
+          orderBy: { name: "asc" },
+        })
+      : Promise.resolve([]),
+
     canCare
       ? prisma.careReport.count({
           where: {
@@ -185,12 +209,25 @@ export async function GET(request: Request) {
   // metric, so only currently eligible children belong in its denominator.
   const absent = Math.max(0, activeStudents - eligiblePresentToday);
 
+  const lowCapacityTasks = lowCapacityClasses.flatMap((room) => {
+    if (room.capacity === null) return [];
+    const remaining = Math.max(room.capacity - room._count.students, 0);
+    if (remaining >= 5) return [];
+    return [{
+      key: "lowClassCapacity",
+      count: remaining,
+      className: room.name,
+      href: `/classes/${room.id}`,
+    }];
+  });
+
   const tasks = [
     canStudents && { key: "absent", count: absent, href: "/attendance" },
     canFinance && { key: "unpaidInvoices", count: unpaidInvoices, href: "/statistics" },
     canFinance && { key: "pendingExpenses", count: pendingExpenses, href: "/statistics?tab=expenses" },
     canStudents && { key: "pendingEnrolments", count: pendingEnrolments, href: "/students" },
     canClasses && { key: "classesWithoutTeacher", count: classesWithoutTeacher, href: "/classes" },
+    ...lowCapacityTasks,
     canCare && { key: "careReports", count: careReportsToday, href: "/care" },
     canStudents && { key: "expiringSoon", count: expiringSoon, href: "/students?subscription=expiring" },
     canStudents && { key: "expiredSubscriptions", count: expiredSubscriptions, href: "/students?subscription=expired" },

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
+import { ActivityIndicator, AppState, Pressable, StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
 
 import {
@@ -10,6 +10,10 @@ import {
 import { loadTodayAttendance, type AttendanceChild } from "@/api/attendance";
 import { loadCalendar, type CalendarEventType, type MobileCalendarEvent } from "@/api/calendar";
 import { loadReturnedDailyCareReports, type ReturnedDailyCareBatch } from "@/api/care";
+import {
+  loadLocationAttendanceSettings,
+  type LocationAttendanceSettings,
+} from "@/api/location-attendance";
 import { riyadhDateKey } from "@/calendar/week";
 import { AppScreen } from "@/components/app-screen";
 import { Text, useLanguage } from "@/language";
@@ -30,9 +34,10 @@ type HomeErrors = {
   attendance: string | null;
   care: string | null;
   calendar: string | null;
+  location: string | null;
 };
 
-const EMPTY_ERRORS: HomeErrors = { arrival: null, attendance: null, care: null, calendar: null };
+const EMPTY_ERRORS: HomeErrors = { arrival: null, attendance: null, care: null, calendar: null, location: null };
 
 function errorMessage(reason: unknown, fallback: string) {
   return reason instanceof Error ? reason.message : fallback;
@@ -63,6 +68,7 @@ export function StaffHomeScreen() {
   const [children, setChildren] = useState<AttendanceChild[] | null>(null);
   const [returnedReports, setReturnedReports] = useState<ReturnedDailyCareBatch[] | null>(null);
   const [events, setEvents] = useState<MobileCalendarEvent[] | null>(null);
+  const [locationAttendance, setLocationAttendance] = useState<LocationAttendanceSettings | null>(null);
   const [errors, setErrors] = useState<HomeErrors>(EMPTY_ERRORS);
   const [refreshing, setRefreshing] = useState(false);
   const can = useCallback(
@@ -74,18 +80,21 @@ export function StaffHomeScreen() {
   const canUseStudentAttendance = can("attendance.students");
   const canUseCare = canUseStudentAttendance && account?.kind === "staff" && Boolean(account.teacherId);
   const canUseCalendar = can("schedule.view");
+  const canUseLocationAttendance = account?.kind === "staff" && Boolean(account.teacherId);
 
   const applyResults = useCallback((results: [
     PromiseSettledResult<Awaited<ReturnType<typeof loadArrivalNotices>>>,
     PromiseSettledResult<Awaited<ReturnType<typeof loadTodayAttendance>>>,
     PromiseSettledResult<ReturnedDailyCareBatch[]>,
     PromiseSettledResult<Awaited<ReturnType<typeof loadCalendar>>>,
+    PromiseSettledResult<LocationAttendanceSettings | null>,
   ]) => {
-    const [arrivalResult, attendanceResult, careResult, calendarResult] = results;
+    const [arrivalResult, attendanceResult, careResult, calendarResult, locationResult] = results;
     if (arrivalResult.status === "fulfilled") setArrivalNotices(arrivalResult.value.notices);
     setChildren(attendanceResult.status === "fulfilled" ? attendanceResult.value.children : null);
     setReturnedReports(careResult.status === "fulfilled" ? careResult.value : null);
     setEvents(calendarResult.status === "fulfilled" ? calendarResult.value.events : null);
+    setLocationAttendance(locationResult.status === "fulfilled" ? locationResult.value : null);
     setErrors({
       arrival: arrivalResult.status === "rejected"
         ? errorMessage(arrivalResult.reason, "تعذّر تحميل إشعارات الوصول")
@@ -98,6 +107,9 @@ export function StaffHomeScreen() {
         : null,
       calendar: calendarResult.status === "rejected"
         ? errorMessage(calendarResult.reason, "تعذّر تحميل أحداث اليوم")
+        : null,
+      location: locationResult.status === "rejected"
+        ? errorMessage(locationResult.reason, "تعذّر تحميل حالة حضورك")
         : null,
     });
   }, []);
@@ -113,13 +125,39 @@ export function StaffHomeScreen() {
       canUseCalendar
         ? loadCalendar(today, today)
         : Promise.resolve({ from: today, to: today, events: [] }),
+      canUseLocationAttendance ? loadLocationAttendanceSettings() : Promise.resolve(null),
     ]).then((results) => {
       if (active) applyResults(results);
     });
     return () => {
       active = false;
     };
-  }, [applyResults, canUseCalendar, canUseCare, canUseStudentAttendance, today]);
+  }, [applyResults, canUseCalendar, canUseCare, canUseLocationAttendance, canUseStudentAttendance, today]);
+
+  useEffect(() => {
+    if (!canUseLocationAttendance) return;
+    let active = true;
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      if (nextState !== "active") return;
+      void loadLocationAttendanceSettings()
+        .then((result) => {
+          if (!active) return;
+          setLocationAttendance(result);
+          setErrors((current) => ({ ...current, location: null }));
+        })
+        .catch((caught: unknown) => {
+          if (!active) return;
+          setErrors((current) => ({
+            ...current,
+            location: errorMessage(caught, "تعذّر تحميل حالة حضورك"),
+          }));
+        });
+    });
+    return () => {
+      active = false;
+      subscription.remove();
+    };
+  }, [canUseLocationAttendance]);
 
   useEffect(() => {
     let active = true;
@@ -159,12 +197,13 @@ export function StaffHomeScreen() {
         canUseCalendar
           ? loadCalendar(today, today)
           : Promise.resolve({ from: today, to: today, events: [] }),
+        canUseLocationAttendance ? loadLocationAttendanceSettings() : Promise.resolve(null),
       ]);
       applyResults(results);
     } finally {
       setRefreshing(false);
     }
-  }, [applyResults, canUseCalendar, canUseCare, canUseStudentAttendance, today]);
+  }, [applyResults, canUseCalendar, canUseCare, canUseLocationAttendance, canUseStudentAttendance, today]);
 
   const attendance = useMemo(() => ({
     total: children?.length ?? 0,
@@ -229,6 +268,34 @@ export function StaffHomeScreen() {
         </View>
       ) : null}
       {errors.arrival ? <ErrorState message={errors.arrival} /> : null}
+
+      {canUseLocationAttendance ? <SectionCard title="حضورك الآن">
+        {locationAttendance === null && !errors.location ? (
+          <LoadingState label="جارٍ تحميل حالة حضورك…" />
+        ) : errors.location ? (
+          <ErrorState message={errors.location} />
+        ) : locationAttendance ? (
+          <View style={[styles.locationState, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
+            <View style={styles.locationStateCopy}>
+              <Text style={styles.locationStateLabel}>الحالة الحالية</Text>
+              {!locationAttendance.enabled ? (
+                <Text style={styles.locationStateHint}>الحضور التلقائي غير مفعّل من إدارة المدرسة</Text>
+              ) : null}
+            </View>
+            <View style={[
+              styles.locationBadge,
+              locationAttendance.attendanceOpen ? styles.locationBadgeIn : styles.locationBadgeOut,
+            ]}>
+              <Text style={[
+                styles.locationBadgeText,
+                locationAttendance.attendanceOpen ? styles.locationBadgeTextIn : styles.locationBadgeTextOut,
+              ]}>
+                {locationAttendance.attendanceOpen ? "مسجلة دخول" : "مسجلة خروج"}
+              </Text>
+            </View>
+          </View>
+        ) : null}
+      </SectionCard> : null}
 
       {canUseStudentAttendance ? <SectionCard
         actionLabel="فتح الحضور"
@@ -392,6 +459,23 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
   },
   okButtonText: { color: colors.surface, fontSize: 14, fontWeight: "900" },
+  locationState: {
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.md,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.background,
+  },
+  locationStateCopy: { flex: 1, gap: 3 },
+  locationStateLabel: { color: colors.text, fontSize: 14, fontWeight: "900", textAlign: "right" },
+  locationStateHint: { color: colors.muted, fontSize: 11, lineHeight: 17, textAlign: "right" },
+  locationBadge: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: 999 },
+  locationBadgeIn: { backgroundColor: colors.successSoft },
+  locationBadgeOut: { backgroundColor: colors.primarySoft },
+  locationBadgeText: { fontSize: 13, fontWeight: "900" },
+  locationBadgeTextIn: { color: colors.success },
+  locationBadgeTextOut: { color: colors.primary },
   sectionCard: {
     ...shadow.card,
     overflow: "hidden",

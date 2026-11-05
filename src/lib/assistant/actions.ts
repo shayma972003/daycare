@@ -42,6 +42,10 @@ import {
 import { buildStudentDeparture, getRetentionPolicy } from "@/lib/data-retention";
 import { renewStudentSubscription, RenewalError } from "@/lib/student-renewal";
 import { normalizePhone } from "@/lib/phone-normalizer";
+import {
+  StudentInvoiceReminderError,
+  studentInvoiceReminderAttachment,
+} from "@/lib/student-invoice-reminder";
 
 const attendanceProposalSchema = z.object({
   kind: z.literal("attendance"),
@@ -2256,6 +2260,15 @@ export async function confirmAssistantAction(input: {
     ]);
     const template = settings?.reminderTemplate
       ?? "مرحباً، <guardian_name>، نود إعلامكم بأن الرسوم المستحقة على <child_name> بمبلغ <subscription_fee> تستحق بتاريخ <due_date>. مع تحيات <school_name>";
+    let invoice: Awaited<ReturnType<typeof studentInvoiceReminderAttachment>>;
+    try {
+      invoice = await studentInvoiceReminderAttachment(request, schoolId, student.id);
+    } catch (error) {
+      if (error instanceof StudentInvoiceReminderError) {
+        throw new AssistantActionError(error.code, error.status);
+      }
+      throw new AssistantActionError("INVOICE_ATTACHMENT_FAILED", 500);
+    }
     const schedule = school ? scheduleFor(school, "student", student.period ?? "MORNING") : null;
     const variables = buildMessageVars({
       student: {
@@ -2271,14 +2284,16 @@ export async function confirmAssistantAction(input: {
       schoolId,
       student.guardian.name ?? student.name,
       student.guardian.email,
-      template,
+      `${template}\n\nتم إرفاق فاتورة هذا الشهر بصيغة PDF.`,
       variables,
       school?.name ?? "المنشأة",
       "reminder",
       { studentId: student.id },
-      school?.email
+      school?.email,
+      [invoice.attachment]
     );
     if (delivery.status === "no_email") throw new AssistantActionError("NO_GUARDIAN_EMAIL", 422);
+    if (delivery.status === "disabled") throw new AssistantActionError("EMAIL_DELIVERY_DISABLED", 503);
     if (delivery.status === "failed") throw new AssistantActionError("DELIVERY_FAILED", 502);
     await logAction({
       school_id: schoolId,

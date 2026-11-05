@@ -1,7 +1,9 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import { Alert } from "react-native";
 
 import { currentAccount, signOut as revokeSession, type Account } from "@/api/auth";
+import { useLanguage } from "@/language";
 import { registerDeviceForPush, unregisterDeviceForPush } from "@/notifications/device";
 import { stopLocationAttendance, syncLocationAttendance } from "@/location-attendance";
 
@@ -16,8 +18,10 @@ type SessionContextValue = {
 const SessionContext = createContext<SessionContextValue | null>(null);
 
 export function SessionProvider({ children }: { children: ReactNode }) {
+  const { t } = useLanguage();
   const [account, setAccount] = useState<Account | null>(null);
   const [loading, setLoading] = useState(true);
+  const promptedLocationAccountId = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -41,10 +45,31 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       // appear to do nothing immediately after sign-in.
       await registerDeviceForPush().catch(() => undefined);
       if (account.kind === "staff" && account.teacherId) {
-        await syncLocationAttendance({ requestPermissions: true }).catch(() => undefined);
+        const setup = await syncLocationAttendance().catch(() => null);
+        const needsSetup = setup?.status === "permission-required"
+          || setup?.status === "services-disabled";
+        if (needsSetup && promptedLocationAccountId.current !== account.id) {
+          promptedLocationAccountId.current = account.id;
+          Alert.alert(
+            t("تفعيل الحضور التلقائي"),
+            t("يلزم تشغيل موقع الجهاز ومنح تطبيق طفولة تيك إذن الموقع طوال الوقت لتسجيل الدخول والخروج تلقائيًا."),
+            [
+              { text: t("لاحقًا"), style: "cancel" },
+              {
+                text: t("تشغيل الموقع ومنح الإذن"),
+                onPress: () => {
+                  void syncLocationAttendance({
+                    requestPermissions: true,
+                    requestServices: true,
+                  }).catch(() => undefined);
+                },
+              },
+            ]
+          );
+        }
       }
     })();
-  }, [account]);
+  }, [account, t]);
 
   const refreshAccount = useCallback(async () => {
     const current = await currentAccount();
@@ -56,6 +81,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     await stopLocationAttendance().catch(() => undefined);
     await unregisterDeviceForPush();
     await revokeSession();
+    promptedLocationAccountId.current = null;
     setAccount(null);
   }, []);
 

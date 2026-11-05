@@ -9,6 +9,7 @@ import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { moneyNumber } from "@/lib/money";
 import { scheduleFor } from "@/lib/school-schedule";
 import { studentClassWhere } from "@/lib/student-access-scope";
+import { studentInvoiceReminderAttachment } from "@/lib/student-invoice-reminder";
 
 /**
  * Payment and renewal reminders, as two separate lists (task 2.38).
@@ -226,6 +227,19 @@ export async function POST(request: Request) {
 
   for (const student of students) {
     const email = student.guardian?.email ?? null;
+    if (!email) {
+      skipped++;
+      continue;
+    }
+    let invoiceAttachment: Awaited<ReturnType<typeof studentInvoiceReminderAttachment>> | null = null;
+    if (parsed.data.kind === "payment") {
+      try {
+        invoiceAttachment = await studentInvoiceReminderAttachment(request, schoolId, student.id);
+      } catch {
+        failed++;
+        continue;
+      }
+    }
     const schedule = school ? scheduleFor(school, "student", student.period ?? "MORNING") : null;
     const vars = buildMessageVars({
       student: {
@@ -246,12 +260,15 @@ export async function POST(request: Request) {
       schoolId,
       student.guardian?.name ?? "ولي الأمر",
       email,
-      template,
+      parsed.data.kind === "payment"
+        ? `${template}\n\nتم إرفاق فاتورة هذا الشهر بصيغة PDF.`
+        : template,
       vars,
       school?.name ?? "",
       parsed.data.kind === "renewal" ? "renewal" : "reminder",
       { studentId: student.id },
-      school?.email
+      school?.email,
+      invoiceAttachment ? [invoiceAttachment.attachment] : []
     );
     if (delivery.status === "sent") sent++;
     else if (delivery.status === "no_email") skipped++;

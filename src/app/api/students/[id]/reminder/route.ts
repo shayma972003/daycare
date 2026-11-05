@@ -7,6 +7,10 @@ import { logAction } from "@/lib/activity-logger";
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { moneyNumber } from "@/lib/money";
 import { scheduleFor } from "@/lib/school-schedule";
+import {
+  StudentInvoiceReminderError,
+  studentInvoiceReminderAttachment,
+} from "@/lib/student-invoice-reminder";
 
 export async function POST(
   request: Request,
@@ -56,6 +60,25 @@ export async function POST(
 
   const guardianName = student.guardian?.name ?? student.name;
   const email = student.guardian?.email ?? null;
+  if (!email) {
+    return Response.json(
+      { error: "لا يوجد بريد إلكتروني مسجّل لولي الأمر" },
+      { status: 422 }
+    );
+  }
+
+  let invoice: Awaited<ReturnType<typeof studentInvoiceReminderAttachment>>;
+  try {
+    invoice = await studentInvoiceReminderAttachment(request, schoolId, student.id);
+  } catch (error) {
+    if (error instanceof StudentInvoiceReminderError) {
+      return Response.json(
+        { error: error.message, code: error.code },
+        { status: error.status }
+      );
+    }
+    return Response.json({ error: "تعذر إنشاء فاتورة الطفل" }, { status: 500 });
+  }
 
   const vars = buildMessageVars({
     student: {
@@ -81,22 +104,19 @@ export async function POST(
     schoolId,
     guardianName,
     email,
-    reminderTemplate,
+    `${reminderTemplate}\n\nتم إرفاق فاتورة هذا الشهر بصيغة PDF.`,
     vars,
     schoolName,
     "reminder",
     // The message goes to the guardian but is about the child — recorded so the
     // retention sweep can clear the name from this log later.
     { studentId: student.id },
-    school?.email
+    school?.email,
+    [invoice.attachment]
   );
 
-  if (delivery.status === "no_email") {
-    return Response.json(
-      { error: "لا يوجد بريد إلكتروني مسجّل لولي الأمر" },
-      { status: 422 }
-    );
-  }
+  if (delivery.status === "no_email") return Response.json({ error: "لا يوجد بريد إلكتروني مسجّل لولي الأمر" }, { status: 422 });
+  if (delivery.status === "disabled") return Response.json({ error: "إرسال البريد الإلكتروني غير مفعّل" }, { status: 503 });
   if (delivery.status === "failed") {
     return Response.json(
       { error: "تعذر إرسال البريد. حاول مجدداً." },
@@ -114,5 +134,5 @@ export async function POST(
     request,
   });
 
-  return Response.json({ success: true });
+  return Response.json({ success: true, invoiceId: invoice.invoiceId });
 }

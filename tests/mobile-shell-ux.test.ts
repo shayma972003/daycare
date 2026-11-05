@@ -63,7 +63,7 @@ describe("mobile shared shell UX", () => {
     expect(card).toContain("حالتك الآن");
     expect(card).toContain("مسجلة دخول");
     expect(card).toContain("مسجلة خروج");
-    expect(location).toContain("attendanceOpen: current.attendanceOpen");
+    expect(location).toContain('return resultFor("active", current');
     expect(notifications).toContain("تم تسجيل دخولك تلقائيًا");
     expect(notifications).toContain("تم تسجيل خروجك تلقائيًا");
     expect(notifications).toContain("shouldPlaySound: true");

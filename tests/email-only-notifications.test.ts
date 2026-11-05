@@ -157,6 +157,35 @@ describe("email-only notification delivery", () => {
     });
   });
 
+  it("sends a PDF attachment through Resend as base64", async () => {
+    await sendNotification(
+      "school-1",
+      "Guardian",
+      "guardian@example.com",
+      "Attached invoice",
+      {},
+      "Test School",
+      "reminder",
+      { studentId: "student-1" },
+      "school@example.com",
+      [{
+        filename: "invoice-123.pdf",
+        content: Buffer.from("%PDF-test"),
+        contentType: "application/pdf",
+      }]
+    );
+
+    const requestBody = JSON.parse(
+      String((mocks.fetch.mock.calls[0][1] as RequestInit).body)
+    );
+    expect(requestBody.subject).toBe("فاتورة من Test School");
+    expect(requestBody.attachments).toEqual([{
+      filename: "invoice-123.pdf",
+      content: Buffer.from("%PDF-test").toString("base64"),
+      content_type: "application/pdf",
+    }]);
+  });
+
   it("returns failed and never counts a provider failure as SENT", async () => {
     mocks.fetch.mockResolvedValueOnce(new Response("provider unavailable", { status: 503 }));
 

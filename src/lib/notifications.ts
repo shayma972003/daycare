@@ -29,6 +29,13 @@ export type EmailSender =
 export interface SendEmailOptions {
   sender?: EmailSender;
   language?: PlatformLanguage;
+  attachments?: EmailAttachment[];
+}
+
+export interface EmailAttachment {
+  filename: string;
+  content: Buffer;
+  contentType: string;
 }
 
 export type EmailDeliveryFailureReason =
@@ -165,6 +172,11 @@ export async function sendEmail(
       env.FROM_EMAIL!
     );
     const replyTo = sender.kind === "school" ? safeReplyTo(sender.replyTo) : undefined;
+    const attachments = options.attachments?.map((attachment) => ({
+      filename: sanitizeHeaderText(attachment.filename) || "attachment",
+      content: attachment.content,
+      contentType: attachment.contentType,
+    })) ?? [];
     const safeSubject = sanitizeHeaderText(subject);
     const direction = language === "ar" ? "rtl" : "ltr";
     const footer =
@@ -208,6 +220,7 @@ body{font-family:'Tajawal',Arial,sans-serif;background:#f4f6fb;margin:0;padding:
         subject: safeSubject,
         html,
         ...(replyTo ? { replyTo } : {}),
+        ...(attachments.length ? { attachments } : {}),
       });
       return { success: true, status: "sent" };
     }
@@ -224,6 +237,15 @@ body{font-family:'Tajawal',Arial,sans-serif;background:#f4f6fb;margin:0;padding:
         subject: safeSubject,
         html,
         ...(replyTo ? { reply_to: replyTo } : {}),
+        ...(attachments.length
+          ? {
+              attachments: attachments.map((attachment) => ({
+                filename: attachment.filename,
+                content: attachment.content.toString("base64"),
+                content_type: attachment.contentType,
+              })),
+            }
+          : {}),
       }),
     });
 
@@ -276,7 +298,8 @@ export async function sendNotification(
   schoolName: string,
   source: string = "other",
   subject: NotificationSubject = {},
-  schoolEmail?: string | null
+  schoolEmail?: string | null,
+  attachments: EmailAttachment[] = []
 ): Promise<NotificationDeliveryResult> {
   const message = replaceVariables(template, vars as Record<string, string>);
   const subjectColumns = {
@@ -288,7 +311,7 @@ export async function sendNotification(
 
   const delivery = await sendEmail(
     email,
-    `رسالة من ${schoolName}`,
+    attachments.length ? `فاتورة من ${schoolName}` : `رسالة من ${schoolName}`,
     message,
     schoolName,
     {
@@ -298,6 +321,7 @@ export async function sendNotification(
         replyTo: schoolEmail,
       },
       language: "ar",
+      attachments,
     }
   );
 

@@ -16,7 +16,8 @@ export function Topbar({ title }: TopbarProps = {}) {
   const { mobileOpen, subscriptionLocked, openMobile, closeMobile, triggerRef } = useDashboardNavigation();
 
   return (
-    <header className="sticky top-0 z-30 flex min-h-16 w-full min-w-0 items-center gap-2 border-b border-[#E8E3EF] bg-white px-3 py-2 sm:gap-3 sm:px-4 lg:px-6">
+    <header className="sticky top-0 z-30 flex min-h-16 w-full min-w-0 items-center gap-2 border-b border-[#E7DEF8] bg-white/95 px-3 py-2 shadow-[0_6px_20px_rgba(74,39,153,0.04)] backdrop-blur sm:gap-3 sm:px-4 lg:px-6">
+      <span aria-hidden className="absolute inset-x-0 bottom-0 h-0.5 bg-gradient-to-r from-[#FF6B4A] via-[#6D3FD6] to-transparent opacity-70" />
       <button
         ref={triggerRef}
         type="button"
@@ -24,11 +25,14 @@ export function Topbar({ title }: TopbarProps = {}) {
         aria-label={t(mobileOpen ? "layout.closeNavigation" : "layout.openNavigation")}
         aria-expanded={mobileOpen}
         aria-controls="mobile-dashboard-navigation"
-        className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-200 text-navy hover:border-teal hover:text-teal xl:hidden"
+        className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#E2D8F4] bg-[#FBF9FF] text-[#4A2799] hover:border-[#6D3FD6] hover:bg-[#F1EBFD] xl:hidden"
       >
         <span aria-hidden className="text-xl leading-none">☰</span>
       </button>
-      <h1 className="min-w-0 flex-1 truncate text-base font-bold text-navy sm:text-lg">{title ?? t("dashboard.title")}</h1>
+      <div className="min-w-0 flex-1">
+        <h1 className="truncate text-base font-bold text-[#291B45] sm:text-lg">{title ?? t("dashboard.title")}</h1>
+        <div aria-hidden className="mt-1 h-1 w-8 rounded-full bg-[#FF6B4A]" />
+      </div>
       {!subscriptionLocked && <div className="flex shrink-0 items-center gap-1 sm:gap-2">
         {/* The palette's own trigger. A keyboard shortcut nobody is told about
             is a shortcut nobody uses — and this is also the only way in on a

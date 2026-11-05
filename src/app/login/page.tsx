@@ -4,7 +4,63 @@ import { useState, useEffect, Suspense } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { useT } from "@/lib/i18n-provider";
+import Image from "next/image";
+import { useLocale, useT } from "@/lib/i18n-provider";
+import { LanguageSwitcher } from "@/components/layout/LanguageSwitcher";
+
+function BrandAuthShell({ children }: { children: React.ReactNode }) {
+  const t = useT();
+  const { locale } = useLocale();
+
+  return (
+    <div dir={locale === "ar" ? "rtl" : "ltr"} className="min-h-screen bg-[#FBF9FF]">
+      <div className="grid min-h-screen lg:grid-cols-[minmax(0,1.05fr)_minmax(430px,0.85fr)]">
+        <section className="brand-auth-background relative hidden min-h-screen overflow-hidden p-10 text-white lg:flex lg:flex-col lg:justify-between xl:p-14">
+          <span aria-hidden className="absolute -start-24 -top-24 h-72 w-72 rounded-full border-[54px] border-white/10" />
+          <span aria-hidden className="absolute -end-28 top-1/3 h-72 w-72 rounded-full bg-[#FF6B4A]/20" />
+          <Image
+            src="/brand/logo-orange-white.svg"
+            alt={t("auth.appName")}
+            width={230}
+            height={59}
+            priority
+            className="relative z-10 h-auto w-[220px] self-center"
+          />
+
+          <div className="relative z-10 mx-auto flex w-full max-w-xl flex-1 flex-col justify-center py-10">
+            <p className="mb-3 text-sm font-bold text-[#FFD4C9]">{t("auth.platformLabel")}</p>
+            <h1 className="max-w-lg text-4xl font-bold leading-[1.35] xl:text-5xl">
+              {t("auth.heroTitle")}
+            </h1>
+            <p className="mt-5 max-w-lg text-base leading-8 text-white/75">
+              {t("auth.heroDescription")}
+            </p>
+          </div>
+
+          <div aria-hidden className="relative z-10 mx-auto flex h-44 w-full max-w-lg items-end justify-center gap-3">
+            <Image src="/brand/square-excited.svg" alt="" width={125} height={125} className="h-24 w-24 -rotate-6 opacity-95 xl:h-28 xl:w-28" />
+            <Image src="/brand/Hexagon-excited.svg" alt="" width={155} height={170} className="h-36 w-auto drop-shadow-[0_16px_22px_rgba(41,27,69,0.24)] xl:h-40" />
+            <Image src="/brand/triangel-happy.svg" alt="" width={145} height={128} className="h-28 w-auto rotate-6 opacity-95 xl:h-32" />
+          </div>
+        </section>
+
+        <main className="relative flex min-h-screen items-center justify-center overflow-hidden px-5 py-24 sm:px-10 lg:px-12">
+          <span aria-hidden className="absolute -start-20 -top-20 h-52 w-52 rounded-full bg-[#F1EBFD]" />
+          <span aria-hidden className="absolute -end-20 bottom-8 h-48 w-48 rounded-full bg-[#FFF0EB]" />
+          <div className="absolute end-4 top-4 z-20 w-44 rounded-xl border border-[#E7DEF8] bg-white/90 p-1 shadow-sm backdrop-blur sm:end-7 sm:top-6">
+            <LanguageSwitcher />
+          </div>
+          <div className="relative z-10 w-full max-w-md">
+            <div className="mb-8 flex justify-center lg:hidden">
+              <Image src="/brand/logo-orange-purpule.svg" alt={t("auth.appName")} width={210} height={54} priority className="h-auto w-[190px]" />
+            </div>
+            {children}
+          </div>
+        </main>
+      </div>
+    </div>
+  );
+}
 
 function LoginForm() {
   const t = useT();
@@ -145,15 +201,10 @@ function LoginForm() {
 
   if (step === "otp") {
     return (
-      <div dir="rtl" className="min-h-screen bg-[#1a2340] flex items-center justify-center p-4">
-        <div className="w-full max-w-md">
-          <div className="flex flex-col items-center mb-8 gap-3">
-            <div className="w-16 h-16 bg-white/10 rounded-2xl border-2 border-white/20" />
-            <h1 className="text-white text-xl font-bold tracking-wide">{t("auth.appName")}</h1>
-          </div>
-
-          <div className="bg-white rounded-2xl shadow-2xl p-8">
-            <h2 className="text-lg font-bold text-[#1a2340] mb-2 text-center">{t("auth.codeSentTo")}</h2>
+      <BrandAuthShell>
+          <div className="rounded-[28px] border border-[#E7DEF8] bg-white p-7 shadow-[0_24px_70px_rgba(74,39,153,0.13)] sm:p-9">
+            <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#F1EBFD] text-2xl font-bold text-[#4A2799]">#</div>
+            <h2 className="mb-2 text-xl font-bold text-[#291B45]">{t("auth.codeSentTo")}</h2>
             <p className="text-sm text-gray-500 mb-6 text-center" dir="ltr">
               {maskedTarget}
             </p>
@@ -172,7 +223,7 @@ function LoginForm() {
                   required
                   placeholder="------"
                   dir="ltr"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] focus:border-transparent text-center text-lg tracking-[0.5em] transition-all"
+                  className="brand-focus-ring w-full rounded-xl border border-[#DED5EC] px-4 py-3 text-center text-lg tracking-[0.5em] transition-all"
                 />
               </div>
 
@@ -185,7 +236,7 @@ function LoginForm() {
               <button
                 type="submit"
                 disabled={otpLoading || otpCode.length !== 6}
-                className="w-full py-3 bg-[#22c55e] hover:bg-[#16a34a] text-white rounded-xl font-bold text-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed shadow-md hover:shadow-lg mt-2"
+                className="mt-2 w-full rounded-xl bg-[#6D3FD6] py-3 font-bold text-white shadow-[0_10px_24px_rgba(109,63,214,0.24)] transition-all hover:bg-[#4A2799] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {otpLoading ? (
                   <span className="flex items-center justify-center gap-2">
@@ -202,7 +253,7 @@ function LoginForm() {
                   type="button"
                   onClick={handleResend}
                   disabled={resendCooldown > 0}
-                  className="text-sm text-gray-500 hover:text-[#1a2340] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="text-sm text-gray-500 transition-colors hover:text-[#4A2799] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {resendCooldown > 0
                     ? t("auth.resendIn", { n: String(resendCooldown) })
@@ -218,30 +269,25 @@ function LoginForm() {
                     setOtpCode("");
                     setOtpError("");
                   }}
-                  className="text-xs text-gray-400 hover:text-[#1a2340] transition-colors"
+                  className="text-xs text-gray-400 transition-colors hover:text-[#4A2799]"
                 >
                   {t("common.back")}
                 </button>
               </div>
             </form>
           </div>
-        </div>
-      </div>
+      </BrandAuthShell>
     );
   }
 
   return (
-    <div dir="rtl" className="min-h-screen bg-[#1a2340] flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        {/* Logo + title */}
-        <div className="flex flex-col items-center mb-8 gap-3">
-          <div className="w-16 h-16 bg-white/10 rounded-2xl border-2 border-white/20" />
-          <h1 className="text-white text-xl font-bold tracking-wide">{t("auth.appName")}</h1>
-        </div>
-
-        {/* Card */}
-        <div className="bg-white rounded-2xl shadow-2xl p-8">
-          <h2 className="text-lg font-bold text-[#1a2340] mb-6 text-center">{t("auth.signInTitle")}</h2>
+    <BrandAuthShell>
+        <div className="rounded-[28px] border border-[#E7DEF8] bg-white p-7 shadow-[0_24px_70px_rgba(74,39,153,0.13)] sm:p-9">
+          <div className="mb-7">
+            <span className="mb-3 block h-1.5 w-10 rounded-full bg-[#FF6B4A]" />
+            <h2 className="text-2xl font-bold text-[#291B45]">{t("auth.signInTitle")}</h2>
+            <p className="mt-2 text-sm leading-6 text-[#81758E]">{t("auth.credentialHint")}</p>
+          </div>
 
           <form onSubmit={handleSubmit} className="space-y-4" noValidate>
             {/* Email */}
@@ -256,7 +302,7 @@ function LoginForm() {
                 required
                 placeholder="admin@school.com"
                 dir="ltr"
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] focus:border-transparent text-sm transition-all"
+                className="brand-focus-ring w-full rounded-xl border border-[#DED5EC] bg-[#FCFBFE] px-4 py-3 text-sm transition-all"
               />
             </div>
 
@@ -273,12 +319,12 @@ function LoginForm() {
                   required
                   placeholder="••••••••"
                   dir="ltr"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#1a2340] focus:border-transparent text-sm transition-all pr-12"
+                  className="brand-focus-ring w-full rounded-xl border border-[#DED5EC] bg-[#FCFBFE] px-4 py-3 pe-12 text-sm transition-all"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs font-medium transition-colors"
+                  className="absolute end-3 top-1/2 -translate-y-1/2 text-xs font-medium text-[#81758E] transition-colors hover:text-[#4A2799]"
                 >
                   {showPassword ? t("fields.hide") : t("fields.show")}
                 </button>
@@ -300,7 +346,7 @@ function LoginForm() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 bg-[#22c55e] hover:bg-[#16a34a] text-white rounded-xl font-bold text-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed shadow-md hover:shadow-lg mt-2"
+              className="mt-2 w-full rounded-xl bg-[#6D3FD6] py-3 font-bold text-white shadow-[0_10px_24px_rgba(109,63,214,0.24)] transition-all hover:-translate-y-0.5 hover:bg-[#4A2799] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading ? (
                 <span className="flex items-center justify-center gap-2">
@@ -313,15 +359,14 @@ function LoginForm() {
             </button>
 
             <div className="text-center mt-3">
-              <Link href="/forgot-password" className="text-sm text-gray-500 hover:text-[#1a2340] transition-colors">
+              <Link href="/forgot-password" className="text-sm text-gray-500 transition-colors hover:text-[#4A2799]">
                 {t("auth.forgotTitle")}
               </Link>
             </div>
           </form>
 
         </div>
-      </div>
-    </div>
+    </BrandAuthShell>
   );
 }
 

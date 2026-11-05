@@ -1,6 +1,6 @@
 export const PLATFORM_BRAND = {
   ar: "طفولة تك",
-  en: "Tofolah Tech",
+  en: "Tofola Tech",
 } as const;
 
 export type PlatformLanguage = keyof typeof PLATFORM_BRAND;

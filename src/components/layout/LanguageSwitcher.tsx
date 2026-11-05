@@ -35,8 +35,8 @@ export function LanguageSwitcher() {
           lang={option}
           className={`flex-1 px-3 py-2 rounded-lg text-xs transition-all ${
             locale === option
-              ? "bg-[#F1E8FF] text-[#5B14D1] font-medium"
-              : "text-[#9A909F] hover:text-[#5B14D1] hover:bg-[#FAF8FC]"
+              ? "bg-[#F1EBFD] text-[#4A2799] font-bold"
+              : "text-[#8C8298] hover:text-[#4A2799] hover:bg-[#FBF9FF]"
           }`}
         >
           {LOCALE_LABELS[option]}

@@ -254,7 +254,11 @@
     "badOtp": "That code is not correct",
     "signInError": "Something went wrong signing in. Please try again.",
     "resendFailed": "Could not send it again",
-    "appName": "Daycare Management System",
+    "appName": "Tofola Tech",
+    "platformLabel": "Integrated management platform",
+    "heroTitle": "Everything your organization needs in one place",
+    "heroDescription": "Clearer daily management, faster communication, and an easier experience for management, staff, and parents.",
+    "credentialHint": "Enter your organization account details to continue to the dashboard.",
     "codeSentTo": "The code was sent to",
     "didNotGetIt": "Didn’t get it? Send it again",
     "signInTitle": "Sign in",
@@ -1861,7 +1865,8 @@
     "schoolLogo": "School logo",
     "mainNavigation": "Main navigation",
     "openNavigation": "Open navigation menu",
-    "closeNavigation": "Close navigation menu"
+    "closeNavigation": "Close navigation menu",
+    "supportPreviewHint": "End the preview from the yellow banner at the top of the page to return to the support dashboard."
   },
   "careTypes": {
     "MEAL": "Meals",

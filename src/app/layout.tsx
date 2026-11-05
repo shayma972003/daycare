@@ -24,6 +24,9 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: translate(locale, "app.title"),
     description: translate(locale, "app.description"),
+    icons: {
+      icon: "/brand/logo-orange-purpule.svg",
+    },
   };
 }
 
@@ -47,7 +50,7 @@ export default async function RootLayout({
 
   return (
     <html lang={locale} dir={directionFor(locale)}>
-      <body className={`${tajawal.variable} font-[family-name:var(--font-tajawal)] min-h-screen bg-[#f4f6fb]`}>
+      <body className={`${tajawal.variable} font-[family-name:var(--font-tajawal)] min-h-screen bg-[#FBF9FF]`}>
         <LocaleProvider initialLocale={locale}>{children}</LocaleProvider>
       </body>
     </html>

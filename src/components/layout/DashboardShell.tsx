@@ -70,7 +70,7 @@ export function DashboardShell({
 
   return (
     <DashboardNavigationContext.Provider value={navigation}>
-      <div className="min-h-screen w-full overflow-x-clip bg-brand-bg">
+      <div className="brand-page-background min-h-screen w-full overflow-x-clip">
         <Sidebar schoolName={schoolName} schoolLogo={schoolLogo} subscriptionAccess={supportAccess ? undefined : subscriptionAccess} supportReadOnly={Boolean(supportAccess)} />
         <MobileSidebar
           open={mobileOpen}
@@ -83,7 +83,7 @@ export function DashboardShell({
         />
         <main
           id="dashboard-main"
-          className="min-h-screen min-w-0 overflow-x-clip bg-brand-bg xl:ms-[220px]"
+          className="relative min-h-screen min-w-0 overflow-x-clip bg-transparent xl:ms-[220px]"
         >
           <SupportPresenceBanner initial={supportAccess ? { active: true, expiresAt: supportAccess.expiresAt, isSupportViewer: true } : null} />
           <SubscriptionAccessBanner access={subscriptionAccess} />

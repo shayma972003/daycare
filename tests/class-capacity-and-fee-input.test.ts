@@ -26,6 +26,16 @@ describe("class capacity", () => {
     expect(tasks).toContain('key: "lowClassCapacity"');
     expect(tasks).toContain("if (remaining >= 5) return []");
   });
+
+  it("keeps capacity labels under the class form translation namespace", () => {
+    const ar = JSON.parse(source("locales/ar.json"));
+    const en = JSON.parse(source("locales/en.json"));
+
+    expect(ar.classes.form.capacity).toBe("سعة الفصل");
+    expect(ar.classes.form.capacityPlaceholder).toBe("أدخلي عدد المقاعد");
+    expect(en.classes.form.capacity).toBe("Class capacity");
+    expect(en.classes.form.capacityPlaceholder).toBe("Enter the number of seats");
+  });
 });
 describe("fee text inputs", () => {
   it("keeps numeric text editable and normalizes Arabic digits", () => {
